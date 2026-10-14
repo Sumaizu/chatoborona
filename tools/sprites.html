@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Чатоборона — спрайты</title>
+<style>
+  body { margin: 16px; background: #1b1830; color: #eee; font: 13px "Segoe UI", sans-serif; }
+  .row { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 18px; align-items: flex-end; }
+  figure { margin: 0; text-align: center; }
+  canvas { image-rendering: pixelated; background: #2a2640; }
+</style>
+</head>
+<body>
+<div class="row" id="heroes"></div>
+<div class="row" id="mobs"></div>
+<div class="row" id="icons"></div>
+<div class="row" id="effects"></div>
+<script type="module">
+  import { HEROES, MOB_KINDS, coinSprite, commandUrl, effectIcon, heartSprite, heroSprite, mineSprite, mobSprite,
+    shieldSprite, wallSprite, weaponIcon } from '../site/js/sprites.js';
+  import { RARITIES } from '../site/js/gacha.js';
+  import { BLESSINGS, BUFFS, CURSES, DEBUFFS } from '../site/js/events.js';
+  const show = (box, source, zoom, label) => {
+    const fig = document.createElement('figure'), canvas = document.createElement('canvas');
+    canvas.width = source.width * zoom;
+    canvas.height = source.height * zoom;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+    fig.append(canvas, Object.assign(document.createElement('figcaption'), { textContent: label }));
+    document.getElementById(box).append(fig);
+  };
+  const query = new URLSearchParams(location.search), zoom = Number(query.get('zoom')) || 6;
+  for (const id of HEROES) show('heroes', heroSprite(id), zoom, id);
+  for (const id of MOB_KINDS) {
+    show('mobs', mobSprite(id, 0), Math.max(4, zoom - 2), id);
+    show('mobs', mobSprite(id, 1), Math.max(4, zoom - 2), '');
+  }
+  for (const stage of [0, 1, 2]) show('effects', wallSprite(stage), 4, 'стена ' + stage);
+  for (const kind of ['strong', 'wide', 'stun']) show('effects', mineSprite(kind, true), 6, kind);
+  for (const kind of ['move', 'spin', 'card', 'control']) {
+    const picture = new Image();
+    picture.onload = () => show('effects', picture, 3, kind);
+    picture.src = commandUrl(kind);
+  }
+  show('mobs', coinSprite(), 6, 'coin');
+  HEROES.forEach((id, i) => show('icons', weaponIcon(id, RARITIES[i % RARITIES.length].id, 64), 1, id));
+  show('mobs', heartSprite(), 6, 'heart');
+  show('mobs', shieldSprite(), 6, 'shield');
+  for (const [kind, list] of [['buff', BUFFS], ['debuff', DEBUFFS], ['blessing', BLESSINGS], ['curse', CURSES]]) {
+    for (const effect of list) show('effects', effectIcon(kind, effect.id, 56), 1, effect.id);
+  }
+  window.__ready = true;
+</script>
+</body>
+</html>

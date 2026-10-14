@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Чатоборона</title>
+<link rel="stylesheet" href="css/overlay.css">
+</head>
+<body>
+<div id="stage" hidden>
+  <div class="card" id="card">
+    <div class="cam"></div>
+    <aside class="list chatbox"><h3>Чат</h3><div class="chat" id="chat"></div></aside>
+    <section class="main" id="main">
+      <header class="head">
+        <div class="brand">Чатоборона</div>
+        <div class="wave">волна <b id="wave"></b></div>
+        <div class="status" id="status"></div>
+        <div class="clock" id="clock"></div>
+        <div class="lives" id="lives-box"><i class="heart-icon"></i><b id="lives"></b></div>
+      </header>
+      <div class="board" id="board">
+        <canvas id="field"></canvas>
+        <div class="herald" id="herald" hidden></div>
+        <div class="screen lobby" id="lobby" hidden>
+          <div class="title"><img class="emblem" id="emblem-left" alt=""><span>Чатоборона</span><img class="emblem"
+            id="emblem-right" alt=""></div>
+          <p class="call">Напиши что-нибудь в чат — получишь класс. Карта появится через <b id="lobby-clock"></b></p>
+          <div class="roster" id="roster"></div>
+          <div class="legend" id="legend"></div>
+          <ul class="commands" id="lobby-rules"></ul>
+        </div>
+        <div class="screen over" id="over" hidden>
+          <h2>Оборона пала</h2>
+          <p class="passed" id="passed"></p>
+          <div class="boards">
+            <div class="list"><h3>Убийства в этой игре</h3><ol id="over-kills"></ol></div>
+            <div class="list"><h3>Помощь в этой игре</h3><ol id="over-assists"></ol></div>
+          </div>
+          <p class="next" id="over-next"></p>
+        </div>
+        <div class="screen pause" id="pause" hidden>
+          <h2>Пауза</h2>
+          <p class="record-line" id="pause-record"></p>
+          <div class="boards three">
+            <div class="list"><h3>Сильнейшие</h3><ol id="pause-top"></ol></div>
+            <div class="list"><h3>Убийства</h3><ol id="pause-kills"></ol></div>
+            <div class="list"><h3>Помощь</h3><ol id="pause-assists"></ol></div>
+          </div>
+        </div>
+        <div class="cards board-cards" id="board-cards"></div>
+      </div>
+    </section>
+    <aside class="side" id="side">
+      <div class="list gacha">
+        <h3>Гача <span class="price" id="price"></span></h3>
+        <div class="slot" id="slot-0"></div>
+        <div class="slot" id="slot-1"></div>
+        <div class="queue" id="queue"></div>
+      </div>
+      <div class="list effects"><h3>Эффекты</h3><div id="effects"></div></div>
+      <div class="list players" id="players-box">
+        <h3>Отряд <span class="count" id="players-count"></span></h3>
+        <ol id="players"></ol>
+        <p class="hint" id="hint"></p>
+      </div>
+      <div class="cards" id="cards"></div>
+    </aside>
+  </div>
+</div>
+<script type="module" src="js/overlay.js"></script>
+</body>
+</html>
