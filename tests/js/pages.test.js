@@ -1,7 +1,7 @@
 import { SFX_GAPS, SOUNDS, measure } from '../../site/js/sound.js';
 import { CLASSES } from '../../site/js/classes.js';
 import { BOSSES, ELITES } from '../../site/js/balance.js';
-import { HERO_SIZE, MOB_KINDS, coinUrl, heroSprite, heroUrl, mobSprite, weaponUrl } from '../../site/js/sprites.js';
+import { HERO_SIZE, MOB_KINDS, coinUrl, heroSprite, heroUrl, mobSprite, prizeUrl } from '../../site/js/sprites.js';
 import { eq, no, ok, test } from './harness.js';
 
 const SITE = '/site/';
@@ -89,6 +89,10 @@ test('страницы: оверлей сам открывает набор, ч�
   await wait(600);
   watcher.disconnect();
   eq(watched.length, 0, 'карточку не переставляют в разметке');
+  const said = ['гача', 'улучшить', 'к7', '!чатоборона-пауза'];
+  for (const message of said) game.feed('Боря', message, { login: 'боря' });
+  await until(() => w.document.querySelectorAll('#chat .msg.cmd img.cmd-icon').length >= said.length + 1,
+    'значки у всех команд');
   frame.remove();
 });
 
@@ -171,10 +175,10 @@ test('звуки: каждый слышно и ни один не хрипит, 
 test('спрайты: герои, мобы, оружие и монета рисуются', () => {
   for (const cls of CLASSES) {
     ok(heroUrl(cls.id).startsWith('data:image/png'), cls.id);
-    ok(weaponUrl(cls.id, 'epic').startsWith('data:image/png'), cls.id);
     eq(heroSprite(cls.id).width, HERO_SIZE);
   }
   for (const kind of MOB_KINDS) ok(mobSprite(kind).width >= 8, kind);
   for (const kind of ELITES.concat(BOSSES)) ok(MOB_KINDS.includes(kind.id), kind.id);
   ok(coinUrl().startsWith('data:image/png'));
+  for (const kind of ['weapon', 'void', 'coins']) ok(prizeUrl(kind, '#facc15').startsWith('data:image/png'), kind);
 });

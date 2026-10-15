@@ -141,6 +141,49 @@ const RECIPES = {
     s.thump(at + 0.13, 150, 38, 0.55, 0.42);
     s.crunch(at + 0.14, 0.3, 0.16);
   },
+  void(s, at) {
+    s.horn(at, 196, 0.5, 0.08, 0);
+    s.swish(at, 900, 200, 0.5, 0.06);
+  },
+  jackpot(s, at) {
+    const notes = [1318.5, 1568, 1975.5];
+    for (let i = 0; i < 9; i++) s.pluck(at + i * 0.05, notes[i % 3], 0.25, 0.08, (i % 3 - 1) * 0.4, 1.6);
+    s.chime(at + 0.45, 2637, 1, 0.07, 0);
+  },
+  upgrade(s, at) {
+    s.bell(at, 880, 0.5, 0.16, 2.76, 1.8);
+    s.bell(at + 0.12, 1318.5, 0.7, 0.13, 2.76, 1.4);
+    s.chime(at + 0.25, 2637, 0.6, 0.05, 0);
+  },
+  reward(s, at) {
+    [D5, FS5, A5].forEach((note, i) => s.pluck(at + i * 0.08, note, 0.5, 0.12, -0.2 + i * 0.2, 1.2));
+    s.pop(at + 0.2, 1300, 1700, 0.05, 0.06);
+  },
+  clink(s, at) {
+    s.chime(at, 2093 + Math.random() * 400, 0.25, 0.05, spread());
+  },
+  treasure(s, at) {
+    for (let i = 0; i < 16; i++) {
+      s.chime(at + i * 0.035 + Math.random() * 0.03, 1800 + Math.random() * 1600, 0.3, 0.035, spread());
+    }
+    s.thump(at, 120, 50, 0.3, 0.3);
+  },
+  rattle(s, at) {
+    for (let i = 0; i < 6; i++) s.chime(at + i * 0.045, 2400 + Math.random() * 900, 0.12, 0.025, spread());
+  },
+  rise(s, at) {
+    s.crunch(at, 0.2, 0.12);
+    s.swish(at, 300, 1400, 0.35, 0.1);
+    s.bell(at + 0.2, 330, 0.5, 0.06, 1.5, 0.8);
+  },
+  hex(s, at) {
+    s.swish(at, 2500, 600, 0.3, 0.1);
+    s.bell(at, 466, 0.4, 0.08, 1.41, 1.6);
+  },
+  burrow(s, at) {
+    s.crunch(at, 0.4, 0.14);
+    s.swish(at, 500, 150, 0.4, 0.1);
+  },
   holy(s, at) {
     s.chime(at, 1568, 0.4, 0.07, 0);
     s.swish(at, 3000, 6000, 0.15, 0.05);
@@ -241,7 +284,7 @@ export const SFX_GAPS = {
   flask: 0.1, flame: 0.3, bolt: 0.08, ice: 0.1, wind: 0.2, cast: 0.12, crit: 0.15, freeze: 0.25, stun: 0.2,
   storm: 0.3, rally: 0.5, heal: 0.5, block: 0.3, roar: 1, growl: 0.8, summon: 0.4, plant: 0.3, build: 0.4,
   crumble: 0.4, bite: 0.15, leap: 0.3, chomp: 0.25, nuke: 2, join: 0.4, card: 0.3, holy: 0.12, splash: 0.15,
-  snap: 0.15, execute: 0.3,
+  snap: 0.15, execute: 0.3, clink: 0.2, treasure: 1, rattle: 1, rise: 0.4, hex: 0.4, burrow: 0.5,
 };
 
 export const SOUNDS = Object.keys(RECIPES);

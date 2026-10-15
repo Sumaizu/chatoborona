@@ -1,9 +1,10 @@
 import { Battle } from './battle.js';
 import { makePath, parseCell } from './field.js';
 import { CLASSES, CLASS_BY_ID } from './classes.js';
-import { TICK } from './balance.js';
-import { PRICE, RARITIES, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, spin } from './gacha.js';
-import { LASTING, rollEvent } from './events.js';
+import { TICK, waveReward } from './balance.js';
+import { PRICE, RARITIES, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, UPGRADE_PRICE, spin, uniqueOf, upgrade,
+  weaponStats } from './gacha.js';
+import { LASTING, effectOf, rollEvent } from './events.js';
 
 export const COMMANDS = new Map([
   ['!чатоборона-пауза', 'pause'],
@@ -14,6 +15,7 @@ export const COMMANDS = new Map([
 export const ACTIONS = new Map([
   ['гача', 'spin'],
   ['профиль', 'card'],
+  ['улучшить', 'upgrade'],
 ]);
 export const STARS = new Map([
   ['sumaizu', 'rainbow'],
@@ -29,13 +31,13 @@ export const BOTS = [
 export const CHAT_KEEP = 60;
 export const CHAT_TEXT_MAX = 300;
 export const OVER_TIME = 15;
-export const CARD_TIME = 12;
+export const CARD_TIME = 24;
 export const NOTE_TIME = 4;
 
 const STEP_MAX = 1;
 const EVENTS_MAX = 500;
 const EMOTES_MAX = 30;
-const NO_MODS = { damage: 0, rate: 0, range: 0, crit: 0, xp: 0, coins: 0 };
+const NO_MODS = { damage: 0, rate: 0, range: 0, crit: 0, power: 0, xp: 0, coins: 0 };
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 const EMOTE_ID_RE = /^[A-Za-z0-9_]{1,80}$/;
 const INVISIBLE = /[\u200B\u200C\u200D\u2060\uFEFF\u00AD\u034F\u2800\u{E0000}]/gu;
@@ -193,6 +195,8 @@ export class Game {
     this.chat = [];
     this.events = [];
     this._chatNo = 0;
+    this._noteNo = 0;
+    this.deck = [];
     this._spinNo = 0;
     this._carry = 0;
     this._resetDue = null;
@@ -292,7 +296,7 @@ export class Game {
       login, name, color: COLOR_RE.test(String(color || '')) ? color : null,
       star: STARS.has(login) ? STARS.get(login) : null,
       xp: saved ? saved.xp : 0, kills: saved ? saved.kills : 0, assists: saved ? saved.assists : 0,
-      coins: 0, cls: this._randomClass(), weapon: null, tower: null,
+      coins: 0, cls: this._randomClass(), weapon: null, tower: null, pendingMove: null,
     };
     this.members.set(login, member);
     this.profiles.update(member);
@@ -321,9 +325,12 @@ export class Game {
     } else if (action === 'card') {
       entry.command = 'card';
       done = member ? this._card(member) : null;
+    } else if (action === 'upgrade') {
+      entry.command = 'upgrade';
+      done = this.improve(member);
     } else if (cell) {
       entry.command = 'move';
-      done = this.goTo(member, cell.x, cell.y) ? 'move' : null;
+      done = this.goTo(member, cell.x, cell.y) ? 'move' : this._later(member, cell);
     }
     entry.ok = Boolean(done) && done !== 'poor';
     return done;
@@ -349,12 +356,37 @@ export class Game {
     return Boolean(this._place(member, { x, y }));
   }
 
+  improve(member) {
+    if (!member || !this.battle) return null;
+    if (!member.weapon) {
+      this._note('bare', member);
+      return 'poor';
+    }
+    if (member.coins < UPGRADE_PRICE) {
+      this._note('poor', member, NOTE_TIME, { price: UPGRADE_PRICE });
+      return 'poor';
+    }
+    member.coins -= UPGRADE_PRICE;
+    const up = upgrade(this.random, member.weapon);
+    this._refresh(member);
+    this._note('upgrade', member, NOTE_TIME, up);
+    this._emit('upgraded', { login: member.login, stat: up.id, amount: up.amount });
+    return 'upgraded';
+  }
+
+  _later(member, cell) {
+    if (!member || !member.tower || this.state !== 'wave' || member.tower.rider) return null;
+    if (!this.battle.free(cell.x, cell.y)) return null;
+    member.pendingMove = { x: cell.x, y: cell.y };
+    return 'later';
+  }
+
   order(member) {
     if (!member || !this.battle) return null;
     const busy = this.slots.some((slot) => slot && slot.login === member.login);
     if (busy || this.queue.includes(member.login)) return null;
     if (member.coins < PRICE) {
-      this._note('poor', member);
+      this._note('poor', member, NOTE_TIME, { price: PRICE });
       return 'poor';
     }
     this.queue.push(member.login);
@@ -367,8 +399,9 @@ export class Game {
   }
 
   modsOf(member) {
-    const total = Object.assign({}, NO_MODS);
-    if (member.weapon) addMods(total, member.weapon.stats);
+    const total = Object.assign({}, NO_MODS), unique = member.weapon ? uniqueOf(member.weapon.unique) : null;
+    if (member.weapon) addMods(total, weaponStats(member.weapon));
+    if (unique) addMods(total, unique.mods);
     if (this.run) {
       for (const effect of this.run.now) addMods(total, effect.mods);
       addMods(total, this.run.mods);
@@ -389,7 +422,14 @@ export class Game {
   }
 
   _randomClass() {
-    return CLASSES[Math.floor(this.random() * CLASSES.length)].id;
+    if (!this.deck.length) {
+      this.deck = CLASSES.map((cls) => cls.id);
+      for (let i = this.deck.length - 1; i > 0; i--) {
+        const j = Math.floor(this.random() * (i + 1));
+        [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
+      }
+    }
+    return this.deck.pop();
   }
 
   _emit(kind, details = {}) {
@@ -398,10 +438,10 @@ export class Game {
     if (this.events.length > EVENTS_MAX) this.events.splice(0, this.events.length - EVENTS_MAX / 2);
   }
 
-  _note(kind, member, time = NOTE_TIME) {
+  _note(kind, member, time = NOTE_TIME, detail = null) {
     if (this.quiet) return;
     this.notes = this.notes.filter((note) => note.login !== member.login || note.kind !== kind);
-    this.notes.push({ kind, login: member.login, left: time });
+    this.notes.push({ kind, login: member.login, left: time, detail, id: ++this._noteNo });
   }
 
   _card(member) {
@@ -455,6 +495,7 @@ export class Game {
     this.run = { number: this.games, mods: Object.assign({}, NO_MODS), foe: { hp: 0, speed: 0 }, lives: 0,
       effects: [], now: [], next: [], started: null };
     this.members = new Map();
+    this.deck = [];
     this._emit('lobby');
   }
 
@@ -517,11 +558,28 @@ export class Game {
       this.run.now = [];
       for (const member of this.members.values()) this._refresh(member);
     }
+    const reward = waveReward(this.wave);
+    for (const member of this.members.values()) {
+      if (!member.tower) continue;
+      member.coins += reward.coins;
+      member.tower.run.coins += reward.coins;
+      this.battle.reward(member.tower, reward.xp);
+    }
     this._saveAll();
     this.state = 'break';
     this.left = this.s.wave_pause;
     this._planEvent();
-    this._emit('cleared', { wave: this.wave });
+    if (this.battle.treasures) {
+      this.battle.treasures = 0;
+      this.run.next.push(Object.assign({ kind: 'buff', treasure: true }, effectOf('buff', 'gold')));
+      this._emit('event', { type: 'buff', id: 'gold' });
+    }
+    for (const member of this.members.values()) {
+      if (!member.pendingMove) continue;
+      this.goTo(member, member.pendingMove.x, member.pendingMove.y);
+      member.pendingMove = null;
+    }
+    this._emit('cleared', { wave: this.wave, coins: reward.coins, xp: reward.xp });
   }
 
   _over() {
@@ -537,6 +595,7 @@ export class Game {
     this.left = OVER_TIME;
     this.queue = [];
     this.slots = Array(SLOTS).fill(null);
+    for (const member of this.members.values()) member.pendingMove = null;
     this._emit('over', { passed, record });
   }
 
@@ -590,10 +649,22 @@ export class Game {
   }
 
   _apply(slot) {
-    const member = this.members.get(slot.login), weapon = slot.outcome.weapon;
+    const member = this.members.get(slot.login), outcome = slot.outcome, weapon = outcome.weapon;
     slot.phase = 'show';
     slot.left = this.queue.length ? SHOW_FAST : SHOW_TIME;
     if (!member) return;
+    if (outcome.kind === 'void') {
+      slot.took = false;
+      this._emit('void', { login: member.login });
+      return;
+    }
+    if (outcome.kind === 'coins') {
+      slot.took = true;
+      slot.coins = PRICE * 2;
+      member.coins += slot.coins;
+      this._emit('jackpot', { login: member.login, coins: slot.coins });
+      return;
+    }
     slot.took = !member.weapon || rank(weapon) >= rank(member.weapon);
     if (slot.took) {
       member.weapon = weapon;

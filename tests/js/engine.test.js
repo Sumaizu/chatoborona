@@ -97,17 +97,21 @@ test('игра: клетка в чате переводит защитника, 
   eq([tower.x, tower.y], [free.x, free.y]);
 });
 
-test('игра: во время волны перебегать нельзя, в подготовку — можно', () => {
+test('игра: перебежка во время волны ждёт подготовки, в подготовку — сразу', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Гена', 'я тут');
   toWave(game);
   const tower = game.members.get('гена').tower, spot = game.battle.bestCell(2.5);
-  eq(say(game, 'Гена', cellName(spot.x, spot.y)), null);
-  ok(tower.x !== spot.x || tower.y !== spot.y);
-  eq(say(game, 'Дина', cellName(spot.x, spot.y)), null, 'клеткой во время волны не переставить');
+  eq(say(game, 'Гена', cellName(spot.x, spot.y)), 'later');
+  eq([last(game).command, last(game).ok], ['move', true]);
+  ok(tower.x !== spot.x || tower.y !== spot.y, 'пока волна — стоит');
+  eq(game.members.get('гена').pendingMove, { x: spot.x, y: spot.y });
+  eq(say(game, 'Дина', cellName(spot.x, spot.y)), 'later', 'новичок встаёт сам, а перебежит после волны');
   ok(game.members.get('дина').tower, 'но в отряд вступила');
   ok(until(game, () => game.state === 'break'));
+  eq([tower.x, tower.y], [spot.x, spot.y], 'после волны перебежал');
+  eq(game.members.get('гена').pendingMove, null);
   const free = game.battle.bestCell(2.5);
   eq(say(game, 'Гена', cellName(free.x, free.y)), 'move', 'в подготовку можно');
 });
@@ -145,8 +149,8 @@ test('гача: команда без восклицательного знак�
   game.step(TICK);
   const slot = game.slots[0];
   eq(slot.login, 'нина');
-  eq(slot.outcome.kind, 'weapon');
-  eq(slot.outcome.weapon.cls, member.cls);
+  ok(['weapon', 'void', 'coins'].includes(slot.outcome.kind));
+  if (slot.outcome.kind === 'weapon') eq(slot.outcome.weapon.cls, member.cls);
   for (const cls of Object.keys(WEAPONS)) {
     ok(weaponName(makeWeapon(() => 0.5, cls, RARITIES[3])).endsWith(WEAPONS[cls]), cls);
   }
@@ -225,20 +229,21 @@ test('гача: без монет нельзя, крутят двое сразу
   eq(game.slots[0].phase, 'spin');
   runFor(game, 0.4);
   eq(game.slots[0].phase, 'show');
-  ok(game.slots[0].took, 'оружия не было — выпавшее надето');
+  const kind = game.slots[0].outcome.kind;
+  eq(game.slots[0].took, kind !== 'void', 'оружие надето или монеты удвоены, пустота — ничего');
   runFor(game, SHOW_FAST + 0.2);
   ok(game.slots.some((slot) => slot && slot.login === 'зина'), 'освободилось место — крутит следующая');
 });
 
-test('гача: та же редкость или выше — меняется само, ниже — остаётся своё; плохое надевается, если не было', () => {
+test('гача: та же редкость или выше — меняется само, ниже — остаётся своё; без оружия надевается любое', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Зоя', 'привет');
   toWave(game);
   const member = game.members.get('зоя'), make = (i) => makeWeapon(seeded(i + 1), member.cls, RARITIES[i]);
-  const poor = make(0), mythic = make(3), common = make(1), other = make(3), legendary = make(5);
-  ok(drop(game, 'зоя', poor).took);
-  eq(member.weapon, poor);
+  const first = make(0), mythic = make(2), common = make(0), other = make(2), legendary = make(4);
+  ok(drop(game, 'зоя', first).took);
+  eq(member.weapon, first);
   ok(drop(game, 'зоя', mythic).took);
   eq(member.weapon, mythic);
   ok(Object.keys(mythic.stats).some((key) => member.tower.mods[key] !== 0), 'свойства дошли до бойца');
@@ -422,4 +427,74 @@ test('сброс по расписанию: раз в день в заданны
   game.step(TICK);
   eq(game.members.get('яна').xp, 0);
   eq(profiles.since, base + 3601);
+});
+
+test('гача: пустота ничего не даёт, удвоение — возвращает потраченное вдвое', () => {
+  const { game } = makeGame();
+  game.open();
+  say(game, 'Ося', 'привет');
+  toWave(game);
+  const member = game.members.get('ося');
+  member.coins = 70;
+  const empty = { id: 1, login: 'ося', outcome: { kind: 'void' }, phase: 'spin', left: 0 };
+  game.slots[0] = empty;
+  game._apply(empty);
+  eq(member.coins, 70);
+  eq(member.weapon, null);
+  const lucky = { id: 2, login: 'ося', outcome: { kind: 'coins' }, phase: 'spin', left: 0 };
+  game.slots[1] = lucky;
+  game._apply(lucky);
+  eq(member.coins, 70 + PRICE * 2);
+  eq(lucky.coins, PRICE * 2);
+});
+
+test('улучшить: за 100 монет +20% к случайному свойству, без оружия и без денег — нельзя', () => {
+  const { game } = makeGame();
+  game.open();
+  say(game, 'Рита', 'привет');
+  toWave(game);
+  const member = game.members.get('рита');
+  member.coins = 500;
+  eq(say(game, 'Рита', 'улучшить'), 'poor', 'без оружия нечего улучшать');
+  ok(game.notes.some((n) => n.kind === 'bare'));
+  member.weapon = makeWeapon(seeded(3), member.cls, RARITIES[2]);
+  game._refresh(member);
+  const before = JSON.stringify(member.tower.mods);
+  eq(say(game, 'Рита', 'улучшить'), 'upgraded');
+  eq([last(game).command, last(game).ok], ['upgrade', true]);
+  eq(member.coins, 400);
+  ok(Object.keys(member.weapon.ups).length === 1);
+  ok(JSON.stringify(member.tower.mods) !== before, 'свойство дошло до бойца');
+  member.coins = 50;
+  eq(say(game, 'Рита', '!улучшить'), 'poor');
+  ok(game.notes.some((n) => n.kind === 'poor' && n.detail.price === 100));
+});
+
+test('классы не повторяются, пока не выпадут все', () => {
+  const { game } = makeGame();
+  game.open();
+  for (let i = 0; i < 15; i++) say(game, 'Игрок' + i, 'привет');
+  eq(new Set(Array.from(game.members.values()).map((m) => m.cls)).size, 15);
+  say(game, 'Шестнадцатый', 'привет');
+  ok(game.members.get('шестнадцатый').cls);
+});
+
+test('за пройденную волну всем — монеты и опыт', () => {
+  const { game } = makeGame();
+  game.open();
+  say(game, 'Тёма', 'привет');
+  toWave(game);
+  const member = game.members.get('тёма');
+  ok(until(game, () => game.state === 'break'));
+  game.events.length = 0;
+  runFor(game, PLAIN.wave_pause + 0.1);
+  member.tower.busy = 1e9;
+  const coins = member.coins, xp = member.xp;
+  ok(until(game, () => game.state === 'break' || game.state === 'over', 3600));
+  if (game.state === 'break') {
+    const cleared = game.events.find((e) => e.kind === 'cleared');
+    ok(cleared && cleared.coins > 0 && cleared.xp > 0);
+    ok(member.coins >= coins + cleared.coins);
+    ok(member.xp >= xp + cleared.xp);
+  }
 });

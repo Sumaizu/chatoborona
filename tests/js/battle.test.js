@@ -1,7 +1,7 @@
 import { test, eq, ok, no } from './harness.js';
 import { makeBattle, player, runFor, seeded } from './fixtures.js';
-import { BITE_TIME, MOVE_PAUSE, NUKE_STUN } from '../../site/js/battle.js';
-import { BOSSES, ELITES, HEAL_CAP, LIVES, LOOKS, MOBS, POWERS, TICK, waveSpawns, xpForLevel }
+import { BITE_TIME, MOVE_PAUSE, NUKE_STUN, OVERTIME } from '../../site/js/battle.js';
+import { BOSSES, ELITES, HEAL_CAP, LIVES, LOOKS, MIMIC, MOBS, POWERS, TICK, waveSpawns, xpForLevel }
   from '../../site/js/balance.js';
 import { ASSIST_COINS, KILL_COINS } from '../../site/js/gacha.js';
 import { CLASSES } from '../../site/js/classes.js';
@@ -424,21 +424,21 @@ test('знаменосец и мудрец: знамя — быстрее и д�
   const quiet = makeBattle(), young = quiet.place(player(xpForLevel(5)), 'sage', 10, 4);
   quiet.place(player(), 'gunner', 11, 4);
   quiet.step(TICK);
-  eq(young.muse, null, 'до десятого уровня не вдохновляет');
+  eq(young.muses.length, 0, 'до десятого уровня не вдохновляет');
   const field = makeBattle(), sage = field.place(player(xpForLevel(12)), 'sage', 10, 4);
   const a = field.place(player(), 'gunner', 11, 4), b2 = field.place(player(), 'gunner', 9, 4);
   const far = field.place(player(), 'gunner', 18, 3);
   field.step(TICK);
   field.step(TICK);
-  ok(sage.muse === a || sage.muse === b2, 'вдохновлён сосед');
-  const lucky = sage.muse, other = lucky === a ? b2 : a;
+  ok(sage.muses[0] === a || sage.muses[0] === b2, 'вдохновлён сосед');
+  const lucky = sage.muses[0], other = lucky === a ? b2 : a;
   ok(lucky.buff.damage >= sage.p.muse && lucky.buff.haste >= sage.p.muse && lucky.buff.range >= sage.p.muse);
   eq(other.buff.damage, 0, 'только один');
   eq(far.buff.damage, 0);
   const seen = new Set();
   for (let i = 0; i < 12; i++) {
     runFor(field, 5);
-    seen.add(sage.muse);
+    seen.add(sage.muses[0]);
   }
   eq(seen.size, 2, 'цель меняется');
 });
@@ -448,7 +448,7 @@ test('мудрец: с пятидесятого уровня добавочны�
   const ally = battle.place(player(), 'gunner', 11, 4);
   battle.step(TICK);
   battle.step(TICK);
-  ok(sage.muse === ally);
+  ok(sage.muses[0] === ally);
   ok(sage.p.share);
   const before = ally.player.xp;
   battle._grant(sage, 10);
@@ -639,4 +639,172 @@ test('снайпер: сперва летучих, потом самого кр�
   ok(battle._target(sniper) === flyer);
   flyer.dead = true;
   ok(battle._target(sniper) === strong);
+});
+
+test('скелеты: встают после смерти с полным здоровьем, лекарь упокаивает насовсем', () => {
+  const battle = makeBattle(), gun = battle.place(player(), 'gunner', 2, 4);
+  const skeleton = creature(battle, 'skeleton', 6, 100);
+  battle._hurt(skeleton, 1e6, gun);
+  battle.step(TICK);
+  eq(battle.mobs.filter((m) => m.look === 'skeleton').length, 0, 'лежит');
+  runFor(battle, 1.6);
+  const risen = battle.mobs.find((m) => m.look === 'skeleton');
+  ok(risen && risen.risen, 'встал');
+  eq(risen.hp, risen.max);
+  battle._hurt(risen, 1e6, gun);
+  runFor(battle, 2);
+  eq(battle.mobs.filter((m) => m.look === 'skeleton').length, 0, 'второй раз не встаёт');
+  const healer = battle.place(player(), 'healer', 4, 4), other = creature(battle, 'skeleton', 6, 100);
+  battle._hurt(other, 1e6, healer);
+  runFor(battle, 2);
+  eq(battle.mobs.filter((m) => m.look === 'skeleton').length, 0, 'упокоен лекарем');
+});
+
+test('мимик: за убийство — золото всем, кто бил; дошёл до сердца — зарылся без урона', () => {
+  const battle = makeBattle(), a = player(), b = player();
+  const ta = battle.place(a, 'gunner', 2, 4), tb = battle.place(b, 'gunner', 2, 6);
+  const mimic = battle._spawn({ type: 'elite', kind: MIMIC, hp: 1000 }, 6);
+  ok(mimic.treasure);
+  battle._hurt(mimic, 10, tb);
+  battle._hurt(mimic, 1e6, ta);
+  ok(a.coins >= MIMIC.coins && b.coins >= MIMIC.coins, 'золото обоим');
+  eq(battle.treasures, 1);
+  ok(battle.events.some((e) => e.kind === 'clink') && battle.events.some((e) => e.kind === 'treasure'));
+  const runner = battle._spawn({ type: 'elite', kind: MIMIC, hp: 1e9 }, battle.length - 2);
+  for (let i = 0; i < 200 && !runner.dead; i++) battle.step(TICK);
+  ok(runner.dead);
+  eq(battle.lives, LIVES, 'жизни целы');
+  ok(battle.events.some((e) => e.kind === 'burrow'));
+});
+
+test('элитные: выходят случайно и по нескольку, мимик — сверх них', () => {
+  let elites = 0, waves = 0, mimics = 0, many = 0;
+  for (let seed = 1; seed <= 60; seed++) {
+    const battle = makeBattle({ random: seeded(seed) });
+    battle.startWave(30, 5);
+    const count = battle.spawns.filter((s) => s.type === 'elite' && s.kind !== MIMIC).length;
+    elites += count;
+    if (count >= 2) many += 1;
+    if (battle.spawns.some((s) => s.kind === MIMIC)) mimics += 1;
+    waves += 1;
+  }
+  ok(elites / waves > 0.3, 'элитные частые');
+  ok(many > 0, 'бывает по нескольку');
+  ok(mimics > 0 && mimics < waves / 2, 'мимик иногда');
+});
+
+test('элитные: тень пропадает из прицелов, голема не остановить, ведьма оглушает защитника', () => {
+  const battle = makeBattle(), sniper = battle.place(player(), 'sniper', 10, 4);
+  const shade = special(battle, 'elite', 'shade', 1e6);
+  shade.d = 10;
+  battle._locate(shade);
+  shade.powerUntil = battle.time + 2;
+  eq(battle._target(sniper), null, 'невидимую не видно');
+  shade.powerUntil = 0;
+  ok(battle._target(sniper) === shade);
+  const golem = special(battle, 'elite', 'golem', 1e6);
+  battle._hold(golem, 3, sniper);
+  battle._slow(golem, 0.5, 3);
+  battle._push(golem, 2, sniper);
+  eq(golem.holdUntil, 0);
+  eq(golem.slow, 0);
+  eq(golem.pushed, 0);
+  const witch = special(battle, 'elite', 'witch', 1e6);
+  witch.d = 10;
+  battle._locate(witch);
+  battle._hex(witch, POWERS.hex);
+  ok(sniper.stunUntil > battle.time, 'оглушён');
+});
+
+test('элитные: вампир лечится, когда рядом гибнут, прыгун скачет вперёд', () => {
+  const battle = makeBattle(), gun = battle.place(player(), 'gunner', 2, 4);
+  const vampire = special(battle, 'elite', 'vampire', 1000), victim = walker(battle, 5, 10);
+  vampire.hp = 500;
+  battle._hurt(victim, 100, gun);
+  ok(vampire.hp > 500);
+  const blinker = special(battle, 'elite', 'blinker', 1e6), before = blinker.d;
+  blinker.powerAt = battle.time;
+  battle.step(TICK);
+  ok(blinker.d > before + 2, 'прыгнул');
+});
+
+test('мины и капканы сверх предела заменяют старые, стена обновляется только после передышки', () => {
+  const battle = makeBattle(), miner = battle.place(player(xpForLevel(5)), 'miner', 10, 4);
+  runFor(battle, 90);
+  eq(battle.mines.length, miner.p.mineCap);
+  const oldest = battle.mines[0];
+  runFor(battle, miner.p.mineEvery + 0.1);
+  eq(battle.mines.length, miner.p.mineCap);
+  no(battle.mines.includes(oldest), 'старая заменена новой');
+  const field = makeBattle(), mage = field.place(player(xpForLevel(5)), 'earth', 10, 4);
+  runFor(field, 1.2);
+  const wall = field.walls[0];
+  wall.hp = wall.max / 2;
+  wall.hitAt = field.time;
+  mage.nextWall = field.time;
+  field.step(TICK);
+  ok(field.walls.includes(wall), 'под ударами не меняется');
+  wall.hitAt = field.time - 3.1;
+  mage.nextWall = field.time;
+  field.step(TICK);
+  no(field.walls.includes(wall), 'после передышки — новая');
+  eq(field.walls[0].hp, field.walls[0].max);
+});
+
+test('каменный маг перебежал — новая стена встаёт сразу, старая убрана', () => {
+  const battle = makeBattle(), mage = battle.place(player(xpForLevel(5)), 'earth', 10, 4);
+  runFor(battle, 1.2);
+  const old = battle.walls[0], spot = battle.bestCell(mage.range);
+  ok(old);
+  ok(battle.move(mage, spot.x, spot.y));
+  eq(battle.walls.filter((wall) => wall.tower === mage).length, 1);
+  const wall = battle.walls[0];
+  no(wall === old, 'стена новая');
+  ok(battle._inReach(mage, wall.i), 'рядом с новым местом');
+  eq(wall.hp, wall.max);
+});
+
+test('затянувшаяся волна: через две минуты после последнего моба выжившие звереют и идут сквозь стены', () => {
+  const battle = makeBattle();
+  battle.place(player(xpForLevel(5)), 'earth', 10, 4);
+  runFor(battle, 1.2);
+  const wall = battle.walls[0], mob = walker(battle, Math.max(0, wall.d - 1.5), 1e12);
+  wall.hp = wall.max = 1e12;
+  runFor(battle, OVERTIME - 10);
+  no(mob.wild, 'пока рано');
+  ok(mob.wall === wall, 'стоит у стены');
+  runFor(battle, 15);
+  ok(mob.wild, 'рассвирепел');
+  ok(battle.events.some((e) => e.kind === 'wild'));
+  battle._hold(mob, 5, null);
+  ok(mob.holdUntil <= battle.time, 'оковы не держат');
+  for (let i = 0; i < 4000 && battle.lives === LIVES; i++) battle.step(TICK);
+  ok(battle.lives < LIVES, 'прошёл сквозь стену к сердцу');
+});
+
+test('лекарь чинит каменные стены рядом, но не под ударами', () => {
+  const battle = makeBattle();
+  battle.place(player(xpForLevel(5)), 'earth', 10, 4);
+  runFor(battle, 1.2);
+  const wall = battle.walls[0];
+  battle.place(player(), 'healer', Math.floor(wall.x), 6);
+  wall.hp = wall.max / 2;
+  runFor(battle, 2);
+  ok(wall.hp > wall.max / 2);
+  wall.hp = wall.max / 2;
+  wall.hitAt = battle.time;
+  runFor(battle, 1);
+  eq(wall.hp, wall.max / 2, 'под ударами не чинит');
+});
+
+test('оружие: сила приёма и легендарное свойство класса меняют сам приём', () => {
+  const battle = makeBattle(), mage = battle.place(player(), 'earth', 10, 4);
+  const plain = mage.p.wallHp;
+  battle.setMods(mage, { damage: 0, rate: 0, range: 0, crit: 0, power: 0.5, xp: 0, coins: 0, unique: null });
+  ok(Math.abs(mage.p.wallHp - plain * 1.5) < 1e-9, 'сила приёма — прочность стен');
+  battle.setMods(mage, { damage: 0, rate: 0, range: 0, crit: 0, power: 0, xp: 0, coins: 0, unique: 'granite' });
+  ok(Math.abs(mage.p.wallHp - plain * 2) < 1e-9, 'Гранит — вдвое прочнее');
+  const banner = battle.place(player(), 'banner', 3, 4), aura = banner.p.aura;
+  battle.setMods(banner, { damage: 0, rate: 0, range: 1, crit: 0, power: 0, xp: 0, coins: 0, unique: null });
+  eq(banner.p.aura, aura + 1, 'радиус — у ауры');
 });

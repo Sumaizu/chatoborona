@@ -11,7 +11,7 @@ export const MOBS = {
   fast: { name: 'Пёс', hp: 0.6, speed: 1.7, xp: 1, coins: 1, leak: 1 },
   tough: { name: 'Громила', hp: 2.6, speed: 0.7, xp: 2, coins: 1, leak: 2 },
   swarm: { name: 'Крыса', hp: 0.35, speed: 1.25, xp: 1, coins: 1, leak: 1 },
-  elite: { name: 'Элитный', hp: 6, speed: 0.85, xp: 5, coins: 3, leak: 3, elite: true },
+  elite: { name: 'Элитный', hp: 4.5, speed: 0.85, xp: 5, coins: 3, leak: 3, elite: true },
   boss: { name: 'Босс', hp: 30, speed: 0.6, xp: 20, coins: 10, leak: 6, boss: true },
 };
 
@@ -30,7 +30,30 @@ export const POWERS = {
     look: 'imp' },
   shield: { id: 'shield', name: 'Щит', text: 'раз в 8 секунд неуязвим на 2 секунды', every: 8, time: 2 },
   split: { id: 'split', name: 'Деление', text: 'при смерти распадается на двух больших слизней' },
+  veil: { id: 'veil', name: 'Невидимость', text: 'раз в 6 секунд на 2 секунды пропадает из прицелов', every: 6,
+    time: 2 },
+  raise: { id: 'raise', name: 'Поднять мёртвых', text: 'раз в 7 секунд поднимает двух скелетов', every: 7, count: 2,
+    hp: 0.8, summon: 'normal', look: 'skeleton' },
+  frenzy: { id: 'frenzy', name: 'Неистовство', text: 'раз в 8 секунд на 3 секунды несётся почти вдвое быстрее, '
+    + 'и его не остановить', every: 8, time: 3, boost: 0.8, steady: true },
+  steadfast: { id: 'steadfast', name: 'Каменная кожа', text: 'не замедляется, не оглушается, не отбрасывается '
+    + 'и получает на 20% меньше урона', cut: 0.2, steady: true },
+  hex: { id: 'hex', name: 'Сглаз', text: 'раз в 6 секунд оглушает ближайшего защитника на 1,5 секунды', every: 6,
+    range: 3, hold: 1.5 },
+  leech: { id: 'leech', name: 'Кровосос', text: 'лечится, когда рядом гибнут мобы', range: 2.5, heal: 0.15 },
+  blink: { id: 'blink', name: 'Скачок', text: 'раз в 6 секунд прыгает на 2,5 клетки вперёд', every: 6, jump: 2.5 },
+  undying: { id: 'undying', name: 'Бессмертие', text: 'после смерти встаёт с полным здоровьем и поднимает трёх '
+    + 'скелетов; лекарь упокаивает его насовсем', revive: 1, raise: 3 },
+  treasure: { id: 'treasure', name: 'Сокровище', text: 'за убийство — золото всем, кто бил, и двойные монеты '
+    + 'в следующей волне; дойдя до сердца, зарывается в землю' },
 };
+
+export const MIMIC = { id: 'mimic', name: 'Мимик', power: 'treasure', glow: '#facc15', treasure: true, hp: 1.6,
+  chance: 0.12, from: 3, coins: 20, coinsStep: 1 };
+
+export const ELITE_ODDS = { from: 3, base: 0.15, step: 0.012, top: 0.7, fall: 0.45, max: 4 };
+
+export const REWARD = { coins: 4, coinsStep: 0.4, xp: 1, xpStep: 0.1 };
 
 export const ELITES = [
   { id: 'leader', name: 'Вожак', power: 'dash', glow: '#facc15' },
@@ -39,6 +62,13 @@ export const ELITES = [
   { id: 'ratking', name: 'Крысиный король', power: 'brood', glow: '#c084fc' },
   { id: 'blazer', name: 'Огненный бес', power: 'fury', glow: '#f97316', from: 15 },
   { id: 'slimeking', name: 'Слизень-король', power: 'split', glow: '#4ade80', from: 30, slime: 4 },
+  { id: 'shade', name: 'Тень', power: 'veil', glow: '#a78bfa', from: 6 },
+  { id: 'blinker', name: 'Прыгун', power: 'blink', glow: '#22d3ee', from: 8 },
+  { id: 'necro', name: 'Некромант', power: 'raise', glow: '#a3e635', from: 9, undead: true },
+  { id: 'witch', name: 'Ведьма', power: 'hex', glow: '#e879f9', from: 10 },
+  { id: 'berserk', name: 'Берсерк', power: 'frenzy', glow: '#ef4444', from: 12 },
+  { id: 'golem', name: 'Каменный голем', power: 'steadfast', glow: '#a8a29e', from: 14 },
+  { id: 'vampire', name: 'Вампир', power: 'leech', glow: '#dc2626', from: 18 },
 ];
 
 export const BOSSES = [
@@ -47,10 +77,13 @@ export const BOSSES = [
   { id: 'mother', name: 'Крысиная матка', power: 'horde', glow: '#c084fc' },
   { id: 'warden', name: 'Страж склепа', power: 'shield', glow: '#67e8f9', undead: true },
   { id: 'archdemon', name: 'Архидемон', power: 'imps', glow: '#ef4444', from: 20 },
+  { id: 'lich', name: 'Король-лич', power: 'undying', glow: '#a3e635', from: 30, undead: true },
 ];
 
 export const LOOKS = {
-  normal: [{ id: 'zombie', name: 'Зомби', undead: true }, { id: 'skeleton', name: 'Скелет', from: 3, undead: true },
+  normal: [{ id: 'zombie', name: 'Зомби', undead: true },
+    { id: 'skeleton', name: 'Скелет', from: 3, undead: true, revive: 1, hp: 0.6,
+      text: 'встаёт после смерти, если его не упокоил лекарь' },
     { id: 'imp', name: 'Бесёнок', from: 8 },
     { id: 'slime2', name: 'Слизень', from: 12, slime: 2, text: 'при смерти делится на двух слизнят' },
     { id: 'ember', name: 'Огненный элементаль', from: 16, element: 'fire', text: 'огонь его не берёт' },
@@ -58,8 +91,12 @@ export const LOOKS = {
       text: 'лёд его не берёт: не мёрзнет и не замедляется' }],
   fast: [{ id: 'dog', name: 'Пёс' }, { id: 'crow', name: 'Ворон', from: 4, flying: true },
     { id: 'hellhound', name: 'Адская гончая', from: 12 },
+    { id: 'bonehound', name: 'Костяной пёс', from: 9, undead: true, revive: 1, hp: 0.6,
+      text: 'встаёт после смерти' },
     { id: 'stormling', name: 'Грозовой элементаль', from: 22, element: 'storm', text: 'молнии его не берут' }],
   tough: [{ id: 'brute', name: 'Громила' }, { id: 'demon', name: 'Демон', from: 14 },
+    { id: 'skelwarrior', name: 'Скелет-латник', from: 11, undead: true, revive: 1, armor: 0.25, hp: 0.6,
+      text: 'в броне: на 25% крепче к урону, и встаёт после смерти' },
     { id: 'slime3', name: 'Большой слизень', from: 20, slime: 3, text: 'при смерти делится на двух слизней' },
     { id: 'sludge', name: 'Ядовитый элементаль', from: 25, element: 'poison', text: 'яд его не берёт' }],
   swarm: [{ id: 'rat', name: 'Крыса' }, { id: 'bat', name: 'Летучая мышь', from: 6, flying: true },
@@ -77,13 +114,13 @@ export const lookOf = (id) => {
 };
 
 export const WAVE = {
-  hp: 18,
+  hp: 21,
   growth: 1.05,
-  accel: 0.00045,
+  accel: 0.0008,
   players: 0.75,
-  crowd: 0.85,
+  crowd: 0.95,
   pivot: 10,
-  solo: 0.3,
+  solo: 0.6,
   speed: 1.4,
   count: 8,
   countStep: 0.4,
@@ -93,18 +130,18 @@ export const WAVE = {
   bigGap: 1.5,
 };
 
-export const XP = { first: 10, step: 3 };
+export const XP = { first: 10, step: 3, bend: 0.05, from: 10 };
 
 const PATTERN = [
   { cycle: ['normal'] },
   { cycle: ['normal', 'normal', 'fast'] },
   { cycle: ['swarm'], size: 2 },
   { cycle: ['normal', 'normal', 'tough'] },
-  { cycle: ['normal'], elites: 1 },
+  { cycle: ['normal', 'normal', 'fast', 'swarm'] },
   { cycle: ['fast'] },
   { cycle: ['normal', 'fast', 'tough'] },
   { cycle: ['swarm', 'swarm', 'tough'], size: 1.5 },
-  { cycle: ['normal', 'fast', 'tough'], elites: 1 },
+  { cycle: ['normal', 'fast', 'tough', 'normal'] },
   { cycle: ['normal'], size: 0.5, bosses: 1 },
 ];
 
@@ -122,11 +159,12 @@ export function towerBase(level) {
 let table = null, tableKey = '';
 
 function totals() {
-  const key = XP.first + '/' + XP.step;
+  const key = [XP.first, XP.step, XP.bend, XP.from].join('/');
   if (table && key === tableKey) return table;
   table = [0, 0];
   for (let level = 1; level < LEVEL_MAX; level++) {
-    table.push(table[level] + Math.round(XP.first + XP.step * (level - 1)));
+    const late = Math.max(0, level - XP.from);
+    table.push(table[level] + Math.round(XP.first + XP.step * (level - 1) + XP.bend * late * late));
   }
   tableKey = key;
   return table;
@@ -173,7 +211,21 @@ export function waveSpawns(wave) {
       spawns.push({ type, delay });
     }
   };
-  if (plan.elites) big('elite', plan.elites + Math.floor(wave / 20));
   if (plan.bosses) big('boss', plan.bosses + Math.floor(wave / 50));
   return spawns;
 }
+
+export function eliteCount(wave, random) {
+  if (wave < ELITE_ODDS.from) return 0;
+  let chance = Math.min(ELITE_ODDS.top, ELITE_ODDS.base + ELITE_ODDS.step * wave), count = 0;
+  while (count < ELITE_ODDS.max && random() < chance) {
+    count += 1;
+    chance *= ELITE_ODDS.fall;
+  }
+  return count;
+}
+
+export const waveReward = (wave) => ({
+  coins: Math.round(REWARD.coins + REWARD.coinsStep * wave),
+  xp: Math.round((REWARD.xp + REWARD.xpStep * wave) * 10) / 10,
+});

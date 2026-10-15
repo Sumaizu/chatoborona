@@ -1,9 +1,11 @@
 import { test, eq, ok, no } from './harness.js';
 import { seeded } from './fixtures.js';
 import { SIZE, cellName, coverage, makePath, parseCell } from '../../site/js/field.js';
-import { LEVEL_MAX, MOBS, crowdFactor, levelOf, waveHp, waveSpawns, xpForLevel } from '../../site/js/balance.js';
+import { LEVEL_MAX, MOBS, crowdFactor, eliteCount, levelOf, waveHp, waveReward, waveSpawns, xpForLevel }
+  from '../../site/js/balance.js';
 import { CLASSES, PERKS, ROLES } from '../../site/js/classes.js';
-import { RARITIES, UNIQUES, makeWeapon, spin, weaponScore } from '../../site/js/gacha.js';
+import { OUTCOMES, RARITIES, UNIQUES, makeWeapon, spin, upgrade, uniquesFor, weaponScore, weaponStats }
+  from '../../site/js/gacha.js';
 import { clean, fromQuery, toQuery, DEFAULTS } from '../../site/js/config.js';
 
 test('клетка: буква и число в любом порядке, латинские двойники', () => {
@@ -66,9 +68,23 @@ test('уровни: каждый следующий дороже, до сото�
   }
 });
 
-test('волны: элитные на пятой, босс на десятой, мобов больше со временем', () => {
-  ok(waveSpawns(5).some((s) => s.type === 'elite'));
+test('волны: босс на десятой, мобов больше со временем, элитные — случайно и чем дальше, тем чаще', () => {
   ok(waveSpawns(10).some((s) => s.type === 'boss'));
+  no(waveSpawns(5).some((s) => s.type === 'elite'), 'элитные в плане волны больше не стоят');
+  const average = (wave) => {
+    const random = seeded(wave);
+    let sum = 0, many = 0;
+    for (let i = 0; i < 4000; i++) {
+      const count = eliteCount(wave, random);
+      sum += count;
+      if (count >= 2) many += 1;
+    }
+    return { mean: sum / 4000, many: many / 4000 };
+  };
+  eq(average(1).mean, 0, 'на первых волнах элитных нет');
+  ok(average(5).mean > 0.1 && average(5).mean < average(40).mean, 'с каждой волной чаще');
+  ok(average(40).many > 0.1, 'бывает и по двое-трое');
+  ok(waveReward(20).coins > waveReward(1).coins && waveReward(20).xp > waveReward(1).xp, 'награда за волну растёт');
   no(waveSpawns(1).some((s) => s.type === 'boss' || s.type === 'elite'));
   ok(waveSpawns(41).length > waveSpawns(1).length);
   for (const s of waveSpawns(7)) ok(MOBS[s.type], s.type);
@@ -111,28 +127,31 @@ test('классы: у каждого роль, контроль и поддер
   eq(new Set(CLASSES.map((cls) => cls.role)).size, 3);
 });
 
-test('гача: выпадает только оружие, доли редкостей как заявлены', () => {
+test('гача: пустота 15%, удвоение монет 15%, остальное — оружие по редкостям', () => {
   const random = seeded(11), counts = new Map();
   for (let i = 0; i < 20000; i++) {
-    const outcome = spin(random, 'sniper');
-    eq(outcome.kind, 'weapon');
-    counts.set(outcome.weapon.rarity, (counts.get(outcome.weapon.rarity) || 0) + 1);
+    const outcome = spin(random, 'sniper'), key = outcome.kind === 'weapon' ? outcome.weapon.rarity : outcome.kind;
+    counts.set(key, (counts.get(key) || 0) + 1);
   }
-  eq(RARITIES.map((r) => r.chance).reduce((a, b) => a + b, 0).toFixed(6), '1.000000');
-  for (const rarity of RARITIES) {
-    const share = (counts.get(rarity.id) || 0) / 20000;
-    ok(Math.abs(share - rarity.chance) < 0.005 + rarity.chance * 0.15, rarity.id + ' ' + share);
+  const all = OUTCOMES.concat(RARITIES);
+  eq(all.map((r) => r.chance).reduce((a, b) => a + b, 0).toFixed(6), '1.000000');
+  for (const item of all) {
+    const share = (counts.get(item.id) || 0) / 20000;
+    ok(Math.abs(share - item.chance) < 0.005 + item.chance * 0.15, item.id + ' ' + share);
   }
+  no(counts.has('poor'), 'плохого оружия больше нет');
 });
 
-test('гача: плохое — только минусы, обычное — пополам, дальше только плюсы и всё больше', () => {
+test('гача: обычное — плюс и минус, дальше только плюсы и всё больше; свойства — под класс', () => {
   const random = seeded(4), scores = [];
   for (const rarity of RARITIES) {
     let sum = 0;
     for (let i = 0; i < 300; i++) {
       const weapon = makeWeapon(random, 'frost', rarity), values = Object.entries(weapon.stats);
+      const gear = CLASSES.find((c) => c.id === 'frost').gear;
       eq(weapon.rarity, rarity.id);
-      eq(values.filter(([, v]) => v > 0).length, rarity.good, rarity.id);
+      for (const [stat] of values) ok(gear.includes(stat), stat);
+      eq(values.filter(([, v]) => v > 0).length, Math.min(rarity.good, gear.length), rarity.id);
       eq(values.filter(([, v]) => v < 0).length, rarity.bad, rarity.id);
       for (const [stat, value] of values) if (stat === 'crit') ok(value > 0, 'крит не бывает минусом');
       eq(Boolean(weapon.unique), Boolean(rarity.unique), rarity.id);
@@ -141,8 +160,34 @@ test('гача: плохое — только минусы, обычное — �
     }
     scores.push(sum / 300);
   }
-  ok(scores[0] < 0, 'плохое вредит');
   for (let i = 1; i < scores.length; i++) ok(scores[i] > scores[i - 1], RARITIES[i].id + ' лучше предыдущего');
+  for (let i = 0; i < 200; i++) {
+    const banner = makeWeapon(random, 'banner', RARITIES[3]);
+    no('damage' in banner.stats || 'crit' in banner.stats, 'знаменосцу урон и крит не выпадают');
+  }
+});
+
+test('гача: легендарные свойства — общие и под свой класс, чужие не выпадают', () => {
+  const random = seeded(9), seen = new Set();
+  for (let i = 0; i < 600; i++) seen.add(makeWeapon(random, 'miner', RARITIES[RARITIES.length - 1]).unique);
+  ok(seen.has('depot'), 'своё для минёра');
+  ok(seen.has('midas'), 'общее');
+  no(seen.has('twin') || seen.has('ignite'), 'ни чужого, ни ударного у того, кто не стреляет');
+  const pools = uniquesFor('sniper');
+  ok(pools.own.some((u) => u.id === 'twin') && pools.own.some((u) => u.id === 'fury'), 'снайперу — своё и урон');
+  ok(pools.general.some((u) => u.id === 'ignite'), 'стрелку — ударные');
+});
+
+test('улучшение: +20% от начального значения случайного свойства, бесконечно', () => {
+  const weapon = makeWeapon(seeded(2), 'sniper', RARITIES[2]), before = Object.assign({}, weapon.stats);
+  for (let i = 0; i < 10; i++) {
+    const up = upgrade(seeded(i + 1), weapon);
+    ok(up.id in before);
+    ok(Math.abs(up.amount - Math.max(0.01, Math.round(Math.abs(before[up.id]) * 0.2 * 100) / 100)) < 0.051);
+  }
+  eq(weapon.stats, before, 'начальные свойства не меняются');
+  const total = weaponStats(weapon);
+  ok(Object.keys(before).some((id) => total[id] > before[id]), 'прибавки складываются');
 });
 
 test('настройки: по умолчанию, границы, адрес туда и обратно', () => {

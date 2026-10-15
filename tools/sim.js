@@ -1,6 +1,6 @@
 import { Game, Profiles } from '../site/js/engine.js';
 import { CLASSES } from '../site/js/classes.js';
-import { weaponScore } from '../site/js/gacha.js';
+import { UPGRADE_PRICE, weaponScore } from '../site/js/gacha.js';
 import * as gachaRules from '../site/js/gacha.js';
 import * as balance from '../site/js/balance.js';
 
@@ -20,9 +20,13 @@ const THINK = 1;
 const LIMIT = 4 * 3600;
 
 export function tune(changes) {
+  const undo = [];
   for (const [group, values] of Object.entries(changes || {})) {
-    Object.assign(group in balance ? balance[group] : gachaRules[group], values);
+    const target = group in balance ? balance[group] : gachaRules[group];
+    undo.push([target, Object.fromEntries(Object.keys(values).map((key) => [key, target[key]]))]);
+    Object.assign(target, values);
   }
+  return () => undo.reverse().forEach(([target, values]) => Object.assign(target, values));
 }
 
 export function runGame({ seed = 1, levels = [1], classes = [], pause = 20, gacha = true }) {
@@ -35,16 +39,22 @@ export function runGame({ seed = 1, levels = [1], classes = [], pause = 20, gach
   game.open();
   const members = levels.map((level, i) => game.join('p' + i));
   members.forEach((m, i) => {
-    m.cls = classes[i] || CLASSES[Math.floor(random() * CLASSES.length)].id;
+    m.cls = classes[i] || m.cls;
   });
   const start = members.map((m) => ({ xp: m.xp, level: balance.levelOf(m.xp) }));
-  let clock = 0, spins = 0, thought = 0;
+  let clock = 0, spins = 0, upgrades = 0, thought = 0, wave = 0, waveStart = 0, longest = 0;
   while (game.state !== 'over' && clock < LIMIT) {
     game.step(balance.TICK);
     clock += balance.TICK;
+    if (game.state === 'wave' && game.wave !== wave) {
+      wave = game.wave;
+      waveStart = clock;
+    }
+    if (game.state === 'wave') longest = Math.max(longest, clock - waveStart);
     if (!gacha || clock - thought < THINK) continue;
     thought = clock;
     for (const m of members) {
+      if (m.weapon && m.coins >= UPGRADE_PRICE + game.price && game.improve(m) === 'upgraded') upgrades += 1;
       if (m.coins >= game.price && game.order(m) === 'queued') spins += 1;
     }
   }
@@ -53,6 +63,8 @@ export function runGame({ seed = 1, levels = [1], classes = [], pause = 20, gach
     passed: r.passed,
     duration: r.time,
     spins,
+    upgrades,
+    longest,
     effects: game.run.effects.map((e) => e.id),
     weapons: members.map((m) => (m.weapon ? weaponScore(m.weapon) : 0)),
     players: members.map((m, i) => ({
@@ -64,9 +76,10 @@ export function runGame({ seed = 1, levels = [1], classes = [], pause = 20, gach
 }
 
 export function batch({ seeds = [1], levels, classes = [], pause = 20, gacha = true, changes = null, detail = false }) {
-  tune(changes);
+  const undo = tune(changes);
   const started = performance.now();
   const games = seeds.map((seed) => runGame({ seed, levels, classes, pause, gacha }));
+  undo();
   const mean = (pick) => games.reduce((sum, g) => sum + pick(g), 0) / games.length;
   const perPlayer = (pick) => mean((g) => g.players.reduce((s, p) => s + pick(p), 0) / g.players.length);
   const result = {
@@ -86,7 +99,7 @@ export function batch({ seeds = [1], levels, classes = [], pause = 20, gacha = t
 }
 
 export function compare({ seeds = [1], level = 1, size = 10, forced = 3, gacha = false, changes = null }) {
-  tune(changes);
+  const undo = tune(changes);
   const rows = [];
   for (const cls of CLASSES) {
     const games = seeds.map((seed) => runGame({ seed, levels: Array(size).fill(level),
@@ -104,6 +117,7 @@ export function compare({ seeds = [1], level = 1, size = 10, forced = 3, gacha =
       killShare: share((p) => p.kills),
     });
   }
+  undo();
   return rows;
 }
 

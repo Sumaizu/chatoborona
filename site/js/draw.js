@@ -66,6 +66,7 @@ const FLAME_HOLD = 0.3;
 const FLAME_BITS = 34;
 const BADGE_HALF = 16;
 const RESOLUTION_MAX = 2.5;
+const HERO_TURN_STEPS = 16;
 const LABELS_MAX = 400;
 const piles = new WeakMap();
 const glows = new Map();
@@ -100,15 +101,45 @@ function square(ctx, x, y, size, color) {
   ctx.fillRect(Math.round(x - size / 2), Math.round(y - size / 2), size, size);
 }
 
-const turnOf = (angle) => Math.round(angle / (Math.PI * 2 / TURN_STEPS));
+const turnOf = (angle, steps = TURN_STEPS) => Math.round(angle / (Math.PI * 2 / steps));
 
-function sprite(ctx, image, x, y, angle, zoom = ZOOM, lift = 0) {
+function sprite(ctx, image, x, y, angle, zoom = ZOOM, lift = 0, steps = TURN_STEPS) {
   const w = image.width * zoom, h = image.height * zoom;
   ctx.save();
   ctx.translate(Math.round(x), Math.round(y));
-  ctx.rotate(turnOf(angle) * (Math.PI * 2 / TURN_STEPS));
+  ctx.rotate(turnOf(angle, steps) * (Math.PI * 2 / steps));
   ctx.drawImage(image, -w / 2, -h / 2 + lift, w, h);
   ctx.restore();
+}
+
+const puddleShapes = new Map();
+
+function puddleShape(radius, seed) {
+  const size = Math.max(4, Math.round(radius)), key = size + ':' + seed;
+  if (puddleShapes.has(key)) return puddleShapes.get(key);
+  const canvas = document.createElement('canvas'), side = size * 2 + 2;
+  canvas.width = canvas.height = side;
+  const ctx = canvas.getContext('2d'), c = side / 2;
+  for (let y = 0; y < side; y++) {
+    for (let x = 0; x < side; x++) {
+      const dx = x + 0.5 - c, dy = (y + 0.5 - c) * 1.2, a = Math.atan2(dy, dx), d = Math.hypot(dx, dy);
+      const edge = size * (0.82 + 0.1 * Math.sin(3 * a + seed) + 0.06 * Math.sin(5 * a + seed * 2)
+        + 0.04 * Math.sin(7 * a + seed * 3));
+      if (d > edge) continue;
+      const k = d / edge;
+      let color = k > 0.86 ? '#2f4f0e' : k > 0.7 ? '#3f6212' : k > 0.35 ? '#4d7c0f' : '#65a30d';
+      if (k < 0.55 && Math.sin(x * 1.7 + seed) + Math.cos(y * 2.1 + seed) > 1.4) color = '#84cc16';
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+  ctx.fillStyle = '#d9f99d';
+  ctx.fillRect(Math.round(c - size * 0.35), Math.round(c - size * 0.35), 2, 1);
+  ctx.fillRect(Math.round(c - size * 0.35), Math.round(c - size * 0.35) + 1, 1, 1);
+  ctx.fillStyle = '#bef264';
+  ctx.fillRect(Math.round(c + size * 0.25), Math.round(c - size * 0.1), 1, 1);
+  puddleShapes.set(key, canvas);
+  return canvas;
 }
 
 function softCircle(cache, key, size, paint) {
@@ -494,21 +525,24 @@ export class Scene {
     const now = battle.time;
     for (const puddle of battle.puddles) {
       const grow = Math.min(1, (now - puddle.born) / 0.25), fade = Math.min(1, (puddle.until - now) / 0.8);
-      const x = at(puddle.x), y = at(puddle.y), r = puddle.radius * CELL * grow;
-      ctx.globalAlpha = 0.55 * fade;
-      ctx.fillStyle = '#3f6212';
-      ctx.beginPath();
-      ctx.ellipse(x, y, r, r * 0.8, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 0.45 * fade;
-      ctx.fillStyle = '#84cc16';
-      ctx.beginPath();
-      ctx.ellipse(x - r * 0.1, y - r * 0.1, r * 0.75, r * 0.55, 0, 0, Math.PI * 2);
-      ctx.fill();
+      const x = at(puddle.x), y = at(puddle.y), r = puddle.radius * CELL;
+      const seed = Math.round(puddle.x * 7 + puddle.y * 13) % 9, shape = puddleShape(r / ZOOM, seed);
+      const w = shape.width * ZOOM * grow, h = shape.height * ZOOM * grow;
+      ctx.globalAlpha = 0.9 * fade;
+      ctx.drawImage(shape, Math.round(x - w / 2), Math.round(y - h / 2), Math.round(w), Math.round(h));
       for (let i = 0; i < 4; i++) {
-        const phase = (this.clock * 0.8 + i * 0.27 + puddle.x) % 1, a = i * 1.9 + puddle.y;
-        ctx.globalAlpha = fade * (1 - phase);
-        square(ctx, x + Math.cos(a) * r * 0.5, y + Math.sin(a) * r * 0.4 - phase * 5, 2, i % 2 ? '#d9f99d' : '#a3e635');
+        const phase = (this.clock * 0.7 + i * 0.29 + puddle.x * 0.37) % 1, a = i * 1.9 + puddle.y * 3;
+        const bx = x + Math.cos(a) * r * 0.45, by = y + Math.sin(a) * r * 0.35, size = 1 + Math.round(phase * 3);
+        ctx.globalAlpha = fade * (phase < 0.85 ? 0.9 : 0.3);
+        ctx.strokeStyle = '#bef264';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(Math.round(bx - size), Math.round(by - size), size * 2, size * 2);
+        if (phase > 0.85) square(ctx, bx, by - 4 - (phase - 0.85) * 30, 2, '#d9f99d');
+      }
+      for (let i = 0; i < 3; i++) {
+        const rise = (this.clock * 0.35 + i / 3 + puddle.y * 0.21) % 1;
+        ctx.globalAlpha = fade * 0.35 * (1 - rise);
+        square(ctx, x + Math.sin(i * 2.3 + this.clock) * r * 0.3, y - rise * 18, 3, '#a3e635');
       }
       ctx.globalAlpha = 1;
     }
@@ -535,25 +569,28 @@ export class Scene {
 
   _muses(ctx, battle) {
     for (const t of battle.towers) {
-      const ally = t.muse;
-      if (!ally || !battle.towers.includes(ally)) continue;
-      const x1 = at(t.cx), y1 = at(t.cy), x2 = at(ally.cx), y2 = at(ally.cy);
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = 0.35 + 0.15 * Math.sin(this.clock * 4);
-      ctx.strokeStyle = '#fde047';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([2, 4]);
-      ctx.lineDashOffset = -this.clock * 12;
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.restore();
-      glow(ctx, x2, y2, 18, 'rgba(253, 224, 71, .9)', 0.35 + 0.1 * Math.sin(this.clock * 5));
-      orbit(ctx, x2, y2 - 2, 13, 3, -this.clock * 2, '#fef08a', 2);
+      for (const ally of t.muses) this._muse(ctx, battle, t, ally);
     }
+  }
+
+  _muse(ctx, battle, t, ally) {
+    if (!battle.towers.includes(ally)) return;
+    const x1 = at(t.cx), y1 = at(t.cy), x2 = at(ally.cx), y2 = at(ally.cy);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.35 + 0.15 * Math.sin(this.clock * 4);
+    ctx.strokeStyle = '#fde047';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([2, 4]);
+    ctx.lineDashOffset = -this.clock * 12;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    glow(ctx, x2, y2, 18, 'rgba(253, 224, 71, .9)', 0.35 + 0.1 * Math.sin(this.clock * 5));
+    orbit(ctx, x2, y2 - 2, 13, 3, -this.clock * 2, '#fef08a', 2);
   }
 
   _mines(ctx, battle) {
@@ -659,8 +696,14 @@ export class Scene {
         ctx.arc(x, y, mob.power.range * CELL, 0, Math.PI * 2);
         ctx.stroke();
       }
+      const veil = mob.power && mob.power.id === 'veil' && mob.powerUntil > now;
+      if (veil) ctx.globalAlpha = 0.28 + 0.12 * Math.sin(this.clock * 12 + mob.id);
+      if (mob.wild || mob.power && mob.power.steady && mob.powerUntil > now) {
+        glow(ctx, x, y - lift, size * 0.9, 'rgba(239, 68, 68, .95)', 0.55);
+      }
       sprite(ctx, image, x, y - lift, angle);
-      this._tint(ctx, mob, image, x, y - lift, angle, slowed, frozen);
+      ctx.globalAlpha = 1;
+      if (!veil) this._tint(ctx, mob, image, x, y - lift, angle, slowed, frozen);
       if (mob.element) this._elementBits(ctx, mob, x, y - lift, size);
       if (frozen) {
         ctx.fillStyle = 'rgba(160, 235, 255, .32)';
@@ -785,7 +828,7 @@ export class Scene {
       if (t.burstUntil > now || t.rallyUntil > now) glow(ctx, x, y, 20, t.cls.color, 0.45);
       ctx.globalAlpha = t.busy > now ? 0.5 : 1;
       const lift = pose.kick > 0 ? Math.round(pose.kick / KICK * 2) : 0;
-      sprite(ctx, heroSprite(t.cls.id), x, y, pose.angle, ZOOM, lift);
+      sprite(ctx, heroSprite(t.cls.id), x, y, pose.angle, ZOOM, lift, HERO_TURN_STEPS);
       if (pose.flash > 0 && !t.rider) {
         const a = pose.angle, d = HERO_SIZE * ZOOM / 2 + 1;
         const fx = x + Math.sin(a) * d, fy = y - Math.cos(a) * d;
@@ -800,7 +843,30 @@ export class Scene {
         ctx.fillText('z', x + 9, y - 10 - (this.clock * 6 % 4));
       }
       this._stamp(ctx, this._badge(t), x - BADGE_HALF, y + 8);
+      if (t.player.pendingMove) this._pending(ctx, t, x, y);
     }
+  }
+
+  _pending(ctx, t, x, y) {
+    const cell = t.player.pendingMove, tx = at(cell.x + 0.5), ty = at(cell.y + 0.5);
+    ctx.save();
+    ctx.globalAlpha = 0.65 + 0.25 * Math.sin(this.clock * 5);
+    ctx.strokeStyle = '#fde047';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.lineDashOffset = -this.clock * 10;
+    ctx.strokeRect(at(cell.x) + 2, at(cell.y) + 2, CELL - 4, CELL - 4);
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(tx, ty);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  say(text, color) {
+    this.effects = this.effects.filter((e) => e.kind !== 'banner');
+    this.effects.push({ kind: 'banner', t: 0, life: 4, text, color });
   }
 
   _badge(t) {
@@ -1047,6 +1113,34 @@ export class Scene {
       add({ kind: 'spikes', life: 0.4, x: event.x, y: event.y, r: event.radius });
     } else if (event.kind === 'whirl') {
       this._aim(t, event.mob.x, event.mob.y);
+    } else if (event.kind === 'rise') {
+      const mob = event.mob;
+      add({ kind: 'ring', life: 0.6, x: mob.x, y: mob.y, r: 0.9, color: '#a3e635', width: 2 });
+      this._sparks(mob.x, mob.y, ['#ebe5d6', '#b0a690', '#a3e635'], 10, 1.8, 0.5, 2);
+    } else if (event.kind === 'hex') {
+      const mob = event.mob, tower = event.tower;
+      const bend = [(mob.x + tower.cx) / 2 + 0.3, (mob.y + tower.cy) / 2 - 0.3];
+      add({ kind: 'chain', life: 0.35, points: [[mob.x, mob.y], bend, [tower.cx, tower.cy]], color: '#e879f9' });
+      this._sparks(tower.cx, tower.cy, ['#e879f9', '#f5d0fe'], 8, 1.6, 0.4, 2);
+    } else if (event.kind === 'blink') {
+      const mob = event.mob;
+      add({ kind: 'ring', life: 0.4, x: event.x, y: event.y, r: 0.6, color: '#22d3ee', width: 2 });
+      this._sparks(event.x, event.y, ['#cffafe', '#22d3ee'], 6, 1.2, 0.35, 2);
+      this._sparks(mob.x, mob.y, ['#cffafe', '#22d3ee'], 6, 1.6, 0.35, 2);
+    } else if (event.kind === 'burrow') {
+      const spot = this.shown.get(event.mob.id) || event.mob;
+      add({ kind: 'puff', life: 0.7, x: spot.x, y: spot.y });
+      this._sparks(spot.x, spot.y, ['#a16207', '#78350f', '#facc15'], 10, 1.4, 0.5, 2);
+    } else if (event.kind === 'treasure') {
+      const spot = this.shown.get(event.mob.id) || event.mob;
+      this._sparks(spot.x, spot.y, ['#facc15', '#fde047', '#fff7c2', '#ca8a04'], 26, 3.2, 0.9, 3);
+      add({ kind: 'text', life: 1.8, x: spot.x, y: spot.y - 0.6, text: '+' + event.coins + ' всем!',
+        color: '#fde047' });
+    } else if (event.kind === 'clink') {
+      const spot = this.shown.get(event.mob.id) || event.mob;
+      this._sparks(spot.x, spot.y, ['#facc15', '#fff7c2'], 2, 1.4, 0.3, 2);
+    } else if (event.kind === 'leech') {
+      this._sparks(event.mob.x, event.mob.y, ['#dc2626', '#fca5a5'], 6, 1.2, 0.4, 2);
     } else if (event.kind === 'plant') {
       add({ kind: 'ring', life: 0.35, x: event.x, y: event.y, r: 0.45, color: '#c7d2fe', width: 1.5 });
     } else if (event.kind === 'mine') {
@@ -1196,7 +1290,7 @@ export class Scene {
         sprite(ctx, mineSprite(e.mine, true), x, y, share * Math.PI * 4, 1.6);
       } else if (e.kind === 'chain') {
         ctx.globalAlpha = fade;
-        for (const [width, color] of [[4, 'rgba(96, 165, 250, .6)'], [1.5, '#ffffff']]) {
+        for (const [width, color] of [[4, e.color || 'rgba(96, 165, 250, .6)'], [1.5, '#ffffff']]) {
           ctx.strokeStyle = color;
           ctx.lineWidth = width;
           ctx.beginPath();
@@ -1259,6 +1353,21 @@ export class Scene {
         ctx.beginPath();
         ctx.arc(at(e.x), at(e.y), Math.max(1, e.r * CELL * share), 0, Math.PI * 2);
         ctx.stroke();
+        ctx.globalAlpha = 1;
+      } else if (e.kind === 'banner') {
+        ctx.globalAlpha = Math.min(1, fade * 3, e.t * 4);
+        ctx.font = '900 14px "Segoe UI", system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const width = ctx.measureText(e.text).width + 24, cx = EDGE + CELL * SIZE / 2, cy = EDGE + CELL * 1.2;
+        ctx.fillStyle = 'rgba(16, 14, 31, .9)';
+        roundRect(ctx, cx - width / 2, cy - 13, width, 26, 9);
+        ctx.fill();
+        ctx.strokeStyle = e.color;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = e.color;
+        ctx.fillText(e.text, cx, cy + 1);
         ctx.globalAlpha = 1;
       } else if (e.kind === 'text') {
         ctx.globalAlpha = Math.min(1, fade * 2);

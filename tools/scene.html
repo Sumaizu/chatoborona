@@ -14,7 +14,7 @@
   import { Battle } from '../site/js/battle.js';
   import { Scene } from '../site/js/draw.js';
   import { makePath } from '../site/js/field.js';
-  import { BOSSES, ELITES, LOOKS, TICK, waveHp, xpForLevel } from '../site/js/balance.js';
+  import { BOSSES, ELITES, LOOKS, MIMIC, TICK, waveHp, xpForLevel } from '../site/js/balance.js';
 
   const seeded = (seed) => {
     let a = seed >>> 0;
@@ -42,7 +42,7 @@
   }
   const looks = (query.get('mobs') || 'zombie,skeleton,imp,dog,crow,hellhound,brute,demon,rat,bat,zombie,imp')
     .split(',');
-  const kinds = new Map(ELITES.concat(BOSSES).map((kind) => [kind.id, kind]));
+  const kinds = new Map(ELITES.concat(BOSSES, [MIMIC]).map((kind) => [kind.id, kind]));
   const toughness = Number(query.get('hp')) || 2.5;
   looks.forEach((id, i) => {
     const kind = kinds.get(id) || null;

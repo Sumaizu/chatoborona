@@ -1,5 +1,3 @@
-import { rarityOf } from './gacha.js';
-
 const OUTLINE = '#15111d';
 const SKIN = ['#f2c29b', '#c98e6b'];
 const WOOD = ['#a8723f', '#6e4524'];
@@ -1165,6 +1163,309 @@ const ART = {
       18: '.....L.............',
     },
   },
+  bonehound: {
+    colors: { f: '#ebe5d6', F: '#a8a090', l: '#2b2633', e: '#ef4444', n: '#4a4452' },
+    rows: [
+      '...............',
+      '...............',
+      '......FnF......',
+      '......fff......',
+      '....FfefefF....',
+      '....FfffffF....',
+      '......fff......',
+      '....FFflfFF....',
+      '....nflflfn....',
+      '.....flflf.....',
+      '.....flflf.....',
+      '....FFflfFF....',
+      '....n.FfF.n....',
+      '.......f.......',
+      '...............',
+    ],
+    walk: {
+      6: '....n.fff......',
+      7: '....FFflfF.....',
+      8: '.....fflffFF...',
+      9: '.....fflff.n...',
+      10: '.....fflffFF...',
+      11: '....FFflfF.n...',
+      12: '....FF.FfF.....',
+      13: '....n..f.......',
+    },
+  },
+  skelwarrior: {
+    colors: { w: '#ebe5d6', W: '#b0a690', k: '#2b2633', m: '#9aa3ad', M: '#d4dae1', D: '#5d6672', r: '#7f1d1d',
+      b: '#78350f', B: '#451a03', y: '#facc15' },
+    rows: [
+      '...................',
+      '...................',
+      '......DmMmMmD......',
+      '......mkmkmkm...M..',
+      '......DmMmMmD...m..',
+      '...MM.DmmmmmD.MMm..',
+      '.BBBBBwwwwwwwMmmm..',
+      '.BbbbBwkkwkkwWmrrr.',
+      '.BbybBwwwwwwwWwWB..',
+      '.ByyyBwkkwkkww.W...',
+      '.BbybBwwwwwwww.W...',
+      '.BbbbBwkkwkkw......',
+      '.BbbbBWWWWWWW......',
+      '.BBBBBw..W..w......',
+      '......w.....w......',
+      '...................',
+      '...................',
+      '...................',
+      '...................',
+    ],
+  },
+  lich: {
+    colors: { w: '#ebe5d6', W: '#b0a690', k: '#1c1917', p: '#581c87', P: '#3b0764', q: '#7e22ce', g: '#a3e635',
+      G: '#4d7c0f', y: '#facc15', Y: '#a16207', b: '#78350f' },
+    rows: [
+      '.........................',
+      '.........y.y.y.y.........',
+      '.........yYyyyYy.........',
+      '..G.......yyyyy..........',
+      '..gG.....wwwwwww.........',
+      '...b....wkwkwkwkw........',
+      '...b....WwwwwwwwW........',
+      '....b.PpppWWwWWpppP......',
+      '....bPpppppppppppppP.....',
+      '....PwpqpppppppppqpwP....',
+      '...PpwpqpppppppppqpwpP...',
+      '...PppppppppppppppppwP...',
+      '...PppppqpppppppqppppP...',
+      '..PpppppqpppppppqpppppP..',
+      '..PpppppppppppppppppppP..',
+      '..PppppppppqpqppppppppP..',
+      '...PpppppppqpqpppppppP...',
+      '...PPpppppppppppppppPP...',
+      '....PPPpppppppppppPPP....',
+      '......PPPPPPPPPPPPP......',
+      '.........................',
+      '.........................',
+      '.........................',
+      '.........................',
+      '.........................',
+    ],
+    walk: {
+      20: '.......P.P.P.P.P.P.......',
+    },
+  },
+  mimic: {
+    colors: { b: '#92400e', B: '#5b2a06', l: '#b45309', y: '#facc15', Y: '#a16207', k: '#1c0a04', r: '#b91c1c',
+      R: '#7f1d1d', w: '#f5f5f4', e: '#fde047' },
+    rows: [
+      '...................',
+      '...................',
+      '..yBBBBBBBBBBBBBy..',
+      '..yllllllllllllly..',
+      '..yBbebbbbbbbebBy..',
+      '..ybbkbbbbbbbkbby..',
+      '..yBbbbYyyyYbbbBy..',
+      '..ybbbbYkykYbbbby..',
+      '..yyyyyyyyyyyyyyy..',
+      '..kwkwkwkwkwkwkwk..',
+      '..rRrrrrrrrrrrrRr..',
+      '..rrRrrrrrrrrrRrr..',
+      '..kwkwkwkwkwkwkwk..',
+      '..yyyyyyyyyyyyyyy..',
+      '..ybbbbbbbbbbbbby..',
+      '..yBBBBBBBBBBBBBy..',
+      '...................',
+      '...................',
+      '...................',
+    ],
+    walk: {
+      11: '..kwkwkwkwkwkwkwk..',
+      12: '..yyyyyyyyyyyyyyy..',
+    },
+  },
+  shade: {
+    colors: { p: '#4c1d95', P: '#2e1065', q: '#7c3aed', k: '#0b0618', e: '#e9d5ff', w: '#c4b5fd' },
+    rows: [
+      '...................',
+      '...................',
+      '.......PPPPP.......',
+      '......PpqqqpP......',
+      '......PkkkkkP......',
+      '.....PkekkkekP.....',
+      '.....PkkkkkkkP.....',
+      '...P.PpkkkkkpP.P...',
+      '..Pp.PppqpqppP.pP..',
+      '..Pp.PpppppppP.pP..',
+      '...PPppqpppqppPP...',
+      '....PpppqpqpppP....',
+      '....PpppppppppP....',
+      '....PpPpPpPpPpP....',
+      '.....P.P.p.P.P.....',
+      '......P..P..P......',
+      '...................',
+      '...................',
+      '...................',
+    ],
+    walk: {
+      14: '....P.P.p.P.P.P....',
+      15: '...P..P....P..P....',
+    },
+  },
+  necro: {
+    colors: { g: '#365314', G: '#1a2e05', q: '#4d7c0f', w: '#ebe5d6', k: '#1c1917', e: '#a3e635', b: '#78350f',
+      c: '#d9f99d' },
+    rows: [
+      '...................',
+      '...................',
+      '........GGG....e...',
+      '.......GgqgG..ece..',
+      '......GgwqwgG..b...',
+      '......GwewewG..b...',
+      '......GwwwwwG..b...',
+      '....GGgggggggGGb...',
+      '...Ggggggqgggggb...',
+      '...Gggqgggggqggb...',
+      '...GggggqgqggggG...',
+      '....GgggqgqgggG....',
+      '....GgggggggggG....',
+      '....GgGgGgGgGgG....',
+      '.....G.G.g.G.G.....',
+      '...................',
+      '...................',
+      '...................',
+      '...................',
+    ],
+  },
+  berserk: {
+    colors: { s: '#c2410c', S: '#7c2d12', L: '#ea580c', h: '#fbbf24', H: '#b45309', f: '#78350f', F: '#451a03',
+      m: '#d4dae1', M: '#9aa3ad', k: '#1c1917', r: '#dc2626' },
+    rows: [
+      '...................',
+      '.mM.............Mm.',
+      'mMMM...........MMMm',
+      '.mMk...hhhhh...kMm.',
+      '...k..hHhhhHh..k...',
+      '...k.hHhhhhhHh.k...',
+      '...SsSsssssssSsS...',
+      '..SsssLsssssLsssS..',
+      '.SsssssLsssLsssssS.',
+      '.SssrsssLsLsssrssS.',
+      '.SsssssssssssssssS.',
+      '..SsffffSfSffffsS..',
+      '...fFffFfffFffFf...',
+      '....SsS.SsS.SsS....',
+      '....SS..SSS..SS....',
+      '...................',
+      '...................',
+      '...................',
+      '...................',
+    ],
+  },
+  golem: {
+    colors: { g: '#78716c', G: '#44403c', l: '#a8a29e', c: '#22d3ee', C: '#0e7490', m: '#4d7c0f' },
+    rows: [
+      '...................',
+      '...................',
+      '......GGGGGGG......',
+      '.....GglllllgG.....',
+      '.GG..GgcGcGcgG..GG.',
+      'GllG.GglllllgG.GllG',
+      'GlgGGGGgggggGGGGglG',
+      '.GgGglggggggglgGgG.',
+      '..GGggmCgggClggGG..',
+      '...GgggcgggcgggG...',
+      '...GgglgCgCglggG...',
+      '...GGgggggggmgGG...',
+      '....GgGGgggGGgG....',
+      '....Ggl.GgG.lgG....',
+      '....GG..GGG..GG....',
+      '...................',
+      '...................',
+      '...................',
+      '...................',
+    ],
+  },
+  witch: {
+    colors: { p: '#7e22ce', P: '#4c1d95', q: '#a855f7', k: '#1c1917', K: '#3f3f46', g: '#86efac', y: '#facc15',
+      h: '#4ade80' },
+    rows: [
+      '...................',
+      '...................',
+      '....KKKKKKKKKKK....',
+      '...KKkkkkkkkkkKK...',
+      '..KKkkPPPPPPPkkKK..',
+      '..KkkkpppqpppkkkK..',
+      '..KkkkppyPyppkkkK..',
+      '..KKkkppgpgppkkKK..',
+      '...KKkkPhPhPkkKK...',
+      '....KKKKKKKKKKK....',
+      '.....PpppppppP.....',
+      '.....PpqpppqpP.....',
+      '....PpppppppppP....',
+      '....PpPpPpPpPpP....',
+      '.....P.P.P.P.P.....',
+      '...................',
+      '...................',
+      '...................',
+      '...................',
+    ],
+  },
+  vampire: {
+    colors: { k: '#0c0a09', K: '#292524', r: '#991b1b', R: '#dc2626', w: '#e7e5e4', W: '#a8a29e', e: '#f87171',
+      h: '#1c1917' },
+    rows: [
+      '...................',
+      '...................',
+      '.......hhhhh.......',
+      '......hwwwwwh......',
+      '......WwewewW......',
+      '......WwwwwwW......',
+      '....rRRWwwwWRRr....',
+      '..KKrRRRrrrRRRrKK..',
+      '.KkkKrrrrrrrrrKkkK.',
+      'Kkk.KkkKkkkKkkK.kkK',
+      'Kk..KkkkKkKkkkK..kK',
+      'Kk..KkkkkkkkkkK..kK',
+      'Kk...KkkkkkkkK...kK',
+      '.K...KkKkKkKkK...K.',
+      '......K.K.K.K......',
+      '...................',
+      '...................',
+      '...................',
+      '...................',
+    ],
+    walk: {
+      10: '.Kk.KkkkKkKkkkK.kK.',
+      11: '..K.KkkkkkkkkkK.K..',
+      12: '.....KkkkkkkkK.....',
+    },
+  },
+  blinker: {
+    colors: { c: '#22d3ee', C: '#0e7490', w: '#cffafe', k: '#082f49', y: '#fef08a', b: '#155e75' },
+    rows: [
+      '...................',
+      '...................',
+      '......c.....c......',
+      '......Cc...cC......',
+      '.......wcccw.......',
+      '......cyCcCyc......',
+      '......cccwccc......',
+      '....CccCcccCccC....',
+      '...C.ccccccccc.C...',
+      '..C..CcwCcCwcC..C..',
+      '......ccccccc......',
+      '......CcccccC......',
+      '.......C.c.C.......',
+      '......C..C..C......',
+      '...................',
+      '...................',
+      '...................',
+      '...................',
+      '...................',
+    ],
+    walk: {
+      9: '....C.CcwCcwcC.C...',
+      10: '......cccccccc.....',
+    },
+  },
 };
 
 function artSprite(id, frame) {
@@ -1177,119 +1478,6 @@ function artSprite(id, frame) {
   return p.outline().canvas();
 }
 
-const ICONS = {
-  sniper(p, r) {
-    p.line(2, 13, 13, 2, METAL[2], 1);
-    p.line(3, 13, 13, 3, METAL[1], 1);
-    p.line(2, 12, 5, 9, WOOD[0], 2);
-    p.rect(7, 6, 3, 2, '#2a2f38');
-    p.px(8, 6, r);
-  },
-  gunner(p, r) {
-    p.line(4, 11, 13, 2, METAL[2], 2);
-    p.rect(3, 9, 5, 4, METAL[1]);
-    p.rect(3, 9, 5, 1, METAL[0]);
-    p.rect(5, 13, 6, 1, '#e3b341');
-    p.px(6, 10, r);
-  },
-  bomber(p, r) {
-    p.line(3, 12, 11, 4, '#556b2f', 3);
-    p.rect(11, 2, 3, 3, METAL[2]);
-    p.disc(5, 5, 2.2, '#2f3a1a');
-    p.px(5, 3, r);
-  },
-  thunder(p, r) {
-    p.line(2, 14, 11, 5, WOOD[0], 2);
-    p.disc(12.5, 3.5, 2.6, '#ffe14d', '#c9a10f', '#ffffff');
-    p.px(12, 3, r);
-  },
-  alchemist(p, r) {
-    p.rect(7, 2, 3, 3, '#e8eef4');
-    p.rect(7, 1, 3, 1, WOOD[0]);
-    p.disc(8.5, 9.5, 4.3, '#9be22d', '#5b9a12', '#d9ff8f');
-    p.px(7, 8, '#ffffff');
-    p.px(10, 11, r);
-  },
-  pyro(p, r) {
-    p.rect(3, 8, 4, 6, '#c0392b');
-    p.rect(3, 8, 1, 6, '#e2574c');
-    p.line(6, 9, 12, 3, METAL[2], 2);
-    p.rect(12, 1, 3, 2, '#ffc233');
-    p.px(13, 0, '#ff5a1f');
-    p.px(4, 10, r);
-  },
-  hunter(p, r) {
-    p.line(3, 13, 12, 4, WOOD[0], 2);
-    p.line(7, 2, 14, 9, WOOD[1], 1);
-    p.line(8, 2, 14, 8, '#ddd3bc', 1);
-    p.px(13, 3, METAL[0]);
-    p.px(10, 6, r);
-  },
-  frost(p, r) {
-    p.line(3, 13, 11, 5, '#d6f4ff', 2);
-    p.line(4, 13, 11, 6, '#8fd3ec', 1);
-    p.rect(11, 2, 3, 3, '#5ee7ff');
-    p.px(12, 1, '#ffffff');
-    p.px(14, 3, '#5ee7ff');
-    p.px(12, 3, r);
-  },
-  shaman(p, r) {
-    p.rect(6, 2, 4, 12, WOOD[0]);
-    p.rect(8, 2, 2, 12, WOOD[1]);
-    p.rect(6, 5, 4, 2, '#e6c87a');
-    p.px(7, 4, '#15111d');
-    p.px(8, 4, '#15111d');
-    p.rect(4, 2, 2, 3, '#f08a24');
-    p.rect(10, 2, 2, 3, '#1fb5a5');
-    p.px(7, 9, r);
-  },
-  banner(p, r) {
-    p.rect(3, 1, 1, 14, WOOD[0]);
-    p.rect(4, 2, 9, 6, '#ec4899');
-    p.rect(4, 7, 9, 1, '#a3175f');
-    p.px(12, 7, null);
-    p.px(3, 0, '#ffd84a');
-    p.rect(7, 4, 2, 2, r);
-  },
-  healer(p, r) {
-    p.line(4, 2, 8, 7, '#d4a72c');
-    p.line(12, 2, 8, 7, '#d4a72c');
-    p.disc(8, 10, 3.6, '#22c55e', '#15803d', '#bbf7d0');
-    p.px(7, 9, '#ffffff');
-    p.px(9, 11, r);
-  },
-  earth(p, r) {
-    p.line(3, 13, 9, 7, WOOD[0], 2);
-    p.rect(7, 2, 7, 5, STONE[0]);
-    p.rect(7, 2, 7, 1, STONE[2]);
-    p.rect(13, 3, 1, 4, '#6b6258');
-    p.px(9, 4, '#6b6258');
-    p.px(11, 5, r);
-  },
-  parasite(p, r) {
-    p.line(3, 13, 12, 3, '#a21caf', 2);
-    p.line(4, 13, 12, 4, '#d946ef', 1);
-    p.rect(12, 1, 2, 2, '#f5b8ff');
-    p.px(6, 8, '#701a75');
-    p.px(9, 6, r);
-  },
-  miner(p, r) {
-    p.rect(3, 7, 10, 7, '#c0392b');
-    p.rect(3, 7, 10, 1, '#e2574c');
-    p.rect(7, 3, 2, 4, METAL[1]);
-    p.rect(4, 2, 8, 1, METAL[0]);
-    p.line(12, 12, 15, 15, '#ffd84a');
-    p.rect(5, 10, 2, 2, r);
-  },
-  sage(p, r) {
-    p.rect(3, 3, 10, 11, '#5b1d8f');
-    p.rect(3, 3, 2, 11, '#3b0f63');
-    p.rect(12, 4, 1, 9, '#f3e9d2');
-    p.rect(7, 6, 3, 1, '#e9c8ff');
-    p.rect(8, 5, 1, 3, '#e9c8ff');
-    p.rect(6, 10, 4, 1, r);
-  },
-};
 
 const cache = new Map();
 const owned = new WeakMap();
@@ -1413,6 +1601,10 @@ const COMMAND_ICONS = {
     p.rect(1, 4, 5, 2, '#ffe08a');
     for (let i = 0; i < 4; i++) p.rect(5 + i, 1 + i, 1, 8 - i * 2, '#ffe08a');
   },
+  upgrade(p) {
+    for (let i = 0; i < 4; i++) p.rect(4 - i, 1 + i, 2 + i * 2, 1, '#86efac');
+    p.rect(4, 5, 2, 4, '#86efac');
+  },
   card(p) {
     p.ball(5, 3, 1.8, '#c4b5fd', '#8b7fd0');
     p.oval(5, 8, 3.4, 1.6, '#c4b5fd', '#8b7fd0');
@@ -1437,17 +1629,32 @@ export const commandUrl = (kind) => remember('command:' + kind, () => {
   return canvas.toDataURL();
 });
 
-export function weaponSprite(cls, rarity) {
-  return remember('weapon:' + cls + ':' + rarity, () => {
-    const color = rarityOf(rarity).color, p = new Pix(16, 16);
-    ICONS[cls](p, color);
-    return p.outline().canvas();
-  });
-}
+const PRIZES = {
+  weapon(p, tone) {
+    p.bar(3, 12, 11, 4, '#e5e7eb', 2);
+    p.line(4, 12, 11, 5, '#9ca3af', 1);
+    p.px(12, 3, '#ffffff');
+    p.bar(3, 9, 6, 12, '#8a5a2b', 1);
+    p.box(2, 12, 2, 2, tone);
+  },
+  void(p) {
+    p.ball(8, 8, 5, '#374151', '#1f2937', '#4b5563');
+    p.disc(8, 8, 2.6, '#111827');
+    p.line(4, 12, 12, 4, '#9ca3af', 1);
+  },
+  coins(p) {
+    for (const [x, y] of [[5, 11], [10, 11], [7.5, 8], [7.5, 4.5]]) {
+      p.oval(x, y, 3, 1.6, '#ffcd38', '#c98a12', '#fff2a8');
+    }
+    p.px(12, 3, '#ffffff');
+  },
+};
 
-export function weaponIcon(cls, rarity, size = 40) {
-  return remember('icon:' + cls + ':' + rarity + ':' + size, () => {
-    const color = rarityOf(rarity).color, canvas = document.createElement('canvas');
+export function prizeIcon(kind, color, size = 40) {
+  return remember('prize:' + kind + ':' + color + ':' + size, () => {
+    const p = new Pix(16, 16);
+    PRIZES[kind](p, color);
+    const symbol = p.outline().canvas(), canvas = document.createElement('canvas');
     canvas.width = canvas.height = size;
     const ctx = canvas.getContext('2d'), pad = Math.round(size * 0.1), r = Math.round(size * 0.18);
     ctx.fillStyle = color + '33';
@@ -1464,7 +1671,7 @@ export function weaponIcon(cls, rarity, size = 40) {
     ctx.fill();
     ctx.stroke();
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(weaponSprite(cls, rarity), pad, pad, size - pad * 2, size - pad * 2);
+    ctx.drawImage(symbol, pad, pad, size - pad * 2, size - pad * 2);
     return canvas;
   });
 }
@@ -1487,8 +1694,8 @@ export function heroUrl(id, size = 48) {
   });
 }
 
-export const weaponUrl = (cls, rarity, size = 40) => remember('weaponUrl:' + cls + ':' + rarity + ':' + size,
-  () => weaponIcon(cls, rarity, size).toDataURL());
+export const prizeUrl = (kind, color, size = 40) => remember('prizeUrl:' + kind + ':' + color + ':' + size,
+  () => prizeIcon(kind, color, size).toDataURL());
 
 export const coinUrl = () => remember('coinUrl', () => {
   const canvas = document.createElement('canvas');

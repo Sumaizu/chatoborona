@@ -1,7 +1,8 @@
 import { Scene } from './draw.js';
 import { CLASSES, CLASS_BY_ID, ROLES, describe } from './classes.js';
-import { coinUrl, commandUrl, effectUrl, heroUrl, shieldUrl, weaponUrl } from './sprites.js';
-import { PRICE, RARITIES, SPIN_TIME, rarityOf, statText, uniqueOf, weaponName } from './gacha.js';
+import { coinUrl, commandUrl, effectUrl, heroUrl, prizeUrl, shieldUrl } from './sprites.js';
+import { OUTCOMES, PRICE, RARITIES, SPIN_TIME, UPGRADE_PRICE, amountText, outcomeOf, rarityOf, statName, statText,
+  uniqueOf, weaponName } from './gacha.js';
 import { effectOf } from './events.js';
 import { LEVEL_MAX, LIVES, levelOf, xpForLevel } from './balance.js';
 import { SIZE } from './field.js';
@@ -20,14 +21,16 @@ const ROWS = { over: 5, roster: 18, pause: 10, pauseShort: 8, queue: 3, cards: 2
 const REEL = { cells: 26, result: 21, width: 46 };
 const BIG_PRIZES = new Set(['epic', 'legendary']);
 const CYCLES = new Map([['rainbow', 2400], ['heart', 15000]]);
-const SOUND_PRIORITY = ['over', 'win', 'boss', 'wave', 'prize', 'meh', 'level', 'buff', 'debuff', 'spin', 'leak',
-  'card', 'tick'];
+const SOUND_PRIORITY = ['over', 'win', 'boss', 'wave', 'jackpot', 'prize', 'upgrade', 'reward', 'meh', 'void', 'level',
+  'buff', 'debuff', 'spin', 'leak', 'card', 'tick'];
 const SFX_PER_FRAME = 4;
 const SHOTS = { sniper: 'crack', gunner: 'gun', bomber: 'launch', hunter: 'bolt', healer: 'holy', parasite: 'bite' };
 const BATTLE_SOUNDS = { wall: 'build', crumble: 'crumble', plant: 'plant', mine: 'mine', nuke: 'nuke', leap: 'leap',
   bite: 'chomp', toss: 'launch', flask: 'flask', splash: 'splash', trap: 'plant', snap: 'snap', nova: 'ice',
-  muse: 'cast', spikes: 'rock', whirl: 'wind' };
+  muse: 'cast', spikes: 'rock', whirl: 'wind', clink: 'clink', treasure: 'treasure', rattle: 'rattle', rise: 'rise',
+  hex: 'hex', blink: 'leap', burrow: 'burrow', leech: 'summon' };
 const GOOD_EVENTS = new Set(['buff', 'blessing']);
+const NOTE_KINDS = new Set(['card', 'poor', 'bare', 'upgrade']);
 const NEWCOMER_GLOW = { fire: '#f97316', ice: '#67e8f9', storm: '#facc15', poison: '#a3e635' };
 const NICK_COLORS = ['#ff8f85', '#ffb547', '#f2dd6e', '#8fe3ae', '#7fd4ff', '#b7a6ff', '#ff9ad5', '#8fe0d2'];
 const STATUS = {
@@ -41,6 +44,7 @@ const RULES = [
   ['К7', '— встать на клетку в подготовку'],
   ['гача', '— оружие за ' + PRICE + ' монет'],
   ['профиль', '— твоя карточка'],
+  ['улучшить', '— +20% к случайному свойству оружия за ' + UPGRADE_PRICE + ' монет'],
 ];
 
 const $ = (id) => document.getElementById(id);
@@ -110,14 +114,18 @@ function pick(list) {
   return list[list.length - 1];
 }
 
-function statLine(stats) {
-  const line = el('div', 'stats');
-  Object.entries(stats).forEach(([stat, value], i) => {
+function statLine(weapon, cls) {
+  const line = el('div', 'stats'), ups = weapon.ups || {};
+  Object.entries(weapon.stats).forEach(([stat, value], i) => {
     if (i) line.append(', ');
-    line.append(el('span', value < 0 ? 'down' : 'up', statText(stat, value)));
+    line.append(el('span', value < 0 ? 'down' : 'up', statText(stat, value, cls)));
+    if (ups[stat]) line.append(el('span', 'more', ' +' + amountText(stat, ups[stat])));
   });
   return line;
 }
+
+const PRIZES = OUTCOMES.concat(RARITIES);
+const prizeOf = (outcome) => (outcome.kind === 'weapon' ? rarityOf(outcome.weapon.rarity) : outcomeOf(outcome.kind));
 
 function uniqueLine(weapon) {
   const unique = weapon.unique ? uniqueOf(weapon.unique) : null;
@@ -299,6 +307,18 @@ export class View {
         this._cue(member && member.weapon && BIG_PRIZES.has(member.weapon.rarity) ? 'win' : 'prize');
       }
       if (event.kind === 'kept') this._cue('meh');
+      if (event.kind === 'void') this._cue('void');
+      if (event.kind === 'jackpot') this._cue('jackpot');
+      if (event.kind === 'upgraded') {
+        this._cue('upgrade');
+        this._names.set(event.login, NAME_TIME);
+      }
+      if (event.kind === 'cleared') {
+        this._cue('reward');
+        const coins = plural(event.coins, 'монета', 'монеты', 'монет');
+        this.scene.say('Волна ' + event.wave + ' пройдена: всем +' + event.coins + ' ' + coins + ' и +'
+          + String(event.xp).replace('.', ',') + ' опыта', '#fde047');
+      }
       if (event.kind === 'event') this._cue(GOOD_EVENTS.has(event.type) ? 'buff' : 'debuff');
       if (event.kind === 'wave') this._cue(event.wave % BOSS_EVERY === 0 ? 'boss' : 'wave');
       if (event.kind === 'over') this._cue('over');
@@ -347,6 +367,9 @@ export class View {
       this._herald = { mob, left: HERALD_TIME, title: mob.info.boss ? 'Босс' : 'Элитный', name: mob.kind.name,
         text: mob.power.name + ': ' + mob.power.text, glow: mob.kind.glow, boss: mob.info.boss };
       this._keys.herald = '';
+    } else if (kind === 'wild') {
+      this._sound('roar');
+      this.scene.say('Мобы рассвирепели: бегут быстрее, сквозь стены и оковы', '#ef4444');
     } else if (kind === 'newcomer') {
       if (this._herald && this._herald.left > HERALD_TIME / 2 && !this._herald.fresh) return;
       const look = event.look;
@@ -542,10 +565,10 @@ export class View {
     const who = el('div', 'who'), reel = el('div', 'reel'), strip = el('div', 'strip'), result = el('div', 'result');
     const cells = [];
     for (let i = 0; i < REEL.cells; i++) {
-      const weapon = i === REEL.result ? slot.outcome.weapon : { cls, rarity: pick(RARITIES).id };
-      const cell = el('div', 'cell');
-      cell.style.setProperty('--tone', rarityOf(weapon.rarity).color);
-      cell.append(image(weaponUrl(weapon.cls, weapon.rarity, 40)));
+      const prize = i === REEL.result ? prizeOf(slot.outcome) : pick(PRIZES);
+      const kind = OUTCOMES.includes(prize) ? prize.id : 'weapon', cell = el('div', 'cell');
+      cell.style.setProperty('--tone', prize.color);
+      cell.append(image(prizeUrl(kind, prize.color)));
       strip.append(cell);
       cells.push(cell);
     }
@@ -591,13 +614,23 @@ export class View {
       this._keys['slot' + i] = '';
       view.who.textContent = '';
       const name = member ? this._starName(member.name, member.star, member.color, 'nick') : el('span', '', slot.login);
-      const verb = slot.phase === 'spin' ? ' крутит гачу…' : slot.took ? ' надевает' : ' оставляет своё';
+      const kind = slot.outcome.kind;
+      const verb = slot.phase === 'spin' ? ' крутит гачу…' : kind === 'void' ? ': пусто' : kind === 'coins'
+        ? ' возвращает вдвое' : slot.took ? ' надевает' : ' оставляет своё';
       view.who.append(name, verb);
       view.result.textContent = '';
       if (slot.phase === 'spin') return;
+      if (kind !== 'weapon') {
+        const prize = outcomeOf(kind), title = el('b', 'prize', prize.name);
+        title.style.color = prize.color;
+        const what = kind === 'void' ? 'ничего не выпало — повезёт в другой раз'
+          : '+' + slot.coins + ' монет: потраченные ' + slot.coins / 2 + ' вернулись вдвое';
+        view.result.append(title, el('div', 'now', what));
+        return;
+      }
       const weapon = slot.outcome.weapon, title = el('b', 'prize', weaponName(weapon));
       title.style.color = rarityOf(weapon.rarity).color;
-      view.result.append(title, statLine(weapon.stats));
+      view.result.append(title, statLine(weapon, weapon.cls));
       const unique = uniqueLine(weapon);
       if (unique) view.result.append(unique);
       if (!slot.took && member && member.weapon) {
@@ -663,7 +696,7 @@ export class View {
   }
 
   _paintCards(game, still) {
-    const notes = game.notes.filter((note) => note.kind === 'card' || note.kind === 'poor').slice(-ROWS.cards);
+    const notes = game.notes.filter((note) => NOTE_KINDS.has(note.kind)).slice(-ROWS.cards);
     const box = document.body.classList.contains('noside') ? $('board-cards') : $('cards');
     const wanted = new Set();
     for (const note of notes) {
@@ -674,7 +707,7 @@ export class View {
       let card = this._cards.get(key);
       if (!card || card.node.parentNode !== box) {
         if (card) card.node.remove();
-        card = note.kind === 'card' ? this._profileCard(member) : this._poorCard(member);
+        card = note.kind === 'card' ? this._profileCard(member) : this._shortCard(member, note);
         if (!still) {
           card.node.classList.add('pop');
           card.node.addEventListener('animationend', () => card.node.classList.remove('pop'), { once: true });
@@ -682,7 +715,7 @@ export class View {
         this._cards.set(key, card);
         box.append(card.node);
       }
-      card.update(member, game);
+      card.update(member, game, note);
     }
     for (const [key, card] of this._cards) {
       if (wanted.has(key)) continue;
@@ -691,10 +724,20 @@ export class View {
     }
   }
 
-  _poorCard(member) {
-    const node = el('div', 'note poor'), has = el('b');
-    node.append(this._starName(member.name, member.star, member.color, 'nick'), ': на крутку нужно ',
-      el('b', '', String(PRICE)), ', у тебя ', has);
+  _shortCard(member, note) {
+    const node = el('div', 'note poor'), has = el('b'), nick = this._starName(member.name, member.star, member.color,
+      'nick');
+    const detail = note.detail || {};
+    if (note.kind === 'poor') {
+      node.append(nick, detail.price === UPGRADE_PRICE ? ': на улучшение нужно ' : ': на крутку нужно ',
+        el('b', '', String(detail.price || PRICE)), ', у тебя ', has);
+    } else if (note.kind === 'bare') {
+      node.append(nick, ': улучшать нечего — сначала выбей оружие в гаче');
+    } else {
+      node.className = 'note upgrade';
+      node.append(nick, ' улучшает оружие: ', el('b', 'up', '+' + amountText(detail.id, detail.amount) + ' '
+        + statName(detail.id, member.cls)));
+    }
     return {
       node,
       update: (m) => {
@@ -706,12 +749,12 @@ export class View {
   _profileCard(member) {
     const node = el('div', 'note profile'), top = el('div', 'top'), lvl = el('span', 'lvl');
     const coins = this._coins(0), bar = el('div', 'bar'), fill = el('i'), body = el('div', 'body');
-    const gear = el('div', 'gear-box'), range = el('div', 'line range');
+    const gear = el('div', 'gear-box');
     top.append(this._starName(member.name, member.star, member.color, 'nick'), lvl, coins);
     bar.append(fill);
     const face = image(heroUrl(member.cls, 64));
-    node.append(face, top, bar, body, gear, range);
-    const state = { level: 0, cls: '', weapon: undefined };
+    node.append(face, top, bar, body, gear);
+    const state = { level: 0, cls: '', gear: null };
     return {
       node,
       update: (m) => {
@@ -726,7 +769,6 @@ export class View {
           state.cls = m.cls;
           face.src = heroUrl(m.cls, 64);
           const cls = CLASS_BY_ID.get(m.cls), info = describe(m.cls, level), kind = el('div', 'line');
-          range.textContent = cls.rider ? 'Ищи его на самом крепком мобе' : 'Радиус стрельбы показан на поле';
           const clsName = el('b', '', cls.name);
           clsName.style.color = cls.color;
           kind.append(clsName, el('i', 'role ' + cls.role, ROLES[cls.role]), ' ' + info.main);
@@ -738,16 +780,16 @@ export class View {
             body.append(line);
           }
         }
-        if (state.weapon !== m.weapon) {
-          state.weapon = m.weapon;
+        const gearKey = m.weapon ? JSON.stringify([m.weapon.rarity, m.weapon.stats, m.weapon.ups]) : '';
+        if (state.gear !== gearKey) {
+          state.gear = gearKey;
           gear.textContent = '';
           if (m.weapon) {
-            const line = el('div', 'gear'), text = el('div'), name = el('b', '', weaponName(m.weapon));
+            const line = el('div', 'gear'), name = el('b', '', weaponName(m.weapon));
             name.style.color = rarityOf(m.weapon.rarity).color;
-            text.append(name, statLine(m.weapon.stats));
+            line.append(name, statLine(m.weapon, m.cls));
             const unique = uniqueLine(m.weapon);
-            if (unique) text.append(unique);
-            line.append(image(weaponUrl(m.weapon.cls, m.weapon.rarity)), text);
+            if (unique) line.append(unique);
             gear.append(line);
           } else gear.append(el('div', 'line', 'Оружия нет — пиши гача'));
         }
