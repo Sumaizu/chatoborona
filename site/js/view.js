@@ -8,6 +8,7 @@ import { LEVEL_MAX, LIVES, levelOf, xpForLevel } from './balance.js';
 import { SIZE } from './field.js';
 import { Emotes } from './emotes.js';
 import { SFX_GAPS, play } from './sound.js';
+import { PAGES, pageAt } from './guide.js';
 
 const STAGE_WIDTH = 1280, STAGE_HEIGHT = 720;
 const PAINT_EVERY = 0.15;
@@ -17,7 +18,7 @@ const HERALD_TIME = 10;
 const LOW_LIVES = 5;
 const BOSS_EVERY = 10;
 const FINAL_SECONDS = 3;
-const ROWS = { over: 5, roster: 18, pause: 10, pauseShort: 8, queue: 3, cards: 2, player: 22 };
+const ROWS = { over: 5, roster: 30, pause: 10, pauseShort: 8, queue: 3, cards: 2, player: 22 };
 const REEL = { cells: 26, result: 21, width: 46 };
 const BIG_PRIZES = new Set(['epic', 'legendary']);
 const CYCLES = new Map([['rainbow', 2400], ['heart', 15000]]);
@@ -41,7 +42,7 @@ const STATUS = {
 };
 const RULES = [
   ['Напиши что угодно', '— и ты в отряде'],
-  ['К7', '— встать на клетку в подготовку'],
+  ['К7', '— встать на клетку'],
   ['гача', '— оружие за ' + PRICE + ' монет'],
   ['профиль', '— твоя карточка'],
   ['улучшить', '— +20% к случайному свойству оружия за ' + UPGRADE_PRICE + ' монет'],
@@ -53,6 +54,14 @@ function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
   if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function guidePart(part) {
+  if (typeof part === 'string') return part;
+  if (part.role) return el('i', 'role ' + part.role, ROLES[part.role]);
+  const node = el(part.bold ? 'b' : 'span', '', part.text);
+  if (part.color) node.style.color = part.color;
   return node;
 }
 
@@ -471,6 +480,7 @@ export class View {
 
   _paintLobby(game, still) {
     $('lobby-clock').textContent = clockText(game.left);
+    this._paintGuide(game, still);
     const members = Array.from(game.members.values());
     const rosterKey = JSON.stringify(members.map((m) => [m.login, m.cls, levelOf(m.xp)]));
     this._once('roster', rosterKey, () => {
@@ -499,6 +509,36 @@ export class View {
         item.append(image(heroUrl(cls.id)), text);
         box.append(item);
       }
+    });
+  }
+
+  _paintGuide(game, still) {
+    const { page, part } = pageAt(Math.max(0, game.s.lobby - game.left));
+    this._once('tabs', page.id, () => {
+      const box = $('lobby-tabs');
+      box.textContent = '';
+      for (const item of PAGES) {
+        const tab = el('span', item === page ? 'on' : '', item.title);
+        if (item === page) tab.append(el('i'));
+        box.append(tab);
+      }
+    });
+    const fill = $('lobby-tabs').querySelector('i');
+    if (fill) fill.style.width = (part * 100).toFixed(1) + '%';
+    $('lobby-squad').hidden = page.id !== 'squad';
+    $('lobby-classes').hidden = page.id !== 'classes';
+    $('lobby-guide').hidden = !page.points;
+    if (!page.points) return;
+    this._once('guide', page.id, () => {
+      const box = $('lobby-guide');
+      box.textContent = '';
+      page.points().forEach(([icon, parts], i) => {
+        const item = el('li', still ? '' : 'pop'), text = el('span');
+        item.style.animationDelay = (i * 0.08).toFixed(2) + 's';
+        for (const part of parts) text.append(guidePart(part));
+        item.append(image(icon), text);
+        box.append(item);
+      });
     });
   }
 

@@ -21,7 +21,7 @@ PREPARE = {
           kills: 10, assists: 20 });
         game.feed(name, 'привет', { login: name.toLowerCase() });
       });
-      game.left = 101;
+      game.left = game.s.lobby - 9;
       return true;
     })()""",
     "battle": """(() => {

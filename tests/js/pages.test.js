@@ -2,6 +2,7 @@ import { SFX_GAPS, SOUNDS, measure } from '../../site/js/sound.js';
 import { CLASSES } from '../../site/js/classes.js';
 import { BOSSES, ELITES } from '../../site/js/balance.js';
 import { HERO_SIZE, MOB_KINDS, coinUrl, heroSprite, heroUrl, mobSprite, prizeUrl } from '../../site/js/sprites.js';
+import { PAGES } from '../../site/js/guide.js';
 import { eq, no, ok, test } from './harness.js';
 
 const SITE = '/site/';
@@ -93,6 +94,26 @@ test('страницы: оверлей сам открывает набор, ч�
   for (const message of said) game.feed('Боря', message, { login: 'боря' });
   await until(() => w.document.querySelectorAll('#chat .msg.cmd img.cmd-icon').length >= said.length + 1,
     'значки у всех команд');
+  frame.remove();
+});
+
+test('страницы: в наборе сменяются страницы правил, отряда и классов', async () => {
+  fresh();
+  const frame = await overlay('lobby=300');
+  const w = frame.contentWindow, game = w.chatoborona.game;
+  await until(() => game.state === 'lobby', 'набор');
+  await until(() => w.document.querySelectorAll('#lobby-tabs span').length === PAGES.length, 'вкладки');
+  ok(!element(w, 'lobby-guide').hidden && text(w, 'lobby-guide').includes('к7'), 'сначала — как играть');
+  const start = (id) => PAGES.slice(0, PAGES.findIndex((page) => page.id === id)).reduce((t, page) => t + page.time, 0);
+  join(game, 'Аня');
+  game.left = game.s.lobby - start('squad') - 1;
+  await until(() => !element(w, 'lobby-squad').hidden && element(w, 'lobby-guide').hidden, 'отряд');
+  ok(text(w, 'roster').includes('Аня'));
+  game.left = game.s.lobby - start('classes') - 1;
+  await until(() => !element(w, 'lobby-classes').hidden && element(w, 'lobby-squad').hidden, 'классы');
+  game.left = game.s.lobby - start('coins') - 1;
+  await until(() => text(w, 'lobby-guide').includes('улучшить'), 'монеты и гача');
+  eq(w.document.querySelector('#lobby-tabs .on').textContent, 'Монеты и гача');
   frame.remove();
 });
 

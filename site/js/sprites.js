@@ -1498,6 +1498,8 @@ export const heroSprite = (id) => remember('hero:' + id, () => makeHero(id));
 
 export const mobSprite = (id, frame = 0) => remember('mob:' + id + ':' + frame, () => artSprite(id, frame ? 1 : 0));
 
+export const mobUrl = (id) => remember('mobUrl:' + id, () => mobSprite(id).toDataURL());
+
 export function tintSprite(image, color) {
   return own(image, color, () => {
     const canvas = document.createElement('canvas');
@@ -1730,6 +1732,8 @@ export const heartSprite = () => remember('heart', () => {
   p.px(2, 3, '#ffd2d9');
   return p.outline('#2a0710').canvas();
 });
+
+export const heartUrl = () => remember('heartUrl', () => heartSprite().toDataURL());
 
 export const shieldSprite = () => remember('shield', () => {
   const p = new Pix(16, 18);
