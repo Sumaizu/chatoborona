@@ -17,7 +17,7 @@ export const MOBS = {
 
 export const POWERS = {
   dash: { id: 'dash', name: 'Рывок', text: 'временами бежит вдвое быстрее', every: 6, time: 1.5, boost: 1 },
-  mend: { id: 'mend', name: 'Лечение', text: 'лечит мобов вокруг себя', range: 4, heal: 0.04 },
+  mend: { id: 'mend', name: 'Лечение', text: 'лечит мобов вокруг себя', range: 4, heal: 0.015 },
   armor: { id: 'armor', name: 'Броня', text: 'получает на 35% меньше урона', cut: 0.35 },
   brood: { id: 'brood', name: 'Выводок', text: 'призывает крыс', every: 5, count: 2, hp: 0.7, summon: 'swarm',
     look: 'rat' },
@@ -66,7 +66,7 @@ export const POWERS = {
 };
 
 export const MIMIC = { id: 'mimic', name: 'Мимик', power: 'treasure', glow: '#facc15', treasure: true, hp: 1.6,
-  chance: 0.12, from: 3, coins: 20, coinsStep: 1 };
+  chance: 0.05, from: 3, coins: 20, coinsStep: 1 };
 
 export const ELITE_ODDS = { from: 3, base: 0.15, step: 0.012, top: 0.7, fall: 0.45, max: 4 };
 

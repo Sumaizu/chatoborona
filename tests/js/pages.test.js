@@ -196,7 +196,7 @@ test('звуки: каждый слышно и ни один не хрипит, 
 test('спрайты: герои, мобы, оружие и монета рисуются', () => {
   for (const cls of CLASSES) {
     ok(heroUrl(cls.id).startsWith('data:image/png'), cls.id);
-    eq(heroSprite(cls.id).width, HERO_SIZE);
+    eq(heroSprite(cls.id).width / heroSprite(cls.id).fine, HERO_SIZE);
   }
   for (const kind of MOB_KINDS) ok(mobSprite(kind).width >= 8, kind);
   for (const kind of ELITES.concat(BOSSES)) ok(MOB_KINDS.includes(kind.id), kind.id);

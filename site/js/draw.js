@@ -1,5 +1,6 @@
 import { LETTERS, SIZE } from './field.js';
-import { HERO_SIZE, coinSprite, flaskSprite, heartSprite, heroSprite, mineSprite, mobSprite, pixelsOf, tintSprite,
+import { HERO_SIZE, bubbleSprite, coinSprite, flaskSprite, heartSprite, heroSprite, mineSprite, mobSprite, pixelsOf,
+  reticleSprite, shellSprite, starSprite, tintSprite,
   trapSprite, wallSprite } from './sprites.js';
 import { rarityOf } from './gacha.js';
 
@@ -105,7 +106,7 @@ function square(ctx, x, y, size, color) {
 const turnOf = (angle, steps = TURN_STEPS) => Math.round(angle / (Math.PI * 2 / steps));
 
 function sprite(ctx, image, x, y, angle, zoom = ZOOM, lift = 0, steps = TURN_STEPS) {
-  const w = image.width * zoom, h = image.height * zoom;
+  const scale = zoom / (image.fine || 1), w = image.width * scale, h = image.height * scale;
   ctx.save();
   ctx.translate(Math.round(x), Math.round(y));
   ctx.rotate(turnOf(angle, steps) * (Math.PI * 2 / steps));
@@ -168,6 +169,32 @@ function glow(ctx, x, y, r, color, strength) {
   ctx.globalAlpha = 1;
 }
 
+function sparkle(ctx, x, y, arm, color) {
+  square(ctx, x, y, 2, color);
+  for (let i = 1; i <= arm; i++) {
+    square(ctx, x - i * 2, y, 2, color);
+    square(ctx, x + i * 2, y, 2, color);
+    square(ctx, x, y - i * 2, 2, color);
+    square(ctx, x, y + i * 2, 2, color);
+  }
+}
+
+function stars(ctx, x, y, r, spin) {
+  const image = starSprite();
+  for (let i = 0; i < 3; i++) {
+    const a = spin + i * Math.PI * 2 / 3;
+    ctx.drawImage(image, Math.round(x + Math.cos(a) * r - image.width / 2), Math.round(y + Math.sin(a) * r * 0.45
+      - image.height / 2));
+  }
+}
+
+function burst(ctx, x, y, r, count, spin, arm, color) {
+  for (let i = 0; i < count; i++) {
+    const a = spin + i * Math.PI * 2 / count;
+    sparkle(ctx, x + Math.cos(a) * r, y + Math.sin(a) * r, arm, color);
+  }
+}
+
 function orbit(ctx, x, y, r, count, spin, color, size, cross = false) {
   for (let i = 0; i < count; i++) {
     const a = spin + i * Math.PI * 2 / count, px = x + Math.cos(a) * r, py = y + Math.sin(a) * r;
@@ -218,7 +245,7 @@ function pileOf(image, angle) {
   ctx.globalCompositeOperation = 'source-atop';
   ctx.fillStyle = 'rgba(25, 12, 16, .35)';
   ctx.fillRect(0, 0, width, tall);
-  const pile = { grains, canvas, left, top };
+  const pile = { grains, canvas, left, top, scale: ZOOM / (image.fine || 1) };
   known.set(step, pile);
   return pile;
 }
@@ -374,8 +401,8 @@ export class Scene {
   _gate(ctx, battle) {
     const [sx, sy] = battle.path[0], x = at(sx + 0.5), y = at(sy + 0.5);
     glow(ctx, x, y, CELL * 0.75, 'rgba(192, 132, 252, .95)', 0.85);
-    orbit(ctx, x, y, CELL * 0.36, 5, this.clock * 2.4, '#e9d5ff', 2);
-    orbit(ctx, x, y, CELL * 0.2, 3, -this.clock * 3.1, '#c084fc', 2);
+    orbit(ctx, x, y, CELL * 0.36, 5, this.clock * 2.4, '#e9d5ff', 1, true);
+    orbit(ctx, x, y, CELL * 0.2, 3, -this.clock * 3.1, '#c084fc', 1, true);
   }
 
   _aura(ctx, x, y, r, look, seed) {
@@ -496,21 +523,21 @@ export class Scene {
       c.t += dt;
       if (c.t >= CORPSE.fall + CORPSE.lie + CORPSE.fade) continue;
       next.push(c);
-      const x = at(c.x), y = at(c.y), pile = c.pile;
+      const x = at(c.x), y = at(c.y), pile = c.pile, z = pile.scale;
       if (c.t < CORPSE.fall) {
         for (const g of pile.grains) {
           const k = Math.max(0, Math.min(1, (c.t - g.delay) / (CORPSE.fall - g.delay)));
           const fall = k * k, sy = g.sy - c.lift;
           const gx = g.sx + (g.tx - g.sx) * fall, gy = sy + (g.ty - sy) * fall;
           ctx.fillStyle = g.color;
-          ctx.fillRect(Math.round(x + (gx - 0.5) * ZOOM), Math.round(y + (gy - 0.5) * ZOOM), ZOOM, ZOOM);
+          ctx.fillRect(Math.round(x + (gx - 0.5) * z), Math.round(y + (gy - 0.5) * z), Math.ceil(z), Math.ceil(z));
         }
         continue;
       }
       const fading = c.t - CORPSE.fall - CORPSE.lie;
       ctx.globalAlpha = fading > 0 ? Math.max(0, 1 - fading / CORPSE.fade) : 1;
-      ctx.drawImage(pile.canvas, Math.round(x + pile.left * ZOOM), Math.round(y + pile.top * ZOOM),
-        pile.canvas.width * ZOOM, pile.canvas.height * ZOOM);
+      ctx.drawImage(pile.canvas, Math.round(x + pile.left * z), Math.round(y + pile.top * z), pile.canvas.width * z,
+        pile.canvas.height * z);
       ctx.globalAlpha = 1;
     }
     this.corpses = next;
@@ -535,9 +562,8 @@ export class Scene {
         const phase = (this.clock * 0.7 + i * 0.29 + puddle.x * 0.37) % 1, a = i * 1.9 + puddle.y * 3;
         const bx = x + Math.cos(a) * r * 0.45, by = y + Math.sin(a) * r * 0.35, size = 1 + Math.round(phase * 3);
         ctx.globalAlpha = fade * (phase < 0.85 ? 0.9 : 0.3);
-        ctx.strokeStyle = '#bef264';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(Math.round(bx - size), Math.round(by - size), size * 2, size * 2);
+        const bubble = bubbleSprite(), side = Math.round(bubble.width * (0.5 + size * 0.25));
+        ctx.drawImage(bubble, Math.round(bx - side / 2), Math.round(by - side / 2), side, side);
         if (phase > 0.85) square(ctx, bx, by - 4 - (phase - 0.85) * 30, 2, '#d9f99d');
       }
       for (let i = 0; i < 3; i++) {
@@ -591,7 +617,7 @@ export class Scene {
     ctx.setLineDash([]);
     ctx.restore();
     glow(ctx, x2, y2, 18, 'rgba(253, 224, 71, .9)', 0.35 + 0.1 * Math.sin(this.clock * 5));
-    orbit(ctx, x2, y2 - 2, 13, 3, -this.clock * 2, '#fef08a', 2);
+    orbit(ctx, x2, y2 - 2, 13, 3, -this.clock * 2, '#fef08a', 1, true);
   }
 
   _mines(ctx, battle) {
@@ -666,7 +692,7 @@ export class Scene {
           y: spot.y + (Math.random() - 0.5) * 0.3 });
       }
       const frame = mob.flying ? Math.floor(this.clock * FLAP + mob.id) % 2 : Math.floor(spot.walk / Math.PI) % 2;
-      const image = mobSprite(mob.look, held ? 0 : frame), size = image.width * ZOOM;
+      const image = mobSprite(mob.look, held ? 0 : frame), size = image.width * ZOOM / (image.fine || 1);
       let x = at(spot.x), y = at(spot.y);
       let angle = Math.atan2(spot.dx, -spot.dy) + (held || mob.flying ? 0 : Math.sin(spot.walk) * 0.08);
       if (mob.biting) {
@@ -690,13 +716,7 @@ export class Scene {
         Math.PI * 2);
       ctx.fill();
       if (mob.kind) glow(ctx, x, y - lift, size * 0.85, mob.kind.glow, 0.45 + 0.2 * Math.sin(this.clock * 4 + mob.id));
-      if (mob.power && (mob.power.id === 'mend' || mob.power.id === 'fury')) {
-        ctx.strokeStyle = mob.power.id === 'mend' ? 'rgba(74, 222, 128, .35)' : 'rgba(249, 115, 22, .4)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(x, y, mob.power.range * CELL, 0, Math.PI * 2);
-        ctx.stroke();
-      }
+      if (mob.power && (mob.power.id === 'mend' || mob.power.id === 'fury')) this._motes(ctx, mob, x, y);
       const buried = mob.underUntil > now || Boolean(mob.power) && mob.power.id === 'tunnel' && mob.powerUntil <= now;
       if (buried) {
         this._mound(ctx, x, y, size, mob);
@@ -720,31 +740,17 @@ export class Scene {
         ctx.globalAlpha = 1;
       }
       if (mob.element) this._elementBits(ctx, mob, x, y - lift, size);
-      if (frozen) {
-        ctx.fillStyle = 'rgba(160, 235, 255, .32)';
-        ctx.strokeStyle = 'rgba(224, 251, 255, .9)';
-        ctx.lineWidth = 1.5;
-        roundRect(ctx, x - size * 0.5, y - lift - size * 0.5, size, size, 4);
-        ctx.fill();
-        ctx.stroke();
-        square(ctx, x - size * 0.3, y - lift - size * 0.3, 2, '#ffffff');
-        square(ctx, x - size * 0.2, y - lift - size * 0.36, 2, '#ffffff');
-      } else if (held) orbit(ctx, x, top - 2, 6, 3, this.clock * 6, '#ffe14d', 2);
+      if (frozen) sprite(ctx, shellSprite(image, 'ice'), x, y - lift, angle);
+      else if (held) stars(ctx, x, top - 4, 8, this.clock * 5);
       if (mob.power && mob.power.id === 'shield' && mob.powerUntil > now) {
-        ctx.strokeStyle = 'rgba(103, 232, 249, .9)';
-        ctx.fillStyle = 'rgba(103, 232, 249, .18)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(x, y - lift, size * 0.62, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
+        ctx.globalAlpha = 0.7 + 0.3 * Math.sin(this.clock * 10 + mob.id);
+        sprite(ctx, shellSprite(image, 'shield'), x, y - lift, angle);
+        ctx.globalAlpha = 1;
       }
       if (mob.ward > 0) {
-        ctx.strokeStyle = 'rgba(74, 222, 128, .85)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(x, y - lift, size * 0.58, 0, Math.PI * 2);
-        ctx.stroke();
+        ctx.globalAlpha = 0.75 + 0.2 * Math.sin(this.clock * 6 + mob.id);
+        sprite(ctx, shellSprite(image, 'ward'), x, y - lift, angle);
+        ctx.globalAlpha = 1;
       }
       if (mob.stolen > 0) {
         const bag = Math.min(4, 2 + Math.floor(mob.stolen / 10));
@@ -752,16 +758,30 @@ export class Scene {
         square(ctx, x + size * 0.32, top + 1, bag, '#facc15');
       }
       if (mob.markUntil > now) {
-        ctx.strokeStyle = '#f87171';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(Math.round(x - size * 0.4), Math.round(y - lift - size * 0.4), Math.round(size * 0.8),
-          Math.round(size * 0.8));
+        const reticle = reticleSprite(), zoom = Math.max(2, Math.round(size / reticle.width + 0.4));
+        const side = reticle.width * zoom + 2 * Math.round(Math.sin(this.clock * 6 + mob.id) + 1);
+        ctx.globalAlpha = 0.85 + 0.15 * Math.sin(this.clock * 6);
+        ctx.drawImage(reticle, Math.round(x - side / 2), Math.round(y - lift - side / 2), side, side);
+        ctx.globalAlpha = 1;
       }
       spot.screenX = x;
       spot.top = top;
       spot.size = size;
     }
     for (const id of Array.from(this.shown.keys())) if (!alive.has(id)) this.shown.delete(id);
+  }
+
+  _motes(ctx, mob, x, y) {
+    const mend = mob.power.id === 'mend', r = mob.power.range * CELL;
+    for (let i = 0; i < 6; i++) {
+      const cycle = this.clock * 0.5 + i / 6 + mob.id * 0.13, phase = cycle % 1, round = Math.floor(cycle);
+      const a = i * 2.4 + mob.id + round * 1.7, far = r * (0.25 + 0.7 * ((Math.sin(round * 12.9 + i * 7.1) + 1) / 2));
+      ctx.globalAlpha = Math.sin(phase * Math.PI) * 0.8;
+      const px = x + Math.cos(a) * far, py = y + Math.sin(a) * far - phase * 10;
+      if (mend) sparkle(ctx, px, py, 1, '#4ade80');
+      else square(ctx, px, py, 2 + (i % 2), i % 3 ? '#fb923c' : '#fde047');
+    }
+    ctx.globalAlpha = 1;
   }
 
   _mound(ctx, x, y, size, mob) {
@@ -903,7 +923,7 @@ export class Scene {
       }
       ctx.globalAlpha = 1;
       if (t.webUntil > now) this._webOn(ctx, x, y);
-      if (t.stunUntil > now) orbit(ctx, x, y - 14, 7, 3, this.clock * 6, '#ffe14d', 2);
+      if (t.stunUntil > now) stars(ctx, x, y - 16, 9, this.clock * 5);
       else if (t.napUntil > now) {
         ctx.fillStyle = '#c4b5fd';
         ctx.font = '900 9px "Segoe UI", system-ui, sans-serif';
@@ -918,11 +938,19 @@ export class Scene {
     const cell = t.player.pendingMove, tx = at(cell.x + 0.5), ty = at(cell.y + 0.5);
     ctx.save();
     ctx.globalAlpha = 0.65 + 0.25 * Math.sin(this.clock * 5);
+    const inset = 2 + Math.round(1 + Math.sin(this.clock * 5));
+    const left = at(cell.x) + inset, right = at(cell.x + 1) - inset, top = at(cell.y) + inset;
+    const bottom = at(cell.y + 1) - inset;
+    ctx.fillStyle = '#fde047';
+    const corners = [[left, top, 1, 1], [right, top, -1, 1], [left, bottom, 1, -1], [right, bottom, -1, -1]];
+    for (const [cx, cy, sx, sy] of corners) {
+      ctx.fillRect(sx > 0 ? cx : cx - 6, sy > 0 ? cy : cy - 2, 6, 2);
+      ctx.fillRect(sx > 0 ? cx : cx - 2, sy > 0 ? cy : cy - 6, 2, 6);
+    }
     ctx.strokeStyle = '#fde047';
     ctx.lineWidth = 1.5;
     ctx.setLineDash([4, 3]);
     ctx.lineDashOffset = -this.clock * 10;
-    ctx.strokeRect(at(cell.x) + 2, at(cell.y) + 2, CELL - 4, CELL - 4);
     ctx.globalAlpha = 0.35;
     ctx.beginPath();
     ctx.moveTo(x, y);
@@ -1077,7 +1105,8 @@ export class Scene {
     const spot = this.shown.get(mob.id);
     if (!spot || !spot.image) return;
     if (this.corpses.length >= CORPSE.max) this.corpses.shift();
-    this.corpses.push({ t: 0, x: spot.x, y: spot.y, pile: pileOf(spot.image, spot.angle), lift: spot.lift / ZOOM });
+    const pile = pileOf(spot.image, spot.angle);
+    this.corpses.push({ t: 0, x: spot.x, y: spot.y, pile, lift: spot.lift / pile.scale });
   }
 
   _effect(event) {
@@ -1397,11 +1426,10 @@ export class Scene {
       } else if (e.kind === 'boom') {
         const r = e.r * CELL * (0.5 + 0.6 * share);
         glow(ctx, at(e.x), at(e.y), r * 1.2, 'rgba(255, 200, 80, .9)', fade * 0.8);
-        ctx.strokeStyle = share < 0.5 ? '#ffd84a' : e.ring;
-        ctx.lineWidth = 3 * fade + 1;
-        ctx.beginPath();
-        ctx.arc(at(e.x), at(e.y), r, 0, Math.PI * 2);
-        ctx.stroke();
+        ctx.globalAlpha = fade;
+        burst(ctx, at(e.x), at(e.y), r, Math.max(8, Math.round(e.r * 10)), e.y * 2 + share, share < 0.5 ? 1 : 0,
+          share < 0.5 ? '#ffd84a' : e.ring);
+        ctx.globalAlpha = 1;
       } else if (e.kind === 'nuke') {
         const x = at(e.x), y = at(e.y);
         ctx.globalAlpha = Math.pow(fade, 2.5) * 0.85;
@@ -1409,12 +1437,8 @@ export class Scene {
         ctx.fillRect(EDGE, EDGE, CELL * SIZE, CELL * SIZE);
         ctx.globalAlpha = 1;
         glow(ctx, x, y, CELL * (2 + 3 * share), 'rgba(255, 170, 60, .95)', fade);
-        ctx.strokeStyle = '#ffd84a';
-        ctx.lineWidth = 6 * fade + 1;
         ctx.globalAlpha = fade;
-        ctx.beginPath();
-        ctx.arc(x, y, BOARD * 1.3 * Math.sqrt(share), 0, Math.PI * 2);
-        ctx.stroke();
+        burst(ctx, x, y, BOARD * 1.3 * Math.sqrt(share), 64, share * 0.5, 2, '#ffd84a');
         ctx.globalAlpha = 1;
       } else if (e.kind === 'storm') {
         ctx.globalAlpha = fade;
@@ -1443,12 +1467,11 @@ export class Scene {
         }
         ctx.globalAlpha = 1;
       } else if (e.kind === 'ring') {
+        const r = Math.max(4, e.r * CELL * (0.3 + 0.7 * share)), count = Math.max(6, Math.min(20, Math.round(e.r * 9)));
+        if (share < 0.3) glow(ctx, at(e.x), at(e.y), r * 1.2, e.color, (0.3 - share) * 1.5);
         ctx.globalAlpha = fade;
-        ctx.strokeStyle = e.color;
-        ctx.lineWidth = e.width || 2;
-        ctx.beginPath();
-        ctx.arc(at(e.x), at(e.y), Math.max(1, e.r * CELL * share), 0, Math.PI * 2);
-        ctx.stroke();
+        const arm = share < 0.5 && (e.width || 2) > 1.5 ? 1 : 0;
+        burst(ctx, at(e.x), at(e.y), r, count, e.x * 3 + share * 0.8, arm, e.color);
         ctx.globalAlpha = 1;
       } else if (e.kind === 'banner') {
         ctx.globalAlpha = Math.min(1, fade * 3, e.t * 4);

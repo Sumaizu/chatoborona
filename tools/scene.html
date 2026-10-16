@@ -51,6 +51,15 @@
     const look = kind ? null : LOOKS[type].find((item) => item.id === id);
     battle._spawn({ type, kind, look, hp: waveHp(wave, type, players) * toughness }, 2 + i * 1.6);
   });
+  if (query.get('debuffs')) {
+    const far = 1e9, mobs = battle.mobs;
+    if (mobs[0]) Object.assign(mobs[0], { holdUntil: far, holdBy: 'frost' });
+    if (mobs[1]) Object.assign(mobs[1], { holdUntil: far, holdBy: 'thunder' });
+    if (mobs[2]) Object.assign(mobs[2], { markUntil: far, mark: 0.25 });
+    if (mobs[3]) mobs[3].ward = 1e12;
+    for (const mob of mobs) if (mob.power && mob.power.id === 'shield') mob.powerUntil = far;
+    if (battle.towers[0]) battle.towers[0].stunUntil = far;
+  }
   const scene = new Scene(document.getElementById('field'));
   scene.resize(Number(query.get('zoom')) || 2);
   for (let t = 0; t < seconds; t += TICK) {

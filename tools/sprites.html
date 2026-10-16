@@ -22,8 +22,8 @@
   import { BLESSINGS, BUFFS, CURSES, DEBUFFS } from '../site/js/events.js';
   const show = (box, source, zoom, label) => {
     const fig = document.createElement('figure'), canvas = document.createElement('canvas');
-    canvas.width = source.width * zoom;
-    canvas.height = source.height * zoom;
+    canvas.width = source.width * zoom / (source.fine || 1);
+    canvas.height = source.height * zoom / (source.fine || 1);
     const ctx = canvas.getContext('2d');
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
