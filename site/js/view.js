@@ -197,8 +197,10 @@ export class View {
       rules.append(item);
     }
     const hint = $('hint');
-    hint.textContent = 'Пиши в чат — и ты в игре';
-    for (const [command] of RULES.slice(1)) hint.append(' · ', el('b', '', command));
+    hint.textContent = 'Пиши в чат — и ты в игре:';
+    const line = el('span', 'group');
+    RULES.slice(1).forEach(([command], i) => line.append(i ? ' · ' : '', el('b', '', command)));
+    hint.append(line);
     this._keys = {};
   }
 

@@ -43,9 +43,13 @@ export function runGame({ seed = 1, levels = [1], classes = [], pause = 20, gach
   });
   const start = members.map((m) => ({ xp: m.xp, level: balance.levelOf(m.xp) }));
   let clock = 0, spins = 0, upgrades = 0, thought = 0, wave = 0, waveStart = 0, longest = 0;
+  const bosses = new Map();
   while (game.state !== 'over' && clock < LIMIT) {
     game.step(balance.TICK);
     clock += balance.TICK;
+    if (game.battle) {
+      for (const mob of game.battle.mobs) if (mob.info.boss && !bosses.has(mob)) bosses.set(mob, game.wave);
+    }
     if (game.state === 'wave' && game.wave !== wave) {
       wave = game.wave;
       waveStart = clock;
@@ -65,6 +69,8 @@ export function runGame({ seed = 1, levels = [1], classes = [], pause = 20, gach
     spins,
     upgrades,
     longest,
+    bosses: Array.from(bosses, ([mob, at]) => ({ wave: at, killed: mob.dead && mob.hp <= 0,
+      risen: Boolean(mob.risen) })),
     effects: game.run.effects.map((e) => e.id),
     weapons: members.map((m) => (m.weapon ? weaponScore(m.weapon) : 0)),
     players: members.map((m, i) => ({

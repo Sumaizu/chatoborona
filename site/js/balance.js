@@ -12,7 +12,7 @@ export const MOBS = {
   tough: { name: 'Громила', hp: 2.6, speed: 0.7, xp: 2, coins: 1, leak: 2 },
   swarm: { name: 'Крыса', hp: 0.35, speed: 1.25, xp: 1, coins: 1, leak: 1 },
   elite: { name: 'Элитный', hp: 4.5, speed: 0.85, xp: 5, coins: 3, leak: 3, elite: true },
-  boss: { name: 'Босс', hp: 30, speed: 0.6, xp: 20, coins: 10, leak: 6, boss: true },
+  boss: { name: 'Босс', hp: 6, speed: 0.6, xp: 20, coins: 10, leak: 6, boss: true },
 };
 
 export const POWERS = {
