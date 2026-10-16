@@ -32,6 +32,7 @@ export const CHAT_KEEP = 60;
 export const CHAT_TEXT_MAX = 300;
 export const OVER_TIME = 15;
 export const CARD_TIME = 24;
+export const BATCH_MAX = 20;
 export const NOTE_TIME = 4;
 
 const STEP_MAX = 1;
@@ -196,7 +197,6 @@ export class Game {
     this.events = [];
     this._chatNo = 0;
     this._noteNo = 0;
-    this.deck = [];
     this._spinNo = 0;
     this._carry = 0;
     this._resetDue = null;
@@ -312,8 +312,9 @@ export class Game {
     if (!name || !message || IGNORED.has(login)) return null;
     const entry = this._say(name, message, msgId, login, color, emotes);
     if (this.state === 'stopped') return null;
-    const word = message.toLowerCase().split(/\s+/)[0];
+    const words = message.toLowerCase().split(/\s+/), word = words[0];
     const action = ACTIONS.get(word.replace(/^!/, '')), cell = action ? null : parseCell(message);
+    const count = Math.max(1, Math.min(BATCH_MAX, Number(words.slice(1).find((part) => /^\d+$/.test(part))) || 1));
     const member = this.join(login, name, { color, cell: cell && this.movable ? cell : null });
     let done = null;
     if (COMMANDS.has(word)) {
@@ -321,13 +322,13 @@ export class Game {
       done = mod && this.s.chat_commands ? this._control(COMMANDS.get(word)) : null;
     } else if (action === 'spin') {
       entry.command = 'spin';
-      done = this.order(member);
+      done = this._orders(member, count);
     } else if (action === 'card') {
       entry.command = 'card';
       done = member ? this._card(member) : null;
     } else if (action === 'upgrade') {
       entry.command = 'upgrade';
-      done = this.improve(member);
+      done = this.improve(member, count);
     } else if (cell) {
       entry.command = 'move';
       done = this.goTo(member, cell.x, cell.y) ? 'move' : this._later(member, cell);
@@ -356,7 +357,7 @@ export class Game {
     return Boolean(this._place(member, { x, y }));
   }
 
-  improve(member) {
+  improve(member, times = 1) {
     if (!member || !this.battle) return null;
     if (!member.weapon) {
       this._note('bare', member);
@@ -366,12 +367,28 @@ export class Game {
       this._note('poor', member, NOTE_TIME, { price: UPGRADE_PRICE });
       return 'poor';
     }
-    member.coins -= UPGRADE_PRICE;
-    const up = upgrade(this.random, member.weapon);
+    const ups = new Map();
+    let done = 0;
+    for (; done < times && member.coins >= UPGRADE_PRICE; done++) {
+      member.coins -= UPGRADE_PRICE;
+      const up = upgrade(this.random, member.weapon);
+      ups.set(up.id, Math.round(((ups.get(up.id) || 0) + up.amount) * 100) / 100);
+    }
     this._refresh(member);
-    this._note('upgrade', member, NOTE_TIME, up);
-    this._emit('upgraded', { login: member.login, stat: up.id, amount: up.amount });
+    const list = Array.from(ups, ([id, amount]) => ({ id, amount }));
+    this._note('upgrade', member, NOTE_TIME, { ups: list, times: done });
+    this._emit('upgraded', { login: member.login, ups: list });
     return 'upgraded';
+  }
+
+  _orders(member, count) {
+    let done = null;
+    for (let i = 0; i < count; i++) {
+      const result = this.order(member);
+      if (result !== 'queued') return done || result;
+      done = result;
+    }
+    return done;
   }
 
   _later(member, cell) {
@@ -421,14 +438,7 @@ export class Game {
   }
 
   _randomClass() {
-    if (!this.deck.length) {
-      this.deck = CLASSES.map((cls) => cls.id);
-      for (let i = this.deck.length - 1; i > 0; i--) {
-        const j = Math.floor(this.random() * (i + 1));
-        [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
-      }
-    }
-    return this.deck.pop();
+    return CLASSES[Math.floor(this.random() * CLASSES.length)].id;
   }
 
   _emit(kind, details = {}) {
@@ -494,7 +504,6 @@ export class Game {
     this.run = { number: this.games, mods: Object.assign({}, NO_MODS), foe: { hp: 0, speed: 0 }, lives: 0,
       effects: [], now: [], next: [], started: null };
     this.members = new Map();
-    this.deck = [];
     this._emit('lobby');
   }
 

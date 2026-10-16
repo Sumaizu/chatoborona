@@ -43,7 +43,8 @@ export function runGame({ seed = 1, levels = [1], classes = [], pause = 20, gach
   });
   const start = members.map((m) => ({ xp: m.xp, level: balance.levelOf(m.xp) }));
   let clock = 0, spins = 0, upgrades = 0, thought = 0, wave = 0, waveStart = 0, longest = 0;
-  const bosses = new Map();
+  const bosses = new Map(), log = [];
+  let row = null;
   while (game.state !== 'over' && clock < LIMIT) {
     game.step(balance.TICK);
     clock += balance.TICK;
@@ -53,6 +54,19 @@ export function runGame({ seed = 1, levels = [1], classes = [], pause = 20, gach
     if (game.state === 'wave' && game.wave !== wave) {
       wave = game.wave;
       waveStart = clock;
+      row = { wave, time: 0, lives: game.battle.lives, lost: 0, alive: 0, held: 0, wild: false, seen: new Set() };
+      log.push(row);
+    }
+    if (row && game.state === 'wave') {
+      row.time = clock - waveStart;
+      row.lost = row.lives - game.battle.lives;
+      row.wild = row.wild || game.battle.wild;
+      for (const mob of game.battle.mobs) {
+        if (mob.dead) continue;
+        row.seen.add(mob.id);
+        row.alive += balance.TICK;
+        if (mob.wall) row.held += balance.TICK;
+      }
     }
     if (game.state === 'wave') longest = Math.max(longest, clock - waveStart);
     if (!gacha || clock - thought < THINK) continue;
@@ -69,6 +83,7 @@ export function runGame({ seed = 1, levels = [1], classes = [], pause = 20, gach
     spins,
     upgrades,
     longest,
+    log: log.map((item) => Object.assign({}, item, { seen: undefined, mobs: item.seen.size })),
     bosses: Array.from(bosses, ([mob, at]) => ({ wave: at, killed: mob.dead && mob.hp <= 0,
       risen: Boolean(mob.risen) })),
     effects: game.run.effects.map((e) => e.id),

@@ -29,7 +29,8 @@ const SHOTS = { sniper: 'crack', gunner: 'gun', bomber: 'launch', hunter: 'bolt'
 const BATTLE_SOUNDS = { wall: 'build', crumble: 'crumble', plant: 'plant', mine: 'mine', nuke: 'nuke', leap: 'leap',
   bite: 'chomp', toss: 'launch', flask: 'flask', splash: 'splash', trap: 'plant', snap: 'snap', nova: 'ice',
   muse: 'cast', spikes: 'rock', whirl: 'wind', clink: 'clink', treasure: 'treasure', rattle: 'rattle', rise: 'rise',
-  hex: 'hex', blink: 'leap', burrow: 'burrow', leech: 'summon' };
+  hex: 'hex', blink: 'leap', burrow: 'burrow', leech: 'summon', steal: 'clink', loot: 'treasure', reflect: 'block',
+  swallow: 'burrow', breath: 'flame', web: 'hex', ward: 'block', mirage: 'summon', dig: 'burrow', drop: 'summon' };
 const GOOD_EVENTS = new Set(['buff', 'blessing']);
 const NOTE_KINDS = new Set(['card', 'poor', 'bare', 'upgrade']);
 const NEWCOMER_GLOW = { fire: '#f97316', ice: '#67e8f9', storm: '#facc15', poison: '#a3e635' };
@@ -721,18 +722,21 @@ export class View {
   _paintPlayers(game) {
     const members = Array.from(game.members.values()).sort((a, b) => b.xp - a.xp
       || (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1));
-    const list = $('players'), fit = Math.max(1, Math.floor((list.clientHeight || 200) / ROWS.player));
+    const list = $('players'), rows = Math.max(1, Math.floor((list.clientHeight || 200) / ROWS.player));
+    const two = members.length > rows, fit = two ? rows * 2 : rows;
     const shown = members.length > fit ? members.slice(0, fit - 1) : members;
     const key = JSON.stringify([fit, members.length, shown.map((m) => [m.login, m.cls, levelOf(m.xp),
       Math.floor(m.coins)])]);
     $('players-count').textContent = members.length ? String(members.length) : '';
     this._once('players', key, () => {
       list.textContent = '';
+      list.classList.toggle('two', two);
       if (!members.length) list.append(el('li', 'empty', 'Пока никого — напиши что-нибудь в чат'));
       for (const m of shown) {
-        const row = el('li');
-        row.append(image(heroUrl(m.cls), 'face'), this._starName(m.name, m.star, m.color),
-          el('span', 'lvl', 'ур. ' + levelOf(m.xp)), this._coins(m.coins));
+        const row = el('li'), level = el('span', 'lvl', (two ? '' : 'ур. ') + levelOf(m.xp));
+        level.style.background = CLASS_BY_ID.get(m.cls).color;
+        level.title = 'уровень';
+        row.append(image(heroUrl(m.cls), 'face'), this._starName(m.name, m.star, m.color), level, this._coins(m.coins));
         list.append(row);
       }
       const more = members.length - shown.length;
@@ -750,9 +754,10 @@ export class View {
       const key = note.kind + ':' + note.login;
       wanted.add(key);
       let card = this._cards.get(key);
-      if (!card || card.node.parentNode !== box) {
+      if (!card || card.node.parentNode !== box || note.kind !== 'card' && card.id !== note.id) {
         if (card) card.node.remove();
         card = note.kind === 'card' ? this._profileCard(member) : this._shortCard(member, note);
+        card.id = note.id;
         if (!still) {
           card.node.classList.add('pop');
           card.node.addEventListener('animationend', () => card.node.classList.remove('pop'), { once: true });
@@ -780,8 +785,10 @@ export class View {
       node.append(nick, ': улучшать нечего — сначала выбей оружие в гаче');
     } else {
       node.className = 'note upgrade';
-      node.append(nick, ' улучшает оружие: ', el('b', 'up', '+' + amountText(detail.id, detail.amount) + ' '
-        + statName(detail.id, member.cls)));
+      const ups = (detail.ups || []).map((up) => '+' + amountText(up.id, up.amount) + ' '
+        + statName(up.id, member.cls));
+      node.append(nick, ' улучшает оружие' + (detail.times > 1 ? ' ×' + detail.times : '') + ': ',
+        el('b', 'up', ups.join(', ')));
     }
     return {
       node,

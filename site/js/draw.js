@@ -24,6 +24,7 @@ const TRAIL_STEP = 0.2;
 const CORPSE = { fall: 0.45, lie: 1, fade: 1.1, max: 60 };
 const DECALS_MAX = 300;
 const TINTS = { poison: '#4ade80', burn: '#ff7a1f', chill: '#8ee6ff', fury: '#ff4d1f' };
+const HIT_FLASH = 0.15;
 const ELEMENT_BITS = {
   fire: ['#ffd84a', '#ff7a1f', '#ff4d1f'], ice: ['#f0fdff', '#a5f3fc', '#67e8f9'],
   storm: ['#fef9c3', '#facc15', '#ffffff'],
@@ -696,14 +697,28 @@ export class Scene {
         ctx.arc(x, y, mob.power.range * CELL, 0, Math.PI * 2);
         ctx.stroke();
       }
+      const buried = mob.underUntil > now || Boolean(mob.power) && mob.power.id === 'tunnel' && mob.powerUntil <= now;
+      if (buried) {
+        this._mound(ctx, x, y, size, mob);
+        spot.screenX = x;
+        spot.top = top;
+        spot.size = size;
+        continue;
+      }
       const veil = mob.power && mob.power.id === 'veil' && mob.powerUntil > now;
       if (veil) ctx.globalAlpha = 0.28 + 0.12 * Math.sin(this.clock * 12 + mob.id);
+      else if (mob.phase) ctx.globalAlpha = mob.phaseUntil > now ? 0.3 : 0.8;
       if (mob.wild || mob.power && mob.power.steady && mob.powerUntil > now) {
         glow(ctx, x, y - lift, size * 0.9, 'rgba(239, 68, 68, .95)', 0.55);
       }
       sprite(ctx, image, x, y - lift, angle);
       ctx.globalAlpha = 1;
       if (!veil) this._tint(ctx, mob, image, x, y - lift, angle, slowed, frozen);
+      if (now - mob.hitAt < HIT_FLASH) {
+        ctx.globalAlpha = 0.65 * (1 - (now - mob.hitAt) / HIT_FLASH);
+        sprite(ctx, tintSprite(image, '#ffffff'), x, y - lift, angle);
+        ctx.globalAlpha = 1;
+      }
       if (mob.element) this._elementBits(ctx, mob, x, y - lift, size);
       if (frozen) {
         ctx.fillStyle = 'rgba(160, 235, 255, .32)';
@@ -724,6 +739,18 @@ export class Scene {
         ctx.fill();
         ctx.stroke();
       }
+      if (mob.ward > 0) {
+        ctx.strokeStyle = 'rgba(74, 222, 128, .85)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(x, y - lift, size * 0.58, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      if (mob.stolen > 0) {
+        const bag = Math.min(4, 2 + Math.floor(mob.stolen / 10));
+        square(ctx, x + size * 0.32, top + 2, bag + 1, '#8f6b3a');
+        square(ctx, x + size * 0.32, top + 1, bag, '#facc15');
+      }
       if (mob.markUntil > now) {
         ctx.strokeStyle = '#f87171';
         ctx.lineWidth = 1;
@@ -735,6 +762,45 @@ export class Scene {
       spot.size = size;
     }
     for (const id of Array.from(this.shown.keys())) if (!alive.has(id)) this.shown.delete(id);
+  }
+
+  _mound(ctx, x, y, size, mob) {
+    const w = size * 0.42;
+    ctx.fillStyle = '#4a3322';
+    ctx.beginPath();
+    ctx.ellipse(x, y + 2, w, w * 0.55, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#7a5235';
+    ctx.beginPath();
+    ctx.ellipse(x, y, w * 0.8, w * 0.42, 0, 0, Math.PI * 2);
+    ctx.fill();
+    for (let i = 0; i < 3; i++) {
+      const a = this.clock * 3 + i * 2.1 + mob.id;
+      square(ctx, x + Math.cos(a) * w * 0.7, y - 2 + Math.sin(a * 1.3) * 3, 2, '#a07850');
+    }
+  }
+
+  _webOn(ctx, x, y) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(241, 245, 249, .8)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 4; i++) {
+      const a = i * Math.PI / 4;
+      ctx.beginPath();
+      ctx.moveTo(x - Math.cos(a) * 14, y - Math.sin(a) * 14);
+      ctx.lineTo(x + Math.cos(a) * 14, y + Math.sin(a) * 14);
+      ctx.stroke();
+    }
+    for (const r of [6, 11]) {
+      ctx.beginPath();
+      for (let i = 0; i <= 8; i++) {
+        const a = i * Math.PI / 4;
+        if (i) ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+        else ctx.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   _elementBits(ctx, mob, x, y, size) {
@@ -836,6 +902,7 @@ export class Scene {
         square(ctx, fx, fy, 3, '#ffffff');
       }
       ctx.globalAlpha = 1;
+      if (t.webUntil > now) this._webOn(ctx, x, y);
       if (t.stunUntil > now) orbit(ctx, x, y - 14, 7, 3, this.clock * 6, '#ffe14d', 2);
       else if (t.napUntil > now) {
         ctx.fillStyle = '#c4b5fd';
@@ -1062,6 +1129,35 @@ export class Scene {
       add({ kind: 'ring', life: 0.5, x: t.cx, y: t.cy, r: t.range, color: '#5eead4', width: 3 });
     } else if (event.kind === 'rally') {
       add({ kind: 'ring', life: 0.6, x: t.cx, y: t.cy, r: t.p.aura, color: '#ec4899', width: 2 });
+    } else if (event.kind === 'dig' || event.kind === 'drop' || event.kind === 'swallow') {
+      const spot = this.shown.get(event.mob.id) || event.mob;
+      add({ kind: 'puff', life: 0.5, x: spot.x, y: spot.y });
+      this._sparks(spot.x, spot.y, ['#7a5235', '#a07850', '#4a3322'], event.kind === 'swallow' ? 14 : 6, 1.6, 0.4, 2);
+    } else if (event.kind === 'steal') {
+      const pose = this._pose(t);
+      add({ kind: 'text', life: 1.2, x: pose.x, y: pose.y - 0.6, text: '−' + event.coins, color: '#f87171' });
+      this._sparks(pose.x, pose.y, ['#facc15', '#fff7c2'], 4, 1.4, 0.35, 2);
+    } else if (event.kind === 'loot') {
+      const pose = this._pose(t);
+      add({ kind: 'text', life: 1.4, x: pose.x, y: pose.y - 0.7, text: '+' + event.coins, color: '#fde047' });
+      this._sparks(event.mob.x, event.mob.y, ['#facc15', '#fff7c2', '#ca8a04'], 10, 2.2, 0.6, 2);
+    } else if (event.kind === 'reflect' || event.kind === 'web') {
+      const mob = event.mob;
+      add({ kind: 'chain', life: 0.45, points: [[mob.x, mob.y], [t.cx, t.cy]], color: '#e2e8f0' });
+      add({ kind: 'ring', life: 0.5, x: t.cx, y: t.cy, r: 0.6, color: '#ffffff', width: 2 });
+    } else if (event.kind === 'breath') {
+      const mob = event.mob;
+      add({ kind: 'chain', life: 0.6, points: [[mob.x, mob.y], [event.x, event.y]], color: '#f97316' });
+      for (let i = 1; i <= 6; i++) {
+        const f = i / 6;
+        this._sparks(mob.x + (event.x - mob.x) * f, mob.y + (event.y - mob.y) * f, ['#ffd84a', '#ff7a1f', '#ff4d1f'], 4,
+          1.6, 0.5, 3);
+      }
+    } else if (event.kind === 'ward') {
+      const mob = event.mob;
+      add({ kind: 'ring', life: 0.7, x: mob.x, y: mob.y, r: mob.power.range, color: '#4ade80', width: 2 });
+    } else if (event.kind === 'mirage') {
+      this._sparks(event.mob.x, event.mob.y, ['#22d3ee', '#c084fc', '#e0e7ff'], 10, 1.8, 0.4, 2);
     } else if (event.kind === 'level') {
       const pose = this._pose(t);
       add({ kind: 'text', life: 1.6, x: pose.x, y: pose.y - 0.7, text: 'ур. ' + event.level, color: '#fde047' });
@@ -1070,7 +1166,7 @@ export class Scene {
       add({ kind: 'ring', life: 0.8, x: event.mob.x, y: event.mob.y, r: 1.4, color: event.mob.kind.glow, width: 3 });
     } else if (event.kind === 'power') {
       const mob = event.mob;
-      add({ kind: 'ring', life: 0.5, x: mob.x, y: mob.y, r: 1, color: mob.kind.glow, width: 2 });
+      add({ kind: 'ring', life: 0.5, x: mob.x, y: mob.y, r: 1, color: mob.kind ? mob.kind.glow : '#e879f9', width: 2 });
     } else if (event.kind === 'leap') {
       this._pose(t).leap = { x: event.x, y: event.y, until: t.leapUntil, time: t.p.leap };
     } else if (event.kind === 'wall') {

@@ -44,6 +44,23 @@ export const POWERS = {
   blink: { id: 'blink', name: 'Скачок', text: 'раз в 6 секунд прыгает на 2,5 клетки вперёд', every: 6, jump: 2.5 },
   undying: { id: 'undying', name: 'Бессмертие', text: 'после смерти встаёт с полным здоровьем и поднимает трёх '
     + 'скелетов; лекарь упокаивает его насовсем', revive: 1, raise: 3 },
+  swoop: { id: 'swoop', name: 'Пике', text: 'раз в 8 секунд пикирует на ближайшего защитника и оглушает его на секунду',
+    every: 8, range: 3, hold: 1 },
+  ward: { id: 'ward', name: 'Оберег', text: 'раз в 10 секунд даёт мобам вокруг щит на 10% их здоровья', every: 10,
+    range: 2.5, ward: 0.1 },
+  carry: { id: 'carry', name: 'Носильщик', text: 'несёт трёх гоблинов: теряя здоровье, роняет их по одному', cargo: 3,
+    hp: 0.6 },
+  mirror: { id: 'mirror', name: 'Зеркало', text: 'раз в 6 секунд поднимает зеркало: удар отражается, стрелявший '
+    + 'оглушён на 1,5 секунды', every: 6, time: 2, hold: 1.5 },
+  curl: { id: 'curl', name: 'Клубок', text: 'от сильного удара сворачивается: 2 секунды неуязвим и катится вдвое '
+    + 'быстрее', share: 0.15, time: 2, boost: 1, rest: 6 },
+  tunnel: { id: 'tunnel', name: 'Подкоп', text: 'ползёт под землёй и выныривает раз в 6 секунд на 2 — только тогда его '
+    + 'можно бить; вынырнув, глотает мины, капканы и лужи', every: 6, time: 2, reach: 1.5 },
+  breath: { id: 'breath', name: 'Огненное дыхание', text: 'раз в 10 секунд дышит огнём по прямой: защитники на линии '
+    + 'оглушены на 2 секунды, мины и лужи сгорают; огонь его жжёт вдвое слабее', every: 10, length: 6, width: 0.7,
+    hold: 2 },
+  web: { id: 'web', name: 'Паутина', text: 'раз в 7 секунд опутывает защитника — 5 секунд он бьёт вдвое медленнее; '
+    + 'при смерти выпускает восемь паучат', every: 7, range: 3, time: 5, slow: 2, brood: 8, hp: 0.5 },
   treasure: { id: 'treasure', name: 'Сокровище', text: 'за убийство — золото всем, кто бил, и двойные монеты '
     + 'в следующей волне; дойдя до сердца, зарывается в землю' },
 };
@@ -69,6 +86,10 @@ export const ELITES = [
   { id: 'berserk', name: 'Берсерк', power: 'frenzy', glow: '#ef4444', from: 12 },
   { id: 'golem', name: 'Каменный голем', power: 'steadfast', glow: '#a8a29e', from: 14 },
   { id: 'vampire', name: 'Вампир', power: 'leech', glow: '#dc2626', from: 18 },
+  { id: 'goblinshaman', name: 'Гоблин-шаман', power: 'ward', glow: '#4ade80', from: 11 },
+  { id: 'ogre', name: 'Огр-носильщик', power: 'carry', glow: '#84cc16', from: 20 },
+  { id: 'mirrorknight', name: 'Зеркальщик', power: 'mirror', glow: '#e2e8f0', from: 28 },
+  { id: 'armadillo', name: 'Броненосец', power: 'curl', glow: '#d6a35c', from: 33 },
 ];
 
 export const BOSSES = [
@@ -78,6 +99,9 @@ export const BOSSES = [
   { id: 'warden', name: 'Страж склепа', power: 'shield', glow: '#67e8f9', undead: true },
   { id: 'archdemon', name: 'Архидемон', power: 'imps', glow: '#ef4444', from: 20 },
   { id: 'lich', name: 'Король-лич', power: 'undying', glow: '#a3e635', from: 30, undead: true },
+  { id: 'worm', name: 'Червь-пожиратель', power: 'tunnel', glow: '#c2410c', from: 40, leak: 10 },
+  { id: 'dragon', name: 'Дракон', power: 'breath', glow: '#f97316', from: 50, flying: true, fireproof: 0.5 },
+  { id: 'spiderqueen', name: 'Матка пауков', power: 'web', glow: '#a855f7', from: 60 },
 ];
 
 export const LOOKS = {
@@ -88,19 +112,32 @@ export const LOOKS = {
     { id: 'slime2', name: 'Слизень', from: 12, slime: 2, text: 'при смерти делится на двух слизнят' },
     { id: 'ember', name: 'Огненный элементаль', from: 16, element: 'fire', text: 'огонь его не берёт' },
     { id: 'frostling', name: 'Ледяной элементаль', from: 18, element: 'ice',
-      text: 'лёд его не берёт: не мёрзнет и не замедляется' }],
+      text: 'лёд его не берёт: не мёрзнет и не замедляется' },
+    { id: 'mole', name: 'Крот', from: 9, burrow: { every: 5, time: 1.5 },
+      text: 'временами зарывается: под землёй его не достать, мины и стены ему нипочём' },
+    { id: 'ghost', name: 'Призрак', from: 13, undead: true, phase: { every: 4, time: 1 },
+      text: 'временами бесплотен: проходит сквозь стены и мины, урон по нему вдвое слабее — кроме света лекаря' },
+    { id: 'harpy', name: 'Гарпия', from: 19, flying: true, power: 'swoop',
+      text: 'летает и раз в 8 секунд оглушает ближайшего защитника на секунду' },
+    { id: 'goblin', name: 'Гоблин', only: true }],
   fast: [{ id: 'dog', name: 'Пёс' }, { id: 'crow', name: 'Ворон', from: 4, flying: true },
     { id: 'hellhound', name: 'Адская гончая', from: 12 },
     { id: 'bonehound', name: 'Костяной пёс', from: 9, undead: true, revive: 1, hp: 0.6,
       text: 'встаёт после смерти' },
-    { id: 'stormling', name: 'Грозовой элементаль', from: 22, element: 'storm', text: 'молнии его не берут' }],
+    { id: 'stormling', name: 'Грозовой элементаль', from: 22, element: 'storm', text: 'молнии его не берут' },
+    { id: 'thief', name: 'Воришка', from: 7, thief: 3,
+      text: 'крадёт по 3 монеты у тех, мимо кого бежит; кто его добьёт — заберёт всё украденное' },
+    { id: 'mirage', name: 'Мираж', from: 24, mirage: true,
+      text: 'от первого удара распадается на трёх — настоящий один' }],
   tough: [{ id: 'brute', name: 'Громила' }, { id: 'demon', name: 'Демон', from: 14 },
     { id: 'skelwarrior', name: 'Скелет-латник', from: 11, undead: true, revive: 1, armor: 0.25, hp: 0.6,
       text: 'в броне: на 25% крепче к урону, и встаёт после смерти' },
     { id: 'slime3', name: 'Большой слизень', from: 20, slime: 3, text: 'при смерти делится на двух слизней' },
-    { id: 'sludge', name: 'Ядовитый элементаль', from: 25, element: 'poison', text: 'яд его не берёт' }],
+    { id: 'sludge', name: 'Ядовитый элементаль', from: 25, element: 'poison', text: 'яд его не берёт' },
+    { id: 'shieldbearer', name: 'Щитоносец', from: 15, front: 0.6,
+      text: 'щит спереди: кто стоит впереди него по дороге, бьёт на 60% слабее — бейте сбоку и сзади' }],
   swarm: [{ id: 'rat', name: 'Крыса' }, { id: 'bat', name: 'Летучая мышь', from: 6, flying: true },
-    { id: 'slime1', name: 'Слизнёнок', from: 5, slime: 1 }],
+    { id: 'slime1', name: 'Слизнёнок', from: 5, slime: 1 }, { id: 'spiderling', name: 'Паучонок', only: true }],
 };
 
 export const SLIMES = ['swarm', 'normal', 'tough'];

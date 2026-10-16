@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { PLAIN, makeGame, memoryStorage, runFor, seeded, until } from './fixtures.js';
-import { OVER_TIME, Profiles, nextReset } from '../../site/js/engine.js';
+import { BATCH_MAX, OVER_TIME, Profiles, nextReset } from '../../site/js/engine.js';
 import { TICK, xpForLevel } from '../../site/js/balance.js';
 import { PRICE, RARITIES, SHOW_FAST, SHOW_TIME, SPIN_TIME, WEAPONS, makeWeapon, weaponName }
   from '../../site/js/gacha.js';
@@ -179,7 +179,7 @@ test('игра: опыт сохраняется между играми, пос�
   const member = game.members.get('даша');
   ok(member.xp > 0);
   const saved = new Profiles(storage, 'chatoborona.players.test');
-  eq(saved.get('даша').xp, member.xp);
+  eq(saved.get('даша').xp, Math.round(member.xp * 100) / 100);
   const classes = new Set();
   for (let i = 0; i < 12; i++) {
     game.restart();
@@ -484,15 +484,6 @@ test('улучшить: за 100 монет +20% к случайному сво�
   ok(game.notes.some((n) => n.kind === 'poor' && n.detail.price === 100));
 });
 
-test('классы не повторяются, пока не выпадут все', () => {
-  const { game } = makeGame();
-  game.open();
-  for (let i = 0; i < 15; i++) say(game, 'Игрок' + i, 'привет');
-  eq(new Set(Array.from(game.members.values()).map((m) => m.cls)).size, 15);
-  say(game, 'Шестнадцатый', 'привет');
-  ok(game.members.get('шестнадцатый').cls);
-});
-
 test('за пройденную волну всем — монеты и опыт', () => {
   const { game } = makeGame();
   game.open();
@@ -511,4 +502,30 @@ test('за пройденную волну всем — монеты и опыт
     ok(member.coins >= coins + cleared.coins);
     ok(member.xp >= xp + cleared.xp);
   }
+});
+
+test('число в команде: «гача 3» — три крутки, «улучшить 5» — пять улучшений, сколько хватает монет', () => {
+  const { game } = makeGame();
+  game.open();
+  say(game, 'Гена', 'привет');
+  toWave(game);
+  const gena = game.members.get('гена');
+  gena.coins = PRICE * 3 + 10;
+  eq(say(game, 'Гена', 'гача 3'), 'queued');
+  eq(game.queue.length, 3);
+  eq(gena.coins, 10);
+  gena.coins = PRICE * 2;
+  eq(say(game, 'Гена', 'гача 5'), 'queued', 'сколько хватило');
+  eq([game.queue.length, gena.coins], [5, 0]);
+  gena.coins = PRICE * 100;
+  say(game, 'Гена', '!гача 99');
+  eq(game.queue.length, 5 + BATCH_MAX, 'не больше ' + BATCH_MAX + ' за раз');
+  gena.weapon = makeWeapon(seeded(3), gena.cls, RARITIES[2]);
+  gena.coins = 550;
+  eq(say(game, 'Гена', 'улучшить 5'), 'upgraded');
+  eq(gena.coins, 50);
+  const note = game.notes.find((n) => n.kind === 'upgrade' && n.login === 'гена');
+  eq(note.detail.times, 5);
+  eq(note.detail.ups.map((up) => up.id).sort(), Object.keys(gena.weapon.ups).sort(), 'в карточке все улучшения');
+  eq(say(game, 'Гена', 'улучшить 3'), 'poor');
 });

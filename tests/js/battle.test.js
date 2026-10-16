@@ -808,3 +808,166 @@ test('оружие: сила приёма и легендарное свойст
   battle.setMods(banner, { damage: 0, rate: 0, range: 1, crit: 0, power: 0, xp: 0, coins: 0, unique: null });
   eq(banner.p.aura, aura + 1, 'радиус — у ауры');
 });
+
+test('новые мобы: воришка крадёт монеты, добивший забирает украденное', () => {
+  const battle = makeBattle();
+  const rich = battle.place(player(), 'banner', 6, 4);
+  const gun = battle.place(player(), 'gunner', 2, 6);
+  rich.player.coins = 50;
+  const thief = creature(battle, 'thief', 4, 1e9);
+  runFor(battle, 3);
+  eq(rich.player.coins, 47);
+  eq(thief.stolen, 3);
+  const before = gun.player.coins;
+  battle._hurt(thief, 1e12, gun);
+  ok(gun.player.coins >= before + 3, 'украденное — добившему');
+  ok(battle.events.some((e) => e.kind === 'loot'));
+});
+
+test('новые мобы: крот под землёй — не виден, не ранится, проходит под стеной', () => {
+  const battle = makeBattle(), gun = battle.place(player(), 'gunner', 6, 4), mole = creature(battle, 'mole', 5);
+  mole.underUntil = 1e9;
+  mole.burrowAt = 1e9;
+  eq(battle._target(gun), null);
+  battle._hurt(mole, 100, gun);
+  eq(mole.hp, 1e6);
+  battle.walls.push({ tower: gun, i: 7, d: 8, x: 7.5, y: 5.5, hp: 1e12, max: 1e12, hitAt: -1e9 });
+  runFor(battle, 5);
+  ok(mole.d > 8, 'под стеной прошёл');
+});
+
+test('новые мобы: призрак бесплотен — урон вдвое слабее, свет лекаря — полностью', () => {
+  const battle = makeBattle();
+  const gun = battle.place(player(), 'gunner', 3, 4);
+  const healer = battle.place(player(), 'healer', 3, 6);
+  const ghost = creature(battle, 'ghost', 5);
+  ok(ghost.undead);
+  ghost.phaseUntil = 1e9;
+  battle._hurt(ghost, 100, gun);
+  ok(Math.abs(1e6 - ghost.hp - 50) < 1e-6);
+  const hp = ghost.hp;
+  battle._hurt(ghost, 100, healer);
+  ok(Math.abs(hp - ghost.hp - 100) < 1e-6);
+});
+
+test('новые мобы: щитоносец держит удар спереди, сбоку и сзади — полный урон', () => {
+  const battle = makeBattle();
+  const ahead = battle.place(player(), 'gunner', 9, 4);
+  const behind = battle.place(player(), 'gunner', 2, 4);
+  const knight = creature(battle, 'shieldbearer', 6);
+  battle._hurt(knight, 100, ahead);
+  ok(Math.abs(1e6 - knight.hp - 40) < 1e-6, 'спереди — 40%');
+  const hp = knight.hp;
+  battle._hurt(knight, 100, behind);
+  ok(Math.abs(hp - knight.hp - 100) < 1e-6, 'сзади — полностью');
+});
+
+test('новые мобы: гарпия летает и оглушает ближайшего защитника', () => {
+  const battle = makeBattle(), gun = battle.place(player(), 'gunner', 5, 4), harpy = creature(battle, 'harpy', 5);
+  ok(harpy.flying && harpy.power.id === 'swoop');
+  harpy.powerAt = battle.time;
+  battle.step(TICK);
+  ok(gun.stunUntil > battle.time);
+});
+
+test('новые мобы: мираж от первого удара распадается, копии пустые и сердцу не вредят', () => {
+  const battle = makeBattle(), gun = battle.place(player(), 'gunner', 3, 4), mirage = creature(battle, 'mirage', 6);
+  battle._hurt(mirage, 1, gun);
+  battle.step(TICK);
+  const copies = battle.mobs.filter((m) => m.fake);
+  eq(copies.length, 2);
+  battle._hurt(mirage, 1, gun);
+  battle.step(TICK);
+  eq(battle.mobs.filter((m) => m.fake).length, 2, 'второй раз не делится');
+  const coins = gun.player.coins;
+  battle._hurt(copies[0], 1, gun);
+  ok(copies[0].dead);
+  eq(gun.player.coins, coins, 'за копию ничего');
+  copies[1].d = battle.length - 1;
+  for (let i = 0; i < 100 && !copies[1].dead; i++) battle.step(TICK);
+  ok(copies[1].dead);
+  eq(battle.lives, LIVES);
+});
+
+test('новые элитные: гоблин-шаман даёт щит, огр роняет гоблинов', () => {
+  const battle = makeBattle(), gun = battle.place(player(), 'gunner', 3, 4);
+  const shaman = special(battle, 'elite', 'goblinshaman', 1000), other = walker(battle, 5, 1000);
+  shaman.powerAt = battle.time;
+  battle.step(TICK);
+  ok(other.ward > 0);
+  const hp = other.hp;
+  battle._hurt(other, other.ward / 2, gun);
+  eq(other.hp, hp, 'щит принял удар');
+  const field = makeBattle(), axe = field.place(player(), 'gunner', 3, 4), ogre = special(field, 'elite', 'ogre', 1000);
+  field._hurt(ogre, 300, axe);
+  field.step(TICK);
+  eq(field.mobs.filter((m) => m.look === 'goblin').length, 1, 'потерял четверть — уронил одного');
+  field._hurt(ogre, 1e6, axe);
+  field.step(TICK);
+  eq(field.mobs.filter((m) => m.look === 'goblin').length, 3, 'умер — спрыгнули остальные');
+});
+
+test('новые элитные: зеркальщик отражает удар, броненосец сворачивается', () => {
+  const battle = makeBattle(), gun = battle.place(player(), 'gunner', 3, 4);
+  const knight = special(battle, 'elite', 'mirrorknight', 1000);
+  knight.powerUntil = battle.time + 2;
+  battle._hurt(knight, 100, gun);
+  eq(knight.hp, 1000);
+  ok(gun.stunUntil > battle.time, 'стрелявший оглушён');
+  battle._hurt(knight, 100, gun);
+  eq(knight.hp, 900, 'зеркало держит один удар');
+  const armadillo = special(battle, 'elite', 'armadillo', 1000);
+  battle._hurt(armadillo, 200, gun);
+  ok(armadillo.powerUntil > battle.time);
+  battle._hurt(armadillo, 200, gun);
+  eq(armadillo.hp, 800, 'свернувшись, неуязвим');
+});
+
+test('новые боссы: червь под землёй, вынырнув — глотает мины; дракон жжёт линию; матка опутывает', () => {
+  const battle = makeBattle();
+  const gun = battle.place(player(), 'gunner', 6, 4);
+  const worm = special(battle, 'boss', 'worm', 1000);
+  eq(worm.leak, 10);
+  eq(battle._target(gun), null, 'под землёй');
+  battle._hurt(worm, 100, gun);
+  eq(worm.hp, 1000);
+  battle.mines.push({ tower: gun, i: 4, x: worm.x, y: worm.y, kind: 'strong' });
+  battle.step(TICK);
+  eq(battle.mines.length, 1, 'под землёй мины не рвёт');
+  worm.powerAt = battle.time;
+  battle.step(TICK);
+  eq(battle.mines.length, 0, 'вынырнул — проглотил');
+  ok(battle._target(gun) === worm);
+  const sky = makeBattle(), a = sky.place(player(), 'gunner', 7, 4), b = sky.place(player(), 'gunner', 9, 3);
+  const c = sky.place(player(), 'gunner', 2, 9), dragon = special(sky, 'boss', 'dragon', 1000);
+  ok(dragon.flying);
+  sky.mines.push({ tower: a, i: 5, x: 6, y: 5, kind: 'strong' });
+  dragon.powerAt = sky.time;
+  sky.step(TICK);
+  ok(a.stunUntil > sky.time && b.stunUntil > sky.time, 'на линии оглушены');
+  ok(c.stunUntil <= sky.time, 'в стороне — нет');
+  eq(sky.mines.length, 0, 'мина на линии сгорела');
+  sky._hurt(dragon, 100, a, 'fire');
+  eq(dragon.hp, 950, 'огонь вдвое слабее');
+  const lair = makeBattle();
+  const web = lair.place(player(), 'gunner', 5, 4);
+  const queen = special(lair, 'boss', 'spiderqueen', 1000);
+  queen.powerAt = lair.time;
+  lair.step(TICK);
+  ok(web.webUntil > lair.time);
+  const slow = lair._intervalOf(web, lair.time);
+  web.webUntil = 0;
+  ok(slow > lair._intervalOf(web, lair.time) * 1.9, 'бьёт вдвое медленнее');
+  lair._hurt(queen, 1e9, web);
+  lair.step(TICK);
+  eq(lair.mobs.filter((m) => m.look === 'spiderling').length, 8);
+});
+
+test('новые мобы: гоблины и паучата сами в волнах не выходят', () => {
+  for (let seed = 1; seed <= 20; seed++) {
+    const battle = makeBattle({ random: seeded(seed) });
+    battle.startWave(70, 5);
+    no(battle.spawns.some((spawn) => spawn.look && spawn.look.only), 'seed ' + seed);
+  }
+});
+
