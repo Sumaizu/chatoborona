@@ -383,12 +383,11 @@ export class Game {
 
   order(member) {
     if (!member || !this.battle) return null;
-    const busy = this.slots.some((slot) => slot && slot.login === member.login);
-    if (busy || this.queue.includes(member.login)) return null;
     if (member.coins < PRICE) {
       this._note('poor', member, NOTE_TIME, { price: PRICE });
       return 'poor';
     }
+    member.coins -= PRICE;
     this.queue.push(member.login);
     this._emit('queued', { login: member.login });
     return 'queued';
@@ -630,15 +629,13 @@ export class Game {
     });
     for (let i = 0; i < this.slots.length && this.queue.length && this.battle; i++) {
       if (this.slots[i]) continue;
-      while (this.queue.length) {
-        const member = this.members.get(this.queue.shift());
-        if (!member || member.coins < PRICE) continue;
-        member.coins -= PRICE;
-        this.slots[i] = { id: ++this._spinNo, login: member.login, outcome: spin(this.random, member.cls),
-          phase: 'spin', left: SPIN_TIME };
-        this._emit('spin', { login: member.login });
-        break;
-      }
+      const spinning = new Set(this.slots.filter(Boolean).map((slot) => slot.login));
+      const next = Math.max(0, this.queue.findIndex((login) => !spinning.has(login)));
+      const member = this.members.get(this.queue.splice(next, 1)[0]);
+      if (!member) continue;
+      this.slots[i] = { id: ++this._spinNo, login: member.login, outcome: spin(this.random, member.cls),
+        phase: 'spin', left: SPIN_TIME };
+      this._emit('spin', { login: member.login });
     }
   }
 

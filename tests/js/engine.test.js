@@ -207,7 +207,7 @@ test('игра: поражение — итоги, рекорд, через вр
   eq(game.games, 2);
 });
 
-test('гача: без монет нельзя, крутят двое сразу, третий ждёт', () => {
+test('гача: без монет нельзя, крутят двое сразу, место — сперва тому, кто не крутит, остальные ждут', () => {
   const { game } = makeGame();
   game.open();
   for (const name of ['Ева', 'Жора', 'Зина']) say(game, name, 'привет');
@@ -217,14 +217,14 @@ test('гача: без монет нельзя, крутят двое сразу
   ok(game.notes.some((n) => n.kind === 'poor' && n.login === 'ева'));
   for (const login of ['ева', 'жора', 'зина']) game.members.get(login).coins = 500;
   eq(say(game, 'Ева', 'гача'), 'queued');
+  eq(say(game, 'Ева', 'гача'), 'queued', 'второй раз — тоже в очередь');
   eq(say(game, 'Жора', 'гача'), 'queued');
   eq(say(game, 'Зина', 'гача'), 'queued');
-  eq(say(game, 'Ева', 'гача'), null, 'второй раз в очередь не встать');
+  eq(game.members.get('ева').coins, 500 - 2 * PRICE, 'монеты списаны сразу');
   game.step(TICK);
-  eq(game.slots.map((slot) => slot && slot.login), ['ева', 'жора']);
-  eq(game.queue, ['зина']);
-  eq(game.members.get('ева').coins, 500 - PRICE);
-  eq(say(game, 'Ева', 'гача'), null, 'пока крутится — нельзя');
+  eq(game.slots.map((slot) => slot && slot.login), ['ева', 'жора'], 'второе место — тому, кто ещё не крутит');
+  eq(game.queue, ['ева', 'зина']);
+  eq(say(game, 'Ева', 'гача'), 'queued', 'пока крутится — можно ещё');
   runFor(game, SPIN_TIME - 0.2);
   eq(game.slots[0].phase, 'spin');
   runFor(game, 0.4);
@@ -232,7 +232,21 @@ test('гача: без монет нельзя, крутят двое сразу
   const kind = game.slots[0].outcome.kind;
   eq(game.slots[0].took, kind !== 'void', 'оружие надето или монеты удвоены, пустота — ничего');
   runFor(game, SHOW_FAST + 0.2);
-  ok(game.slots.some((slot) => slot && slot.login === 'зина'), 'освободилось место — крутит следующая');
+  eq(game.slots.map((slot) => slot && slot.login), ['ева', 'зина'], 'освободились места — крутят ждавшие');
+});
+
+test('гача: один игрок занимает оба свободных места и стоит в очереди, пока хватает монет', () => {
+  const { game } = makeGame();
+  game.open();
+  say(game, 'Ося', 'привет');
+  toWave(game);
+  const member = game.members.get('ося');
+  member.coins = PRICE * 3 + 10;
+  for (let i = 0; i < 3; i++) eq(say(game, 'Ося', 'гача'), 'queued');
+  eq(say(game, 'Ося', 'гача'), 'poor', 'на четвёртую не хватает');
+  game.step(TICK);
+  eq(game.slots.map((slot) => slot && slot.login), ['ося', 'ося']);
+  eq(game.queue, ['ося']);
 });
 
 test('гача: та же редкость или выше — меняется само, ниже — остаётся своё; без оружия надевается любое', () => {

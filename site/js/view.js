@@ -682,15 +682,18 @@ export class View {
         view.result.append(now);
       }
     });
-    const queue = game.queue.map((login) => game.members.get(login)).filter(Boolean);
-    this._once('queue', queue.map((m) => m.login).join(), () => {
+    const waiting = new Map();
+    for (const login of game.queue) waiting.set(login, (waiting.get(login) || 0) + 1);
+    const queue = Array.from(waiting).filter(([login]) => game.members.has(login));
+    this._once('queue', game.queue.join(), () => {
       const line = $('queue');
       line.textContent = '';
       if (!queue.length) return;
       line.append('Дальше: ');
-      queue.slice(0, ROWS.queue).forEach((m, i) => {
+      queue.slice(0, ROWS.queue).forEach(([login, count], i) => {
         if (i) line.append(', ');
-        line.append(el('b', '', m.name));
+        line.append(el('b', '', game.members.get(login).name));
+        if (count > 1) line.append(' ×' + count);
       });
       const more = queue.length - ROWS.queue;
       if (more > 0) line.append(' и ещё ' + more);
