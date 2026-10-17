@@ -7,10 +7,6 @@ import { effectOf } from './events.js';
 const PLAYERS = [['Ветерок', 34], ['kotoboy', 12], ['Mira_Lis', 57], ['Тихоня', 8], ['pixel_hunter', 23], ['Сова', 71],
   ['dr_Groove', 3], ['Лёша_К', 41], ['NightOwl77', 16], ['Марго', 29], ['bublik', 5], ['Gera', 88], ['Ёжик', 19],
   ['sunny_day', 46]];
-const CHAT = [['kotoboy', 'всем привет'], ['Сова', 'к12', 'move', true], ['Mira_Lis', 'гача', 'spin', true],
-  ['bublik', 'а где мой снайпер?'], ['Gera', 'держим левый поворот!'], ['Ёжик', 'профиль', 'card', true],
-  ['Марго', 'гача', 'spin', false], ['dr_Groove', 'первый раз тут, как играть?'],
-  ['Ветерок', 'просто пиши в чат — ты уже в отряде'], ['NightOwl77', 'босс через две волны']];
 const CLASSES = [['Тихоня', 'earth'], ['kotoboy', 'miner'], ['bublik', 'parasite'], ['sunny_day', 'pyro'],
   ['dr_Groove', 'frost'], ['NightOwl77', 'alchemist']];
 const WAVE = 8;
@@ -59,18 +55,15 @@ export function demoGame(settings) {
       took: true },
     { id: 2, login: 'марго', outcome: { kind: 'weapon', weapon: makeWeapon(random, member('Марго').cls) },
       phase: 'spin', left: 1.4 },
+    null,
   ];
   game.run.now = [Object.assign({ kind: 'buff' }, effectOf('buff', 'fury'))];
   game.run.next = [Object.assign({ kind: 'debuff' }, effectOf('debuff', 'tired'))];
   game.run.effects = [{ kind: 'blessing', id: 'wrath' }];
   addMods(game.run.mods, effectOf('blessing', 'wrath').mods);
   for (const m of game.members.values()) game._refresh(m);
-  game.queue = ['kotoboy'];
-  game.notes = [{ kind: 'card', login: 'ёжик', left: 8 }];
-  for (const [name, text, command, ok] of CHAT) {
-    Object.assign(game._say(name, text, null, name.toLowerCase(), null, null), { command: command || null,
-      ok: Boolean(ok) });
-  }
+  game.queue = [{ login: 'kotoboy', count: 2 }];
+  game.notes = [{ kind: 'card', login: 'ёжик', left: 8, since: 0, detail: { brief: false }, id: 1 }];
   game.events.length = 0;
   game.battle.events.length = 0;
   return game;

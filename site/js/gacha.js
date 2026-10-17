@@ -1,12 +1,12 @@
-import { CLASS_BY_ID } from './classes.js';
+import { CLASS_BY_ID, cells } from './classes.js';
 
 export const PRICE = 50;
 export const UPGRADE_PRICE = 100;
 export const UPGRADE_SHARE = 0.2;
 export const KILL_COINS = 3;
 export const ASSIST_COINS = 2;
-export const SLOTS = 2;
-export const SPIN_TIME = 4;
+export const SLOTS = 3;
+export const SPIN_TIME = 2;
 export const SHOW_TIME = 7;
 export const SHOW_FAST = 4;
 export const CRIT_MUL = 2;
@@ -27,7 +27,7 @@ export const RARITIES = [
 export const STATS = [
   { id: 'damage', name: 'урона', step: 0.06, worth: 1 },
   { id: 'rate', name: 'скорости атаки', step: 0.05, worth: 1 },
-  { id: 'range', name: 'радиуса', step: 0.2, worth: 0.5, cells: true },
+  { id: 'range', name: 'к радиусу', step: 0.2, worth: 0.5, cells: true },
   { id: 'crit', name: 'шанса крита', step: 0.03, worth: 1, good: true },
   { id: 'power', name: 'силы приёма', step: 0.08, worth: 1 },
   { id: 'xp', name: 'опыта', step: 0.08, worth: 0.2 },
@@ -166,8 +166,7 @@ export function statName(id, cls) {
 
 export function amountText(id, value) {
   const stat = statOf(id);
-  return stat.cells ? String(Math.round(Math.abs(value) * 10) / 10).replace('.', ',')
-    : Math.round(Math.abs(value) * 100) + '%';
+  return stat.cells ? cells(Math.abs(value)) : Math.round(Math.abs(value) * 100) + '%';
 }
 
 export function statText(id, value, cls) {

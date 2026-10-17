@@ -15,6 +15,19 @@ export const MOBS = {
   boss: { name: 'Босс', hp: 6, speed: 0.6, xp: 20, coins: 10, leak: 6, boss: true },
 };
 
+export const BIOME_RULES = {
+  grass: { name: 'Луг', text: 'обычная карта' },
+  volcano: { name: 'Вулкан', text: 'лёд слабее', weak: 'ice' },
+  swamp: { name: 'Болото', text: 'ходячие мобы медленнее, но их больше', ground: 0.8, more: 'ground' },
+  snow: { name: 'Снега', text: 'огонь слабее', weak: 'fire' },
+  desert: { name: 'Пустыня', text: 'летучие мобы быстрее, и их больше', air: 1.25, more: 'air' },
+  graveyard: { name: 'Кладбище', text: 'павшие мобы встают скелетами', rise: true },
+};
+
+export const TERRAIN = { weak: 0.75, more: 0.25, hill: 0.8, grave: 0.2,
+  bodiless: ['ember', 'frostling', 'stormling', 'sludge', 'slime1', 'slime2', 'slime3', 'ghost', 'mirage', 'golem',
+    'mimic', 'shade', 'slimeking'] };
+
 export const POWERS = {
   dash: { id: 'dash', name: 'Рывок', text: 'временами бежит вдвое быстрее', every: 6, time: 1.5, boost: 1 },
   mend: { id: 'mend', name: 'Лечение', text: 'лечит мобов вокруг себя', range: 4, heal: 0.015 },
@@ -40,7 +53,7 @@ export const POWERS = {
     + 'и получает на 20% меньше урона', cut: 0.2, steady: true },
   hex: { id: 'hex', name: 'Сглаз', text: 'раз в 6 секунд оглушает ближайшего защитника на 1,5 секунды', every: 6,
     range: 3, hold: 1.5 },
-  leech: { id: 'leech', name: 'Кровосос', text: 'лечится, когда рядом гибнут мобы', range: 2.5, heal: 0.15 },
+  leech: { id: 'leech', name: 'Кровосос', text: 'лечится, когда рядом гибнут мобы', range: 2.5, drain: 0.1 },
   blink: { id: 'blink', name: 'Скачок', text: 'раз в 6 секунд прыгает на 2,5 клетки вперёд', every: 6, jump: 2.5 },
   undying: { id: 'undying', name: 'Бессмертие', text: 'после смерти встаёт с полным здоровьем и поднимает трёх '
     + 'скелетов; лекарь упокаивает его насовсем', revive: 1, raise: 3 },
@@ -153,7 +166,7 @@ export const lookOf = (id) => {
 export const WAVE = {
   hp: 21,
   growth: 1.05,
-  accel: 0.0008,
+  accel: 0.0007,
   players: 0.75,
   crowd: 0.95,
   pivot: 10,

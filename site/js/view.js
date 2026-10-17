@@ -1,12 +1,11 @@
 import { Scene } from './draw.js';
-import { CLASSES, CLASS_BY_ID, ROLES, describe } from './classes.js';
-import { coinUrl, commandUrl, effectUrl, heroUrl, prizeUrl, shieldUrl } from './sprites.js';
+import { CLASSES, CLASS_BY_ID, ROLES, describe, num } from './classes.js';
+import { coinUrl, effectUrl, heroUrl, markUrl, prizeUrl, shieldUrl } from './sprites.js';
 import { OUTCOMES, PRICE, RARITIES, SPIN_TIME, UPGRADE_PRICE, amountText, outcomeOf, rarityOf, statName, statText,
   uniqueOf, weaponName } from './gacha.js';
 import { effectOf } from './events.js';
-import { LEVEL_MAX, LIVES, levelOf, xpForLevel } from './balance.js';
-import { SIZE } from './field.js';
-import { Emotes } from './emotes.js';
+import { BIOME_RULES, LEVEL_MAX, LIVES, levelOf, tierOf, towerBase, xpForLevel } from './balance.js';
+import { SIZE, cellName } from './field.js';
 import { SFX_GAPS, play } from './sound.js';
 import { PAGES, pageAt } from './guide.js';
 
@@ -15,13 +14,17 @@ const PAINT_EVERY = 0.15;
 const NAME_TIME = 6;
 const RANGE_TIME = 30;
 const HERALD_TIME = 10;
+const BIOME_GLOW = { grass: '#4ade80', volcano: '#fb923c', swamp: '#a3e635', snow: '#bae6fd', desert: '#fbbf24',
+  graveyard: '#c4b5fd' };
+const MAP_TIPS = 'Мобы выходят из двух тоннелей. Горы закрывают выстрел, с холмов бьют дальше, '
+  + 'на горы и в воду не встать'
 const LOW_LIVES = 5;
 const BOSS_EVERY = 10;
 const FINAL_SECONDS = 3;
 const ROWS = { over: 5, roster: 30, pause: 10, pauseShort: 8, queue: 3, cards: 2, player: 22 };
-const REEL = { cells: 26, result: 21, width: 46 };
+const REEL = { cells: 26, result: 21, width: 34 };
 const BIG_PRIZES = new Set(['epic', 'legendary']);
-const CYCLES = new Map([['rainbow', 2400], ['heart', 15000]]);
+const CYCLES = new Map([['rainbow', 2400]]);
 const SOUND_PRIORITY = ['over', 'win', 'boss', 'wave', 'jackpot', 'prize', 'upgrade', 'reward', 'meh', 'void', 'level',
   'buff', 'debuff', 'spin', 'leak', 'card', 'tick'];
 const SFX_PER_FRAME = 4;
@@ -45,8 +48,9 @@ const RULES = [
   ['Напиши что угодно', '— и ты в отряде'],
   ['К7', '— встать на клетку'],
   ['гача', '— оружие за ' + PRICE + ' монет'],
-  ['профиль', '— твоя карточка'],
+  ['профиль', '— твоя карточка, проф — короткая'],
   ['улучшить', '— +20% к случайному свойству оружия за ' + UPGRADE_PRICE + ' монет'],
+  ['реролл', '— другой класс, один раз до первой волны'],
 ];
 
 const $ = (id) => document.getElementById(id);
@@ -88,6 +92,20 @@ function luminance(red, green, blue) {
   return (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
 }
 
+function reachOf(member) {
+  const cls = CLASS_BY_ID.get(member.cls), tower = member.tower;
+  const level = levelOf(member.xp), p = tower && tower.p ? tower.p : cls.params(level, tierOf(level));
+  if (cls.role === 'support' && p.aura) return p.aura;
+  return tower ? tower.range : p.range || towerBase(level).range;
+}
+
+function prizeCell(prize) {
+  const cell = el('div', 'cell');
+  cell.style.setProperty('--tone', prize.color);
+  cell.append(image(prizeUrl(OUTCOMES.includes(prize) ? prize.id : 'weapon', prize.color)));
+  return cell;
+}
+
 function nickColor(name, color) {
   if (!/^#[0-9a-f]{6}$/i.test(color || '')) {
     let hash = 0;
@@ -102,12 +120,6 @@ function nickColor(name, color) {
     rgb = rgb.map((channel) => Math.round(channel + (255 - channel) * lift));
   }
   return 'rgb(' + rgb.join(',') + ')';
-}
-
-function nick(name, star, color) {
-  const node = el('b', star || '', name);
-  if (!star) node.style.color = nickColor(name, color);
-  return node;
 }
 
 function keepInStep(event) {
@@ -150,9 +162,6 @@ export class View {
     this.scene = new Scene($('field'));
     this.settings = null;
     this.heard = [];
-    this.emotes = new Emotes(() => {
-      this._feedStale = true;
-    });
     this.scale = 1;
     this.clock = 0;
     this._game = null;
@@ -161,15 +170,13 @@ export class View {
     this._cues = [];
     this._names = new Map();
     this._ranges = new Map();
-    this._feedRows = new Map();
-    this._feedNewest = 0;
-    this._feedStale = false;
     this._lives = null;
     this._tickAt = null;
     this._rosterSeen = new Set();
     this._sfx = [];
     this._sfxAt = new Map();
     this._herald = null;
+    this._mapSeen = null;
     this._slots = [];
     this._cards = new Map();
     $('emblem-left').src = shieldUrl(64);
@@ -177,10 +184,6 @@ export class View {
     window.addEventListener('resize', () => this._fitStage());
     document.addEventListener('animationstart', keepInStep);
     this._fitStage();
-  }
-
-  watchRoom(roomId) {
-    this.emotes.watch(roomId);
   }
 
   use(settings) {
@@ -209,7 +212,6 @@ export class View {
     if (game !== this._game) {
       this._game = game;
       this._keys = {};
-      this._feedStale = true;
       this._lives = null;
       this._names.clear();
       this._ranges.clear();
@@ -223,6 +225,13 @@ export class View {
     stage.hidden = !game || game.state === 'stopped';
     if (stage.hidden) return;
     if (!still) this._listen(game);
+    if (game.battle && game.battle !== this._mapSeen && game.state === 'placing') {
+      const rules = BIOME_RULES[game.battle.biome], text = rules.text.charAt(0).toUpperCase() + rules.text.slice(1);
+      this._mapSeen = game.battle;
+      this._herald = { id: 'map', left: HERALD_TIME, title: 'Карта', name: rules.name,
+        glow: BIOME_GLOW[game.battle.biome], text: text + '. ' + MAP_TIPS, boss: false };
+      this._keys.herald = '';
+    }
     for (const timers of [this._names, this._ranges]) {
       for (const [login, left] of timers) {
         if (left - dt <= 0) timers.delete(login);
@@ -400,13 +409,14 @@ export class View {
   _paintHerald(dt) {
     const box = $('herald'), herald = this._herald;
     if (herald) herald.left -= dt;
-    if (!herald || herald.left <= 0 || !this._game || this._game.state !== 'wave') {
+    const state = this._game ? this._game.state : '';
+    if (!herald || herald.left <= 0 || state !== 'wave' && !(herald.id && state === 'placing')) {
       this._herald = null;
       box.hidden = true;
       return;
     }
-    this._once('herald', String(herald.mob.id), () => {
-      const mob = herald.mob;
+    this._once('herald', herald.id || String(herald.mob.id), () => {
+      const mob = herald.mob || { y: SIZE / 2 };
       box.hidden = false;
       const battle = this._game.battle, base = battle.path[battle.path.length - 1][1] + 0.5;
       const band = (y) => (y < SIZE / 3 ? 0 : y < SIZE * 2 / 3 ? 1 : 2);
@@ -466,7 +476,6 @@ export class View {
     this._paintEffects(game);
     this._paintPlayers(game);
     this._paintCards(game, still);
-    this._paintFeed(game, still);
   }
 
   _starName(name, star, color, className = 'name') {
@@ -608,10 +617,7 @@ export class View {
     const who = el('div', 'who'), reel = el('div', 'reel'), strip = el('div', 'strip'), result = el('div', 'result');
     const cells = [];
     for (let i = 0; i < REEL.cells; i++) {
-      const prize = i === REEL.result ? prizeOf(slot.outcome) : pick(PRIZES);
-      const kind = OUTCOMES.includes(prize) ? prize.id : 'weapon', cell = el('div', 'cell');
-      cell.style.setProperty('--tone', prize.color);
-      cell.append(image(prizeUrl(kind, prize.color)));
+      const cell = prizeCell(i === REEL.result ? prizeOf(slot.outcome) : pick(PRIZES));
       strip.append(cell);
       cells.push(cell);
     }
@@ -662,7 +668,9 @@ export class View {
         ? ' возвращает вдвое' : slot.took ? ' надевает' : ' оставляет своё';
       view.who.append(name, verb);
       view.result.textContent = '';
+      view.box.classList.toggle('shown', slot.phase !== 'spin');
       if (slot.phase === 'spin') return;
+      view.result.append(prizeCell(prizeOf(slot.outcome)));
       if (kind !== 'weapon') {
         const prize = outcomeOf(kind), title = el('b', 'prize', prize.name);
         title.style.color = prize.color;
@@ -683,10 +691,9 @@ export class View {
         view.result.append(now);
       }
     });
-    const waiting = new Map();
-    for (const login of game.queue) waiting.set(login, (waiting.get(login) || 0) + 1);
-    const queue = Array.from(waiting).filter(([login]) => game.members.has(login));
-    this._once('queue', game.queue.join(), () => {
+    const queue = game.queue.filter((entry) => game.members.has(entry.login))
+      .map((entry) => [entry.login, entry.count]);
+    this._once('queue', JSON.stringify(queue), () => {
       const line = $('queue');
       line.textContent = '';
       if (!queue.length) return;
@@ -801,32 +808,42 @@ export class View {
   _profileCard(member) {
     const node = el('div', 'note profile'), top = el('div', 'top'), lvl = el('span', 'lvl');
     const coins = this._coins(0), bar = el('div', 'bar'), fill = el('i'), body = el('div', 'body');
-    const gear = el('div', 'gear-box');
-    top.append(this._starName(member.name, member.star, member.color, 'nick'), lvl, coins);
+    const gear = el('div', 'gear-box'), marks = el('span', 'marks'), spot = el('span', 'mark');
+    const reach = el('span', 'mark'), spotText = el('span'), reachText = el('span');
+    spot.append(image(markUrl('spot')), spotText);
+    reach.append(image(markUrl('reach')), reachText);
+    marks.append(spot, reach, coins);
+    top.append(this._starName(member.name, member.star, member.color, 'nick'), lvl, marks);
     bar.append(fill);
     const face = image(heroUrl(member.cls, 64));
     node.append(face, top, bar, body, gear);
-    const state = { level: 0, cls: '', gear: null };
+    const state = { level: 0, cls: '', gear: null, brief: null };
     return {
       node,
-      update: (m) => {
+      update: (m, game, note) => {
+        const brief = Boolean(note && note.detail && note.detail.brief), tower = m.tower;
+        const rider = Boolean(tower && tower.rider), seat = rider ? tower.host : tower;
+        spot.hidden = !seat;
+        spotText.textContent = seat ? cellName(Math.floor(seat.x), Math.floor(seat.y)) : '';
+        reachText.textContent = num(reachOf(m));
         const level = levelOf(m.xp), from = xpForLevel(level);
         const to = level >= LEVEL_MAX ? from + 1 : xpForLevel(level + 1);
         lvl.textContent = 'ур. ' + level;
         coins.querySelector('.sum').textContent = String(Math.floor(m.coins));
         const progress = level >= LEVEL_MAX ? 100 : Math.floor((m.xp - from) / (to - from) * 100);
         fill.style.width = progress + '%';
-        if (state.level !== level || state.cls !== m.cls) {
+        if (state.level !== level || state.cls !== m.cls || state.brief !== brief) {
           state.level = level;
           state.cls = m.cls;
+          state.brief = brief;
           face.src = heroUrl(m.cls, 64);
           const cls = CLASS_BY_ID.get(m.cls), info = describe(m.cls, level), kind = el('div', 'line');
           const clsName = el('b', '', cls.name);
           clsName.style.color = cls.color;
-          kind.append(clsName, el('i', 'role ' + cls.role, ROLES[cls.role]), ' ' + info.main);
+          kind.append(clsName, el('i', 'role ' + cls.role, ROLES[cls.role]), brief ? '' : ' ' + info.main);
           body.textContent = '';
           body.append(kind);
-          for (const perk of info.perks) {
+          if (!brief) for (const perk of info.perks) {
             const line = el('div', 'perk' + (perk.open ? '' : ' locked'));
             line.append(el('i', '', perk.open ? '★' : perk.at + ' ур.'), ' ' + perk.text);
             body.append(line);
@@ -847,68 +864,5 @@ export class View {
         }
       },
     };
-  }
-
-  _fillText(box, message) {
-    const own = message.emotes || null;
-    if (!Object.keys(own || {}).length && !this.emotes.size) {
-      box.textContent = message.text;
-      return;
-    }
-    let plain = '';
-    message.text.split(' ').forEach((word, i) => {
-      const url = word ? this.emotes.url(word, own) : '';
-      if (!url) {
-        plain += (i ? ' ' : '') + word;
-        return;
-      }
-      if (plain || i) box.append(plain + (i ? ' ' : ''));
-      plain = '';
-      const picture = el('img');
-      picture.alt = word;
-      picture.onerror = () => picture.replaceWith(word);
-      picture.src = url;
-      box.append(picture);
-    });
-    if (plain) box.append(plain);
-  }
-
-  _messageRow(message, fresh) {
-    const star = message.star || '', command = message.command;
-    const marks = (command ? ' cmd' + (message.ok ? ' ok' : '') : '') + (star ? ' star star-' + star : '')
-      + (fresh ? ' pop' : '');
-    const row = el('div', 'msg' + marks), text = el('span', 'text');
-    this._fillText(text, message);
-    row.append(nick(message.user, star, message.color), ' ');
-    if (command) row.append(image(commandUrl(command), 'cmd-icon'));
-    row.append(text);
-    return row;
-  }
-
-  _paintFeed(game, still) {
-    const feed = game.chat, box = $('chat');
-    if (this._feedStale) {
-      this._feedStale = false;
-      this._feedRows.clear();
-      box.textContent = '';
-    }
-    const newest = feed.length ? feed[feed.length - 1].id : 0;
-    if (newest < this._feedNewest) this._feedNewest = 0;
-    const ids = new Set(feed.map((message) => message.id));
-    this._feedRows.forEach((row, id) => {
-      if (ids.has(id)) return;
-      row.remove();
-      this._feedRows.delete(id);
-    });
-    const note = box.querySelector('.note');
-    if (feed.length && note) note.remove();
-    if (!feed.length && !note) box.append(el('div', 'msg note', 'пока тихо'));
-    for (const message of feed) {
-      if (this._feedRows.has(message.id)) continue;
-      const row = this._messageRow(message, !still && message.id > this._feedNewest);
-      box.append(row);
-      this._feedRows.set(message.id, row);
-    }
-    this._feedNewest = Math.max(this._feedNewest, newest);
   }
 }

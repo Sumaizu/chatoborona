@@ -6,6 +6,10 @@ const STEPS_MIN = 32;
 const STEPS_MAX = 36;
 const BUDGET = 4000;
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+const FORK = { min: 3, good: 5, max: 9 };
+const TERRAIN = { tunnel: 0.6, patches: [['mountain', [1, 2], 4, 7], ['lake', [1, 2], 3, 6]], hills: [2, 3, 2, 4],
+  spots: 120 };
+export const BIOMES = ['grass', 'volcano', 'swamp', 'snow', 'desert', 'graveyard'];
 const LOOKALIKE = new Map([['a', 'а'], ['b', 'в'], ['e', 'е'], ['k', 'к'], ['m', 'м'], ['h', 'н'], ['o', 'о'],
   ['p', 'р'], ['c', 'с'], ['t', 'т'], ['y', 'у']]);
 const LOWER = LETTERS.toLowerCase();
@@ -22,6 +26,13 @@ export function parseCell(text) {
   const x = LOWER.indexOf(LOOKALIKE.has(letter) ? LOOKALIKE.get(letter) : letter);
   if (x < 0 || number < 1 || number > SIZE) return null;
   return { x, y: number - 1 };
+}
+
+export function parseMove(text) {
+  const parts = String(text == null ? '' : text).trim().split(/\s+/);
+  if (parts.length !== 2) return null;
+  const from = parseCell(parts[0]), to = parseCell(parts[1]);
+  return from && to ? { from, to } : null;
 }
 
 function shuffled(items, random) {
@@ -83,9 +94,9 @@ function expand(nodes) {
   return cells;
 }
 
-function turn(cells, random) {
+function turner(random) {
   const swap = random() < 0.5, flipX = random() < 0.5, flipY = random() < 0.5;
-  return cells.map(([x, y]) => {
+  return (cells) => cells.map(([x, y]) => {
     let a = swap ? y : x, b = swap ? x : y;
     if (flipX) a = SIZE - 1 - a;
     if (flipY) b = SIZE - 1 - b;
@@ -93,10 +104,137 @@ function turn(cells, random) {
   });
 }
 
-export function makePath(random = Math.random) {
+function forkOf(nodes, random) {
+  const key = ([x, y]) => y * NODES + x, used = new Set(nodes.map(key));
+  const from = Math.floor(nodes.length * 0.35), to = Math.floor(nodes.length * 0.6);
+  for (const at of shuffled(Array.from({ length: to - from + 1 }, (_, i) => from + i), random)) {
+    const start = nodes[at], parent = new Map([[key(start), null]]), queue = [start], ends = [];
+    while (queue.length) {
+      const node = queue.shift(), depth = node[2] || 0;
+      if (depth >= FORK.min && (node[0] === 0 || node[1] === 0 || node[1] === NODES - 1) && node[0] < NODES - 1) {
+        ends.push(node);
+      }
+      if (depth >= FORK.max) continue;
+      for (const [dx, dy] of shuffled(DIRS, random)) {
+        const next = [node[0] + dx, node[1] + dy, depth + 1], k = key(next);
+        if (next[0] < 0 || next[1] < 0 || next[0] >= NODES || next[1] >= NODES || used.has(k) || parent.has(k)) {
+          continue;
+        }
+        parent.set(k, node);
+        queue.push(next);
+      }
+    }
+    if (!ends.length) continue;
+    const longest = Math.max(...ends.map((node) => node[2]));
+    const fits = ends.filter((node) => node[2] >= Math.min(longest, FORK.good));
+    let node = fits[Math.floor(random() * fits.length)];
+    const list = [];
+    while (node && key(node) !== key(start)) {
+      list.push([node[0], node[1]]);
+      node = parent.get(key(node));
+    }
+    return { at, nodes: list };
+  }
+  return null;
+}
+
+function forkCells(fork, merge) {
+  const first = fork.nodes[0], cells = [];
+  if (first[1] === 0) cells.push([first[0] * 2 + 1, 0]);
+  else if (first[0] === 0) cells.push([0, first[1] * 2 + 1]);
+  fork.nodes.forEach(([x, y], i) => {
+    cells.push([x * 2 + 1, y * 2 + 1]);
+    const next = fork.nodes[i + 1] || merge;
+    cells.push([x * 2 + 1 + next[0] - x, y * 2 + 1 + next[1] - y]);
+  });
+  return cells;
+}
+
+function grow(tiles, seed, size, kind, open, random) {
+  const grown = [seed];
+  tiles[seed] = kind;
+  for (let tries = 0; grown.length < size && tries < size * 12; tries++) {
+    const at = grown[Math.floor(random() * grown.length)], [dx, dy] = DIRS[Math.floor(random() * 4)];
+    const x = at % SIZE + dx, y = Math.floor(at / SIZE) + dy, next = y * SIZE + x;
+    if (!inside(x, y) || !open(next)) continue;
+    tiles[next] = kind;
+    grown.push(next);
+  }
+  return grown;
+}
+
+function around(at, each) {
+  const x0 = at % SIZE, y0 = Math.floor(at / SIZE);
+  for (let y = y0 - 1; y <= y0 + 1; y++) {
+    for (let x = x0 - 1; x <= x0 + 1; x++) if (inside(x, y) && (x !== x0 || y !== y0)) each(y * SIZE + x);
+  }
+}
+
+function terrain(path, branch, merge, random) {
+  const tiles = new Array(SIZE * SIZE).fill(''), road = new Set(path.concat(branch).map(([x, y]) => y * SIZE + x));
+  const heart = path[path.length - 1], near = new Set();
+  road.forEach((at) => around(at, (next) => near.add(next)));
+  const calm = (at) => Math.max(Math.abs(at % SIZE - heart[0]), Math.abs(Math.floor(at / SIZE) - heart[1])) > 2;
+  const open = (at) => !road.has(at) && !tiles[at] && calm(at);
+  const tunnel = (cells) => {
+    for (const [x, y] of cells) tiles[y * SIZE + x] = 'tunnel';
+    for (const [x, y] of cells) around(y * SIZE + x, (at) => {
+      if (open(at)) tiles[at] = 'mountain';
+    });
+  };
+  tunnel(path.slice(0, 2));
+  if (branch.length) tunnel(branch.slice(0, 2));
+  const straight = [];
+  for (let i = merge + 3; i < path.length - 6; i++) {
+    const [a, b, c] = [path[i - 1], path[i], path[i + 1]];
+    if (a[0] - b[0] === b[0] - c[0] && a[1] - b[1] === b[1] - c[1]) straight.push(i);
+  }
+  if (straight.length && random() < TERRAIN.tunnel) {
+    const i = straight[Math.floor(random() * straight.length)];
+    tunnel(path.slice(i - 1, i + 2));
+  }
+  const free = () => {
+    const cells = [];
+    for (let at = 0; at < SIZE * SIZE; at++) if (open(at)) cells.push(at);
+    return cells;
+  };
+  const pick = (list) => list[Math.floor(random() * list.length)];
+  for (const [kind, count, low, high] of TERRAIN.patches) {
+    const times = count[0] + Math.floor(random() * (count[1] - count[0] + 1));
+    for (let n = 0; n < times; n++) {
+      const cells = free();
+      if (cells.length) grow(tiles, pick(cells), low + Math.floor(random() * (high - low + 1)), kind, open, random);
+    }
+  }
+  const [fewest, most, low, high] = TERRAIN.hills, count = fewest + Math.floor(random() * (most - fewest + 1));
+  for (let n = 0; n < count; n++) {
+    const seeds = free().filter((at) => near.has(at));
+    if (seeds.length) grow(tiles, pick(seeds), low + Math.floor(random() * (high - low + 1)), 'hill', open, random);
+  }
+  return tiles;
+}
+
+export function makeMap(random = Math.random) {
   for (;;) {
     const nodes = walk(random);
-    if (nodes) return turn(expand(nodes), random);
+    const fork = nodes && forkOf(nodes, random);
+    if (!fork) continue;
+    const path = expand(nodes), mergeCell = [nodes[fork.at][0] * 2 + 1, nodes[fork.at][1] * 2 + 1];
+    const merge = path.findIndex(([x, y]) => x === mergeCell[0] && y === mergeCell[1]);
+    const branch = forkCells(fork, nodes[fork.at]), tiles = terrain(path, branch, merge, random);
+    const spots = new Set();
+    const road = new Set(path.concat(branch).map(([x, y]) => y * SIZE + x));
+    road.forEach((at) => around(at, (next) => {
+      if (!road.has(next) && (!tiles[next] || tiles[next] === 'hill')) spots.add(next);
+    }));
+    if (spots.size < TERRAIN.spots) continue;
+    const turn = turner(random), biome = BIOMES[Math.floor(random() * BIOMES.length)];
+    const flat = turn(Array.from({ length: SIZE * SIZE }, (_, at) => [at % SIZE, Math.floor(at / SIZE)]));
+    const turned = new Array(SIZE * SIZE).fill('');
+    flat.forEach(([x, y], at) => {
+      turned[y * SIZE + x] = tiles[at];
+    });
+    return { path: turn(path), branch: turn(branch), merge, tiles: turned, biome };
   }
 }
 

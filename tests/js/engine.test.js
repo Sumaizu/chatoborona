@@ -1,6 +1,7 @@
 import { test, eq, ok, no } from './harness.js';
 import { PLAIN, makeGame, memoryStorage, runFor, seeded, until } from './fixtures.js';
-import { BATCH_MAX, OVER_TIME, Profiles, nextReset } from '../../site/js/engine.js';
+import { CARD_MIN, CARD_TIME, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPIN_LIMIT, nextReset }
+  from '../../site/js/engine.js';
 import { TICK, xpForLevel } from '../../site/js/balance.js';
 import { PRICE, RARITIES, SHOW_FAST, SHOW_TIME, SPIN_TIME, WEAPONS, makeWeapon, weaponName }
   from '../../site/js/gacha.js';
@@ -10,7 +11,6 @@ import { cellName } from '../../site/js/field.js';
 const MOD = { mod: true };
 const say = (game, user, text, details = {}) => game.feed(user, text, Object.assign({ login: user.toLowerCase() },
   details));
-const last = (game) => game.chat[game.chat.length - 1];
 const event = (kind, id) => Object.assign({ kind }, effectOf(kind, id));
 
 function drop(game, login, weapon) {
@@ -26,7 +26,7 @@ function toWave(game) {
 }
 
 function nearPath(game, tower) {
-  return game.battle.path.some(([x, y]) => (x - tower.x) ** 2 + (y - tower.y) ** 2 <= 1.5 * 1.5);
+  return game.battle.road.some(([x, y]) => (x - tower.x) ** 2 + (y - tower.y) ** 2 <= 1.5 * 1.5);
 }
 
 test('игра: лобби, карта, подготовка, волна, снова подготовка', () => {
@@ -52,6 +52,28 @@ test('игра: лобби, карта, подготовка, волна, сно
   runFor(game, PLAIN.wave_pause + 0.1);
   eq(game.state, 'wave');
   eq(game.wave, 2);
+});
+
+test('игра: волна кончилась быстрее десяти секунд после последнего моба — следующая через пять секунд', () => {
+  const { game } = makeGame({ settings: { wave_pause: 20 } });
+  game.open();
+  say(game, 'Анна', 'привет');
+  toWave(game);
+  const finish = (since) => {
+    const battle = game.battle;
+    battle.spawns = [];
+    battle.mobs = [];
+    battle.births = [];
+    battle.lastSpawn = battle.time - since;
+    game.step(TICK);
+    eq(game.state, 'break');
+  };
+  finish(QUICK_WAVE - 1);
+  eq(game.left, QUICK_PAUSE, 'простая волна — короткий перерыв');
+  runFor(game, QUICK_PAUSE + 0.1);
+  eq(game.state, 'wave');
+  finish(QUICK_WAVE + 1);
+  eq(game.left, 20, 'долгая — обычный');
 });
 
 test('игра: любое сообщение в любой момент — сразу на поле у дорожки, второй раз не дублирует', () => {
@@ -83,17 +105,20 @@ test('игра: при старте все встают в случайные к
 });
 
 test('игра: клетка в чате переводит защитника, на дорогу нельзя', () => {
-  const { game } = makeGame();
-  game.open();
-  ok(until(game, () => game.state === 'placing'));
+  let game = null;
+  for (let seed = 1; !game; seed++) {
+    const made = makeGame({ seed }).game;
+    made.open();
+    say(made, 'Вика', 'привет');
+    ok(until(made, () => made.state === 'placing'));
+    if (!made.members.get('вика').tower.rider) game = made;
+  }
   const free = game.battle.bestCell(2.5);
   eq(say(game, 'Вика', cellName(free.x, free.y).toLowerCase()), 'move');
-  eq([last(game).command, last(game).ok], ['move', true]);
   const tower = game.members.get('вика').tower;
   eq([tower.x, tower.y], [free.x, free.y]);
   const [px, py] = game.battle.path[3];
   eq(say(game, 'Вика', cellName(px, py)), null, 'на дорогу нельзя');
-  eq([last(game).command, last(game).ok], ['move', false]);
   eq([tower.x, tower.y], [free.x, free.y]);
 });
 
@@ -104,7 +129,6 @@ test('игра: перебежка во время волны ждёт подг�
   toWave(game);
   const tower = game.members.get('гена').tower, spot = game.battle.bestCell(2.5);
   eq(say(game, 'Гена', cellName(spot.x, spot.y)), 'later');
-  eq([last(game).command, last(game).ok], ['move', true]);
   ok(tower.x !== spot.x || tower.y !== spot.y, 'пока волна — стоит');
   eq(game.members.get('гена').pendingMove, { x: spot.x, y: spot.y });
   eq(say(game, 'Дина', cellName(spot.x, spot.y)), 'later', 'новичок встаёт сам, а перебежит после волны');
@@ -145,7 +169,6 @@ test('гача: команда без восклицательного знак�
   const member = game.members.get('нина');
   member.coins = 60;
   eq(say(game, 'Нина', 'гача'), 'queued');
-  eq([last(game).command, last(game).ok], ['spin', true]);
   game.step(TICK);
   const slot = game.slots[0];
   eq(slot.login, 'нина');
@@ -165,7 +188,6 @@ test('гача: «!гача» тоже работает, старых коман
   eq(say(game, 'Олег', '!гача'), 'queued');
   for (const old of ['!играть', '!взять', '!оставить', '!я', 'взять', 'скип']) {
     eq(say(game, 'Олег', old), null, old);
-    eq(last(game).command, null, old);
   }
 });
 
@@ -207,24 +229,23 @@ test('игра: поражение — итоги, рекорд, через вр
   eq(game.games, 2);
 });
 
-test('гача: без монет нельзя, крутят двое сразу, место — сперва тому, кто не крутит, остальные ждут', () => {
+test('гача: без монет нельзя, крутят трое сразу, место — сперва тому, кто не крутит, докупка — в конец очереди', () => {
   const { game } = makeGame();
   game.open();
-  for (const name of ['Ева', 'Жора', 'Зина']) say(game, name, 'привет');
+  for (const name of ['Ева', 'Жора', 'Зина', 'Ия']) say(game, name, 'привет');
   toWave(game);
   eq(say(game, 'Ева', 'гача'), 'poor');
-  eq([last(game).command, last(game).ok], ['spin', false]);
   ok(game.notes.some((n) => n.kind === 'poor' && n.login === 'ева'));
-  for (const login of ['ева', 'жора', 'зина']) game.members.get(login).coins = 500;
-  eq(say(game, 'Ева', 'гача'), 'queued');
-  eq(say(game, 'Ева', 'гача'), 'queued', 'второй раз — тоже в очередь');
-  eq(say(game, 'Жора', 'гача'), 'queued');
-  eq(say(game, 'Зина', 'гача'), 'queued');
+  for (const login of ['ева', 'жора', 'зина', 'ия']) game.members.get(login).coins = 500;
+  eq(say(game, 'Ева', 'гача 2'), 'queued');
+  for (const name of ['Жора', 'Зина', 'Ия']) eq(say(game, name, 'гача'), 'queued');
   eq(game.members.get('ева').coins, 500 - 2 * PRICE, 'монеты списаны сразу');
   game.step(TICK);
-  eq(game.slots.map((slot) => slot && slot.login), ['ева', 'жора'], 'второе место — тому, кто ещё не крутит');
-  eq(game.queue, ['ева', 'зина']);
+  eq(game.slots.map((slot) => slot && slot.login), ['ева', 'жора', 'зина'], 'места — сперва тем, кто не крутит');
+  const queue = () => game.queue.map((entry) => [entry.login, entry.count]);
+  eq(queue(), [['ева', 1], ['ия', 1]]);
   eq(say(game, 'Ева', 'гача'), 'queued', 'пока крутится — можно ещё');
+  eq(queue(), [['ева', 1], ['ия', 1], ['ева', 1]], 'докупка — новой записью в конец');
   runFor(game, SPIN_TIME - 0.2);
   eq(game.slots[0].phase, 'spin');
   runFor(game, 0.4);
@@ -232,21 +253,24 @@ test('гача: без монет нельзя, крутят двое сразу
   const kind = game.slots[0].outcome.kind;
   eq(game.slots[0].took, kind !== 'void', 'оружие надето или монеты удвоены, пустота — ничего');
   runFor(game, SHOW_FAST + 0.2);
-  eq(game.slots.map((slot) => slot && slot.login), ['ева', 'зина'], 'освободились места — крутят ждавшие');
+  eq(game.slots.map((slot) => slot && slot.login), ['ева', 'ия', 'ева'], 'освободились места — крутят ждавшие');
 });
 
-test('гача: один игрок занимает оба свободных места и стоит в очереди, пока хватает монет', () => {
+test('гача: один игрок занимает все свободные места, за раз — не больше пяти круток', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Ося', 'привет');
   toWave(game);
   const member = game.members.get('ося');
   member.coins = PRICE * 3 + 10;
-  for (let i = 0; i < 3; i++) eq(say(game, 'Ося', 'гача'), 'queued');
+  eq(say(game, 'Ося', 'гача 3'), 'queued');
   eq(say(game, 'Ося', 'гача'), 'poor', 'на четвёртую не хватает');
   game.step(TICK);
-  eq(game.slots.map((slot) => slot && slot.login), ['ося', 'ося']);
-  eq(game.queue, ['ося']);
+  eq(game.slots.map((slot) => slot && slot.login), ['ося', 'ося', 'ося']);
+  eq(game.queue.length, 0);
+  member.coins = PRICE * 100;
+  eq(say(game, 'Ося', 'гача 9'), 'queued');
+  eq(game.queue.map((entry) => entry.count), [SPIN_LIMIT]);
 });
 
 test('гача: та же редкость или выше — меняется само, ниже — остаётся своё; без оружия надевается любое', () => {
@@ -365,10 +389,8 @@ test('команды стримера: только модераторам и т
   const { game } = makeGame();
   game.open();
   eq(say(game, 'Олег', '!чатоборона-пауза'), null);
-  eq([last(game).command, last(game).ok], ['control', false]);
   no(game.paused);
   eq(say(game, 'Олег', '!чатоборона-пауза', MOD), 'pause');
-  eq([last(game).command, last(game).ok], ['control', true]);
   ok(game.paused);
   const left = game.left;
   runFor(game, 5);
@@ -396,19 +418,13 @@ test('команды стримера: сброс обнуляет уровни 
   eq(profiles.best.waves, 0);
 });
 
-test('чат: боты не играют, удалённое модератором убирается, обычное сообщение — не команда', () => {
+test('чат: боты не играют, обычное сообщение — не команда', () => {
   const { game } = makeGame();
   game.open();
   eq(say(game, 'Nightbot', 'гача'), null);
   eq(game.members.size, 0);
-  say(game, 'Тоня', 'первое', { msgId: 'a1' });
-  eq([last(game).command, last(game).ok], [null, false]);
-  say(game, 'Тоня', 'второе', { msgId: 'a2' });
-  eq(game.chat.map((c) => c.text), ['первое', 'второе']);
-  eq(game.unsay({ msgId: 'a1' }), 1);
-  eq(game.chat.map((c) => c.text), ['второе']);
-  eq(game.unsay({ user: 'тоня' }), 1);
-  eq(game.chat.length, 0);
+  eq(say(game, 'Тоня', 'первое'), null);
+  ok(game.members.has('тоня'), 'но в отряд вступила');
 });
 
 test('профиль показывает карточку игрока секунд десять', () => {
@@ -417,7 +433,6 @@ test('профиль показывает карточку игрока секу
   say(game, 'Уля', 'привет');
   game.events.length = 0;
   eq(say(game, 'Уля', 'профиль'), 'card');
-  eq([last(game).command, last(game).ok], ['card', true]);
   ok(game.notes.some((n) => n.kind === 'card' && n.login === 'уля'));
   ok(game.events.some((e) => e.kind === 'card' && e.login === 'уля'));
   runFor(game, 10);
@@ -475,7 +490,6 @@ test('улучшить: за 100 монет +20% к случайному сво�
   game._refresh(member);
   const before = JSON.stringify(member.tower.mods);
   eq(say(game, 'Рита', 'улучшить'), 'upgraded');
-  eq([last(game).command, last(game).ok], ['upgrade', true]);
   eq(member.coins, 400);
   ok(Object.keys(member.weapon.ups).length === 1);
   ok(JSON.stringify(member.tower.mods) !== before, 'свойство дошло до бойца');
@@ -504,22 +518,23 @@ test('за пройденную волну всем — монеты и опыт
   }
 });
 
-test('число в команде: «гача 3» — три крутки, «улучшить 5» — пять улучшений, сколько хватает монет', () => {
+test('число и «все» в команде: «гача 3», «гача все» — до пяти, «улучшить 5», «улучшить всё» — на все монеты', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Гена', 'привет');
   toWave(game);
-  const gena = game.members.get('гена');
+  const gena = game.members.get('гена'), queue = () => game.queue.map((entry) => entry.count);
   gena.coins = PRICE * 3 + 10;
   eq(say(game, 'Гена', 'гача 3'), 'queued');
-  eq(game.queue.length, 3);
-  eq(gena.coins, 10);
+  eq([queue(), gena.coins], [[3], 10]);
   gena.coins = PRICE * 2;
   eq(say(game, 'Гена', 'гача 5'), 'queued', 'сколько хватило');
-  eq([game.queue.length, gena.coins], [5, 0]);
-  gena.coins = PRICE * 100;
-  say(game, 'Гена', '!гача 99');
-  eq(game.queue.length, 5 + BATCH_MAX, 'не больше ' + BATCH_MAX + ' за раз');
+  eq(queue(), [3, 2], 'новой записью, а не к старой');
+  gena.coins = PRICE * 7;
+  eq(say(game, 'Гена', 'гача все'), 'queued');
+  eq([queue(), gena.coins], [[3, 2, 5], PRICE * 2]);
+  eq(say(game, 'Гена', '!гача всё'), 'queued');
+  eq([queue(), gena.coins], [[3, 2, 5, 2], 0]);
   gena.weapon = makeWeapon(seeded(3), gena.cls, RARITIES[2]);
   gena.coins = 550;
   eq(say(game, 'Гена', 'улучшить 5'), 'upgraded');
@@ -527,5 +542,71 @@ test('число в команде: «гача 3» — три крутки, «у
   const note = game.notes.find((n) => n.kind === 'upgrade' && n.login === 'гена');
   eq(note.detail.times, 5);
   eq(note.detail.ups.map((up) => up.id).sort(), Object.keys(gena.weapon.ups).sort(), 'в карточке все улучшения');
+  gena.coins = 350;
+  eq(say(game, 'Гена', 'улучшить всё'), 'upgraded');
+  eq(gena.coins, 50);
   eq(say(game, 'Гена', 'улучшить 3'), 'poor');
+});
+
+test('профиль: карточки в очередь, каждая держится не меньше десяти секунд; «проф» — короткая', () => {
+  const { game } = makeGame();
+  game.open();
+  for (const name of ['Аня', 'Боря', 'Вика']) say(game, name, 'привет');
+  toWave(game);
+  const shown = () => game.notes.filter((n) => n.kind === 'card').map((n) => [n.login, n.detail.brief]);
+  eq(say(game, 'Аня', 'профиль'), 'card');
+  eq(say(game, 'Боря', 'проф'), 'card');
+  eq(shown(), [['аня', false]], 'Боря ждёт');
+  runFor(game, CARD_MIN - 1);
+  eq(shown(), [['аня', false]]);
+  runFor(game, 1.2);
+  eq(shown(), [['боря', true]], 'через десять секунд — следующий, короткая карточка');
+  say(game, 'Вика', 'профиль');
+  runFor(game, CARD_MIN + 0.2);
+  eq(shown(), [['вика', false]]);
+  runFor(game, CARD_TIME);
+  eq(shown(), [], 'очередь пуста — карточка уходит в своё время');
+});
+
+test('реролл: один раз за игру и только до первой волны, на поле — новый класс на той же клетке', () => {
+  const { game } = makeGame();
+  game.open();
+  say(game, 'Рома', 'привет');
+  const member = game.members.get('рома'), first = member.cls;
+  eq(say(game, 'Рома', 'реролл'), 'reroll');
+  ok(member.cls !== first);
+  eq(say(game, 'Рома', 'реролл'), null, 'второй раз нельзя');
+  const other = makeGame().game;
+  other.open();
+  say(other, 'Лиза', 'привет');
+  ok(until(other, () => other.state === 'placing'));
+  const lisa = other.members.get('лиза');
+  const tower = lisa.tower;
+  const cell = tower.rider ? null : [tower.x, tower.y];
+  eq(say(other, 'Лиза', 'реролл'), 'reroll');
+  ok(lisa.tower && lisa.tower.cls.id === lisa.cls, 'новый защитник нового класса');
+  if (cell && !lisa.tower.rider) eq([lisa.tower.x, lisa.tower.y], cell, 'на той же клетке');
+  toWave(other);
+  say(other, 'Ян', 'привет');
+  eq(say(other, 'Ян', 'реролл'), null, 'после начала волн нельзя');
+});
+
+test('стример переставляет защитников «А1 Б2»; зрителям так нельзя', () => {
+  const { game } = makeGame({ settings: { channel: 'streamer' } });
+  game.open();
+  say(game, 'Гоша', 'привет');
+  say(game, 'Гоша', 'привет');
+  ok(until(game, () => game.state === 'placing'));
+  const gosha = game.members.get('гоша');
+  if (gosha.tower.rider) return;
+  const tower = gosha.tower, spot = game.battle.bestCell(2.5);
+  const order = cellName(tower.x, tower.y) + ' ' + cellName(spot.x, spot.y);
+  eq(say(game, 'Гоша', order), null, 'зрителю нельзя');
+  eq(game.feed('Streamer', order, { login: 'streamer' }), 'move');
+  eq([tower.x, tower.y], [spot.x, spot.y]);
+  toWave(game);
+  const next = game.battle.bestCell(2.5);
+  const late = cellName(tower.x, tower.y) + ' ' + cellName(next.x, next.y);
+  eq(game.feed('Streamer', late, { login: 'streamer' }), 'later');
+  eq(gosha.pendingMove, { x: next.x, y: next.y });
 });

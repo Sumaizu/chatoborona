@@ -10,7 +10,14 @@
 <div id="stage" hidden>
   <div class="card" id="card">
     <div class="cam"></div>
-    <aside class="list chatbox"><h3>Чат</h3><div class="chat" id="chat"></div></aside>
+    <aside class="left" id="left">
+      <div class="list effects"><h3>Эффекты</h3><div id="effects"></div></div>
+      <div class="list players" id="players-box">
+        <h3>Отряд <span class="count" id="players-count"></span></h3>
+        <ol id="players"></ol>
+        <p class="hint" id="hint"></p>
+      </div>
+    </aside>
     <section class="main" id="main">
       <header class="head">
         <div class="brand">Чатоборона</div>
@@ -58,13 +65,8 @@
         <h3>Гача <span class="price" id="price"></span></h3>
         <div class="slot" id="slot-0"></div>
         <div class="slot" id="slot-1"></div>
+        <div class="slot" id="slot-2"></div>
         <div class="queue" id="queue"></div>
-      </div>
-      <div class="list effects"><h3>Эффекты</h3><div id="effects"></div></div>
-      <div class="list players" id="players-box">
-        <h3>Отряд <span class="count" id="players-count"></span></h3>
-        <ol id="players"></ol>
-        <p class="hint" id="hint"></p>
       </div>
       <div class="cards" id="cards"></div>
     </aside>

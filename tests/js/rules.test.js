@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { seeded } from './fixtures.js';
-import { SIZE, cellName, coverage, makePath, parseCell } from '../../site/js/field.js';
+import { BIOMES, SIZE, cellName, coverage, makeMap, parseCell } from '../../site/js/field.js';
 import { LEVEL_MAX, MOBS, crowdFactor, eliteCount, levelOf, waveHp, waveReward, waveSpawns, xpForLevel }
   from '../../site/js/balance.js';
 import { CLASSES, PERKS, ROLES } from '../../site/js/classes.js';
@@ -25,11 +25,14 @@ test('клетка: чужое не принимается', () => {
   }
 });
 
-test('дорога: от края до края, без самопересечений и касаний, длина в пределах', () => {
+const edge = ([x, y]) => x === 0 || y === 0 || x === SIZE - 1 || y === SIZE - 1;
+const key = ([x, y]) => y * SIZE + x;
+const touching = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) === 1;
+
+test('карта: главная дорога от края до края, без самопересечений и касаний, длина в пределах', () => {
   for (let seed = 1; seed <= 40; seed++) {
-    const path = makePath(seeded(seed)), seen = new Set();
+    const { path } = makeMap(seeded(seed)), seen = new Set();
     ok(path.length >= 66 && path.length <= 74, 'длина ' + path.length);
-    const edge = ([x, y]) => x === 0 || y === 0 || x === SIZE - 1 || y === SIZE - 1;
     ok(edge(path[0]) && edge(path[path.length - 1]), 'концы у края');
     path.forEach(([x, y], i) => {
       ok(x >= 0 && y >= 0 && x < SIZE && y < SIZE, 'внутри поля');
@@ -47,8 +50,48 @@ test('дорога: от края до края, без самопересече
   }
 });
 
-test('дорога одна и та же при одном зерне', () => {
-  eq(makePath(seeded(5)), makePath(seeded(5)));
+test('карта: второй вход — от другого края, вливается в главную дорогу примерно посередине', () => {
+  for (let seed = 1; seed <= 40; seed++) {
+    const { path, branch, merge } = makeMap(seeded(seed)), main = new Set(path.map(key));
+    ok(branch.length >= 7, 'вторая дорога не короче семи клеток: ' + branch.length);
+    ok(edge(branch[0]) && key(branch[0]) !== key(path[0]), 'начало у края, не там же, где первая');
+    ok(merge >= path.length * 0.3 && merge <= path.length * 0.65, 'слияние посередине: ' + merge);
+    ok(touching(branch[branch.length - 1], path[merge]), 'упирается в главную дорогу');
+    branch.forEach((cell, i) => {
+      no(main.has(key(cell)), 'по главной не идёт');
+      if (i) ok(touching(cell, branch[i - 1]), 'шаг в соседнюю клетку');
+      if (i < branch.length - 1) no(path.some((other) => touching(other, cell)), 'главную не задевает');
+    });
+  }
+});
+
+test('карта: мобы выходят из гор — первые клетки обеих дорог в тоннеле; на дороге нет гор и озёр', () => {
+  for (let seed = 1; seed <= 40; seed++) {
+    const { path, branch, tiles, biome } = makeMap(seeded(seed));
+    ok(BIOMES.includes(biome));
+    for (const start of [path, branch]) {
+      eq([tiles[key(start[0])], tiles[key(start[1])]], ['tunnel', 'tunnel']);
+      ok([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => tiles[key([start[1][0] + dx, start[1][1] + dy])]
+        === 'mountain'), 'у входа гора');
+    }
+    for (const cell of path.concat(branch)) ok(['', 'tunnel'].includes(tiles[key(cell)]), 'дорога свободна');
+    const road = new Set(path.concat(branch).map(key)), hills = [];
+    tiles.forEach((tile, at) => {
+      if (tile === 'hill') hills.push(at);
+      if (tile === 'tunnel') ok(road.has(at), 'тоннель — только на дороге');
+    });
+    ok(hills.length >= 3 && hills.length <= 12, 'холмы — группами: ' + hills.length);
+    ok(hills.some((at) => path.concat(branch).some(([x, y]) => Math.abs(x - at % SIZE) <= 1
+      && Math.abs(y - Math.floor(at / SIZE)) <= 1)), 'холм у дороги');
+    ok(tiles.includes('lake') && tiles.includes('mountain'));
+  }
+});
+
+test('карта: одна и та же при одном зерне, биомы встречаются все', () => {
+  eq(makeMap(seeded(5)), makeMap(seeded(5)));
+  const seen = new Set();
+  for (let seed = 1; seed <= 60; seed++) seen.add(makeMap(seeded(seed)).biome);
+  eq(seen.size, BIOMES.length);
 });
 
 test('охват клетки: сколько клеток дороги в радиусе', () => {

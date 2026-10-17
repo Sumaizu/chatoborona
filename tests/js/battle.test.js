@@ -1,7 +1,8 @@
 import { test, eq, ok, no } from './harness.js';
-import { makeBattle, player, runFor, seeded } from './fixtures.js';
-import { BITE_TIME, MOVE_PAUSE, NUKE_STUN, OVERTIME } from '../../site/js/battle.js';
-import { BOSSES, ELITES, HEAL_CAP, LIVES, LOOKS, MIMIC, MOBS, POWERS, TICK, waveSpawns, xpForLevel }
+import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
+import { BITE_TIME, Battle, MOVE_PAUSE, NUKE_FLIGHT, NUKE_STUN, OVERTIME } from '../../site/js/battle.js';
+import { SIZE } from '../../site/js/field.js';
+import { BOSSES, ELITES, HEAL_CAP, LIVES, LOOKS, MIMIC, MOBS, POWERS, TERRAIN, TICK, waveSpawns, xpForLevel }
   from '../../site/js/balance.js';
 import { ASSIST_COINS, KILL_COINS } from '../../site/js/gacha.js';
 import { CLASSES } from '../../site/js/classes.js';
@@ -313,17 +314,41 @@ test('минёр: с десятого уровня кидает мину в мо
   ok(miner.run.damage > 0);
 });
 
-test('минёр: ядерный взрыв убивает всех, кроме элитных и боссов, и оглушает своих на 5 секунд', () => {
+test('минёр: вместо мины изредка летит ядерная бомба — медленно, и рвётся там, где цель', () => {
   const battle = makeBattle(), miner = battle.place(player(xpForLevel(60)), 'miner', 10, 4);
-  const other = battle.place(player(), 'gunner', 3, 4);
-  const mobs = [walker(battle, 2), walker(battle, 5), special(battle, 'elite', 'knight'),
-    special(battle, 'boss', 'butcher')];
-  battle._nuke(miner, 5, 5);
-  ok(mobs[0].dead && mobs[1].dead);
-  no(mobs[2].dead);
-  no(mobs[3].dead);
-  for (const t of [miner, other]) ok(t.stunUntil >= battle.time + NUKE_STUN - 1e-9 && t.busy >= t.stunUntil);
-  ok(miner.p.nuke > 0 && miner.p.nuke < 0.05, 'шанс редкий');
+  eq(miner.p.nuke, 0.01, 'один шанс из ста');
+  miner.p = Object.assign({}, miner.p, { nuke: 1 });
+  const target = walker(battle, 15, 1e6);
+  target.holdUntil = 1e9;
+  for (let i = 0; i < 400 && !battle.tosses.length; i++) battle.step(TICK);
+  const toss = battle.tosses[0];
+  eq(toss.kind, 'nuke');
+  ok(Math.abs(toss.at - battle.time - NUKE_FLIGHT) < TICK * 1.5, 'летит долго');
+  ok(battle.events.some((e) => e.kind === 'toss' && e.mine === 'nuke' && e.time === NUKE_FLIGHT));
+  runFor(battle, NUKE_FLIGHT + TICK);
+  ok(battle.events.some((e) => e.kind === 'nuke' && Math.abs(e.x - target.x) < 1e-9));
+});
+
+test('минёр: ядерка убивает обычных в трёх клетках, крупных ранит, оглушает защитников и боссов рядом', () => {
+  const battle = makeBattle(), miner = battle.place(player(xpForLevel(60)), 'miner', 10, 4);
+  const near = battle.place(player(), 'gunner', 5, 4), far = battle.place(player(), 'gunner', 15, 4);
+  const place = (mob, d) => {
+    mob.d = d;
+    battle._locate(mob);
+    return mob;
+  };
+  const close = walker(battle, 4), distant = walker(battle, 12);
+  const elite = place(special(battle, 'elite', 'vampire', 1000), 5);
+  const boss = place(special(battle, 'boss', 'butcher', 1e4), 6);
+  battle._nuke(miner, 5.5, 5.5);
+  ok(close.dead, 'обычный рядом погиб');
+  no(distant.dead, 'дальний цел');
+  no(elite.dead);
+  ok(elite.hp <= elite.max * 0.7, 'элитный сильно ранен');
+  ok(boss.hp < boss.max && !boss.dead);
+  ok(boss.holdUntil >= battle.time + NUKE_STUN - 1e-9, 'босс оглушён');
+  ok(near.stunUntil >= battle.time + NUKE_STUN - 1e-9 && near.busy >= near.stunUntil, 'защитник рядом оглушён');
+  eq([miner.stunUntil, far.stunUntil], [0, 0], 'дальние — нет');
 });
 
 test('паразит: на старте, цепляется к самому крепкому, после убийства прыгает на следующего', () => {
@@ -577,20 +602,30 @@ test('лекарь: святым светом бьёт только нежить
   eq(rat.hp, rat.max);
 });
 
-test('охотник: ставит капканы, капкан держит и ранит; из арбалета — только по крупным', () => {
+test('охотник: ставит капканы, капкан держит и ранит; из арбалета бьёт всех, крупных — первыми и сильнее', () => {
   const battle = makeBattle(), hunter = battle.place(player(), 'hunter', 10, 4);
   runFor(battle, 12);
   eq(battle.traps.length, hunter.p.traps);
-  const plain = walker(battle, 5, 1e6);
+  const plain = walker(battle, 9, 1e6);
   plain.holdUntil = 1e9;
-  no(battle._fire(hunter, battle.time), 'по обычным не стреляет');
+  ok(battle._fire(hunter, battle.time), 'по обычным тоже стреляет');
+  const weak = plain.max - plain.hp;
+  ok(weak > 0);
+  const knight = special(battle, 'elite', 'vampire', 1e6);
+  knight.d = 11;
+  battle._locate(knight);
+  ok(battle._target(hunter) === knight, 'элитный — в первую очередь, хоть и позади');
+  hunter.mods = Object.assign({}, hunter.mods, { crit: 0 });
+  battle._fire(hunter, battle.time);
+  ok(knight.max - knight.hp > weak * hunter.p.bigMul * 0.9, 'по крупным — с умножением');
   plain.holdUntil = 0;
   const trap = battle.traps[0];
   plain.d = trap.i + 1;
   battle._locate(plain);
+  const before = plain.hp;
   battle.step(TICK);
   ok(plain.holdUntil > battle.time, 'попался');
-  ok(plain.hp < plain.max);
+  ok(plain.hp < before);
   eq(battle.traps.length, hunter.p.traps - 1);
 });
 
@@ -726,6 +761,35 @@ test('элитные: вампир лечится, когда рядом гиб�
   blinker.powerAt = battle.time;
   battle.step(TICK);
   ok(blinker.d > before + 2, 'прыгнул');
+});
+
+test('элитные: вампир сам по себе не лечится и не лечит соседей', () => {
+  const battle = makeBattle();
+  const vampire = special(battle, 'elite', 'vampire', 1000), friend = walker(battle, 5, 1000);
+  vampire.hp = 500;
+  friend.hp = 400;
+  for (const mob of [vampire, friend]) mob.holdUntil = 1e9;
+  runFor(battle, 5);
+  eq([vampire.hp, friend.hp], [500, 400]);
+});
+
+test('паразит: верхом на мобе получает ауры соседей — ускорение знамени и опыт мудреца', () => {
+  const battle = makeBattle(), bug = battle.placeRider(player(xpForLevel(20)), 'parasite');
+  const banner = battle.place(player(xpForLevel(20)), 'banner', 6, 4);
+  const sage = battle.place(player(xpForLevel(20)), 'sage', 6, 6);
+  const host = walker(battle, 6, 1e6);
+  host.holdUntil = 1e9;
+  runFor(battle, bug.p.leap + 0.3);
+  ok(bug.host === host, 'сидит на нём');
+  ok(bug.buff.haste > 0, 'знамя ускоряет');
+  ok(bug.buff.xp > 0, 'мудрец даёт опыт');
+  ok(banner.player && sage.player);
+  host.holdUntil = 0;
+  host.d = 18;
+  battle._locate(host);
+  host.holdUntil = 1e9;
+  runFor(battle, 0.3);
+  eq([bug.buff.haste, bug.buff.xp], [0, 0], 'уехал из аур');
 });
 
 test('мины и капканы сверх предела заменяют старые, стена обновляется только после передышки', () => {
@@ -971,3 +1035,104 @@ test('новые мобы: гоблины и паучата сами в волн
   }
 });
 
+
+const FORK = Array.from({ length: 5 }, (_, y) => [10, y]);
+function mapWith(marks = {}, biome = 'grass') {
+  const tiles = new Array(SIZE * SIZE).fill('');
+  for (const [tile, cells] of Object.entries(marks)) for (const [x, y] of cells) tiles[y * SIZE + x] = tile;
+  return new Battle({ path: STRAIGHT, branch: FORK, merge: 10, tiles, biome }, { random: seeded(7) });
+}
+
+test('карта: мобы второго входа идут своей дорогой, у слияния встают на общую и доходят до сердца', () => {
+  const battle = mapWith();
+  const mob = battle._spawn({ type: 'normal', hp: 1e6 }, 0, 1);
+  battle.step(TICK);
+  ok(mob.x === 10.5 && mob.y < 1, 'вышел сверху: ' + [mob.x, mob.y]);
+  let crossed = false;
+  for (let i = 0; i < 4000 && !mob.biting; i++) {
+    battle.step(TICK);
+    if (mob.r === 0 && !crossed) {
+      crossed = true;
+      ok(Math.abs(mob.x - 10.5) < 0.2 && Math.abs(mob.y - 5.5) < 0.2, 'на слиянии');
+    }
+  }
+  ok(crossed && mob.biting, 'дошёл до сердца');
+  battle.startWave(3, 2);
+  const routes = new Set(battle.spawns.map((spawn) => spawn.r));
+  eq(routes.size, 2, 'волна идёт из обоих входов');
+});
+
+test('карта: гора закрывает выстрел, в тоннеле моба не достать; на горы, озёра и тоннели не встать', () => {
+  const battle = mapWith({ mountain: [[3, 4]], tunnel: [[0, 5], [1, 5]], lake: [[7, 4]] });
+  const gun = battle.place(player(), 'gunner', 3, 3);
+  gun.range = 4;
+  for (const [x, y] of [[3, 4], [7, 4], [0, 5]]) no(battle.free(x, y), 'занято: ' + x + ',' + y);
+  const hidden = walker(battle, 4, 1e6), open = walker(battle, 7, 1e6);
+  for (const mob of [hidden, open]) mob.holdUntil = 1e9;
+  ok(battle._target(gun) === open, 'бьёт того, кого видит');
+  open.d = 30;
+  battle._locate(open);
+  eq(battle._target(gun), null, 'за горой не видно');
+  hidden.d = 30;
+  battle._locate(hidden);
+  const deep = walker(battle, 1.6, 1e6);
+  deep.holdUntil = 1e9;
+  const near = battle.place(player(), 'gunner', 1, 4);
+  eq(battle._target(near), null, 'в тоннеле не видно');
+});
+
+test('карта: с холма бьют дальше', () => {
+  const battle = mapWith({ hill: [[6, 4]] });
+  const flat = battle.place(player(), 'gunner', 2, 4), high = battle.place(player(), 'gunner', 6, 4);
+  ok(Math.abs(high.range - flat.range - TERRAIN.hill) < 1e-9);
+  battle.move(flat, 6, 3);
+  battle.move(high, 7, 3);
+  ok(Math.abs(high.range - flat.range) < 1e-9, 'сошёл с холма — как все');
+});
+
+test('биомы: в вулкане лёд слабее, в снегах — огонь', () => {
+  const hit = (biome, cls) => {
+    const battle = mapWith({}, biome), t = battle.place(player(), cls, 3, 4), mob = walker(battle, 4, 1e6);
+    battle._hurt(mob, 100, t);
+    return mob.max - mob.hp;
+  };
+  eq(hit('volcano', 'frost'), 100 * TERRAIN.weak);
+  eq(hit('volcano', 'pyro'), 100);
+  eq(hit('snow', 'pyro'), 100 * TERRAIN.weak);
+  eq(hit('grass', 'frost'), 100);
+  const battle = mapWith({}, 'volcano'), mob = walker(battle, 4, 1e6);
+  battle._slow(mob, 0.5, 2, 'ice');
+  eq(mob.slow, 0.5 * TERRAIN.weak, 'и замедляет слабее');
+});
+
+test('биомы: в болоте ходячие медленнее и их больше, в пустыне — летучие', () => {
+  const count = (biome, wave, test) => {
+    const battle = mapWith({}, biome);
+    battle.startWave(wave, 4);
+    return battle.spawns.filter((spawn) => test(Boolean((spawn.kind || spawn.look || {}).flying))).length;
+  };
+  ok(count('swamp', 12, (fly) => !fly) > count('grass', 12, (fly) => !fly), 'ходячих больше');
+  ok(count('desert', 12, (fly) => fly) > count('grass', 12, (fly) => fly), 'летучих больше');
+  const speed = (biome, look) => walker(mapWith({}, biome), 4, 100, look).speed;
+  ok(speed('swamp', null) < speed('grass', null));
+  ok(speed('desert', bat()) > speed('grass', bat()));
+  eq(speed('swamp', bat()), speed('grass', bat()), 'летучим болото нипочём');
+});
+
+test('биомы: на кладбище павший с телом встаёт скелетом, бестелесный и уже вставший — нет', () => {
+  const battle = mapWith({}, 'graveyard'), gun = battle.place(player(), 'gunner', 18, 0);
+  const zombie = walker(battle, 4, 10), slime = walker(battle, 5, 10, LOOKS.normal.find((l) => l.id === 'slime2'));
+  battle._hurt(zombie, 100, gun);
+  battle._hurt(slime, 100, gun);
+  runFor(battle, 3);
+  const risen = battle.mobs.filter((mob) => mob.risen && mob.look === 'skeleton');
+  eq(risen.length, 1, 'встал один');
+  ok(risen[0].d >= zombie.d - 1e-9 && risen[0].d < zombie.d + 3, 'там же, где пал');
+  battle._hurt(risen[0], 1e6, gun);
+  runFor(battle, 3);
+  eq(battle.mobs.filter((mob) => mob.look === 'skeleton').length, 0, 'второй раз не встаёт');
+  const plain = mapWith(), mob = walker(plain, 4, 10);
+  plain._hurt(mob, 100, plain.place(player(), 'gunner', 3, 4));
+  runFor(plain, 3);
+  eq(plain.mobs.length, 0, 'на других картах не встают');
+});

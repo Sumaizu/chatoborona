@@ -41,7 +41,7 @@ const text = (w, id) => element(w, id).textContent;
 const overlay = (query = '') => open('overlay.html' + (query ? '?' + query : ''), (w) => w.chatoborona);
 const join = (game, name) => game.feed(name, 'привет', { login: name.toLowerCase() });
 
-test('страницы: пример в рамке — середина волны, гача, лучшие, чат', async () => {
+test('страницы: пример в рамке — середина волны, гача, отряд и эффекты слева, чата нет', async () => {
   fresh();
   const frame = await overlay('embed=1');
   const w = frame.contentWindow;
@@ -51,14 +51,15 @@ test('страницы: пример в рамке — середина волн
   ok(element(w, 'lobby').hidden && element(w, 'over').hidden);
   ok(text(w, 'slot-0').includes('надевает'), 'выпавшее оружие на месте карусели: ' + text(w, 'slot-0'));
   ok(w.document.querySelector('#slot-0 .unique'), 'у легендарного видно особое свойство');
-  ok(w.document.querySelector('#chat .msg.cmd.ok img.cmd-icon'), 'сработавшая команда со значком');
-  ok(w.document.querySelector('#chat .msg.cmd:not(.ok)'), 'не сработавшая — без подсветки');
+  no(w.document.getElementById('chat'), 'чата на экране нет');
   eq(w.document.querySelectorAll('#slot-1 .cell').length, 26, 'вторая карусель крутится');
-  ok(w.document.querySelectorAll('#players li').length >= 5, 'отряд справа');
-  ok(w.document.querySelectorAll('#effects .effect').length >= 3, 'эффекты справа');
-  ok(w.document.querySelectorAll('#chat .msg').length >= 5);
+  eq(w.document.querySelectorAll('.side .slot').length, 3, 'три окна гачи');
+  ok(w.document.querySelectorAll('#left #players li').length >= 5, 'отряд слева');
+  ok(w.document.querySelectorAll('#left #effects .effect').length >= 3, 'эффекты слева');
+  const effects = element(w, 'effects').getBoundingClientRect();
+  const players = element(w, 'players').getBoundingClientRect();
+  ok(effects.bottom <= players.top, 'эффекты над отрядом');
   ok(w.document.querySelector('#cards .profile'), 'карточка игрока справа');
-  no(w.document.querySelector('#chat .coins'), 'в чате монет нет');
   no(w.chatoborona.live);
   frame.remove();
 });
@@ -90,10 +91,6 @@ test('страницы: оверлей сам открывает набор, ч�
   await wait(600);
   watcher.disconnect();
   eq(watched.length, 0, 'карточку не переставляют в разметке');
-  const said = ['гача', 'улучшить', 'к7', '!чатоборона-пауза'];
-  for (const message of said) game.feed('Боря', message, { login: 'боря' });
-  await until(() => w.document.querySelectorAll('#chat .msg.cmd img.cmd-icon').length >= said.length + 1,
-    'значки у всех команд');
   frame.remove();
 });
 

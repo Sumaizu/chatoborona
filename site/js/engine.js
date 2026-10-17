@@ -1,5 +1,5 @@
 import { Battle } from './battle.js';
-import { makePath, parseCell } from './field.js';
+import { makeMap, parseCell, parseMove } from './field.js';
 import { CLASSES, CLASS_BY_ID } from './classes.js';
 import { TICK, waveReward } from './balance.js';
 import { PRICE, RARITIES, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, UPGRADE_PRICE, spin, uniqueOf, upgrade,
@@ -15,7 +15,9 @@ export const COMMANDS = new Map([
 export const ACTIONS = new Map([
   ['гача', 'spin'],
   ['профиль', 'card'],
+  ['проф', 'brief'],
   ['улучшить', 'upgrade'],
+  ['реролл', 'reroll'],
 ]);
 export const STARS = new Map([
   ['sumaizu', 'rainbow'],
@@ -28,38 +30,24 @@ export const BOTS = [
   'kofistreambot', 'tangiabot', 'botisimo', 'lumiastream', 'streamstickers', 'creatisbot', 'own3d', 'dixperbro',
   'pokemoncommunitygame', 'songlistbot', 'pretzelrocks', 'restreambot', 'commanderroot', 'frostytoolsdotcom',
 ];
-export const CHAT_KEEP = 60;
-export const CHAT_TEXT_MAX = 300;
 export const OVER_TIME = 15;
 export const CARD_TIME = 24;
-export const BATCH_MAX = 20;
+export const CARD_MIN = 10;
+export const SPIN_LIMIT = 5;
 export const NOTE_TIME = 4;
+export const QUICK_WAVE = 10;
+export const QUICK_PAUSE = 5;
 
 const STEP_MAX = 1;
 const EVENTS_MAX = 500;
-const EMOTES_MAX = 30;
 const NO_MODS = { damage: 0, rate: 0, range: 0, crit: 0, power: 0, xp: 0, coins: 0 };
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
-const EMOTE_ID_RE = /^[A-Za-z0-9_]{1,80}$/;
 const INVISIBLE = /[\u200B\u200C\u200D\u2060\uFEFF\u00AD\u034F\u2800\u{E0000}]/gu;
 const IGNORED = new Set(BOTS);
 const NEAR_PATH = 1.5;
 
 const byText = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 const rank = (weapon) => RARITIES.findIndex((rarity) => rarity.id === weapon.rarity);
-
-function cleanEmotes(raw) {
-  const emotes = {};
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return emotes;
-  let count = 0;
-  for (const name of Object.keys(raw)) {
-    const id = String(raw[name]);
-    if (!name || name.length > 60 || /\s/.test(name) || !EMOTE_ID_RE.test(id)) continue;
-    emotes[name] = id;
-    if (++count >= EMOTES_MAX) break;
-  }
-  return emotes;
-}
 
 function addMods(total, mods) {
   if (!mods) return total;
@@ -193,9 +181,8 @@ export class Game {
     this.queue = [];
     this.slots = Array(SLOTS).fill(null);
     this.notes = [];
-    this.chat = [];
+    this.cards = [];
     this.events = [];
-    this._chatNo = 0;
     this._noteNo = 0;
     this._spinNo = 0;
     this._carry = 0;
@@ -305,45 +292,35 @@ export class Game {
     return member;
   }
 
-  feed(user, text, { mod = false, msgId = null, login = null, color = null, emotes = null } = {}) {
+  feed(user, text, { mod = false, login = null, color = null } = {}) {
     const name = String(user || '').trim();
     const message = String(text || '').normalize('NFC').replace(INVISIBLE, '').trim();
     login = String(login || name).toLowerCase();
     if (!name || !message || IGNORED.has(login)) return null;
-    const entry = this._say(name, message, msgId, login, color, emotes);
     if (this.state === 'stopped') return null;
     const words = message.toLowerCase().split(/\s+/), word = words[0];
     const action = ACTIONS.get(word.replace(/^!/, '')), cell = action ? null : parseCell(message);
-    const count = Math.max(1, Math.min(BATCH_MAX, Number(words.slice(1).find((part) => /^\d+$/.test(part))) || 1));
+    const move = action || cell ? null : parseMove(message);
+    const amount = words.slice(1).find((part) => /^\d+$/.test(part) || part === 'все' || part === 'всё');
+    const all = amount === 'все' || amount === 'всё', count = all ? Infinity : Math.max(1, Number(amount) || 1);
     const member = this.join(login, name, { color, cell: cell && this.movable ? cell : null });
     let done = null;
     if (COMMANDS.has(word)) {
-      entry.command = 'control';
       done = mod && this.s.chat_commands ? this._control(COMMANDS.get(word)) : null;
     } else if (action === 'spin') {
-      entry.command = 'spin';
-      done = this._orders(member, count);
-    } else if (action === 'card') {
-      entry.command = 'card';
-      done = member ? this._card(member) : null;
+      done = this.order(member, Math.min(SPIN_LIMIT, count));
+    } else if (action === 'card' || action === 'brief') {
+      done = member ? this._card(member, action === 'brief') : null;
+    } else if (action === 'reroll') {
+      done = this.reroll(member);
     } else if (action === 'upgrade') {
-      entry.command = 'upgrade';
       done = this.improve(member, count);
     } else if (cell) {
-      entry.command = 'move';
       done = this.goTo(member, cell.x, cell.y) ? 'move' : this._later(member, cell);
+    } else if (move && this.s.channel && login === this.s.channel) {
+      done = this._shift(move.from, move.to);
     }
-    entry.ok = Boolean(done) && done !== 'poor';
     return done;
-  }
-
-  unsay({ msgId = null, user = null, everything = false } = {}) {
-    const who = String(user || '').toLowerCase();
-    const gone = (entry) => everything || (msgId ? entry.msgId === String(msgId)
-      : Boolean(who) && (entry.login === who || entry.user.toLowerCase() === who));
-    const before = this.chat.length;
-    this.chat = this.chat.filter((entry) => !gone(entry));
-    return before - this.chat.length;
   }
 
   get movable() {
@@ -381,14 +358,26 @@ export class Game {
     return 'upgraded';
   }
 
-  _orders(member, count) {
-    let done = null;
-    for (let i = 0; i < count; i++) {
-      const result = this.order(member);
-      if (result !== 'queued') return done || result;
-      done = result;
+  _shift(from, to) {
+    const tower = this.battle ? this.battle.towerAt(from.x, from.y) : null;
+    if (!tower) return null;
+    return this.goTo(tower.player, to.x, to.y) ? 'move' : this._later(tower.player, to);
+  }
+
+  reroll(member) {
+    if (!member || member.rerolled || this.state !== 'lobby' && this.state !== 'placing') return null;
+    let cls = member.cls;
+    while (cls === member.cls) cls = this._randomClass();
+    member.cls = cls;
+    member.rerolled = true;
+    if (member.tower) {
+      const cell = member.tower.rider ? null : { x: member.tower.x, y: member.tower.y };
+      this.battle.remove(member.tower);
+      member.tower = null;
+      this._place(member, cell);
     }
-    return done;
+    this._emit('rerolled', { login: member.login, cls });
+    return this._card(member, false) && 'reroll';
   }
 
   _later(member, cell) {
@@ -398,14 +387,15 @@ export class Game {
     return 'later';
   }
 
-  order(member) {
+  order(member, count = 1) {
     if (!member || !this.battle) return null;
-    if (member.coins < PRICE) {
+    const spins = Math.min(count, Math.floor(member.coins / PRICE));
+    if (spins < 1) {
       this._note('poor', member, NOTE_TIME, { price: PRICE });
       return 'poor';
     }
-    member.coins -= PRICE;
-    this.queue.push(member.login);
+    member.coins -= spins * PRICE;
+    this.queue.push({ login: member.login, count: spins });
     this._emit('queued', { login: member.login });
     return 'queued';
   }
@@ -453,24 +443,21 @@ export class Game {
     this.notes.push({ kind, login: member.login, left: time, detail, id: ++this._noteNo });
   }
 
-  _card(member) {
-    this._note('card', member, CARD_TIME);
+  _card(member, brief) {
+    const active = this.notes.find((note) => note.kind === 'card');
+    const waiting = this.cards.find((card) => card.login === member.login);
+    if (active && active.login === member.login) {
+      Object.assign(active, { left: CARD_TIME, since: 0, detail: { brief } });
+    }
+    else if (waiting) waiting.brief = brief;
+    else if (active) this.cards.push({ login: member.login, brief });
+    else this._showCard(member.login, brief);
     this._emit('card', { login: member.login });
     return 'card';
   }
 
-  _say(user, text, msgId, login, color, emotes) {
-    const chars = Array.from(text);
-    const entry = {
-      id: ++this._chatNo, user, login, msgId: msgId === null || msgId === undefined ? null : String(msgId),
-      text: chars.length > CHAT_TEXT_MAX ? chars.slice(0, CHAT_TEXT_MAX).join('') + '…' : text,
-      color: COLOR_RE.test(String(color || '')) ? color : null,
-      star: STARS.has(login) ? STARS.get(login) : null,
-      emotes: cleanEmotes(emotes), command: null, ok: false,
-    };
-    this.chat.push(entry);
-    if (this.chat.length > CHAT_KEEP) this.chat.splice(0, this.chat.length - CHAT_KEEP);
-    return entry;
+  _showCard(login, brief) {
+    this.notes.push({ kind: 'card', login, left: CARD_TIME, since: 0, detail: { brief }, id: ++this._noteNo });
   }
 
   _planReset() {
@@ -508,7 +495,7 @@ export class Game {
   }
 
   _placing() {
-    this.battle = new Battle(makePath(this.random), { random: this.random, quiet: this.quiet });
+    this.battle = new Battle(makeMap(this.random), { random: this.random, quiet: this.quiet });
     this.battle.foe = this.run.foe;
     this._shiftLives(this.run.lives);
     for (const member of this.members.values()) this._place(member);
@@ -575,7 +562,8 @@ export class Game {
     }
     this._saveAll();
     this.state = 'break';
-    this.left = this.s.wave_pause;
+    const quick = this.battle.time - this.battle.lastSpawn < QUICK_WAVE;
+    this.left = quick ? Math.min(QUICK_PAUSE, this.s.wave_pause) : this.s.wave_pause;
     this._planEvent();
     if (this.battle.treasures) {
       this.battle.treasures = 0;
@@ -610,8 +598,17 @@ export class Game {
   _tick(dt) {
     this._gacha(dt);
     if (this.notes.length) {
-      for (const note of this.notes) note.left -= dt;
+      for (const note of this.notes) {
+        note.left -= dt;
+        if (note.kind !== 'card') continue;
+        note.since += dt;
+        if (this.cards.length && note.since >= CARD_MIN) note.left = 0;
+      }
       this.notes = this.notes.filter((note) => note.left > 0);
+    }
+    while (this.cards.length && !this.notes.some((note) => note.kind === 'card')) {
+      const next = this.cards.shift();
+      if (this.members.has(next.login)) this._showCard(next.login, next.brief);
     }
     if (this.battle && this.state !== 'over') this.battle.step(dt);
     if (this.state === 'wave') {
@@ -639,8 +636,10 @@ export class Game {
     for (let i = 0; i < this.slots.length && this.queue.length && this.battle; i++) {
       if (this.slots[i]) continue;
       const spinning = new Set(this.slots.filter(Boolean).map((slot) => slot.login));
-      const next = Math.max(0, this.queue.findIndex((login) => !spinning.has(login)));
-      const member = this.members.get(this.queue.splice(next, 1)[0]);
+      const next = Math.max(0, this.queue.findIndex((entry) => !spinning.has(entry.login)));
+      const entry = this.queue[next], member = this.members.get(entry.login);
+      entry.count -= 1;
+      if (entry.count <= 0) this.queue.splice(next, 1);
       if (!member) continue;
       this.slots[i] = { id: ++this._spinNo, login: member.login, outcome: spin(this.random, member.cls),
         phase: 'spin', left: SPIN_TIME };

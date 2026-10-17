@@ -1,9 +1,8 @@
 import { HERO_IDS, drawHero } from './models.js';
 import { MOB_IDS, drawMob } from './monsters.js';
+import { drawMine, drawNuke, drawTrap, drawWall } from './props.js';
 
 const OUTLINE = '#15111d';
-const METAL = ['#d4dae1', '#8e98a5', '#545d6b'];
-const STONE = ['#9a8f80', '#8a7f70', '#a89c8a'];
 
 class Pix {
   constructor(w, h) {
@@ -256,42 +255,10 @@ export function pixelsOf(image) {
   });
 }
 
-const ROCKS = [
-  [9.5, 5, 4.6, 3.8, 0], [4.5, 6.5, 3.6, 3.2, 1], [14.5, 6.8, 3.4, 3, 2], [7, 9, 2.8, 2.1, 1], [12.5, 9.3, 2.6, 1.9, 0],
-];
-const CRACKS = [[[8, 3, 10, 6], [10, 6, 9, 8]], [[3, 5, 5, 8], [14, 5, 15, 8], [12, 8, 13, 10]]];
+export const wallSprite = (stage) => remember('wall:' + stage, () => drawWall(stage));
 
-export const wallSprite = (stage) => remember('wall:' + stage, () => {
-  const p = new Pix(20, 13), rocks = stage >= 2 ? ROCKS.slice(0, 4) : ROCKS;
-  for (const [cx, cy, rx, ry, tone] of rocks.slice().sort((a, b) => a[1] - b[1])) {
-    p.oval(cx, cy, rx, ry, STONE[tone], '#5c564d', '#c9bfad');
-    p.px(cx - rx * 0.45, cy - ry * 0.5, '#e2d9c8');
-  }
-  for (let i = 0; i < stage && i < CRACKS.length; i++) {
-    for (const [x0, y0, x1, y1] of CRACKS[i]) p.line(x0, y0, x1, y1, '#2b2620');
-  }
-  if (stage >= 2) {
-    p.px(16, 10, '#8a7f70');
-    p.px(17, 11, '#6b6258');
-    p.px(2, 10, '#8a7f70');
-  }
-  p.px(6, 4, '#6f8a3e');
-  p.px(7, 4, '#86a34c');
-  p.px(15, 5, '#6f8a3e');
-  return p.outline().canvas();
-});
-
-export const trapSprite = (closed) => remember('trap:' + closed, () => {
-  const p = new Pix(13, 11), jaw = closed ? 2 : 0;
-  p.ball(6, 5.5, 2.2, '#6b7280', '#374151', '#9ca3af');
-  for (const side of [-1, 1]) {
-    const x = 6 + side * (5 - jaw);
-    p.bar(x, 1 + jaw, x, 9 - jaw, '#9ca3af', 1);
-    for (let y = 2 + jaw; y <= 8 - jaw; y += 2) p.px(x - side, y, '#e5e7eb');
-  }
-  p.px(6, 5, '#b91c1c');
-  return p.outline().canvas();
-});
+export const trapSprite = (closed) => remember('trap:' + closed, () => drawTrap(closed));
+export const nukeSprite = () => remember('nuke', () => drawNuke());
 
 export const flaskSprite = () => remember('flask', () => {
   const p = new Pix(7, 9);
@@ -300,31 +267,7 @@ export const flaskSprite = () => remember('flask', () => {
   return p.outline().canvas();
 });
 
-const MINE_LOOKS = {
-  strong: { body: ['#4a4f5a', '#2e323a', '#7a808c'], light: '#ff3b3b', spikes: true },
-  wide: { body: ['#7a5a2a', '#54401c', '#a07a3a'], light: '#ffb020', ring: true },
-  stun: { body: ['#2d4a7a', '#1d3050', '#4a6fa8'], light: '#7fe3ff', bolt: true },
-};
-
-export const mineSprite = (kind, lit) => remember('mine:' + kind + ':' + lit, () => {
-  const look = MINE_LOOKS[kind], p = new Pix(11, 11), [c, d, l] = look.body;
-  if (look.spikes) for (const [x, y] of [[5, 1], [1, 5], [9, 5], [5, 9]]) p.px(x, y, METAL[1]);
-  p.ball(5.5, 5.5, look.ring ? 3.6 : 3, c, d, l);
-  if (look.ring) {
-    p.px(3, 5, d);
-    p.px(7, 5, d);
-    p.px(5, 3, d);
-    p.px(5, 7, d);
-  }
-  if (look.bolt) {
-    p.px(6, 3, lit ? look.light : d);
-    p.px(5, 4, lit ? look.light : d);
-    p.px(4, 5, lit ? '#ffffff' : d);
-    p.px(5, 6, lit ? look.light : d);
-    p.px(4, 7, lit ? look.light : d);
-  } else p.rect(5, 5, 1, 1, lit ? look.light : d);
-  return p.canvas();
-});
+export const mineSprite = (kind, lit) => remember('mine:' + kind + ':' + lit, () => drawMine(kind, lit));
 
 const COMMAND_ICONS = {
   move(p) {
@@ -334,6 +277,10 @@ const COMMAND_ICONS = {
   upgrade(p) {
     for (let i = 0; i < 4; i++) p.rect(4 - i, 1 + i, 2 + i * 2, 1, '#86efac');
     p.rect(4, 5, 2, 4, '#86efac');
+  },
+  reroll(p) {
+    p.box(1, 1, 8, 8, '#f8fafc');
+    for (const [x, y] of [[2, 2], [7, 2], [4, 4], [5, 5], [2, 7], [7, 7]]) p.px(x, y, '#7c3aed');
   },
   card(p) {
     p.ball(5, 3, 1.8, '#c4b5fd', '#8b7fd0');
@@ -433,6 +380,36 @@ export const coinUrl = () => remember('coinUrl', () => {
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(coinSprite(), 0, 0, 14, 14);
+  return canvas.toDataURL();
+});
+
+const MARKS = {
+  spot(p) {
+    const rows = [[2, 4], [1, 5], [1, 5], [1, 5], [2, 4], [3, 3]];
+    rows.forEach(([from, to], y) => {
+      for (let x = from; x <= to; x++) p.px(x, y, x + y < 4 ? '#f3f0fb' : x - y > 2 || y > 3 ? '#8f89aa' : '#c9c4dd');
+    });
+    p.px(3, 2, '#2a2540');
+  },
+  reach(p) {
+    for (let y = 0; y < 7; y++) {
+      for (let x = 0; x < 7; x++) {
+        const d = Math.hypot(x + 0.5 - 3.5, y + 0.5 - 3.5);
+        if (d > 1.6 && d < 2.75) p.px(x, y, x + y < 6 ? '#f3f0fb' : '#a9a3c4');
+      }
+    }
+    for (const [x, y] of [[3, 0], [0, 3], [6, 3], [3, 6], [3, 3]]) p.px(x, y, '#c9c4dd');
+  },
+};
+
+export const markUrl = (kind) => remember('mark:' + kind, () => {
+  const p = new Pix(7, 7);
+  MARKS[kind](p);
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 14;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(p.outline('#1b1830').canvas(), 0, 0, 14, 14);
   return canvas.toDataURL();
 });
 

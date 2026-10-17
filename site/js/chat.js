@@ -61,41 +61,14 @@ export function chatMessage(msg) {
     mod: msg.tags.get('mod') === '1' || badges.includes('broadcaster/') || badges.includes('moderator/') };
 }
 
-export function chatEmotes(msg) {
-  let text = msg.text;
-  if (text.startsWith('\u0001ACTION ') && text.endsWith('\u0001')) text = text.slice(8, -1);
-  const chars = Array.from(text), emotes = {};
-  for (const part of (msg.tags.get('emotes') || '').split('/')) {
-    const colon = part.indexOf(':');
-    if (colon < 1) continue;
-    const place = /^(\d+)-(\d+)/.exec(part.slice(colon + 1));
-    if (!place) continue;
-    const name = chars.slice(Number(place[1]), Number(place[2]) + 1).join('');
-    if (name && !/\s/.test(name)) emotes[name] = part.slice(0, colon);
-  }
-  return emotes;
-}
-
 export function chatMeta(msg) {
-  return { msgId: msg.tags.get('id') || '', login: msg.nick.toLowerCase(), color: msg.tags.get('color') || '',
-    emotes: chatEmotes(msg) };
-}
-
-export function chatClear(msg) {
-  if (!msg) return null;
-  if (msg.command === 'CLEARMSG') {
-    const msgId = msg.tags.get('target-msg-id');
-    return msgId ? { msgId } : null;
-  }
-  if (msg.command === 'CLEARCHAT') return msg.text ? { user: msg.text.toLowerCase() } : { everything: true };
-  return null;
+  return { login: msg.nick.toLowerCase(), color: msg.tags.get('color') || '' };
 }
 
 export class TwitchChat {
-  constructor({ onMessage, onClear = null, onStatus = null, channel = '', Socket = null, later = null,
+  constructor({ onMessage, onStatus = null, channel = '', Socket = null, later = null,
     clock = () => Date.now() / 1000 } = {}) {
     this.onMessage = onMessage;
-    this.onClear = onClear;
     this.onStatus = onStatus;
     this.channel = String(channel || '').toLowerCase();
     this.Socket = Socket || WebSocket;
@@ -237,9 +210,6 @@ export class TwitchChat {
       if (!message) return;
       this.status.messages = (this.status.messages || 0) + 1;
       quietly(() => this.onMessage(message.name, message.text, message.mod, chatMeta(msg)));
-    } else if ((cmd === 'CLEARMSG' || cmd === 'CLEARCHAT') && this.onClear) {
-      const removed = chatClear(msg);
-      if (removed) quietly(() => this.onClear(removed));
     }
   }
 }

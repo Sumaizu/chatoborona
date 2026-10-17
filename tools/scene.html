@@ -13,7 +13,7 @@
 <script type="module">
   import { Battle } from '../site/js/battle.js';
   import { Scene } from '../site/js/draw.js';
-  import { makePath } from '../site/js/field.js';
+  import { makeMap } from '../site/js/field.js';
   import { BOSSES, ELITES, LOOKS, MIMIC, TICK, waveHp, xpForLevel } from '../site/js/balance.js';
 
   const seeded = (seed) => {
@@ -28,7 +28,9 @@
   };
   const query = new URLSearchParams(location.search), seconds = Number(query.get('t')) || 6;
   const wave = Number(query.get('wave')) || 15, players = 6;
-  const battle = new Battle(makePath(seeded(Number(query.get('map')) || 5)), { random: seeded(3) });
+  const map = makeMap(seeded(Number(query.get('map')) || 5));
+  if (query.get('biome')) map.biome = query.get('biome');
+  const battle = new Battle(map, { random: seeded(3) });
   battle.wave = wave;
   battle.players = players;
   const team = (query.get('team') || 'earth,miner,pyro,frost,alchemist,earth').split(',');

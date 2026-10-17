@@ -1,12 +1,11 @@
 import { LETTERS, SIZE } from './field.js';
-import { HERO_SIZE, bubbleSprite, coinSprite, flaskSprite, heartSprite, heroSprite, mineSprite, mobSprite, pixelsOf,
-  reticleSprite, shellSprite, starSprite, tintSprite,
-  trapSprite, wallSprite } from './sprites.js';
+import { CELL, EDGE, paintGround, paintRoof } from './terrain.js';
+import { HERO_SIZE, bubbleSprite, coinSprite, flaskSprite, heartSprite, heroSprite, mineSprite, mobSprite, nukeSprite,
+  pixelsOf, reticleSprite, shellSprite, starSprite, tintSprite, trapSprite, wallSprite } from './sprites.js';
 import { rarityOf } from './gacha.js';
 
-export const CELL = 30;
-export const EDGE = 16;
-export const BOARD = EDGE + CELL * SIZE;
+export const BOARD = EDGE * 2 + CELL * SIZE;
+const FIELD = 616;
 
 const ZOOM = 2;
 const SMOOTH = 28;
@@ -31,6 +30,8 @@ const ELEMENT_BITS = {
   storm: ['#fef9c3', '#facc15', '#ffffff'],
   poison: ['#d9f99d', '#a3e635', '#7c3aed'],
 };
+const NUKE_MARK = 3;
+const SIGHT_RAYS = 180;
 const MINE_LIGHTS = {
   strong: 'rgba(255, 59, 59, .9)', wide: 'rgba(255, 176, 32, .9)', stun: 'rgba(127, 227, 255, .9)',
 };
@@ -49,8 +50,6 @@ const AURAS = {
 const INK = '#f4f0e8';
 const MUTED = 'rgba(166, 162, 189, .85)';
 const DARK = '#100e1f';
-const ROAD = 'rgba(255, 255, 255, .08)';
-const ROAD_EDGE = 'rgba(255, 255, 255, .14)';
 const BOLTS = {
   sniper: { look: 'tracer', color: '#fff3b0', width: 2 },
   gunner: { look: 'dot', color: '#ffd84a', size: 2 },
@@ -267,10 +266,11 @@ export class Scene {
     this.clock = 0;
     this.impacts = 0;
     this.labels = new Map();
+    this.sights = new Map();
   }
 
   resize(scale) {
-    const k = Math.min(RESOLUTION_MAX, Math.max(0.5, scale) * (window.devicePixelRatio || 1));
+    const k = Math.min(RESOLUTION_MAX, Math.max(0.5, scale) * (window.devicePixelRatio || 1)) * FIELD / BOARD;
     if (Math.abs(k - this.k) < 0.01) return;
     this.k = k;
     this.canvas.width = Math.round(BOARD * k);
@@ -334,6 +334,10 @@ export class Scene {
     this._walls(ctx, battle, still);
     this._base(ctx, battle);
     this._mobs(ctx, battle, dt, still);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(this.roof, 0, 0);
+    ctx.setTransform(this.k, 0, 0, this.k, 0, 0);
+    this._gates(ctx, battle);
     this._flames(ctx, battle);
     this._whirls(ctx, battle);
     this._muses(ctx, battle);
@@ -345,23 +349,29 @@ export class Scene {
   }
 
   _ground(battle) {
-    const key = (battle ? battle.path.map((c) => c.join(',')).join(';') : '') + '@' + this.k;
+    const key = (battle ? battle.road.map((c) => c.join(',')).join(';') + battle.biome
+      + (battle.tiles || []).join() : '') + '@' + this.k;
     if (key === this.groundKey) return;
     this.groundKey = key;
-    if (!this.ground) this.ground = document.createElement('canvas');
-    this.ground.width = this.canvas.width;
-    this.ground.height = this.canvas.height;
-    const ctx = this.ground.getContext('2d');
+    if (!this.ground) {
+      this.ground = document.createElement('canvas');
+      this.roof = document.createElement('canvas');
+    }
+    this.ground.width = this.roof.width = this.canvas.width;
+    this.ground.height = this.roof.height = this.canvas.height;
+    const ctx = this.ground.getContext('2d'), roof = this.roof.getContext('2d');
     ctx.setTransform(this.k, 0, 0, this.k, 0, 0);
+    roof.setTransform(this.k, 0, 0, this.k, 0, 0);
+    ctx.imageSmoothingEnabled = roof.imageSmoothingEnabled = false;
     ctx.clearRect(0, 0, BOARD, BOARD);
-    for (let y = 0; y < SIZE; y++) {
-      for (let x = 0; x < SIZE; x++) {
-        ctx.fillStyle = (x + y) % 2 ? 'rgba(255, 255, 255, .025)' : 'rgba(255, 255, 255, .045)';
-        ctx.fillRect(at(x), at(y), CELL, CELL);
-        const seed = (x * 7 + y * 13) % 11;
-        if (seed < 3) {
-          ctx.fillStyle = 'rgba(255, 255, 255, .05)';
-          ctx.fillRect(at(x) + 6 + seed * 6, at(y) + 8 + seed * 4, 2, 2);
+    if (battle) {
+      paintGround(ctx, battle);
+      paintRoof(roof, battle);
+    } else {
+      for (let y = 0; y < SIZE; y++) {
+        for (let x = 0; x < SIZE; x++) {
+          ctx.fillStyle = (x + y) % 2 ? 'rgba(255, 255, 255, .025)' : 'rgba(255, 255, 255, .045)';
+          ctx.fillRect(at(x), at(y), CELL, CELL);
         }
       }
     }
@@ -371,38 +381,18 @@ export class Scene {
     ctx.textBaseline = 'middle';
     for (let i = 0; i < SIZE; i++) {
       ctx.fillText(LETTERS[i], at(i + 0.5), EDGE / 2);
+      ctx.fillText(LETTERS[i], at(i + 0.5), BOARD - EDGE / 2);
       ctx.fillText(String(i + 1), EDGE / 2, at(i + 0.5));
+      ctx.fillText(String(i + 1), BOARD - EDGE / 2, at(i + 0.5));
     }
-    if (!battle) return;
-    const route = battle.route.map(([x, y]) => [at(x), at(y)]);
-    for (const [width, color] of [[CELL * 0.86, ROAD_EDGE], [CELL * 0.8, '#1b1830'], [CELL * 0.8, ROAD]]) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(EDGE, EDGE, CELL * SIZE, CELL * SIZE);
-      ctx.clip();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = width;
-      ctx.lineCap = 'butt';
-      ctx.lineJoin = 'round';
-      ctx.beginPath();
-      route.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-      ctx.stroke();
-      ctx.restore();
-    }
-    ctx.strokeStyle = 'rgba(255, 255, 255, .12)';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([3, 7]);
-    ctx.beginPath();
-    route.slice(1, -1).forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-    ctx.stroke();
-    ctx.setLineDash([]);
   }
 
-  _gate(ctx, battle) {
-    const [sx, sy] = battle.path[0], x = at(sx + 0.5), y = at(sy + 0.5);
-    glow(ctx, x, y, CELL * 0.75, 'rgba(192, 132, 252, .95)', 0.85);
-    orbit(ctx, x, y, CELL * 0.36, 5, this.clock * 2.4, '#e9d5ff', 1, true);
-    orbit(ctx, x, y, CELL * 0.2, 3, -this.clock * 3.1, '#c084fc', 1, true);
+  _gates(ctx, battle) {
+    for (const route of battle.routes) {
+      const [x, y] = route[battle.tiles ? 3 : 1].map((v, i) => (v + route[2][i]) / 2).map(at);
+      glow(ctx, x, y, CELL * 0.75, 'rgba(192, 132, 252, .95)', 0.55 + 0.2 * Math.sin(this.clock * 3));
+      orbit(ctx, x, y, CELL * 0.3, 4, this.clock * 2.4, '#e9d5ff', 1, true);
+    }
   }
 
   _aura(ctx, x, y, r, look, seed) {
@@ -455,7 +445,6 @@ export class Scene {
   }
 
   _auras(ctx, battle) {
-    this._gate(ctx, battle);
     for (const t of battle.towers) {
       if (t.rider) continue;
       const x = at(t.cx), y = at(t.cy), p = t.p, seed = (t.x * 7 + t.y * 3) % 10;
@@ -469,15 +458,46 @@ export class Scene {
   _ranges(ctx, battle, ranges) {
     for (const t of battle.towers) {
       if (t.rider || !ranges.has(t.player.login)) continue;
-      const x = at(t.cx), y = at(t.cy), r = t.range * CELL;
-      ctx.fillStyle = 'rgba(255, 255, 255, .05)';
-      ctx.strokeStyle = 'rgba(255, 255, 255, .75)';
-      ctx.lineWidth = 1;
+      const outline = this._sight(battle, t);
+      ctx.save();
       ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.rect(EDGE, EDGE, CELL * SIZE, CELL * SIZE);
+      ctx.clip();
+      ctx.fillStyle = 'rgba(255, 255, 255, .07)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, .8)';
+      ctx.lineWidth = 1.2;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      outline.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
       ctx.fill();
       ctx.stroke();
+      ctx.restore();
     }
+  }
+
+  _sight(battle, t) {
+    const aura = t.cls.role === 'support' && t.p.aura, range = aura || t.range;
+    const key = t.x + ',' + t.y + ',' + range.toFixed(2) + (aura ? 'a' : '');
+    if (this.sights.has(key)) return this.sights.get(key);
+    const outline = [], solid = aura ? null : battle.solid, own = t.y * SIZE + t.x;
+    for (let i = 0; i < SIGHT_RAYS; i++) {
+      const a = i / SIGHT_RAYS * Math.PI * 2, dx = Math.cos(a), dy = Math.sin(a);
+      let reach = range;
+      if (solid) {
+        for (let d = 0.05; d <= range; d += 0.05) {
+          const x = t.cx + dx * d, y = t.cy + dy * d, cell = Math.floor(y) * SIZE + Math.floor(x);
+          if (x >= 0 && y >= 0 && x < SIZE && y < SIZE && cell !== own && solid[cell]) {
+            reach = d;
+            break;
+          }
+        }
+      }
+      outline.push([at(t.cx + dx * reach), at(t.cy + dy * reach)]);
+    }
+    if (this.sights.size > 200) this.sights.clear();
+    this.sights.set(key, outline);
+    return outline;
   }
 
   _patches(ctx, battle) {
@@ -543,9 +563,10 @@ export class Scene {
     this.corpses = next;
   }
 
-  _point(battle, d) {
-    const i = Math.max(0, Math.min(battle.length - 1, Math.floor(d))), f = Math.max(0, Math.min(1, d - i));
-    const a = battle.route[i], b = battle.route[i + 1];
+  _point(battle, d, r) {
+    const route = battle.routes[r || 0], last = route.length - 1;
+    const i = Math.max(0, Math.min(last - 1, Math.floor(d))), f = Math.max(0, Math.min(1, d - i));
+    const a = route[i], b = route[i + 1];
     return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
   }
 
@@ -576,12 +597,12 @@ export class Scene {
   }
 
   _traps(ctx, battle) {
-    for (const trap of battle.traps) sprite(ctx, trapSprite(false), at(trap.x), at(trap.y), 0, 1.6);
+    for (const trap of battle.traps) sprite(ctx, trapSprite(false), at(trap.x), at(trap.y), 0, 1.8);
   }
 
   _whirls(ctx, battle) {
     for (const whirl of battle.whirls) {
-      const [wx, wy] = this._point(battle, whirl.d), x = at(wx), y = at(wy);
+      const [wx, wy] = this._point(battle, whirl.d, whirl.r), x = at(wx), y = at(wy);
       const fade = Math.min(1, (whirl.until - battle.time) / 0.2);
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
@@ -592,6 +613,30 @@ export class Scene {
       }
       ctx.restore();
     }
+  }
+
+  _nukeFlight(ctx, e, share) {
+    const point = (s) => [at(e.x1 + (e.x2 - e.x1) * s), at(e.y1 + (e.y2 - e.y1) * s) - Math.sin(s * Math.PI) * 70];
+    const [x, y] = point(share), [nx, ny] = point(Math.min(1, share + 0.02)), tx = at(e.x2), ty = at(e.y2);
+    const pulse = 0.5 + 0.5 * Math.sin(this.clock * 12);
+    ctx.save();
+    ctx.globalAlpha = 0.35 + 0.4 * pulse;
+    ctx.strokeStyle = '#ff3b3b';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 4]);
+    ctx.lineDashOffset = -this.clock * 20;
+    ctx.beginPath();
+    ctx.ellipse(tx, ty, NUKE_MARK * CELL, NUKE_MARK * CELL * 0.92, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+    sprite(ctx, reticleSprite(), tx, ty, 0, 2 + pulse);
+    ctx.fillStyle = 'rgba(0, 0, 0, ' + (0.15 + 0.25 * share) + ')';
+    ctx.beginPath();
+    ctx.ellipse(at(e.x1 + (e.x2 - e.x1) * share), at(e.y1 + (e.y2 - e.y1) * share) + 4, 6 + 6 * share,
+      2 + 2 * share, 0, 0, Math.PI * 2);
+    ctx.fill();
+    glow(ctx, x, y - 12, 10, 'rgba(255, 216, 74, .9)', 0.25 + 0.2 * pulse);
+    sprite(ctx, nukeSprite(), x, y, Math.atan2(-(nx - x), ny - y + 1e-6), 2.2, 0, 64);
   }
 
   _muses(ctx, battle) {
@@ -637,7 +682,8 @@ export class Scene {
     for (const wall of battle.walls) {
       if (!this.built.has(wall)) this.built.set(wall, this.clock - (still ? RISE : 0));
       const rise = Math.min(1, (this.clock - this.built.get(wall)) / RISE);
-      const a = battle.route[Math.max(0, wall.d - 1)], b = battle.route[Math.min(battle.length, wall.d + 1)];
+      const route = battle.routes[wall.r || 0];
+      const a = route[Math.max(0, wall.d - 1)], b = route[Math.min(route.length - 1, wall.d + 1)];
       const turn = Math.atan2(b[0] - a[0], -(b[1] - a[1])), share = Math.max(0, wall.hp / wall.max);
       const angle = Math.round(turn / (Math.PI / 2)) * (Math.PI / 2);
       const image = wallSprite(share > 0.66 ? 0 : share > 0.33 ? 1 : 2), x = at(wall.x), y = at(wall.y);
@@ -677,8 +723,9 @@ export class Scene {
         spot.walk += moved * WALK;
         spot.trail += moved;
       }
-      if (still && mob.d < battle.length) {
-        const i = Math.min(battle.length - 1, Math.floor(mob.d)), a = battle.route[i], b = battle.route[i + 1];
+      const route = battle.routes[mob.r || 0];
+      if (still && mob.d < route.length - 1) {
+        const i = Math.min(route.length - 2, Math.floor(mob.d)), a = route[i], b = route[i + 1];
         spot.dx = b[0] - a[0];
         spot.dy = b[1] - a[1];
       }
@@ -996,35 +1043,47 @@ export class Scene {
     const first = (t) => (highlight && highlight.has(t.player.login) ? 0 : named(t) ? 1 : 2);
     const taken = [];
     for (const t of battle.towers.slice().sort((a, b) => first(a) - first(b))) {
-      const pose = this._pose(t), image = this._nameLabel(t), w = image.width / this.k;
+      const marked = Boolean(highlight && highlight.has(t.player.login)), on = Math.floor(this.clock * 4) % 2 === 0;
+      const pose = this._pose(t), image = this._nameLabel(t, marked ? (on ? 'on' : 'off') : '');
+      const w = image.width / this.k, h = image.height / this.k;
       const riding = t.rider && t.host && !t.host.dead;
-      const x = at(pose.x) - w / 2, y = at(pose.y) + (riding ? 31 : -23);
-      const box = [x - 1, y - 7, x + w + 1, y + 7];
+      const x = Math.max(1, Math.min(BOARD - w - 1, at(pose.x) - w / 2));
+      const y = at(pose.y) + (riding ? 31 : -23) - (marked ? 2 : 0);
+      const box = [x - 1, y - h / 2, x + w + 1, y + h / 2];
       if (taken.some((o) => box[0] < o[2] && o[0] < box[2] && box[1] < o[3] && o[1] < box[3])) continue;
       taken.push(box);
-      this._stamp(ctx, image, x, y - 6.5);
+      if (marked) glow(ctx, at(pose.x), y, w * 0.75, 'rgba(255, 40, 40, 1)', on ? 0.75 : 0.3);
+      this._stamp(ctx, image, x, y - h / 2);
     }
   }
 
-  _nameLabel(t) {
+  _nameLabel(t, mark) {
     const text = t.player.name.length > 12 ? t.player.name.slice(0, 11) + '…' : t.player.name;
-    const coins = String(Math.floor(t.player.coins || 0)), font = '700 9.5px "Segoe UI", system-ui, sans-serif';
-    const key = 'name:' + text + ':' + coins;
+    const coins = String(Math.floor(t.player.coins || 0)), size = mark ? 11.5 : 9.5, h = mark ? 16 : 13;
+    const font = (mark ? '900 ' : '700 ') + size + 'px "Segoe UI", system-ui, sans-serif';
+    const key = 'name:' + mark + ':' + text + ':' + coins;
     if (!this.labels.has(key)) this.ctx.font = font;
     const nameWidth = this.labels.has(key) ? 0 : this.ctx.measureText(text).width;
     const coinWidth = this.labels.has(key) ? 0 : this.ctx.measureText(coins).width;
-    return this._label(key, nameWidth + coinWidth + 22, 13, (g) => {
+    const coin = mark ? 9 : 7, w = nameWidth + coinWidth + coin + 15;
+    return this._label(key, w, h, (g) => {
       g.font = font;
       g.textAlign = 'left';
       g.textBaseline = 'middle';
-      g.fillStyle = 'rgba(16, 14, 31, .88)';
-      roundRect(g, 0, 0, nameWidth + coinWidth + 22, 13, 6);
+      g.fillStyle = mark === 'on' ? '#e11d2a' : 'rgba(16, 14, 31, .9)';
+      roundRect(g, 0, 0, w, h, h / 2 - 0.5);
       g.fill();
-      g.fillStyle = INK;
-      g.fillText(text, 4, 7);
-      g.drawImage(coinSprite(), Math.round(8 + nameWidth), 3, 7, 7);
-      g.fillStyle = '#ffd86b';
-      g.fillText(coins, 17 + nameWidth, 7);
+      if (mark) {
+        g.lineWidth = 1.5;
+        g.strokeStyle = mark === 'on' ? '#ffd0d0' : '#ff3b3b';
+        roundRect(g, 0.75, 0.75, w - 1.5, h - 1.5, h / 2 - 1.25);
+        g.stroke();
+      }
+      g.fillStyle = mark === 'on' ? '#fff' : mark ? '#ff4545' : INK;
+      g.fillText(text, 4.5, h / 2 + 0.5);
+      g.drawImage(coinSprite(), Math.round(8 + nameWidth), Math.round((h - coin) / 2), coin, coin);
+      g.fillStyle = mark === 'on' ? '#fff3b0' : '#ffd86b';
+      g.fillText(coins, 10 + coin + nameWidth, h / 2 + 0.5);
     });
   }
 
@@ -1387,7 +1446,7 @@ export class Scene {
         sprite(ctx, flaskSprite(), x, y, share * Math.PI * 3, 1.6);
       } else if (e.kind === 'snapped') {
         ctx.globalAlpha = Math.min(1, fade * 2);
-        sprite(ctx, trapSprite(true), at(e.x), at(e.y), 0, 1.6);
+        sprite(ctx, trapSprite(true), at(e.x), at(e.y), 0, 1.8);
         ctx.globalAlpha = 1;
       } else if (e.kind === 'spikes') {
         const rise = Math.sin(Math.min(1, share * 2.5) * Math.PI / 2) * (1 - Math.max(0, share - 0.6) / 0.4);
@@ -1410,9 +1469,12 @@ export class Scene {
           e.x2 = spot.x;
           e.y2 = spot.y;
         }
-        const x = at(e.x1 + (e.x2 - e.x1) * share);
-        const y = at(e.y1 + (e.y2 - e.y1) * share) - Math.sin(share * Math.PI) * 26;
-        sprite(ctx, mineSprite(e.mine, true), x, y, share * Math.PI * 4, 1.6);
+        if (e.mine === 'nuke') this._nukeFlight(ctx, e, share);
+        else {
+          const x = at(e.x1 + (e.x2 - e.x1) * share);
+          const y = at(e.y1 + (e.y2 - e.y1) * share) - Math.sin(share * Math.PI) * 26;
+          sprite(ctx, mineSprite(e.mine, true), x, y, share * Math.PI * 4, 1.6);
+        }
       } else if (e.kind === 'chain') {
         ctx.globalAlpha = fade;
         for (const [width, color] of [[4, e.color || 'rgba(96, 165, 250, .6)'], [1.5, '#ffffff']]) {
@@ -1431,14 +1493,16 @@ export class Scene {
           share < 0.5 ? '#ffd84a' : e.ring);
         ctx.globalAlpha = 1;
       } else if (e.kind === 'nuke') {
-        const x = at(e.x), y = at(e.y);
-        ctx.globalAlpha = Math.pow(fade, 2.5) * 0.85;
-        ctx.fillStyle = share < 0.12 ? '#ffffff' : '#ffe9b0';
+        const x = at(e.x), y = at(e.y), r = e.radius * CELL;
+        ctx.globalAlpha = Math.pow(fade, 3) * 0.55;
+        ctx.fillStyle = share < 0.1 ? '#ffffff' : '#ffe9b0';
         ctx.fillRect(EDGE, EDGE, CELL * SIZE, CELL * SIZE);
         ctx.globalAlpha = 1;
-        glow(ctx, x, y, CELL * (2 + 3 * share), 'rgba(255, 170, 60, .95)', fade);
+        glow(ctx, x, y, r * (0.6 + 0.8 * share), 'rgba(255, 170, 60, .95)', fade);
+        glow(ctx, x, y - r * 0.5 * share, r * 0.5, 'rgba(255, 236, 170, .95)', fade * 0.9);
         ctx.globalAlpha = fade;
-        burst(ctx, x, y, BOARD * 1.3 * Math.sqrt(share), 64, share * 0.5, 2, '#ffd84a');
+        burst(ctx, x, y, r * Math.sqrt(share) * 1.1, 48, share * 0.5, 2, '#ffd84a');
+        burst(ctx, x, y, r * Math.sqrt(share) * 0.7, 32, share * 0.8 + 1, 1, '#ff7a1f');
         ctx.globalAlpha = 1;
       } else if (e.kind === 'storm') {
         ctx.globalAlpha = fade;
