@@ -33,6 +33,7 @@ export const BOTS = [
 export const OVER_TIME = 15;
 export const CARD_TIME = 24;
 export const CARD_MIN = 10;
+export const CARD_ROOM = 2;
 export const SPIN_LIMIT = 5;
 export const NOTE_TIME = 4;
 export const QUICK_WAVE = 10;
@@ -182,6 +183,7 @@ export class Game {
     this.slots = Array(SLOTS).fill(null);
     this.notes = [];
     this.cards = [];
+    this.cardRoom = CARD_ROOM;
     this.events = [];
     this._noteNo = 0;
     this._spinNo = 0;
@@ -444,20 +446,37 @@ export class Game {
   }
 
   _card(member, brief) {
-    const active = this.notes.find((note) => note.kind === 'card');
+    const shown = this._shownCards(), own = shown.find((note) => note.login === member.login);
     const waiting = this.cards.find((card) => card.login === member.login);
-    if (active && active.login === member.login) {
-      Object.assign(active, { left: CARD_TIME, since: 0, detail: { brief } });
-    }
+    if (own) Object.assign(own, { left: CARD_TIME, since: 0, detail: { brief } });
     else if (waiting) waiting.brief = brief;
-    else if (active) this.cards.push({ login: member.login, brief });
+    else if (shown.length >= this.cardRoom) this.cards.push({ login: member.login, brief });
     else this._showCard(member.login, brief);
     this._emit('card', { login: member.login });
     return 'card';
   }
 
   _showCard(login, brief) {
-    this.notes.push({ kind: 'card', login, left: CARD_TIME, since: 0, detail: { brief }, id: ++this._noteNo });
+    const note = { kind: 'card', login, left: CARD_TIME, since: 0, detail: { brief }, id: ++this._noteNo };
+    this.notes.push(note);
+    return note;
+  }
+
+  _shownCards() {
+    return this.notes.filter((note) => note.kind === 'card');
+  }
+
+  _turnCards() {
+    const shown = this._shownCards(), room = Math.max(1, this.cardRoom);
+    while (shown.length > room) {
+      const last = shown.pop();
+      this.notes.splice(this.notes.indexOf(last), 1);
+      this.cards.unshift({ login: last.login, brief: last.detail.brief });
+    }
+    while (this.cards.length && shown.length < room) {
+      const next = this.cards.shift();
+      if (this.members.has(next.login)) shown.push(this._showCard(next.login, next.brief));
+    }
   }
 
   _planReset() {
@@ -600,16 +619,18 @@ export class Game {
     if (this.notes.length) {
       for (const note of this.notes) {
         note.left -= dt;
-        if (note.kind !== 'card') continue;
-        note.since += dt;
-        if (this.cards.length && note.since >= CARD_MIN) note.left = 0;
+        if (note.kind === 'card') note.since += dt;
+      }
+      const shown = this._shownCards();
+      if (this.cards.length && shown.length >= this.cardRoom) {
+        shown.filter((note) => note.since >= CARD_MIN).sort((a, b) => b.since - a.since).slice(0, this.cards.length)
+          .forEach((note) => {
+            note.left = 0;
+          });
       }
       this.notes = this.notes.filter((note) => note.left > 0);
     }
-    while (this.cards.length && !this.notes.some((note) => note.kind === 'card')) {
-      const next = this.cards.shift();
-      if (this.members.has(next.login)) this._showCard(next.login, next.brief);
-    }
+    this._turnCards();
     if (this.battle && this.state !== 'over') this.battle.step(dt);
     if (this.state === 'wave') {
       if (this.battle.lives <= 0) this._over();

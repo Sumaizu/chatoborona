@@ -21,7 +21,8 @@ const MAP_TIPS = 'Мобы выходят из двух тоннелей. Гор
 const LOW_LIVES = 5;
 const BOSS_EVERY = 10;
 const FINAL_SECONDS = 3;
-const ROWS = { over: 5, roster: 30, pause: 10, pauseShort: 8, queue: 3, cards: 2, player: 22 };
+const ROWS = { over: 5, roster: 30, pause: 10, pauseShort: 8, queue: 3, cards: 4, player: 22 };
+const CARD_GAP = 6;
 const REEL = { cells: 26, result: 21, width: 34 };
 const BIG_PRIZES = new Set(['epic', 'legendary']);
 const CYCLES = new Map([['rainbow', 2400]]);
@@ -179,6 +180,7 @@ export class View {
     this._mapSeen = null;
     this._slots = [];
     this._cards = new Map();
+    this._cardTall = 0;
     $('emblem-left').src = shieldUrl(64);
     $('emblem-right').src = shieldUrl(64);
     window.addEventListener('resize', () => this._fitStage());
@@ -711,14 +713,17 @@ export class View {
   _paintEffects(game) {
     const run = game.run || { now: [], next: [], effects: [] };
     const lasting = run.effects.map((e) => Object.assign({ kind: e.kind }, effectOf(e.kind, e.id)));
-    const rows = run.now.map((e) => ['сейчас', e]).concat(run.next.map((e) => ['дальше', e]),
-      lasting.map((e) => ['до конца', e]));
+    const biome = game.battle && game.state !== 'over' ? game.battle.biome : '', rules = BIOME_RULES[biome];
+    const rows = (rules ? [['карта', { kind: 'biome', id: biome, name: rules.name, text: rules.text }]] : [])
+      .concat(run.now.map((e) => ['сейчас', e]), run.next.map((e) => ['дальше', e]),
+        lasting.map((e) => ['до конца', e]));
     this._once('effects', JSON.stringify(rows.map(([when, e]) => when + e.kind + e.id)), () => {
       const box = $('effects');
       box.textContent = '';
       for (const [when, effect] of rows) {
-        const row = el('div', 'effect ' + effect.kind), text = el('span');
-        text.append(el('b', '', effect.name), ' ' + effect.text);
+        const row = el('div', 'effect ' + effect.kind), text = el('span'), name = el('b', '', effect.name);
+        if (effect.kind === 'biome') name.style.color = BIOME_GLOW[effect.id];
+        text.append(name, ' ' + effect.text);
         row.append(image(effectUrl(effect.kind, effect.id, 36)), el('i', 'when', when), text);
         box.append(row);
       }
@@ -779,6 +784,19 @@ export class View {
       card.node.remove();
       this._cards.delete(key);
     }
+    this._fitCards(game, box);
+  }
+
+  _fitCards(game, box) {
+    const shown = Array.from(box.querySelectorAll('.profile')), last = box.lastElementChild;
+    for (const card of shown) this._cardTall = Math.max(this._cardTall, card.offsetHeight);
+    if (box.id !== 'cards' || !box.clientHeight) {
+      game.cardRoom = 1;
+      return;
+    }
+    const used = last ? last.offsetTop + last.offsetHeight - box.offsetTop : 0;
+    if (used > box.clientHeight + 1) game.cardRoom = Math.max(1, shown.length - 1);
+    else if (shown.length < 2) game.cardRoom = box.clientHeight - used - CARD_GAP >= this._cardTall ? 2 : 1;
   }
 
   _shortCard(member, note) {

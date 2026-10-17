@@ -336,7 +336,7 @@ export class Battle {
     this.wild = false;
     this.spawns = plan.map((s) => {
       const spawn = { type: s.type, at: start + s.delay, hp: waveHp(wave, s.type, players) * toughness, kind: null,
-        r: this.branch.length && this.random() < 0.5 ? 1 : 0 };
+        r: 0 };
       if (s.kind) {
         spawn.kind = s.kind;
         spawn.hp *= s.kind.hp || 1;
@@ -355,11 +355,16 @@ export class Battle {
       for (let i = Math.round(kin.length * TERRAIN.more); i > 0; i--) {
         const copy = Object.assign({}, kin[Math.floor(this.random() * kin.length)]);
         copy.at = start + this.random() * length;
-        copy.r = this.branch.length && this.random() < 0.5 ? 1 : 0;
         this.spawns.push(copy);
       }
     }
     this.spawns.sort((a, b) => a.at - b.at);
+    if (this.branch.length) {
+      this.spawns.forEach((spawn, i) => {
+        spawn.r = i % 2;
+        if (spawn.r) spawn.at = this.spawns[i - 1].at;
+      });
+    }
     this.lastSpawn = this.spawns.length ? this.spawns[this.spawns.length - 1].at : start;
     for (const wall of this.walls) {
       const max = this._wallMax(wall.tower);

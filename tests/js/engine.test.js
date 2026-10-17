@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { PLAIN, makeGame, memoryStorage, runFor, seeded, until } from './fixtures.js';
-import { CARD_MIN, CARD_TIME, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPIN_LIMIT, nextReset }
+import { CARD_MIN, CARD_ROOM, CARD_TIME, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPIN_LIMIT, nextReset }
   from '../../site/js/engine.js';
 import { TICK, xpForLevel } from '../../site/js/balance.js';
 import { PRICE, RARITIES, SHOW_FAST, SHOW_TIME, SPIN_TIME, WEAPONS, makeWeapon, weaponName }
@@ -548,22 +548,29 @@ test('число и «все» в команде: «гача 3», «гача в�
   eq(say(game, 'Гена', 'улучшить 3'), 'poor');
 });
 
-test('профиль: карточки в очередь, каждая держится не меньше десяти секунд; «проф» — короткая', () => {
+test('профиль: две карточки сразу, третья ждёт десять секунд старшей; нет места — одна; «проф» — короткая', () => {
   const { game } = makeGame();
   game.open();
-  for (const name of ['Аня', 'Боря', 'Вика']) say(game, name, 'привет');
+  for (const name of ['Аня', 'Боря', 'Вика', 'Гоша']) say(game, name, 'привет');
   toWave(game);
   const shown = () => game.notes.filter((n) => n.kind === 'card').map((n) => [n.login, n.detail.brief]);
+  eq(game.cardRoom, CARD_ROOM);
   eq(say(game, 'Аня', 'профиль'), 'card');
   eq(say(game, 'Боря', 'проф'), 'card');
-  eq(shown(), [['аня', false]], 'Боря ждёт');
+  eq(say(game, 'Вика', 'профиль'), 'card');
+  eq(shown(), [['аня', false], ['боря', true]], 'двое сразу, Вика ждёт');
   runFor(game, CARD_MIN - 1);
-  eq(shown(), [['аня', false]]);
+  eq(shown(), [['аня', false], ['боря', true]]);
   runFor(game, 1.2);
-  eq(shown(), [['боря', true]], 'через десять секунд — следующий, короткая карточка');
-  say(game, 'Вика', 'профиль');
+  eq(shown(), [['боря', true], ['вика', false]], 'уходит только старшая — по одной на каждого ждущего');
+  game.cardRoom = 1;
+  game.step(TICK);
+  eq(shown(), [['боря', true]], 'места на одну — младшая вернулась в очередь');
+  say(game, 'Гоша', 'проф');
+  game.step(TICK);
+  eq(shown(), [['вика', false]], 'Боря своё отвисел — сразу следующая');
   runFor(game, CARD_MIN + 0.2);
-  eq(shown(), [['вика', false]]);
+  eq(shown(), [['гоша', true]]);
   runFor(game, CARD_TIME);
   eq(shown(), [], 'очередь пуста — карточка уходит в своё время');
 });

@@ -453,9 +453,49 @@ export const shieldSprite = () => remember('shield', () => {
   return p.outline('#0b1530').canvas();
 });
 
-const KIND_COLORS = { buff: '#4ade80', debuff: '#f87171', blessing: '#fbbf24', curse: '#c084fc' };
+const KIND_COLORS = { buff: '#4ade80', debuff: '#f87171', blessing: '#fbbf24', curse: '#c084fc', biome: '#7dd3fc' };
 
 const SYMBOLS = {
+  grass(p) {
+    for (const x of [3, 7, 11]) {
+      p.bar(x + 1, 14, x, 8, '#4f7a3a', 1);
+      p.bar(x + 1, 14, x + 3, 9, '#7fb34f', 1);
+    }
+    p.rect(9, 5, 2, 2, '#f5e663');
+  },
+  volcano(p) {
+    for (let y = 6; y < 15; y++) {
+      p.rect(Math.round(8 - (y - 6) * 0.7), y, Math.round(1 + (y - 6) * 1.4), 1, y < 8 ? '#ff7a1f' : '#5a4648');
+    }
+    p.bar(7, 9, 6, 13, '#ff6a1f', 1);
+    p.rect(6, 2, 2, 2, '#9a9a9a');
+    p.rect(9, 1, 2, 2, '#bdbdbd');
+  },
+  swamp(p) {
+    for (const [x, top] of [[4, 4], [8, 2], [12, 5]]) {
+      p.bar(x, 14, x, top + 3, '#6b8a3a', 1);
+      p.rect(x - 1, top, 2, 3, '#7a4a2a');
+    }
+    p.rect(1, 13, 14, 2, '#3f5230');
+  },
+  snow(p) {
+    for (const [x0, y0, x1, y1] of [[8, 1, 8, 15], [2, 4, 14, 12], [2, 12, 14, 4]]) p.bar(x0, y0, x1, y1, '#e0f2fe', 1);
+    for (const [x, y] of [[6, 2], [10, 2], [6, 14], [10, 14]]) p.px(x, y, '#e0f2fe');
+  },
+  desert(p) {
+    p.rect(6, 3, 4, 12, '#4f9a3a');
+    p.rect(2, 6, 3, 2, '#4f9a3a');
+    p.rect(2, 4, 2, 3, '#4f9a3a');
+    p.rect(11, 8, 3, 2, '#4f9a3a');
+    p.rect(12, 5, 2, 4, '#4f9a3a');
+    p.rect(7, 4, 1, 10, '#7fc35a');
+  },
+  graveyard(p) {
+    p.rect(4, 3, 8, 12, '#8b8597');
+    p.rect(5, 2, 6, 1, '#8b8597');
+    p.rect(7, 5, 2, 7, '#3a3542');
+    p.rect(5, 7, 6, 2, '#3a3542');
+  },
   fury(p) {
     p.bar(3, 12, 11, 4, '#dfe6ee', 2);
     p.bar(3, 10, 6, 13, '#8a5a2b', 1);

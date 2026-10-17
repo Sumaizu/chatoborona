@@ -1043,7 +1043,7 @@ function mapWith(marks = {}, biome = 'grass') {
   return new Battle({ path: STRAIGHT, branch: FORK, merge: 10, tiles, biome }, { random: seeded(7) });
 }
 
-test('карта: мобы второго входа идут своей дорогой, у слияния встают на общую и доходят до сердца', () => {
+test('карта: волна идёт сразу из обоих входов, вторые у слияния встают на общую дорогу и доходят до сердца', () => {
   const battle = mapWith();
   const mob = battle._spawn({ type: 'normal', hp: 1e6 }, 0, 1);
   battle.step(TICK);
@@ -1058,8 +1058,10 @@ test('карта: мобы второго входа идут своей дор�
   }
   ok(crossed && mob.biting, 'дошёл до сердца');
   battle.startWave(3, 2);
-  const routes = new Set(battle.spawns.map((spawn) => spawn.r));
-  eq(routes.size, 2, 'волна идёт из обоих входов');
+  const [first, second] = battle.spawns;
+  eq([first.r, second.r], [0, 1], 'волна идёт из обоих входов');
+  eq(first.at, second.at, 'сразу, парами');
+  eq(battle.spawns.filter((spawn) => spawn.r).length, Math.floor(battle.spawns.length / 2), 'поровну');
 });
 
 test('карта: гора закрывает выстрел, в тоннеле моба не достать; на горы, озёра и тоннели не встать', () => {

@@ -15,18 +15,22 @@ export const MOBS = {
   boss: { name: 'Босс', hp: 6, speed: 0.6, xp: 20, coins: 10, leak: 6, boss: true },
 };
 
-export const BIOME_RULES = {
-  grass: { name: 'Луг', text: 'обычная карта' },
-  volcano: { name: 'Вулкан', text: 'лёд слабее', weak: 'ice' },
-  swamp: { name: 'Болото', text: 'ходячие мобы медленнее, но их больше', ground: 0.8, more: 'ground' },
-  snow: { name: 'Снега', text: 'огонь слабее', weak: 'fire' },
-  desert: { name: 'Пустыня', text: 'летучие мобы быстрее, и их больше', air: 1.25, more: 'air' },
-  graveyard: { name: 'Кладбище', text: 'павшие мобы встают скелетами', rise: true },
-};
-
 export const TERRAIN = { weak: 0.75, more: 0.25, hill: 0.8, grave: 0.2,
   bodiless: ['ember', 'frostling', 'stormling', 'sludge', 'slime1', 'slime2', 'slime3', 'ghost', 'mirage', 'golem',
     'mimic', 'shade', 'slimeking'] };
+
+const share = (value) => Math.round(Math.abs(1 - value) * 100) + '%';
+
+export const BIOME_RULES = {
+  grass: { name: 'Луг', text: 'обычная карта' },
+  volcano: { name: 'Вулкан', text: 'ледяные приёмы на ' + share(TERRAIN.weak) + ' слабее', weak: 'ice' },
+  swamp: { name: 'Болото', text: 'ходячие мобы на ' + share(0.8) + ' медленнее, но их на ' + share(1 + TERRAIN.more)
+    + ' больше', ground: 0.8, more: 'ground' },
+  snow: { name: 'Снега', text: 'огненные приёмы на ' + share(TERRAIN.weak) + ' слабее', weak: 'fire' },
+  desert: { name: 'Пустыня', text: 'летучие мобы на ' + share(1.25) + ' быстрее, и их на ' + share(1 + TERRAIN.more)
+    + ' больше', air: 1.25, more: 'air' },
+  graveyard: { name: 'Кладбище', text: 'павшие мобы с телом встают скелетами', rise: true },
+};
 
 export const POWERS = {
   dash: { id: 'dash', name: 'Рывок', text: 'временами бежит вдвое быстрее', every: 6, time: 1.5, boost: 1 },

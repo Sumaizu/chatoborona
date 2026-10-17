@@ -1048,7 +1048,8 @@ export class Scene {
       const w = image.width / this.k, h = image.height / this.k;
       const riding = t.rider && t.host && !t.host.dead;
       const x = Math.max(1, Math.min(BOARD - w - 1, at(pose.x) - w / 2));
-      const y = at(pose.y) + (riding ? 31 : -23) - (marked ? 2 : 0);
+      let y = at(pose.y) + (riding ? 31 : -23) - (marked ? 2 : 0);
+      if (y - h / 2 < EDGE) y = at(pose.y) + 31;
       const box = [x - 1, y - h / 2, x + w + 1, y + h / 2];
       if (taken.some((o) => box[0] < o[2] && o[0] < box[2] && box[1] < o[3] && o[1] < box[3])) continue;
       taken.push(box);
