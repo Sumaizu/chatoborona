@@ -135,6 +135,57 @@ export function drawWatch(biome) {
   return m.paint();
 }
 
+export const SOILS = {
+  grass: { soil: '#7a5235', light: '#a07850', dark: '#4a3322', stone: '#8c8a84', tuft: '#5fa83a' },
+  swamp: { soil: '#4f4a2e', light: '#6f6a42', dark: '#2f2c1a', stone: '#6f7466', tuft: '#8fbf3a' },
+  desert: { soil: '#c99a58', light: '#e3bd7c', dark: '#8f6a3a', stone: '#a8957a' },
+  snow: { soil: '#dfe9f5', light: '#ffffff', dark: '#a9bccf', stone: '#8d9aa8' },
+  volcano: { soil: '#4a403b', light: '#6a5d55', dark: '#2a2421', stone: '#33302e', ember: '#ff7a1f' },
+  graveyard: { soil: '#463c35', light: '#62564c', dark: '#29231f', stone: '#7a7480', bone: '#ece6d6' },
+};
+
+export function drawMound(biome, frame, claws) {
+  const soil = SOILS[biome] || SOILS.grass, m = new Model(30, 1), c = 15, turn = frame ? 0.45 : 0;
+  m.egg(c, 17, 0, 12.5, 8.6, 1.2, soil.dark, 0);
+  for (let i = 0; i < 9; i++) {
+    const a = i / 9 * Math.PI * 2 + turn * 0.6, r = 10.6 + (i % 3) * 0.7;
+    m.egg(c + Math.cos(a) * r, 17 + Math.sin(a) * r * 0.66, 0.5, 1.9, 1.4, 1, i % 2 ? soil.soil : soil.dark);
+  }
+  m.egg(c, 15.5, 1, 9, 7, 5.4, soil.soil, 0.1);
+  for (let i = 0; i < 7; i++) {
+    const a = i / 7 * Math.PI * 2 + turn, r = 4.4 + (i % 2) * 1.6;
+    m.ball(c + Math.cos(a) * r, 15 + Math.sin(a) * r * 0.75, 4.4 + (i % 3), 2 + (i % 2) * 0.5,
+      i % 3 ? soil.light : soil.soil, 0.1);
+  }
+  m.ball(c, 14 - (frame ? 0.6 : 0), 6.4, 2.6, soil.light, 0.1);
+  for (const [x, y] of [[13, 11], [12, 10], [17, 12], [18, 11], [19, 10], [15, 18], [14, 19], [11, 15]]) {
+    m.dot(x, y, soil.dark, 30);
+  }
+  for (const [x, y] of [[6.5, 19.5], [23.5, 20], [21, 9.5]]) m.ball(x, y, 1.6, 1.1, soil.stone, 0.4);
+  if (soil.tuft) for (const [x, y] of [[5, 15], [25, 16], [9, 23], [22, 23]]) m.dot(x, y, soil.tuft, 4);
+  if (soil.ember) for (const [x, y] of [[12, 13], [18, 16], [15, 9]]) m.dot(x, y, soil.ember, 31);
+  if (soil.bone) m.limb(20, 20, 2, 23, 19, 2, 0.5, soil.bone, 0.3);
+  if (claws) {
+    const reach = frame ? 1.2 : 0;
+    for (const side of [-1, 1]) {
+      for (let k = -1; k <= 1; k++) {
+        m.limb(c + side * 3 + k * 0.9, 9.5, 5, c + side * 3.4 + k * 1.1, 6.6 - reach + Math.abs(k) * 0.6, 6, 0.55,
+          '#f5f5f4', 0.6, 0.3);
+      }
+    }
+    m.ball(c, 8.8 - reach, 6.5, 1.4, '#f9a8d4', 0.8);
+  }
+  return m.paint();
+}
+
+export function drawClod(biome, seed) {
+  const soil = SOILS[biome] || SOILS.grass, m = new Model(12, 1);
+  m.egg(6, 6.5, 0, 4.6, 3.4, 1.4, soil.dark);
+  m.ball(5 + seed % 2, 6, 1, 2.2, soil.soil, 0.1);
+  m.ball(7.4 - seed % 2, 6.8, 1, 1.6, seed % 3 ? soil.light : soil.soil, 0.1);
+  return m.paint();
+}
+
 const WALL_TOP = '#b2a794';
 const WALL_FACE = '#83796b';
 const WALL_EDGE = '#bdb3a0';

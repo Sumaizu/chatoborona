@@ -1,6 +1,6 @@
 import { HERO_IDS, drawHero } from './models.js';
 import { MOB_IDS, drawMob } from './monsters.js';
-import { drawMine, drawNuke, drawTrap, drawWall } from './props.js';
+import { drawClod, drawMine, drawMound, drawNuke, drawTrap, drawWall } from './props.js';
 
 const OUTLINE = '#15111d';
 
@@ -280,6 +280,42 @@ export function pixelsOf(image) {
 }
 
 export const wallSprite = (stage) => remember('wall:' + stage, () => drawWall(stage));
+
+export const hookSprite = () => remember('hook', () => mapSprite([
+  '...........',
+  '....OO.....',
+  '...O..O....',
+  '....OO.....',
+  '....Ls.....',
+  '....Ls.....',
+  '....Ls.....',
+  '.W..Ls..W..',
+  '.Ls.Ls..sL.',
+  '.Ls.Ls..sL.',
+  '..LsLsssL..',
+  '...LLLLL...',
+  '...........',
+], { O: '#b8c0c8', L: '#e5e9ee', s: '#8b939c', W: '#ffffff' }));
+
+export const linkSprite = (turned) => remember('link:' + turned, () => mapSprite(turned ? [
+  '.....',
+  '.LLL.',
+  '.L.s.',
+  '.L.s.',
+  '.Lss.',
+  '.....',
+] : [
+  '......',
+  '.LLLL.',
+  '.L..s.',
+  '.Lsss.',
+  '......',
+], { L: '#cbd2d9', s: '#7d858f' }));
+
+export const moundSprite = (biome, frame, claws) => remember('mound:' + biome + ':' + frame + ':' + claws,
+  () => drawMound(biome, frame, claws));
+
+export const clodSprite = (biome, seed) => remember('clod:' + biome + ':' + seed, () => drawClod(biome, seed));
 
 export const trapSprite = (closed) => remember('trap:' + closed, () => drawTrap(closed));
 export const nukeSprite = () => remember('nuke', () => drawNuke());

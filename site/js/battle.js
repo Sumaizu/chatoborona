@@ -240,7 +240,7 @@ export class Battle {
       buff: Object.assign({}, NO_BUFF),
       helpers: [], rally: 0, rallyUntil: 0, nextRally: 0, burstUntil: 0, nextBurst: 0, nextStorm: 0, rampTarget: null,
       webUntil: 0, web: 1,
-      ramp: 0, rider: false, host: null, leapUntil: 0, nextWall: 0, nextMine: 0, nextToss: 0, nextTrap: 0,
+      ramp: 0, rider: false, host: null, leapUntil: 0, nextWall: 0, nextMine: 0, nextToss: 0, nextTrap: 0, pull: null,
       muses: [], nextMuse: 0,
       run: { damage: 0, kills: 0, assists: 0, xp: 0, coins: 0 },
     };
@@ -301,13 +301,18 @@ export class Battle {
 
   move(tower, x, y) {
     if (tower.rider || !this.free(x, y)) return false;
+    this._relocate(tower, x, y);
+    tower.busy = this.time + MOVE_PAUSE;
+    return true;
+  }
+
+  _relocate(tower, x, y) {
     this.byCell.delete(tower.y * SIZE + tower.x);
     this.byCell.set(y * SIZE + x, tower);
     tower.x = x;
     tower.y = y;
     tower.cx = x + 0.5;
     tower.cy = y + 0.5;
-    tower.busy = this.time + MOVE_PAUSE;
     tower.rampTarget = null;
     tower.ramp = 0;
     this._stats(tower);
@@ -315,7 +320,6 @@ export class Battle {
       this.walls = this.walls.filter((wall) => wall.tower !== tower);
       this._raiseWall(tower, this.time);
     }
-    return true;
   }
 
   refresh(tower) {
@@ -469,6 +473,8 @@ export class Battle {
       revive: shape && shape.revive || power && power.revive || 0, treasure: Boolean(kind && kind.treasure),
       clinkAt: 0, rattleAt: this.time + RATTLE.min, wild: this.wild, hitAt: -1e9,
       powerAt: this.time + (power && power.every ? 2 : 0), powerUntil: 0, hp: spawn.hp, max: spawn.hp, d, r, x: 0,
+      skill: kind && kind.skill ? POWERS[kind.skill] : null, skillAt: this.time + (kind && kind.skill
+        ? POWERS[kind.skill].first : 0), hook: null,
       y: 0, speed: WAVE.speed * info.speed * Math.max(FLOOR, 1 + this.foe.speed) * ((shape && shape.flying
         ? this.rules.air : this.rules.ground) || 1), slow: 0, slowUntil: 0, chill: 0,
       brittle: 0, corrode: 0, mark: 0, markUntil: 0, exposed: 0, exposedUntil: 0, holdUntil: 0, holdFree: 0,
@@ -498,6 +504,7 @@ export class Battle {
         mob.phaseAt = now + mob.phase.every;
         mob.phaseUntil = now + mob.phase.time;
       }
+      if (mob.skill && mob.skill.id === 'hook') this._hookStep(mob, mob.skill, now);
       const power = mob.power;
       if (!power) continue;
       if (power.every && now >= mob.powerAt) {
@@ -534,6 +541,56 @@ export class Battle {
         }
       } else if (power.heal) mob.hp = Math.min(mob.max, mob.hp + mob.max * power.heal * dt);
     }
+  }
+
+  _hookStep(mob, skill, now) {
+    const hook = mob.hook;
+    if (!hook) {
+      if (now < mob.skillAt || mob.biting || this.covered(mob.x, mob.y)) return;
+      mob.skillAt = now + skill.every;
+      const targets = this.towers.filter((t) => !t.rider && (!t.pull || t.pull.end <= now));
+      if (!targets.length) return;
+      const tower = targets[Math.floor(this.random() * targets.length)];
+      mob.hook = { tower, at: now, lands: now + skill.fly, ends: now + skill.fly + skill.pull, caught: false };
+      this._event({ kind: 'hook', mob, tower });
+      return;
+    }
+    const t = hook.tower;
+    if (!this.towers.includes(t)) {
+      mob.hook = null;
+      return;
+    }
+    if (!hook.caught && now >= hook.lands) {
+      const cell = this._hookCell(mob, t);
+      if (!cell) {
+        mob.hook = null;
+        return;
+      }
+      hook.caught = true;
+      t.pull = { fx: t.cx, fy: t.cy, start: now, end: hook.ends };
+      if (cell.x !== t.x || cell.y !== t.y) this._relocate(t, cell.x, cell.y);
+      t.busy = Math.max(t.busy, hook.ends);
+      this._event({ kind: 'yank', mob, tower: t });
+    }
+    if (hook.caught && now >= hook.ends) mob.hook = null;
+  }
+
+  _hookCell(mob, t) {
+    const mx = Math.floor(mob.x), my = Math.floor(mob.y);
+    let best = null, gap = Infinity;
+    for (let y = my - 1; y <= my + 1; y++) {
+      for (let x = mx - 1; x <= mx + 1; x++) {
+        if (x === mx && y === my) continue;
+        const own = x === t.x && y === t.y;
+        if (!own && !this.free(x, y)) continue;
+        const d = (x + 0.5 - t.cx) ** 2 + (y + 0.5 - t.cy) ** 2;
+        if (d < gap) {
+          gap = d;
+          best = { x, y };
+        }
+      }
+    }
+    return best;
   }
 
   _summon(mob, type, id, share, i) {

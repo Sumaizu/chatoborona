@@ -47,7 +47,8 @@ const BATTLE_SOUNDS = { wall: 'build', crumble: 'crumble', plant: 'plant', mine:
   bite: 'chomp', toss: 'launch', flask: 'flask', splash: 'splash', trap: 'plant', snap: 'snap', nova: 'ice',
   muse: 'cast', spikes: 'rock', whirl: 'wind', clink: 'clink', treasure: 'treasure', rattle: 'rattle', rise: 'rise',
   hex: 'hex', blink: 'leap', burrow: 'burrow', leech: 'summon', steal: 'clink', loot: 'treasure', reflect: 'block',
-  swallow: 'burrow', breath: 'flame', web: 'hex', ward: 'block', mirage: 'summon', dig: 'burrow', drop: 'summon' };
+  swallow: 'burrow', breath: 'flame', web: 'hex', ward: 'block', mirage: 'summon', dig: 'burrow', drop: 'summon',
+  hook: 'chain', yank: 'yank' };
 const GOOD_EVENTS = new Set(['buff', 'blessing']);
 const NOTE_KINDS = new Set(['card', 'poor', 'bare', 'upgrade']);
 const NEWCOMER_GLOW = { fire: '#f97316', ice: '#67e8f9', storm: '#facc15', poison: '#a3e635' };
@@ -452,8 +453,9 @@ export class View {
     } else if (kind === 'arrive') {
       this._sound(event.mob.info.boss ? 'roar' : 'growl');
       const mob = event.mob;
+      const skill = mob.skill ? '. ' + mob.skill.name + ': ' + mob.skill.text : '';
       this._herald = { mob, left: HERALD_TIME, title: mob.info.boss ? 'Босс' : 'Элитный', name: mob.kind.name,
-        text: mob.power.name + ': ' + mob.power.text, glow: mob.kind.glow, boss: mob.info.boss };
+        text: mob.power.name + ': ' + mob.power.text + skill, glow: mob.kind.glow, boss: mob.info.boss };
       this._keys.herald = '';
     } else if (kind === 'wild') {
       this._sound('roar');

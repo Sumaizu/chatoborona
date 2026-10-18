@@ -1137,6 +1137,28 @@ function mapWith(marks = {}, biome = 'grass') {
   return new Battle({ path: STRAIGHT, branch: FORK, merge: 10, tiles, biome }, { random: seeded(7) });
 }
 
+test('мясник: раз в 10 секунд крюк летит пару секунд и пару секунд тащит защитника на клетку рядом с собой', () => {
+  const battle = makeBattle(), far = battle.place(player(), 'gunner', 15, 1);
+  const butcher = special(battle, 'boss', 'butcher', 1e9);
+  butcher.d = 4;
+  battle._locate(butcher);
+  butcher.speed = 0;
+  eq(butcher.skill.id, 'hook');
+  runFor(battle, POWERS.hook.first + 0.1);
+  ok(butcher.hook && butcher.hook.tower === far, 'крюк летит');
+  ok(battle.events.some((e) => e.kind === 'hook' && e.tower === far));
+  eq([far.x, far.y], [15, 1], 'пока летит — защитник на месте');
+  runFor(battle, POWERS.hook.fly);
+  const mx = Math.floor(butcher.x), my = Math.floor(butcher.y);
+  ok(Math.max(Math.abs(far.x - mx), Math.abs(far.y - my)) === 1, 'на соседней клетке: ' + [far.x, far.y, mx, my]);
+  ok(!battle.road.some(([x, y]) => x === far.x && y === far.y), 'не на дороге');
+  ok(far.pull && far.busy > battle.time, 'пока тащат — не стреляет');
+  runFor(battle, POWERS.hook.pull + 0.1);
+  eq(butcher.hook, null, 'дотащил');
+  const second = butcher.skillAt;
+  ok(Math.abs(second - (POWERS.hook.first + POWERS.hook.every)) < 0.2, 'следующий — через 10 секунд');
+});
+
 test('карта: с вышки бьют на 2,5 клетки дальше и поверх гор, на вышке — один защитник', () => {
   const battle = mapWith({ watch: [[6, 3]], mountain: [[6, 4]] });
   const plain = battle.place(player(), 'sniper', 12, 3), high = battle.place(player(), 'sniper', 6, 3);

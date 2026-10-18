@@ -1,8 +1,9 @@
 import { LETTERS, SIZE } from './field.js';
 import { CELL, EDGE, paintGround, paintPeaks, paintRoof } from './terrain.js';
-import { HERO_SIZE, bubbleSprite, coinSprite, flaskSprite, heartSprite, heroSprite, mineSprite, mobSprite,
-  nukeSprite, pixelsOf, reticleSprite, shellSprite, starSprite, tintSprite, trapSprite, wallSprite }
-  from './sprites.js';
+import { HERO_SIZE, bubbleSprite, clodSprite, coinSprite, flaskSprite, heartSprite, heroSprite, hookSprite,
+  linkSprite, mineSprite, mobSprite, moundSprite, nukeSprite, pixelsOf, reticleSprite, shellSprite, starSprite,
+  tintSprite, trapSprite, wallSprite } from './sprites.js';
+import { SOILS } from './props.js';
 import { gearColor } from './gacha.js';
 
 export const BOARD = EDGE * 2 + CELL * SIZE;
@@ -31,6 +32,9 @@ const ELEMENT_BITS = {
   storm: ['#fef9c3', '#facc15', '#ffffff'],
   poison: ['#d9f99d', '#a3e635', '#7c3aed'],
 };
+const DIG = { sink: 0.3, rise: 0.3, trail: 0.12, fade: 1.4, wiggle: 7 };
+const HOOKLESS = { butcher: 'butcherbare' };
+const HAND = { x: 13, y: -11, link: 4.5 };
 const NUKE_MARK = 3;
 const NUKE_LIFE = 3.4;
 const SIGHT_RAYS = 180;
@@ -260,6 +264,7 @@ export class Scene {
     this.ground = null;
     this.groundKey = '';
     this.shown = new Map();
+    this.trails = new Map();
     this.poses = new Map();
     this.effects = [];
     this.decals = [];
@@ -344,6 +349,7 @@ export class Scene {
     this._whirls(ctx, battle);
     this._muses(ctx, battle);
     this._towers(ctx, battle, dt, highlight, still);
+    this._hooks(ctx, battle);
     this._effects(ctx, step);
     if (names) this._names(ctx, battle, names, highlight);
     this._mobTops(ctx, battle);
@@ -799,7 +805,8 @@ export class Scene {
           y: spot.y + (Math.random() - 0.5) * 0.3 });
       }
       const frame = mob.flying ? Math.floor(this.clock * FLAP + mob.id) % 2 : Math.floor(spot.walk / Math.PI) % 2;
-      const image = mobSprite(mob.look, held ? 0 : frame), size = image.width * ZOOM / (image.fine || 1);
+      const look = mob.hook && HOOKLESS[mob.look] ? HOOKLESS[mob.look] : mob.look;
+      const image = mobSprite(look, held ? 0 : frame), size = image.width * ZOOM / (image.fine || 1);
       let x = at(spot.x), y = at(spot.y);
       let angle = Math.atan2(spot.dx, -spot.dy) + (held || mob.flying ? 0 : Math.sin(spot.walk) * 0.08);
       if (mob.biting) {
@@ -825,12 +832,31 @@ export class Scene {
       if (mob.kind) glow(ctx, x, y - lift, size * 0.85, mob.kind.glow, 0.45 + 0.2 * Math.sin(this.clock * 4 + mob.id));
       if (mob.power && (mob.power.id === 'mend' || mob.power.id === 'fury')) this._motes(ctx, mob, x, y);
       const buried = mob.underUntil > now || Boolean(mob.power) && mob.power.id === 'tunnel' && mob.powerUntil <= now;
+      const soil = SOILS[battle.biome] || SOILS.grass, dirt = [soil.soil, soil.light, soil.dark];
+      if (spot.buried !== undefined && buried !== spot.buried && !still) {
+        this._sparks(spot.x, spot.y, dirt, 9, 1.8, 0.45, 2);
+      }
+      spot.buried = buried;
+      this._trail(ctx, mob, battle, x, y, buried, still);
+      const dug = mob.burrow ? now - (mob.underUntil - mob.burrow.time) : 1, risen = now - mob.underUntil;
       if (buried) {
-        this._mound(ctx, x, y, size, mob);
+        const sink = still ? 1 : Math.min(1, dug / DIG.sink);
+        if (sink < 1) {
+          ctx.globalAlpha = 1 - sink;
+          sprite(ctx, image, x, y + sink * 4, angle, ZOOM * (1 - 0.35 * sink));
+        }
+        ctx.globalAlpha = sink;
+        this._mound(ctx, x, y, size, mob, battle);
+        ctx.globalAlpha = 1;
         spot.screenX = x;
         spot.top = top;
         spot.size = size;
         continue;
+      }
+      if (mob.burrow && risen >= 0 && risen < DIG.rise && !still) {
+        ctx.globalAlpha = 1 - risen / DIG.rise;
+        this._mound(ctx, x, y, size, mob, battle);
+        ctx.globalAlpha = 1;
       }
       const veil = mob.power && mob.power.id === 'veil' && mob.powerUntil > now;
       if (veil) ctx.globalAlpha = 0.28 + 0.12 * Math.sin(this.clock * 12 + mob.id);
@@ -876,6 +902,7 @@ export class Scene {
       spot.size = size;
     }
     for (const id of Array.from(this.shown.keys())) if (!alive.has(id)) this.shown.delete(id);
+    for (const id of Array.from(this.trails.keys())) if (!alive.has(id)) this.trails.delete(id);
   }
 
   _motes(ctx, mob, x, y) {
@@ -891,20 +918,67 @@ export class Scene {
     ctx.globalAlpha = 1;
   }
 
-  _mound(ctx, x, y, size, mob) {
-    const w = size * 0.42;
-    ctx.fillStyle = '#4a3322';
-    ctx.beginPath();
-    ctx.ellipse(x, y + 2, w, w * 0.55, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#7a5235';
-    ctx.beginPath();
-    ctx.ellipse(x, y, w * 0.8, w * 0.42, 0, 0, Math.PI * 2);
-    ctx.fill();
-    for (let i = 0; i < 3; i++) {
-      const a = this.clock * 3 + i * 2.1 + mob.id;
-      square(ctx, x + Math.cos(a) * w * 0.7, y - 2 + Math.sin(a * 1.3) * 3, 2, '#a07850');
+  _mound(ctx, x, y, size, mob, battle) {
+    const frame = Math.floor(this.clock * DIG.wiggle + mob.id) % 2, image = moundSprite(battle.biome, frame,
+      mob.look === 'mole');
+    const spot = this.shown.get(mob.id), angle = spot && spot.angle !== undefined ? spot.angle : 0;
+    sprite(ctx, image, x, y, angle, ZOOM * Math.max(1, size / 30));
+  }
+
+  _hooks(ctx, battle) {
+    const now = battle.time;
+    for (const mob of battle.mobs) {
+      const hook = mob.hook, spot = this.shown.get(mob.id);
+      if (!hook || mob.dead || !spot) continue;
+      const pose = this._pose(hook.tower), angle = spot.angle || 0, scale = mob.info.boss ? 1 : 0.6;
+      const cos = Math.cos(angle), sin = Math.sin(angle);
+      const hx = at(spot.x) + (HAND.x * cos - HAND.y * sin) * scale;
+      const hy = at(spot.y) + (HAND.x * sin + HAND.y * cos) * scale;
+      const tx = at(pose.x), ty = at(pose.y);
+      const k = hook.caught ? 1 : 1 - Math.pow(1 - Math.min(1, (now - hook.at) / (hook.lands - hook.at)), 2);
+      const ex = hx + (tx - hx) * k, ey = hy + (ty - hy) * k, length = Math.hypot(ex - hx, ey - hy);
+      const turn = Math.atan2(ey - hy, ex - hx), links = Math.floor(length / HAND.link);
+      for (let i = 0; i < links; i++) {
+        const lx = hx + (ex - hx) * i / links;
+        const ly = hy + (ey - hy) * i / links + Math.sin(i * 0.9 + this.clock * 9) * 0.6;
+        ctx.save();
+        ctx.translate(Math.round(lx), Math.round(ly));
+        ctx.rotate(turn);
+        const link = linkSprite(i % 2 === 1);
+        ctx.drawImage(link, -link.width / 2, -link.height / 2);
+        ctx.restore();
+      }
+      const head = hookSprite();
+      ctx.save();
+      ctx.translate(Math.round(ex), Math.round(ey));
+      ctx.rotate(turn - Math.PI / 2);
+      ctx.drawImage(head, -head.width * 0.75, -3, head.width * 1.5, head.height * 1.5);
+      ctx.restore();
     }
+  }
+
+  _trail(ctx, mob, battle, x, y, buried, still) {
+    let trail = this.trails.get(mob.id);
+    if (!trail) {
+      if (!buried) return;
+      trail = [];
+      this.trails.set(mob.id, trail);
+    }
+    const last = trail[trail.length - 1];
+    if (buried && !still && (!last || this.clock - last.t >= DIG.trail)) {
+      trail.push({ x, y, t: this.clock, seed: trail.length % 4 });
+    }
+    while (trail.length && this.clock - trail[0].t > DIG.fade) trail.shift();
+    if (!trail.length) {
+      this.trails.delete(mob.id);
+      return;
+    }
+    const scale = ZOOM * Math.max(1, (mob.info.boss ? 50 : 30) / 30);
+    for (const bit of trail) {
+      ctx.globalAlpha = Math.max(0, 1 - (this.clock - bit.t) / DIG.fade);
+      sprite(ctx, clodSprite(battle.biome, bit.seed), bit.x, bit.y + 3, 0, scale);
+    }
+    ctx.globalAlpha = 1;
   }
 
   _webOn(ctx, x, y) {
@@ -1003,6 +1077,11 @@ export class Scene {
       const pose = this._pose(t), lit = highlight && highlight.has(t.player.login);
       let spot = { x: t.cx, y: t.cy, lift: 0, riding: false };
       if (t.rider) spot = this._riderSpot(t, pose, now);
+      else if (t.pull && now < t.pull.end) {
+        const k = 1 - Math.pow(1 - Math.max(0, (now - t.pull.start) / (t.pull.end - t.pull.start)), 2);
+        spot = { x: t.pull.fx + (t.cx - t.pull.fx) * k, y: t.pull.fy + (t.cy - t.pull.fy) * k,
+          lift: Math.sin(k * Math.PI) * 10, riding: false };
+      }
       pose.x = spot.x;
       pose.y = spot.y;
       if (t.rider && battle.covered(spot.x, spot.y)) continue;
@@ -1272,7 +1351,9 @@ export class Scene {
     } else if (event.kind === 'dig' || event.kind === 'drop' || event.kind === 'swallow') {
       const spot = this.shown.get(event.mob.id) || event.mob;
       add({ kind: 'puff', life: 0.5, x: spot.x, y: spot.y });
-      this._sparks(spot.x, spot.y, ['#7a5235', '#a07850', '#4a3322'], event.kind === 'swallow' ? 14 : 6, 1.6, 0.4, 2);
+      if (event.kind !== 'dig') {
+        this._sparks(spot.x, spot.y, ['#7a5235', '#a07850', '#4a3322'], event.kind === 'swallow' ? 14 : 6, 1.6, 0.4, 2);
+      }
     } else if (event.kind === 'steal') {
       const pose = this._pose(t);
       add({ kind: 'text', life: 1.2, x: pose.x, y: pose.y - 0.6, text: '−' + event.coins, color: '#f87171' });

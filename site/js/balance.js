@@ -39,6 +39,8 @@ export const POWERS = {
   brood: { id: 'brood', name: 'Выводок', text: 'призывает крыс', every: 5, count: 2, hp: 0.7, summon: 'swarm',
     look: 'rat' },
   regen: { id: 'regen', name: 'Регенерация', text: 'постоянно восстанавливает здоровье', heal: 0.012 },
+  hook: { id: 'hook', name: 'Хук', text: 'раз в 10 секунд закидывает крюк в случайного защитника и подтягивает его '
+    + 'на свободную клетку рядом с собой', every: 10, first: 4, fly: 2, pull: 2 },
   rage: { id: 'rage', name: 'Ярость', text: 'чем меньше здоровья, тем быстрее бежит', boost: 0.8 },
   horde: { id: 'horde', name: 'Орда', text: 'призывает стаи крыс', every: 5, count: 3, hp: 0.7, summon: 'swarm',
     look: 'rat' },
@@ -110,7 +112,7 @@ export const ELITES = [
 ];
 
 export const BOSSES = [
-  { id: 'butcher', name: 'Мясник', power: 'regen', glow: '#ef4444' },
+  { id: 'butcher', name: 'Мясник', power: 'regen', skill: 'hook', glow: '#ef4444' },
   { id: 'crusher', name: 'Костолом', power: 'rage', glow: '#fb923c' },
   { id: 'mother', name: 'Крысиная матка', power: 'horde', glow: '#c084fc' },
   { id: 'warden', name: 'Страж склепа', power: 'shield', glow: '#67e8f9', undead: true },

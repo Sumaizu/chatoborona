@@ -26,6 +26,47 @@ function walker(m, f, o) {
   if (o.face) o.face(c, y, s, step);
 }
 
+function chain(m, x0, y0, x1, y1, z, links) {
+  for (let k = 0; k <= links; k++) {
+    const t = k / links, x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t;
+    m.egg(x, y, z, k % 2 ? 0.9 : 1.3, k % 2 ? 1.3 : 0.9, 0.6, k % 2 ? '#8b939c' : '#b8c0c8', 0.6);
+  }
+}
+
+function butcher(m, f, armed) {
+  walker(m, f, {
+    s: 1.5, legs: '#57534e', body: '#f2c2b0', skin: '#f2b8a2', shoulderColor: '#e8a690', headColor: '#f2b8a2',
+    wide: 9.6, reach: 5.6, spread: 7.4, sway: 0.9,
+    chest: (c, y, s) => {
+      m.egg(c, y + 4 * s, 16, 6.4, 5.4, 1.2, '#f5f5f4');
+      for (const [dx, dy] of [[-3, 2], [2, 5], [4, 1], [-1, 7]]) m.dot(c + dx * s, y + dy * s, '#b91c1c', 40);
+    },
+    held: (hands) => {
+      const [lx, ly] = hands[0], [rx, ry] = hands[1];
+      m.limb(lx, ly + 1.5, 15, lx - 1, ly - 2.5, 15, 0.9, WOOD);
+      m.egg(lx - 3.6, ly - 3, 16, 3.2, 3.6, 0.9, '#d4dae1', 1);
+      m.dot(lx - 4.4, ly - 4.6, '#b91c1c', 60);
+      if (!armed) {
+        chain(m, rx, ry, rx + 1.5, ry - 3, 16, 3);
+        return;
+      }
+      chain(m, rx, ry, rx + 3, ry + 1.5, 16, 3);
+      m.limb(rx + 3.4, ry + 2, 16, rx + 3.4, ry - 3.4, 16.5, 0.8, '#9aa3ad', 0.7);
+      m.ball(rx + 3.4, ry + 2.4, 16.5, 1, '#cbd2d9', 0.8);
+      for (let k = 0; k <= 5; k++) {
+        const a = Math.PI * (0.05 + k * 0.19), hx = rx + 3.4 + Math.cos(a) * 2.6, hy = ry - 3.4 - Math.sin(a) * 2.6;
+        m.ball(hx, hy, 17, 0.9, k === 5 ? '#e5e9ee' : '#9aa3ad', 0.8);
+      }
+      m.limb(rx + 0.8, ry - 4.2, 17, rx + 1.6, ry - 2.6, 17, 0.55, '#e5e9ee', 0.8, 0.2);
+    },
+    face: (c, y) => {
+      m.dot(c - 2.6, y - 7, '#1c1917', 60);
+      m.dot(c + 2.6, y - 7, '#1c1917', 60);
+      m.dot(c, y - 4, '#d97757', 60);
+    },
+  });
+}
+
 function beast(m, f, o) {
   const c = m.w / 2, s = o.s || 1, y = c + (o.dy || 0), step = f ? 1.6 : -1.6;
   if (o.tail) m.limb(c, y + 8 * s, 4 * s, c + step * s, y + 14 * s, 3 * s, (o.tail || 1.4) * s, o.tailColor || o.fur, 0,
@@ -228,12 +269,19 @@ const MOBS = {
   slime2: [30, (m, f) => blob(m, f, { r: 9, color: '#34c76e' })],
   slime3: [30, (m, f) => blob(m, f, { r: 11.6, color: '#22a95c' })],
   ember: [30, (m, f) => {
-    spikes(m, 15, 16, 7, 7.4, 8, '#ff7a1f', 5, f ? 0.4 : 0);
-    spikes(m, 15, 16, 9, 6.4, 6, '#ffd84a', 3, f ? 0 : 0.5);
-    m.ball(15, 16, 9, 7, '#ffb020', 1);
-    m.ball(15, 15, 15, 3.2, '#fff3b0', 1);
-    m.dot(13, 14, '#7c2d12', 60);
-    m.dot(17, 14, '#7c2d12', 60);
+    const sway = f ? 1.4 : -1.4;
+    m.limb(15, 14, 3, 15 + sway, 26.5, 2, 6.6, '#e8341a', 0.5, 0.5);
+    for (const side of [-1, 1]) {
+      m.limb(15 + side * 4, 17, 3, 15 + side * 7 - sway * 0.6, 24.5, 2, 2.4, '#e8341a', 0.5, 0.4);
+    }
+    m.ball(15, 13, 4, 7.2, '#e8341a', 0.6);
+    m.limb(15, 13.5, 7, 15 + sway * 0.7, 24.5, 6, 5.2, '#ff7a1f', 0.8, 0.5);
+    m.ball(15, 13, 7, 6, '#ff7a1f', 0.8);
+    m.limb(15, 13.5, 10, 15 + sway * 0.4, 21.5, 9, 3.6, '#ffc93f', 1, 0.5);
+    m.ball(15, 13, 10, 4.3, '#ffc93f', 1);
+    m.ball(15, 12.6, 13, 2.6, '#fff6c8', 1);
+    m.dot(13, 11, '#7c2d12', 60);
+    m.dot(17, 11, '#7c2d12', 60);
   }],
   frostling: [30, (m, f) => {
     spikes(m, 15, 16, 7, 7.4, 6, '#a5f3fc', 5.6, f ? 0.5 : 0);
@@ -604,25 +652,8 @@ const MOBS = {
     m.dot(c - 4.5, c - 9 - open, '#1c1917', 90);
     m.dot(c + 4.5, c - 9 - open, '#1c1917', 90);
   }],
-  butcher: [50, (m, f) => walker(m, f, {
-    s: 1.55, legs: '#57534e', body: '#f2c2b0', skin: '#f2b8a2', shoulderColor: '#e8a690', headColor: '#f2b8a2',
-    wide: 9.6, reach: 7, spread: 7.4,
-    chest: (c, y, s) => {
-      m.egg(c, y + 4 * s, 16, 6.4, 5.4, 1.2, '#f5f5f4');
-      for (const [dx, dy] of [[-3, 2], [2, 5], [4, 1], [-1, 7]]) m.dot(c + dx * s, y + dy * s, '#b91c1c', 40);
-    },
-    held: (hands) => {
-      const [rx, ry] = hands[1];
-      m.limb(rx, ry + 2, 15, rx, ry - 4, 15, 1.1, WOOD);
-      m.egg(rx + 2.5, ry - 8, 16, 4, 4.4, 1, '#d4dae1', 1);
-      m.dot(rx + 3, ry - 10, '#b91c1c', 60);
-    },
-    face: (c, y) => {
-      m.dot(c - 2.6, y - 7, '#1c1917', 60);
-      m.dot(c + 2.6, y - 7, '#1c1917', 60);
-      m.dot(c, y - 4, '#d97757', 60);
-    },
-  })],
+  butcher: [50, (m, f) => butcher(m, f, true)],
+  butcherbare: [50, (m, f) => butcher(m, f, false)],
   crusher: [50, (m, f) => walker(m, f, {
     s: 1.6, legs: '#3f6212', body: '#4d7c0f', skin: '#65a30d', shoulderColor: '#3f6212', headColor: '#65a30d',
     arm: 2.6, wrist: 2.4, hand: 2.8, shoulder: 3.4, reach: 8, spread: 7.6, wide: 8.6,

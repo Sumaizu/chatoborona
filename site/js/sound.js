@@ -284,6 +284,16 @@ const RECIPES = {
   summon(s, at) {
     for (let i = 0; i < 3; i++) s.pop(at + i * 0.07, 1800, 2400, 0.05, 0.08);
   },
+  chain(s, at) {
+    s.swish(at, 300, 2400, 0.5, 0.14);
+    for (let i = 0; i < 10; i++) s.chime(at + 0.05 + i * 0.07, 1500 + (i % 3) * 420, 0.08, 0.03, spread());
+  },
+  yank(s, at) {
+    s.pop(at, 900, 300, 0.05, 0.18);
+    for (let i = 0; i < 6; i++) s.chime(at + i * 0.05, 1900 + (i % 2) * 500, 0.07, 0.035, spread());
+    s.swish(at + 0.05, 2400, 400, 0.6, 0.1);
+    s.thump(at + 0.05, 120, 50, 0.3, 0.3);
+  },
   relic(s, at) {
     s.pad(at, [D4, A4, D5], 1.6, 0.06);
     s.swish(at, 400, 6000, 0.8, 0.07);
@@ -343,7 +353,7 @@ export const SFX_GAPS = {
   flask: 0.1, flame: 0.3, bolt: 0.08, ice: 0.1, wind: 0.2, cast: 0.12, crit: 0.15, freeze: 0.25, stun: 0.2,
   storm: 0.3, rally: 0.5, heal: 0.5, block: 0.3, roar: 1, growl: 0.8, summon: 0.4, plant: 0.3, build: 0.4,
   crumble: 0.4, bite: 0.15, leap: 0.3, chomp: 0.25, nuke: 2, fall: 1, join: 0.4, card: 0.3, holy: 0.12, splash: 0.15,
-  snap: 0.15, execute: 0.3, clink: 0.2, treasure: 1, rattle: 1, rise: 0.4, hex: 0.4, burrow: 0.5,
+  snap: 0.15, execute: 0.3, clink: 0.2, treasure: 1, rattle: 1, rise: 0.4, hex: 0.4, burrow: 0.5, chain: 1, yank: 1,
 };
 
 export const SOUNDS = Object.keys(RECIPES);
