@@ -8,7 +8,7 @@ export const MOVE_PAUSE = 1;
 export const BITE_TIME = 1;
 export const NUKE_STUN = 5;
 export const NUKE_RADIUS = 3;
-export const NUKE_FLIGHT = 2.6;
+export const NUKE_FLIGHT = 7;
 
 const NUKE_SHARE = { elite: 0.4, boss: 0.15 };
 const SHOTS_PER_TICK = 6;

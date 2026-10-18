@@ -293,23 +293,23 @@ export class View {
     play(name, this.settings.volume);
   }
 
-  _sound(name) {
-    this._sfx.push(name);
+  _sound(name, length) {
+    this._sfx.push([name, length]);
   }
 
   _playSfx() {
     const now = this.clock, picked = [];
-    for (const name of this._sfx) {
-      if (picked.length >= SFX_PER_FRAME || picked.includes(name)) continue;
-      if (now - (this._sfxAt.has(name) ? this._sfxAt.get(name) : -1) < (SFX_GAPS[name] || 0.12)) continue;
+    for (const [name, length] of this._sfx) {
+      if (picked.length >= SFX_PER_FRAME || picked.some((sound) => sound[0] === name)) continue;
+      if (this._sfxAt.has(name) && now - this._sfxAt.get(name) < (SFX_GAPS[name] || 0.12)) continue;
       this._sfxAt.set(name, now);
-      picked.push(name);
+      picked.push([name, length]);
     }
     this._sfx = [];
     if (!this.settings || !this.settings.sound) return;
-    for (const name of picked) {
+    for (const [name, length] of picked) {
       this.heard.push(name);
-      play(name, this.settings.volume);
+      play(name, this.settings.volume, length);
     }
     if (this.heard.length > 80) this.heard.splice(0, this.heard.length - 80);
   }
@@ -400,6 +400,16 @@ export class View {
         glow: NEWCOMER_GLOW[look.element] || '#4ade80', boss: false, fresh: true };
       this._keys.herald = '';
       this._sound('growl');
+    } else if (kind === 'toss' && event.mine === 'nuke') {
+      this._sound('fall', event.time);
+    } else if (kind === 'nuke') {
+      this._sound('nuke');
+      const box = $('blackout'), board = $('board');
+      for (const [node, name] of [[box, 'on'], [board, 'shake']]) {
+        node.classList.remove(name);
+        void node.offsetWidth;
+        node.classList.add(name);
+      }
     } else if (kind === 'power') {
       const id = event.mob.power.id;
       this._sound(id === 'shield' ? 'block' : id === 'dash' ? 'wind' : 'summon');

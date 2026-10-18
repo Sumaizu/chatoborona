@@ -323,7 +323,7 @@ test('минёр: вместо мины изредка летит ядерная
   for (let i = 0; i < 400 && !battle.tosses.length; i++) battle.step(TICK);
   const toss = battle.tosses[0];
   eq(toss.kind, 'nuke');
-  ok(Math.abs(toss.at - battle.time - NUKE_FLIGHT) < TICK * 1.5, 'летит долго');
+  ok(Math.abs(toss.at - battle.time - NUKE_FLIGHT) < TICK * 1.5 && NUKE_FLIGHT >= 6, 'летит долго');
   ok(battle.events.some((e) => e.kind === 'toss' && e.mine === 'nuke' && e.time === NUKE_FLIGHT));
   runFor(battle, NUKE_FLIGHT + TICK);
   ok(battle.events.some((e) => e.kind === 'nuke' && Math.abs(e.x - target.x) < 1e-9));

@@ -51,7 +51,7 @@ const RECIPES = {
     s.pluck(at + 0.13, FS4, 0.4, 0.13, 0.1, 0.4);
   },
   win(s, at) {
-    s.thump(at, 160, 50, 0.4, 0.45);
+    s.thump(at, 160, 50, 0.4, 0.4);
     s.horn(at, D4, 1.4, 0.12, -0.3);
     s.horn(at, FS4, 1.4, 0.09, 0.3);
     s.horn(at, A4, 1.4, 0.09, 0);
@@ -115,11 +115,18 @@ const RECIPES = {
     s.thump(at + 0.03, 100, 32, 0.4, 0.55);
   },
   nuke(s, at) {
-    s.hiss(at, 0.25, 0.2, 3000, 9000);
-    s.thump(at + 0.05, 80, 22, 1.6, 0.6);
-    s.swish(at + 0.05, 1400, 40, 2.4, 0.35);
-    s.crunch(at + 0.1, 1.2, 0.18);
-    s.pad(at + 0.2, [41.2, 55, 61.7], 2.4, 0.08);
+    s.hiss(at, 0.3, 0.25, 2000, 9000);
+    s.crunch(at, 0.5, 0.4);
+    s.thump(at + 0.02, 70, 18, 3.2, 0.62);
+    s.thump(at + 0.4, 55, 20, 2.4, 0.36);
+    s.rumble(at + 0.05, 4.2, 0.4);
+    s.swish(at + 0.05, 1600, 40, 3.4, 0.3);
+    for (let i = 0; i < 4; i++) s.crunch(at + 0.6 + i * 0.45, 0.6, 0.16 - i * 0.03);
+    s.pad(at + 0.2, [41.2, 55, 61.7], 3.6, 0.07);
+  },
+  fall(s, at, length = 7) {
+    s.whistle(at, 2600, 420, length, 0.18);
+    s.swish(at + length * 0.3, 2400, 600, length * 0.7, 0.07);
   },
   plant(s, at) {
     s.pop(at, 900, 700, 0.02, 0.08);
@@ -283,7 +290,7 @@ export const SFX_GAPS = {
   gun: 0.07, hit: 0.05, kill: 0.07, crack: 0.15, launch: 0.12, rock: 0.12, boom: 0.12, mine: 0.15, zap: 0.12,
   flask: 0.1, flame: 0.3, bolt: 0.08, ice: 0.1, wind: 0.2, cast: 0.12, crit: 0.15, freeze: 0.25, stun: 0.2,
   storm: 0.3, rally: 0.5, heal: 0.5, block: 0.3, roar: 1, growl: 0.8, summon: 0.4, plant: 0.3, build: 0.4,
-  crumble: 0.4, bite: 0.15, leap: 0.3, chomp: 0.25, nuke: 2, join: 0.4, card: 0.3, holy: 0.12, splash: 0.15,
+  crumble: 0.4, bite: 0.15, leap: 0.3, chomp: 0.25, nuke: 2, fall: 1, join: 0.4, card: 0.3, holy: 0.12, splash: 0.15,
   snap: 0.15, execute: 0.3, clink: 0.2, treasure: 1, rattle: 1, rise: 0.4, hex: 0.4, burrow: 0.5,
 };
 
@@ -476,6 +483,32 @@ function createStudio(context) {
       filter.connect(envelope(at, duration, level, 0.003));
       run([source], at, duration);
     },
+    whistle(at, from, to, duration, level) {
+      const oscillator = context.createOscillator(), vibrato = context.createOscillator(), depth = context.createGain();
+      const gain = context.createGain();
+      oscillator.frequency.setValueAtTime(from, at);
+      oscillator.frequency.exponentialRampToValueAtTime(to, at + duration);
+      vibrato.frequency.value = 6;
+      depth.gain.value = from * 0.008;
+      vibrato.connect(depth);
+      depth.connect(oscillator.frequency);
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(level, at + duration * 0.92);
+      gain.gain.linearRampToValueAtTime(0.0001, at + duration);
+      oscillator.connect(gain);
+      gain.connect(bus);
+      run([oscillator, vibrato], at, duration);
+    },
+    rumble(at, duration, level) {
+      const source = noiseSource(), filter = context.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.Q.value = 3;
+      filter.frequency.setValueAtTime(380, at);
+      filter.frequency.exponentialRampToValueAtTime(60, at + duration);
+      source.connect(filter);
+      filter.connect(envelope(at, duration, level, 0.02));
+      run([source], at, duration);
+    },
     pad(at, frequencies, duration, level) {
       for (const frequency of frequencies) {
         const oscillator = context.createOscillator();
@@ -492,7 +525,7 @@ const gainFor = (volume) => Math.max(0, Math.min(100, Number(volume) || 0)) / 10
 
 let context = null, studio = null;
 
-export function play(name, volume) {
+export function play(name, volume, length) {
   const recipe = RECIPES[name], gain = gainFor(volume);
   const AudioContext = window.AudioContext || window.webkitAudioContext;
   if (!recipe || !gain || !AudioContext) return;
@@ -503,7 +536,7 @@ export function play(name, volume) {
     }
     if (context.state === 'suspended') context.resume().catch(() => {});
     studio.master.gain.value = gain;
-    recipe(studio, context.currentTime + 0.03);
+    recipe(studio, context.currentTime + 0.03, length);
   } catch (error) {
     context = null;
   }

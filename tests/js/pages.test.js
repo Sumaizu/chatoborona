@@ -1,6 +1,7 @@
 import { SFX_GAPS, SOUNDS, measure } from '../../site/js/sound.js';
 import { CLASSES } from '../../site/js/classes.js';
 import { BOSSES, ELITES } from '../../site/js/balance.js';
+import { NUKE_FLIGHT } from '../../site/js/battle.js';
 import { HERO_SIZE, MOB_KINDS, coinUrl, heroSprite, heroUrl, mobSprite, prizeUrl } from '../../site/js/sprites.js';
 import { PAGES } from '../../site/js/guide.js';
 import { eq, no, ok, test } from './harness.js';
@@ -91,6 +92,26 @@ test('страницы: оверлей сам открывает набор, ч�
   await wait(600);
   watcher.disconnect();
   eq(watched.length, 0, 'карточку не переставляют в разметке');
+  frame.remove();
+});
+
+test('страницы: ядерка — свист в полёте, взрыв со звуком, затемнение и тряска поля', async () => {
+  fresh();
+  const frame = await overlay('lobby=10&first_wave=5');
+  const w = frame.contentWindow, game = w.chatoborona.game, view = w.chatoborona.view;
+  await until(() => game.state === 'lobby', 'набор');
+  join(game, 'Аня');
+  game.next();
+  await until(() => game.state === 'placing', 'расстановка');
+  const battle = game.battle, tower = game.members.get('аня').tower;
+  const mob = battle._spawn({ type: 'normal', hp: 1e6 }, 3);
+  battle._event({ kind: 'toss', tower, mob, mine: 'nuke', time: NUKE_FLIGHT });
+  await until(() => view.heard.includes('fall'), 'свист падающей бомбы');
+  no(element(w, 'blackout').classList.contains('on'));
+  battle._nuke(tower, mob.x, mob.y);
+  await until(() => view.heard.includes('nuke'), 'звук взрыва');
+  ok(element(w, 'blackout').classList.contains('on'), 'экран темнеет');
+  ok(element(w, 'board').classList.contains('shake'), 'поле трясёт');
   frame.remove();
 });
 

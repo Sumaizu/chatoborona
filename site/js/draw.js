@@ -31,6 +31,7 @@ const ELEMENT_BITS = {
   poison: ['#d9f99d', '#a3e635', '#7c3aed'],
 };
 const NUKE_MARK = 3;
+const NUKE_LIFE = 3.4;
 const SIGHT_RAYS = 180;
 const MINE_LIGHTS = {
   strong: 'rgba(255, 59, 59, .9)', wide: 'rgba(255, 176, 32, .9)', stun: 'rgba(127, 227, 255, .9)',
@@ -74,6 +75,7 @@ const glows = new Map();
 const discs = new Map();
 
 const at = (v) => EDGE + v * CELL;
+const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
 const ease = (from, to, rate, dt) => from + (to - from) * (1 - Math.exp(-rate * dt));
 const noise = (i, seed) => {
   const v = Math.sin(i * 12.9898 + seed * 78.233) * 43758.5453;
@@ -531,6 +533,9 @@ export class Scene {
         square(ctx, x + 1, y - 1, Math.max(1, d.size - 2), '#c4b8a6');
       } else if (d.kind === 'scorch') {
         glow(ctx, x, y, d.r * CELL, 'rgba(20, 10, 6, .9)', 0.55 * fade);
+      } else if (d.kind === 'crater') {
+        glow(ctx, x, y, d.r * CELL * 1.6, 'rgba(14, 8, 6, .95)', 0.8 * fade);
+        glow(ctx, x, y, d.r * CELL * 0.7, 'rgba(255, 106, 31, .9)', 0.5 * fade * fade);
       }
     }
     ctx.globalAlpha = 1;
@@ -615,8 +620,51 @@ export class Scene {
     }
   }
 
+  _nukeBlast(ctx, e, share) {
+    const x = at(e.x), y = at(e.y), r = e.radius * CELL, time = share * NUKE_LIFE;
+    const dark = time < 0.15 ? time / 0.15 : time < 1.2 ? 1 : Math.max(0, 1 - (time - 1.2) / (NUKE_LIFE - 1.2));
+    ctx.fillStyle = 'rgba(4, 3, 10, ' + (0.62 * dark).toFixed(3) + ')';
+    ctx.fillRect(EDGE, EDGE, CELL * SIZE, CELL * SIZE);
+    if (time < 0.25) glow(ctx, x, y, r * 1.6, 'rgba(255, 255, 255, 1)', 1 - time / 0.25);
+    for (const [delay, width, color] of [[0, 9, [255, 236, 200]], [0.18, 5, [255, 150, 60]]]) {
+      const wave = Math.max(0, Math.min(1, (time - delay) / 0.75));
+      if (wave <= 0 || wave >= 1) continue;
+      const radius = r * (1 - Math.pow(1 - wave, 2.2)), alpha = (1 - wave) * 0.9, tone = color.join(', ');
+      const ring = ctx.createRadialGradient(x, y, Math.max(0, radius - width * 2), x, y, radius + width);
+      ring.addColorStop(0, 'rgba(' + tone + ', 0)');
+      ring.addColorStop(0.65, 'rgba(' + tone + ', ' + alpha.toFixed(3) + ')');
+      ring.addColorStop(1, 'rgba(' + tone + ', 0)');
+      ctx.fillStyle = ring;
+      ctx.beginPath();
+      ctx.arc(x, y, radius + width, 0, Math.PI * 2);
+      ctx.fill();
+      if (delay) continue;
+      for (let i = 0; i < 42; i++) {
+        const a = i / 42 * Math.PI * 2 + noise(i, 3) * 0.2, d = radius * (0.92 + noise(i, 5) * 0.16);
+        glow(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.95, 5 + noise(i, 7) * 5, 'rgba(176, 156, 128, 1)',
+          (1 - wave) * 0.7);
+      }
+    }
+    const grow = Math.min(1, time / 0.4), cool = Math.min(1, Math.max(0, (time - 0.3) / 1.6));
+    const fire = mix([255, 170, 60], [120, 60, 40], cool), ball = r * (0.25 + 0.3 * grow);
+    glow(ctx, x, y, ball * 1.5, 'rgba(' + fire.join(', ') + ', 1)', 1 - cool * 0.8);
+    glow(ctx, x, y, ball * 0.7, 'rgba(255, 244, 214, 1)', Math.max(0, 1 - time / 0.8));
+    const rise = Math.min(1, time / 1.3), top = y - r * 1.05 * rise, smoke = Math.max(0, 1 - Math.max(0, time - 1.6)
+      / (NUKE_LIFE - 1.6));
+    for (let i = 0; i < 7; i++) {
+      const k = i / 6, py = y - (y - top) * k, lit = mix([255, 120, 40], [96, 88, 86], Math.min(1, cool + k * 0.4));
+      glow(ctx, x + (noise(i, 11) - 0.5) * 6, py, 10 + k * 6, 'rgba(' + lit.join(', ') + ', 1)', 0.95 * smoke * rise);
+    }
+    for (let i = 0; i < 12; i++) {
+      const a = i / 12 * Math.PI * 2, spread = r * (0.25 + 0.4 * rise), wobble = noise(i, 13) * 6;
+      const px = x + Math.cos(a) * spread * (0.6 + noise(i, 17) * 0.5), py = top + Math.sin(a) * spread * 0.32;
+      const lit = mix([255, 150, 60], [118, 108, 104], Math.min(1, cool + (Math.sin(a) < 0 ? 0.5 : 0)));
+      glow(ctx, px, py - wobble, 15 + noise(i, 19) * 10, 'rgba(' + lit.join(', ') + ', 1)', smoke * rise);
+    }
+  }
+
   _nukeFlight(ctx, e, share) {
-    const point = (s) => [at(e.x1 + (e.x2 - e.x1) * s), at(e.y1 + (e.y2 - e.y1) * s) - Math.sin(s * Math.PI) * 70];
+    const point = (s) => [at(e.x1 + (e.x2 - e.x1) * s), at(e.y1 + (e.y2 - e.y1) * s) - Math.sin(s * Math.PI) * 90];
     const [x, y] = point(share), [nx, ny] = point(Math.min(1, share + 0.02)), tx = at(e.x2), ty = at(e.y2);
     const pulse = 0.5 + 0.5 * Math.sin(this.clock * 12);
     ctx.save();
@@ -635,6 +683,11 @@ export class Scene {
     ctx.ellipse(at(e.x1 + (e.x2 - e.x1) * share), at(e.y1 + (e.y2 - e.y1) * share) + 4, 6 + 6 * share,
       2 + 2 * share, 0, 0, Math.PI * 2);
     ctx.fill();
+    for (let i = 1; i <= 8; i++) {
+      const back = Math.max(0, share - i * 0.012), [sx, sy] = point(back);
+      glow(ctx, sx + noise(i, Math.floor(this.clock * 6)) * 4 - 2, sy, 3 + i * 0.9, 'rgba(190, 190, 200, 1)',
+        0.35 * (1 - i / 9));
+    }
     glow(ctx, x, y - 12, 10, 'rgba(255, 216, 74, .9)', 0.25 + 0.2 * pulse);
     sprite(ctx, nukeSprite(), x, y, Math.atan2(-(nx - x), ny - y + 1e-6), 2.2, 0, 64);
   }
@@ -1337,8 +1390,9 @@ export class Scene {
         add({ kind: 'ring', life: 0.6, x: event.x, y: event.y, r: event.radius, color: '#7fe3ff', width: 3 });
       }
     } else if (event.kind === 'nuke') {
-      add({ kind: 'nuke', life: 1.8, x: event.x, y: event.y });
-      this._sparks(event.x, event.y, ['#ffffff', '#fff3b0', '#ffd84a', '#ff8a1f'], 40, 9, 0.9, 3);
+      add({ kind: 'nuke', life: NUKE_LIFE, x: event.x, y: event.y, radius: event.radius });
+      this._sparks(event.x, event.y, ['#ffffff', '#ffe08a', '#ff9a1f', '#5a4a40'], 60, 12, 1.3, 3);
+      this.decals.push({ kind: 'crater', t: 0, life: 7, x: event.x, y: event.y, r: event.radius * 0.45 });
     } else if (event.kind === 'leak' || event.kind === 'shield' || event.kind === 'heal') {
       const [bx, by] = this.battle.path[this.battle.path.length - 1];
       if (event.kind !== 'heal') {
@@ -1494,17 +1548,7 @@ export class Scene {
           share < 0.5 ? '#ffd84a' : e.ring);
         ctx.globalAlpha = 1;
       } else if (e.kind === 'nuke') {
-        const x = at(e.x), y = at(e.y), r = e.radius * CELL;
-        ctx.globalAlpha = Math.pow(fade, 3) * 0.55;
-        ctx.fillStyle = share < 0.1 ? '#ffffff' : '#ffe9b0';
-        ctx.fillRect(EDGE, EDGE, CELL * SIZE, CELL * SIZE);
-        ctx.globalAlpha = 1;
-        glow(ctx, x, y, r * (0.6 + 0.8 * share), 'rgba(255, 170, 60, .95)', fade);
-        glow(ctx, x, y - r * 0.5 * share, r * 0.5, 'rgba(255, 236, 170, .95)', fade * 0.9);
-        ctx.globalAlpha = fade;
-        burst(ctx, x, y, r * Math.sqrt(share) * 1.1, 48, share * 0.5, 2, '#ffd84a');
-        burst(ctx, x, y, r * Math.sqrt(share) * 0.7, 32, share * 0.8 + 1, 1, '#ff7a1f');
-        ctx.globalAlpha = 1;
+        this._nukeBlast(ctx, e, share);
       } else if (e.kind === 'storm') {
         ctx.globalAlpha = fade;
         for (const [width, color] of [[5, 'rgba(96, 165, 250, .55)'], [2, '#ffffff']]) {
