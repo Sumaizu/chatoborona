@@ -167,7 +167,7 @@ export const starSprite = () => remember('star', () => mapSprite([
   '.Y...Y.',
 ], { Y: '#ffd43b', y: '#fff7c2' }));
 
-export const crownSprite = () => remember('crown', () => mapSprite([
+const crownSprite = () => remember('crown', () => mapSprite([
   '...............',
   '.W.....R.....W.',
   '.Y....YYY....Y.',

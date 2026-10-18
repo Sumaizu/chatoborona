@@ -1,10 +1,9 @@
 import { LETTERS, SIZE } from './field.js';
 import { CELL, EDGE, paintGround, paintPeaks, paintRoof } from './terrain.js';
-import { HERO_SIZE, bubbleSprite, coinSprite, crownSprite, flaskSprite, heartSprite, heroSprite, mineSprite,
-  mobSprite, nukeSprite, pixelsOf, reticleSprite, shellSprite, starSprite, tintSprite, trapSprite, wallSprite }
+import { HERO_SIZE, bubbleSprite, coinSprite, flaskSprite, heartSprite, heroSprite, mineSprite, mobSprite,
+  nukeSprite, pixelsOf, reticleSprite, shellSprite, starSprite, tintSprite, trapSprite, wallSprite }
   from './sprites.js';
-import { rarityOf } from './gacha.js';
-import { LEVEL_MAX } from './balance.js';
+import { gearColor } from './gacha.js';
 
 export const BOARD = EDGE * 2 + CELL * SIZE;
 const FIELD = 640;
@@ -1002,11 +1001,11 @@ export class Scene {
     const now = battle.time;
     for (const t of battle.towers) {
       const pose = this._pose(t), lit = highlight && highlight.has(t.player.login);
-      if (t.rider && battle.covered(pose.x, pose.y)) continue;
       let spot = { x: t.cx, y: t.cy, lift: 0, riding: false };
       if (t.rider) spot = this._riderSpot(t, pose, now);
       pose.x = spot.x;
       pose.y = spot.y;
+      if (t.rider && battle.covered(spot.x, spot.y)) continue;
       const x = at(spot.x), y = at(spot.y) - spot.lift;
       if (!still) {
         pose.angle = shortTurn(pose.angle, pose.aim, TURN * dt);
@@ -1074,34 +1073,17 @@ export class Scene {
   }
 
   _badge(t) {
-    const top = t.level >= LEVEL_MAX, level = top ? 'crown' : String(t.level);
-    const gem = t.player.weapon ? rarityOf(t.player.weapon.rarity).color : '';
-    return this._label('lv:' + level + ':' + t.cls.color + ':' + gem, BADGE_HALF * 2 + 12, 12, (g) => {
+    const level = String(t.level), fill = gearColor(t.player.weapon);
+    return this._label('lv:' + level + ':' + fill, BADGE_HALF * 2, 12, (g) => {
       g.font = '800 8.5px "Segoe UI", system-ui, sans-serif';
-      const crown = crownSprite(), x = BADGE_HALF;
-      const w = top ? crown.width + 2 : Math.max(11, g.measureText(level).width + 5);
-      if (top) g.drawImage(crown, Math.round(x - crown.width / 2), 0, crown.width, crown.height);
-      else {
-        g.fillStyle = t.cls.color;
-        roundRect(g, x - w / 2, 1, w, 10, 4);
-        g.fill();
-        g.fillStyle = DARK;
-        g.textAlign = 'center';
-        g.textBaseline = 'middle';
-        g.fillText(level, x, 6.3);
-      }
-      if (!gem) return;
-      g.fillStyle = gem;
-      g.strokeStyle = DARK;
-      g.lineWidth = 1.5;
-      g.beginPath();
-      g.moveTo(x + w / 2 + 5, 1);
-      g.lineTo(x + w / 2 + 9, 6);
-      g.lineTo(x + w / 2 + 5, 11);
-      g.lineTo(x + w / 2 + 1, 6);
-      g.closePath();
+      const x = BADGE_HALF, w = Math.max(11, g.measureText(level).width + 5);
+      g.fillStyle = fill;
+      roundRect(g, x - w / 2, 1, w, 10, 4);
       g.fill();
-      g.stroke();
+      g.fillStyle = DARK;
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText(level, x, 6.3);
     });
   }
 
@@ -1110,9 +1092,10 @@ export class Scene {
     const first = (t) => (highlight && highlight.has(t.player.login) ? 0 : named(t) ? 1 : 2);
     const taken = [];
     for (const t of battle.towers.slice().sort((a, b) => first(a) - first(b))) {
-      if (t.rider && battle.covered(t.cx, t.cy)) continue;
+      const pose = this._pose(t);
+      if (t.rider && battle.covered(pose.x, pose.y)) continue;
       const marked = Boolean(highlight && highlight.has(t.player.login)), on = Math.floor(this.clock * 4) % 2 === 0;
-      const pose = this._pose(t), image = this._nameLabel(t, marked ? (on ? 'on' : 'off') : '');
+      const image = this._nameLabel(t, marked ? (on ? 'on' : 'off') : '');
       const w = image.width / this.k, h = image.height / this.k;
       const riding = t.rider && t.host && !t.host.dead;
       const x = Math.max(1, Math.min(BOARD - w - 1, at(pose.x) - w / 2));

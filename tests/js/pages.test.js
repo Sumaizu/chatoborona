@@ -4,6 +4,8 @@ import { BOSSES, ELITES, LEVEL_MAX, xpForLevel } from '../../site/js/balance.js'
 import { NUKE_FLIGHT } from '../../site/js/battle.js';
 import { HERO_SIZE, MOB_KINDS, coinUrl, heroSprite, heroUrl, mobSprite, prizeUrl } from '../../site/js/sprites.js';
 import { PAGES } from '../../site/js/guide.js';
+import { SIZE } from '../../site/js/field.js';
+import { RARITIES, makeWeapon } from '../../site/js/gacha.js';
 import { eq, no, ok, test } from './harness.js';
 
 const SITE = '/site/';
@@ -129,6 +131,40 @@ test('страницы: сотый уровень — поздравление �
   await until(() => !element(w, 'cheer').hidden, 'поздравление на экране');
   ok(text(w, 'cheer-box').includes('100 уровень') && text(w, 'cheer-box').includes('Аня'));
   await until(() => w.document.querySelector('#players .lvl img.crown'), 'корона в отряде');
+  frame.remove();
+});
+
+test('страницы: паразит, раз оказавшись в горе, снова виден, когда вышел', async () => {
+  fresh();
+  const frame = await overlay('lobby=10&first_wave=5');
+  const w = frame.contentWindow, game = w.chatoborona.game, scene = w.chatoborona.view.scene;
+  await until(() => game.state === 'lobby', 'набор');
+  join(game, 'Аня');
+  game.next();
+  await until(() => game.state === 'placing', 'расстановка');
+  const battle = game.battle, rock = battle.solid.indexOf(1);
+  ok(rock >= 0, 'на карте есть горы');
+  const bug = battle.placeRider(game.members.get('аня'), 'parasite');
+  await until(() => scene.poses.has(bug), 'паразит на поле');
+  no(battle.covered(bug.cx, bug.cy), 'ждёт на свету');
+  Object.assign(scene.poses.get(bug), { x: rock % SIZE + 0.5, y: Math.floor(rock / SIZE) + 0.5 });
+  await until(() => !battle.covered(scene.poses.get(bug).x, scene.poses.get(bug).y), 'вышел из горы');
+  eq([scene.poses.get(bug).x, scene.poses.get(bug).y], [bug.cx, bug.cy]);
+  frame.remove();
+});
+
+test('страницы: плашка уровня в отряде — цвета оружия, без оружия белая', async () => {
+  fresh();
+  const frame = await overlay('lobby=10&first_wave=5');
+  const w = frame.contentWindow, game = w.chatoborona.game;
+  await until(() => game.state === 'lobby', 'набор');
+  join(game, 'Аня');
+  const pill = () => w.getComputedStyle(w.document.querySelector('#players .lvl')).backgroundColor;
+  await until(() => w.document.querySelector('#players .lvl'), 'Аня в отряде');
+  eq(pill(), 'rgb(255, 255, 255)');
+  const anya = game.members.get('аня');
+  anya.weapon = makeWeapon(Math.random, anya.cls, RARITIES.find((rarity) => rarity.id === 'legendary'));
+  await until(() => pill() === 'rgb(249, 115, 22)', 'легендарное оружие — оранжевая плашка');
   frame.remove();
 });
 

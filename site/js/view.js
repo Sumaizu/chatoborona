@@ -1,8 +1,8 @@
 import { Scene } from './draw.js';
 import { CLASSES, CLASS_BY_ID, ROLES, describe, num } from './classes.js';
 import { coinUrl, crownUrl, effectUrl, heroUrl, markUrl, prizeUrl, shieldUrl } from './sprites.js';
-import { OUTCOMES, PRICE, RARITIES, SPIN_TIME, UPGRADE_PRICE, amountText, outcomeOf, rarityOf, statName, statText,
-  uniqueOf, weaponName } from './gacha.js';
+import { OUTCOMES, PRICE, RARITIES, SPIN_TIME, UPGRADE_PRICE, amountText, gearColor, outcomeOf, rarityOf, statName,
+  statText, uniqueOf, weaponName } from './gacha.js';
 import { effectOf } from './events.js';
 import { BIOME_RULES, LEVEL_MAX, LIVES, levelOf, tierOf, towerBase } from './balance.js';
 import { SIZE, cellName } from './field.js';
@@ -817,7 +817,7 @@ export class View {
     const two = members.length > rows, fit = two ? rows * 2 : rows;
     const shown = members.length > fit ? members.slice(0, fit - 1) : members;
     const key = JSON.stringify([fit, members.length, shown.map((m) => [m.login, m.cls, levelOf(m.xp),
-      Math.floor(m.coins)])]);
+      Math.floor(m.coins), m.weapon ? m.weapon.rarity : ''])]);
     $('players-count').textContent = members.length ? String(members.length) : '';
     this._once('players', key, () => {
       list.textContent = '';
@@ -825,7 +825,7 @@ export class View {
       if (!members.length) list.append(el('li', 'empty', 'Пока никого — напиши что-нибудь в чат'));
       for (const m of shown) {
         const row = el('li'), level = levelTag('lvl', levelOf(m.xp), two ? '' : 'ур. ');
-        if (levelOf(m.xp) < LEVEL_MAX || !two) level.style.background = CLASS_BY_ID.get(m.cls).color;
+        if (levelOf(m.xp) < LEVEL_MAX || !two) level.style.background = gearColor(m.weapon);
         level.title = 'уровень';
         row.append(image(heroUrl(m.cls), 'face'), this._starName(m.name, m.star, m.color), level, this._coins(m.coins));
         list.append(row);

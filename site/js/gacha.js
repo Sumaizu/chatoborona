@@ -179,4 +179,6 @@ export const weaponName = (weapon) => rarityOf(weapon.rarity).name + ' ' + WEAPO
 
 export const rarityOf = (id) => RARITIES.find((rarity) => rarity.id === id) || RARITIES[0];
 
+export const gearColor = (weapon) => (weapon ? rarityOf(weapon.rarity).color : '#ffffff');
+
 export const outcomeOf = (id) => OUTCOMES.find((outcome) => outcome.id === id) || null;
