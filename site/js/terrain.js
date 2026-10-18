@@ -506,15 +506,17 @@ function paintLakes(data, battle, look) {
   }
 }
 
-function relief(battle, look) {
+function layer(painters, battle, look) {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = SIDE;
   const g = canvas.getContext('2d'), image = g.createImageData(SIDE, SIDE);
-  paintLakes(image.data, battle, look);
-  paintHills(image.data, battle, look);
-  paintMountains(image.data, battle, look);
+  for (const paint of painters) paint(image.data, battle, look);
   g.putImageData(image, 0, 0);
   return canvas;
+}
+
+function relief(battle, look) {
+  return { low: layer([paintHills], battle, look), high: layer([paintLakes, paintMountains], battle, look) };
 }
 
 const reliefs = new WeakMap();
@@ -538,7 +540,13 @@ export function paintGround(ctx, battle) {
   }
   ctx.stroke();
   paintRoad(ctx, battle, look);
-  if (battle.tiles) ctx.drawImage(reliefOf(battle), EDGE, EDGE);
+  if (!battle.tiles) return;
+  ctx.drawImage(reliefOf(battle).low, EDGE, EDGE);
+  ctx.drawImage(reliefOf(battle).high, EDGE, EDGE);
+}
+
+export function paintPeaks(ctx, battle) {
+  if (battle.tiles) ctx.drawImage(reliefOf(battle).high, EDGE, EDGE);
 }
 
 function mouths(battle) {
@@ -555,7 +563,7 @@ function mouths(battle) {
 
 export function paintRoof(ctx, battle) {
   if (!battle.tiles) return;
-  const image = reliefOf(battle);
+  const image = reliefOf(battle).high;
   ctx.save();
   ctx.beginPath();
   for (const [x, y] of cellsOf(battle, ['tunnel'])) ctx.rect(at(x) - 3, at(y) - 3, CELL + 6, CELL + 6);

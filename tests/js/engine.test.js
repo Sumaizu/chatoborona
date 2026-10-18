@@ -155,7 +155,8 @@ test('игра: паразит не встаёт на клетку и не пе�
   ok(until(game, () => game.state === 'placing'));
   const tower = game.members.get('жук').tower;
   ok(tower.rider);
-  eq([tower.x, tower.y], game.battle.path[0], 'ждёт на старте');
+  eq([tower.x, tower.y], game.battle.path[game.battle.gate], 'ждёт у выхода из пещеры');
+  no(game.battle.covered(tower.cx, tower.cy), 'не в горе');
   const free = game.battle.bestCell(2.5);
   eq(say(game, 'Жук', cellName(free.x, free.y)), null);
   no(game.battle.byCell.has(free.y * 20 + free.x));

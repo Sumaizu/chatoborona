@@ -1,6 +1,6 @@
 import { SFX_GAPS, SOUNDS, measure } from '../../site/js/sound.js';
 import { CLASSES } from '../../site/js/classes.js';
-import { BOSSES, ELITES } from '../../site/js/balance.js';
+import { BOSSES, ELITES, LEVEL_MAX, xpForLevel } from '../../site/js/balance.js';
 import { NUKE_FLIGHT } from '../../site/js/battle.js';
 import { HERO_SIZE, MOB_KINDS, coinUrl, heroSprite, heroUrl, mobSprite, prizeUrl } from '../../site/js/sprites.js';
 import { PAGES } from '../../site/js/guide.js';
@@ -112,6 +112,23 @@ test('страницы: ядерка — свист в полёте, взрыв 
   await until(() => view.heard.includes('nuke'), 'звук взрыва');
   ok(element(w, 'blackout').classList.contains('on'), 'экран темнеет');
   ok(element(w, 'board').classList.contains('shake'), 'поле трясёт');
+  frame.remove();
+});
+
+test('страницы: сотый уровень — поздравление с конфетти, вместо числа корона', async () => {
+  fresh();
+  const frame = await overlay('lobby=10&first_wave=5');
+  const w = frame.contentWindow, game = w.chatoborona.game;
+  await until(() => game.state === 'lobby', 'набор');
+  join(game, 'Аня');
+  game.next();
+  await until(() => game.state === 'placing', 'расстановка');
+  const anya = game.members.get('аня');
+  anya.xp = xpForLevel(LEVEL_MAX);
+  game.battle._level(anya.tower);
+  await until(() => !element(w, 'cheer').hidden, 'поздравление на экране');
+  ok(text(w, 'cheer-box').includes('100 уровень') && text(w, 'cheer-box').includes('Аня'));
+  await until(() => w.document.querySelector('#players .lvl img.crown'), 'корона в отряде');
   frame.remove();
 });
 

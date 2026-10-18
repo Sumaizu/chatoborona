@@ -1,6 +1,6 @@
 import { Scene } from './draw.js';
 import { CLASSES, CLASS_BY_ID, ROLES, describe, num } from './classes.js';
-import { coinUrl, effectUrl, heroUrl, markUrl, prizeUrl, shieldUrl } from './sprites.js';
+import { coinUrl, crownUrl, effectUrl, heroUrl, markUrl, prizeUrl, shieldUrl } from './sprites.js';
 import { OUTCOMES, PRICE, RARITIES, SPIN_TIME, UPGRADE_PRICE, amountText, outcomeOf, rarityOf, statName, statText,
   uniqueOf, weaponName } from './gacha.js';
 import { effectOf } from './events.js';
@@ -14,6 +14,8 @@ const PAINT_EVERY = 0.15;
 const NAME_TIME = 6;
 const RANGE_TIME = 30;
 const HERALD_TIME = 10;
+const CHEER_TIME = 7;
+const CONFETTI = ['#ff6b6b', '#ffd43b', '#69db7c', '#4dabf7', '#da77f2', '#ffa94d', '#ffffff'];
 const BIOME_GLOW = { grass: '#4ade80', volcano: '#fb923c', swamp: '#a3e635', snow: '#bae6fd', desert: '#fbbf24',
   graveyard: '#c4b5fd' };
 const MAP_TIPS = 'Мобы выходят из двух тоннелей. Горы закрывают выстрел, с холмов бьют дальше, '
@@ -100,6 +102,13 @@ function reachOf(member) {
   return tower ? tower.range : p.range || towerBase(level).range;
 }
 
+function levelTag(className, level, prefix = '') {
+  const top = level >= LEVEL_MAX, node = el('span', className + (top ? ' crown-slot' : ''));
+  if (top) node.append(el('span', 'ghost', prefix + '00'), image(crownUrl(), 'crown'));
+  else node.textContent = prefix + level;
+  return node;
+}
+
 function prizeCell(prize) {
   const cell = el('div', 'cell');
   cell.style.setProperty('--tone', prize.color);
@@ -178,6 +187,8 @@ export class View {
     this._sfxAt = new Map();
     this._herald = null;
     this._mapSeen = null;
+    this._cheers = [];
+    this._cheer = null;
     this._slots = [];
     this._cards = new Map();
     this._cardTall = 0;
@@ -249,6 +260,7 @@ export class View {
     for (const event of fresh) this._battleEvent(event);
     if (this.scene.impacts) this._sound('hit');
     this._paintHerald(dt);
+    this._paintCheer(dt);
     this._turnReels(game);
     this._paintIn -= dt;
     if (this._paintIn <= 0 || still) {
@@ -357,8 +369,9 @@ export class View {
   _battleEvent(event) {
     const kind = event.kind;
     if (kind === 'level') {
-      this._cue('level');
+      this._cue(event.level >= LEVEL_MAX ? 'win' : 'level');
       this._names.set(event.tower.player.login, NAME_TIME);
+      if (event.level >= LEVEL_MAX) this._cheers.push(event.tower.player);
     } else if (kind === 'leak') {
       this._cue('leak');
     } else if (kind === 'shot') {
@@ -441,6 +454,57 @@ export class View {
     });
   }
 
+  _paintCheer(dt) {
+    const box = $('cheer');
+    if (!this._cheer && this._cheers.length) {
+      const player = this._cheers.shift(), card = $('cheer-box');
+      this._cheer = { left: CHEER_TIME, bits: [] };
+      card.textContent = '';
+      card.append(image(crownUrl(), 'crown-big'), image(heroUrl(player.cls, 96), 'face'), el('h2', '', '100 уровень!'),
+        this._starName(player.name, player.star, player.color, 'who'),
+        el('span', 'wish', 'Поздравляем! Это самый высокий уровень в игре'));
+      card.style.animation = 'none';
+      void card.offsetWidth;
+      card.style.animation = '';
+      for (let i = 0; i < 160; i++) {
+        const side = i % 2 ? 1 : -1, cannon = i < 90;
+        this._cheer.bits.push({
+          x: cannon ? (side < 0 ? 20 : 620) : Math.random() * 640, y: cannon ? 350 : -Math.random() * 160,
+          vx: cannon ? -side * (60 + Math.random() * 140) : (Math.random() - 0.5) * 40,
+          vy: cannon ? -(180 + Math.random() * 160) : 40 + Math.random() * 60,
+          turn: Math.random() * 6, spin: (Math.random() - 0.5) * 12, flip: Math.random() * 6,
+          w: 3 + Math.random() * 3, h: 2 + Math.random() * 1.5, color: CONFETTI[i % CONFETTI.length],
+        });
+      }
+    }
+    const cheer = this._cheer;
+    box.hidden = !cheer;
+    $('cheer-box').hidden = !cheer;
+    if (!cheer) return;
+    cheer.left -= dt;
+    const canvas = $('confetti'), ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.globalAlpha = Math.max(0, Math.min(1, cheer.left));
+    for (const bit of cheer.bits) {
+      bit.vy += 140 * dt;
+      bit.vx *= 1 - 0.8 * dt;
+      bit.vy = Math.min(bit.vy, 90);
+      bit.x += (bit.vx + Math.sin(bit.flip * 2) * 12) * dt;
+      bit.y += bit.vy * dt;
+      bit.turn += bit.spin * dt;
+      bit.flip += 7 * dt;
+      ctx.save();
+      ctx.translate(bit.x, bit.y);
+      ctx.rotate(bit.turn);
+      ctx.scale(1, Math.cos(bit.flip));
+      ctx.fillStyle = bit.color;
+      ctx.fillRect(-bit.w / 2, -bit.h / 2, bit.w, bit.h);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    if (cheer.left <= 0) this._cheer = null;
+  }
+
   _once(id, key, paint) {
     if (this._keys[id] === key) return;
     this._keys[id] = key;
@@ -513,7 +577,7 @@ export class View {
       if (!members.length) box.append(el('div', 'none', 'Пока никого — напиши что-нибудь в чат!'));
       for (const m of members.slice(0, ROWS.roster)) {
         const item = el('div', 'who' + (!still && !this._rosterSeen.has(m.login) ? ' pop' : ''));
-        item.append(image(heroUrl(m.cls)), this._starName(m.name, m.star), el('span', 'lvl', 'ур. ' + levelOf(m.xp)));
+        item.append(image(heroUrl(m.cls)), this._starName(m.name, m.star), levelTag('lvl', levelOf(m.xp), 'ур. '));
         box.append(item);
         this._rosterSeen.add(m.login);
       }
@@ -587,7 +651,7 @@ export class View {
       const member = this._game.members.get(row.login);
       const item = el('li', i === 0 ? 'first' : '');
       item.append(el('span', 'place', i + 1), this._starName(row.name, member ? member.star : ''),
-        el('span', 'points', unit + row.value));
+        unit === 'ур. ' ? levelTag('points', row.value, unit) : el('span', 'points', unit + row.value));
       list.append(item);
     });
   }
@@ -755,8 +819,8 @@ export class View {
       list.classList.toggle('two', two);
       if (!members.length) list.append(el('li', 'empty', 'Пока никого — напиши что-нибудь в чат'));
       for (const m of shown) {
-        const row = el('li'), level = el('span', 'lvl', (two ? '' : 'ур. ') + levelOf(m.xp));
-        level.style.background = CLASS_BY_ID.get(m.cls).color;
+        const row = el('li'), level = levelTag('lvl', levelOf(m.xp), two ? '' : 'ур. ');
+        if (levelOf(m.xp) < LEVEL_MAX || !two) level.style.background = CLASS_BY_ID.get(m.cls).color;
         level.title = 'уровень';
         row.append(image(heroUrl(m.cls), 'face'), this._starName(m.name, m.star, m.color), level, this._coins(m.coins));
         list.append(row);
@@ -856,7 +920,8 @@ export class View {
         reachText.textContent = num(reachOf(m));
         const level = levelOf(m.xp), from = xpForLevel(level);
         const to = level >= LEVEL_MAX ? from + 1 : xpForLevel(level + 1);
-        lvl.textContent = 'ур. ' + level;
+        lvl.textContent = '';
+        lvl.append(levelTag('', level, 'ур. '));
         coins.querySelector('.sum').textContent = String(Math.floor(m.coins));
         const progress = level >= LEVEL_MAX ? 100 : Math.floor((m.xp - from) / (to - from) * 100);
         fill.style.width = progress + '%';

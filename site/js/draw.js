@@ -1,8 +1,10 @@
 import { LETTERS, SIZE } from './field.js';
-import { CELL, EDGE, paintGround, paintRoof } from './terrain.js';
-import { HERO_SIZE, bubbleSprite, coinSprite, flaskSprite, heartSprite, heroSprite, mineSprite, mobSprite, nukeSprite,
-  pixelsOf, reticleSprite, shellSprite, starSprite, tintSprite, trapSprite, wallSprite } from './sprites.js';
+import { CELL, EDGE, paintGround, paintPeaks, paintRoof } from './terrain.js';
+import { HERO_SIZE, bubbleSprite, coinSprite, crownSprite, flaskSprite, heartSprite, heroSprite, mineSprite,
+  mobSprite, nukeSprite, pixelsOf, reticleSprite, shellSprite, starSprite, tintSprite, trapSprite, wallSprite }
+  from './sprites.js';
 import { rarityOf } from './gacha.js';
+import { LEVEL_MAX } from './balance.js';
 
 export const BOARD = EDGE * 2 + CELL * SIZE;
 const FIELD = 616;
@@ -326,19 +328,18 @@ export class Scene {
     for (const event of fresh) this._effect(event);
     const step = still ? 0 : dt;
     this._auras(ctx, battle);
-    if (ranges && ranges.size) this._ranges(ctx, battle, ranges);
     this._patches(ctx, battle);
     this._puddles(ctx, battle);
     this._decals(ctx, step);
     this._corpses(ctx, step);
     this._mines(ctx, battle);
     this._traps(ctx, battle);
+    this._layer(ctx, this.peaks);
+    if (ranges && ranges.size) this._ranges(ctx, battle, ranges);
     this._walls(ctx, battle, still);
     this._base(ctx, battle);
     this._mobs(ctx, battle, dt, still);
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.drawImage(this.roof, 0, 0);
-    ctx.setTransform(this.k, 0, 0, this.k, 0, 0);
+    this._layer(ctx, this.roof);
     this._gates(ctx, battle);
     this._flames(ctx, battle);
     this._whirls(ctx, battle);
@@ -350,6 +351,12 @@ export class Scene {
     return fresh;
   }
 
+  _layer(ctx, image) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(image, 0, 0);
+    ctx.setTransform(this.k, 0, 0, this.k, 0, 0);
+  }
+
   _ground(battle) {
     const key = (battle ? battle.road.map((c) => c.join(',')).join(';') + battle.biome
       + (battle.tiles || []).join() : '') + '@' + this.k;
@@ -358,17 +365,22 @@ export class Scene {
     if (!this.ground) {
       this.ground = document.createElement('canvas');
       this.roof = document.createElement('canvas');
+      this.peaks = document.createElement('canvas');
     }
-    this.ground.width = this.roof.width = this.canvas.width;
-    this.ground.height = this.roof.height = this.canvas.height;
-    const ctx = this.ground.getContext('2d'), roof = this.roof.getContext('2d');
-    ctx.setTransform(this.k, 0, 0, this.k, 0, 0);
-    roof.setTransform(this.k, 0, 0, this.k, 0, 0);
-    ctx.imageSmoothingEnabled = roof.imageSmoothingEnabled = false;
+    for (const layer of [this.ground, this.roof, this.peaks]) {
+      layer.width = this.canvas.width;
+      layer.height = this.canvas.height;
+    }
+    const ctx = this.ground.getContext('2d'), roof = this.roof.getContext('2d'), peaks = this.peaks.getContext('2d');
+    for (const g of [ctx, roof, peaks]) {
+      g.setTransform(this.k, 0, 0, this.k, 0, 0);
+      g.imageSmoothingEnabled = false;
+    }
     ctx.clearRect(0, 0, BOARD, BOARD);
     if (battle) {
       paintGround(ctx, battle);
       paintRoof(roof, battle);
+      paintPeaks(peaks, battle);
     } else {
       for (let y = 0; y < SIZE; y++) {
         for (let x = 0; x < SIZE; x++) {
@@ -994,6 +1006,7 @@ export class Scene {
     const now = battle.time;
     for (const t of battle.towers) {
       const pose = this._pose(t), lit = highlight && highlight.has(t.player.login);
+      if (t.rider && battle.covered(pose.x, pose.y)) continue;
       let spot = { x: t.cx, y: t.cy, lift: 0, riding: false };
       if (t.rider) spot = this._riderSpot(t, pose, now);
       pose.x = spot.x;
@@ -1065,17 +1078,22 @@ export class Scene {
   }
 
   _badge(t) {
-    const level = String(t.level), gem = t.player.weapon ? rarityOf(t.player.weapon.rarity).color : '';
+    const top = t.level >= LEVEL_MAX, level = top ? 'crown' : String(t.level);
+    const gem = t.player.weapon ? rarityOf(t.player.weapon.rarity).color : '';
     return this._label('lv:' + level + ':' + t.cls.color + ':' + gem, BADGE_HALF * 2 + 12, 12, (g) => {
       g.font = '800 8.5px "Segoe UI", system-ui, sans-serif';
-      const w = Math.max(11, g.measureText(level).width + 5), x = BADGE_HALF;
-      g.fillStyle = t.cls.color;
-      roundRect(g, x - w / 2, 1, w, 10, 4);
-      g.fill();
-      g.fillStyle = DARK;
-      g.textAlign = 'center';
-      g.textBaseline = 'middle';
-      g.fillText(level, x, 6.3);
+      const crown = crownSprite(), x = BADGE_HALF;
+      const w = top ? crown.width + 2 : Math.max(11, g.measureText(level).width + 5);
+      if (top) g.drawImage(crown, Math.round(x - crown.width / 2), 0, crown.width, crown.height);
+      else {
+        g.fillStyle = t.cls.color;
+        roundRect(g, x - w / 2, 1, w, 10, 4);
+        g.fill();
+        g.fillStyle = DARK;
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.fillText(level, x, 6.3);
+      }
       if (!gem) return;
       g.fillStyle = gem;
       g.strokeStyle = DARK;
@@ -1096,6 +1114,7 @@ export class Scene {
     const first = (t) => (highlight && highlight.has(t.player.login) ? 0 : named(t) ? 1 : 2);
     const taken = [];
     for (const t of battle.towers.slice().sort((a, b) => first(a) - first(b))) {
+      if (t.rider && battle.covered(t.cx, t.cy)) continue;
       const marked = Boolean(highlight && highlight.has(t.player.login)), on = Math.floor(this.clock * 4) % 2 === 0;
       const pose = this._pose(t), image = this._nameLabel(t, marked ? (on ? 'on' : 'off') : '');
       const w = image.width / this.k, h = image.height / this.k;
@@ -1144,7 +1163,7 @@ export class Scene {
   _mobTops(ctx, battle) {
     for (const mob of battle.mobs) {
       const spot = this.shown.get(mob.id);
-      if (mob.dead || !mob.kind || !spot || spot.top === undefined) continue;
+      if (mob.dead || !mob.kind || !spot || spot.top === undefined || battle.covered(mob.x, mob.y)) continue;
       const x = spot.screenX, top = spot.top, w = Math.max(16, spot.size * 0.9), share = Math.max(0, mob.hp / mob.max);
       ctx.fillStyle = '#15111d';
       ctx.fillRect(Math.round(x - w / 2) - 1, Math.round(top) - 1, Math.round(w) + 2, 5);

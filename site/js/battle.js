@@ -80,6 +80,7 @@ function routeOf(path) {
 }
 
 const BODILESS = new Set(TERRAIN.bodiless);
+const GATE_SHIFT = 0.6;
 const SOLID = new Set(['mountain', 'tunnel']);
 const UNSAFE = new Set(['mountain', 'tunnel', 'lake']);
 
@@ -137,6 +138,12 @@ export class Battle {
         if (UNSAFE.has(tile)) this.blocked.add(at);
       });
     }
+    this.starts = this.routes.map((route) => {
+      let i = 1;
+      while (i < route.length - 1 && this.covered(route[i][0], route[i][1])) i++;
+      return i > 1 ? i - GATE_SHIFT : 0;
+    });
+    this.gate = Math.max(0, Math.ceil(this.starts[0]) - 1);
     this.random = random;
     this.quiet = quiet;
     this.lives = lives;
@@ -246,12 +253,17 @@ export class Battle {
   }
 
   placeRider(player, classId, mods = NO_MODS) {
-    const [x, y] = this.path[0], tower = this._tower(player, classId, x, y, mods);
+    const [x, y] = this.path[this.gate], tower = this._tower(player, classId, x, y, mods);
     tower.rider = true;
     this.towers.push(tower);
     this._level(tower);
     this._auras = true;
     return tower;
+  }
+
+  covered(x, y) {
+    const cx = Math.floor(x), cy = Math.floor(y);
+    return Boolean(this.solid && inside(cx, cy) && this.solid[cy * SIZE + cx]);
   }
 
   onHill(tower) {
@@ -395,7 +407,7 @@ export class Battle {
     const now = this.time;
     while (this.spawns.length && this.spawns[0].at <= now) {
       const spawn = this.spawns.shift();
-      this._spawn(spawn, 0, spawn.r);
+      this._spawn(spawn, this.starts[spawn.r], spawn.r);
     }
     if (!this.wild && this.mobs.length && now - this.lastSpawn > OVERTIME) {
       this.wild = true;
@@ -1067,8 +1079,13 @@ export class Battle {
       return;
     }
     t.host = null;
+    const taken = new Set(this.towers.filter((other) => other.rider && other.host && !other.host.dead)
+      .map((other) => other.host));
     let best = null;
-    for (const mob of this.mobs) if (!mob.dead && (!best || mob.hp > best.hp)) best = mob;
+    for (const mob of this.mobs) {
+      if (mob.dead || taken.has(mob) || this.covered(mob.x, mob.y)) continue;
+      if (!best || mob.hp > best.hp) best = mob;
+    }
     if (!best) return;
     t.host = best;
     t.leapUntil = now + t.p.leap;
@@ -1210,7 +1227,10 @@ export class Battle {
   }
 
   _target(t, skip = null) {
-    if (t.rider) return t.host && !t.host.dead && this.time >= t.leapUntil ? t.host : null;
+    if (t.rider) {
+      const host = t.host;
+      return host && !host.dead && this.time >= t.leapUntil && !this.covered(host.x, host.y) ? host : null;
+    }
     let best = null, bestScore = -Infinity;
     const mode = t.p.target;
     const puddles = mode === 'puddle' ? this.puddles.filter((puddle) => puddle.tower === t) : null;

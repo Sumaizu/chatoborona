@@ -1138,3 +1138,41 @@ test('биомы: на кладбище павший с телом встаёт 
   runFor(plain, 3);
   eq(plain.mobs.length, 0, 'на других картах не встают');
 });
+
+test('карта: мобы появляются у выхода из пещеры, паразит в горе не виден и не кусает', () => {
+  const battle = mapWith({ tunnel: [[0, 5], [1, 5], [10, 0], [10, 1], [14, 5], [15, 5]] });
+  battle.startWave(1, 1);
+  battle.step(TICK);
+  const first = battle.mobs.find((mob) => mob.r === 0), second = battle.mobs.find((mob) => mob.r === 1);
+  ok(first && second, 'вышли из обоих');
+  ok(first.d > 2.2 && first.d < 2.5 && second.d > 2.2 && second.d < 2.5, 'у самого выхода: ' + [first.d, second.d]);
+  runFor(battle, 0.3);
+  no(battle.covered(first.x, first.y), 'вышел на свет');
+  const bug = battle.placeRider(player(xpForLevel(20)), 'parasite');
+  eq([bug.x, bug.y], STRAIGHT[battle.gate]);
+  no(battle.covered(bug.cx, bug.cy), 'ждёт не в горе');
+  const host = walker(battle, 15.5, 1e6);
+  host.holdUntil = 1e9;
+  bug.host = host;
+  battle.time = Math.max(battle.time, bug.leapUntil);
+  ok(battle.covered(host.x, host.y));
+  eq(battle._target(bug), null, 'в тоннеле не кусает');
+});
+
+test('паразит: на одном мобе только один — второй берёт следующего по силе, свободных нет — ждёт', () => {
+  const battle = makeBattle();
+  const first = battle.placeRider(player(xpForLevel(20)), 'parasite');
+  const second = battle.placeRider(player(xpForLevel(20)), 'parasite');
+  const strong = walker(battle, 2, 500), weak = walker(battle, 6, 50);
+  for (const mob of [strong, weak]) mob.holdUntil = 1e9;
+  battle.step(TICK);
+  ok(first.host === strong, 'первый — на самого крепкого');
+  ok(second.host === weak, 'второй — на следующего, хоть прыгали разом');
+  battle._hurt(weak, 1e6, second);
+  battle.step(TICK);
+  eq(second.host, null, 'свободных мобов нет — ждёт, на занятого не прыгает');
+  const fresh = walker(battle, 4, 80);
+  fresh.holdUntil = 1e9;
+  battle.step(TICK);
+  ok(second.host === fresh, 'появился свободный — прыгнул');
+});
