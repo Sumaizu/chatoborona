@@ -1064,11 +1064,12 @@ test('карта: волна идёт сразу из обоих входов, �
   eq(battle.spawns.filter((spawn) => spawn.r).length, Math.floor(battle.spawns.length / 2), 'поровну');
 });
 
-test('карта: гора закрывает выстрел, в тоннеле моба не достать; на горы, озёра и тоннели не встать', () => {
-  const battle = mapWith({ mountain: [[3, 4]], tunnel: [[0, 5], [1, 5]], lake: [[7, 4]] });
+test('карта: гора закрывает выстрел, в тоннеле моба не достать; на горы, озёра, реки и тоннели не встать', () => {
+  const battle = mapWith({ mountain: [[3, 4]], tunnel: [[0, 5], [1, 5]], lake: [[7, 4]], river: [[9, 3], [9, 4]],
+    bridge: [[9, 5]] });
   const gun = battle.place(player(), 'gunner', 3, 3);
   gun.range = 4;
-  for (const [x, y] of [[3, 4], [7, 4], [0, 5]]) no(battle.free(x, y), 'занято: ' + x + ',' + y);
+  for (const [x, y] of [[3, 4], [7, 4], [0, 5], [9, 4]]) no(battle.free(x, y), 'занято: ' + x + ',' + y);
   const hidden = walker(battle, 4, 1e6), open = walker(battle, 7, 1e6);
   for (const mob of [hidden, open]) mob.holdUntil = 1e9;
   ok(battle._target(gun) === open, 'бьёт того, кого видит');

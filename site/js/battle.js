@@ -82,7 +82,7 @@ function routeOf(path) {
 const BODILESS = new Set(TERRAIN.bodiless);
 const GATE_SHIFT = 0.6;
 const SOLID = new Set(['mountain', 'tunnel']);
-const UNSAFE = new Set(['mountain', 'tunnel', 'lake']);
+const UNSAFE = new Set(['mountain', 'tunnel', 'lake', 'river']);
 
 function lineClear(solid, x0, y0, x1, y1) {
   const steps = Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 4), own = Math.floor(y0) * SIZE + Math.floor(x0);
@@ -118,6 +118,7 @@ export class Battle {
     this.branch = plan.branch || [];
     this.merge = this.branch.length ? plan.merge : -1;
     this.tiles = plan.tiles || null;
+    this.rivers = plan.rivers || [];
     this.biome = plan.biome || 'grass';
     this.rules = BIOME_RULES[this.biome];
     this.road = this.path.concat(this.branch);

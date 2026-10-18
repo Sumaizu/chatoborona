@@ -7,6 +7,7 @@ const STEPS_MAX = 36;
 const BUDGET = 4000;
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const FORK = { min: 3, good: 5, max: 9 };
+const RIVER = { chance: 0.65, bridge: 6, length: 10, bridges: 3 };
 const TERRAIN = { tunnel: 0.6, patches: [['mountain', [1, 2], 4, 7], ['lake', [1, 2], 3, 6]], hills: [2, 3, 2, 4],
   spots: 120 };
 export const BIOMES = ['grass', 'volcano', 'swamp', 'snow', 'desert', 'graveyard'];
@@ -170,6 +171,84 @@ function around(at, each) {
   }
 }
 
+function axes(path, branch) {
+  const axis = new Map();
+  for (const route of [path, branch]) {
+    route.forEach(([x, y], i) => {
+      const a = route[i - 1], b = route[i + 1], at = y * SIZE + x;
+      if (!a || !b || axis.has(at)) {
+        axis.set(at, '');
+        return;
+      }
+      axis.set(at, a[1] === y && b[1] === y ? 'x' : a[0] === x && b[0] === x ? 'y' : '');
+    });
+  }
+  return axis;
+}
+
+function riverOf(tiles, road, axis, calm, random) {
+  const side = Math.floor(random() * 4), edge = (at, s) => {
+    const x = at % SIZE, y = Math.floor(at / SIZE);
+    return [y === 0, y === SIZE - 1, x === 0, x === SIZE - 1][s];
+  };
+  const flows = (at) => !road.has(at) && calm(at) && (!tiles[at] || tiles[at] === 'lake');
+  const starts = [];
+  for (let at = 0; at < SIZE * SIZE; at++) if (edge(at, side) && flows(at)) starts.push(at);
+  if (!starts.length) return null;
+  const weight = Array.from({ length: SIZE * SIZE }, () => 1 + random() * 3);
+  const cost = new Float64Array(SIZE * SIZE).fill(Infinity), from = new Int32Array(SIZE * SIZE).fill(-1);
+  const over = new Int32Array(SIZE * SIZE).fill(-1), done = new Uint8Array(SIZE * SIZE);
+  const start = starts[Math.floor(random() * starts.length)];
+  cost[start] = 0;
+  for (;;) {
+    let at = -1;
+    for (let i = 0; i < SIZE * SIZE; i++) {
+      if (!done[i] && cost[i] < Infinity && (at < 0 || cost[i] < cost[at])) at = i;
+    }
+    if (at < 0) break;
+    done[at] = 1;
+    const x = at % SIZE, y = Math.floor(at / SIZE);
+    for (const [dx, dy] of DIRS) {
+      let nx = x + dx, ny = y + dy, bridge = -1, extra = 0;
+      if (!inside(nx, ny)) continue;
+      if (road.has(ny * SIZE + nx)) {
+        const cross = ny * SIZE + nx;
+        if (axis.get(cross) !== (dx ? 'y' : 'x') || tiles[cross]) continue;
+        bridge = cross;
+        nx += dx;
+        ny += dy;
+        extra = RIVER.bridge;
+        if (!inside(nx, ny)) continue;
+      }
+      const next = ny * SIZE + nx;
+      if (done[next] || !flows(next)) continue;
+      const value = cost[at] + weight[next] + extra;
+      if (value < cost[next]) {
+        cost[next] = value;
+        from[next] = at;
+        over[next] = bridge;
+      }
+    }
+  }
+  const opposite = [1, 0, 3, 2][side];
+  let end = -1;
+  for (let at = 0; at < SIZE * SIZE; at++) {
+    if (edge(at, opposite) && cost[at] < Infinity && (end < 0 || cost[at] < cost[end])) end = at;
+  }
+  if (end < 0) return null;
+  const cells = [], bridges = [];
+  for (let at = end; at >= 0; at = from[at]) {
+    cells.push(at);
+    if (over[at] >= 0) {
+      cells.push(over[at]);
+      bridges.push(over[at]);
+    }
+  }
+  cells.reverse();
+  if (cells.length < RIVER.length || bridges.length > RIVER.bridges) return null;
+  return { cells, bridges };
+}
+
 function terrain(path, branch, merge, random) {
   const tiles = new Array(SIZE * SIZE).fill(''), road = new Set(path.concat(branch).map(([x, y]) => y * SIZE + x));
   const heart = path[path.length - 1], near = new Set();
@@ -206,12 +285,21 @@ function terrain(path, branch, merge, random) {
       if (cells.length) grow(tiles, pick(cells), low + Math.floor(random() * (high - low + 1)), kind, open, random);
     }
   }
+  const rivers = [];
+  if (random() < RIVER.chance) {
+    const river = riverOf(tiles, road, axes(path, branch), calm, random);
+    if (river) {
+      for (const at of river.cells) if (!road.has(at) && tiles[at] !== 'lake') tiles[at] = 'river';
+      for (const at of river.bridges) tiles[at] = 'bridge';
+      rivers.push(river.cells.map((at) => [at % SIZE, Math.floor(at / SIZE)]));
+    }
+  }
   const [fewest, most, low, high] = TERRAIN.hills, count = fewest + Math.floor(random() * (most - fewest + 1));
   for (let n = 0; n < count; n++) {
     const seeds = free().filter((at) => near.has(at));
     if (seeds.length) grow(tiles, pick(seeds), low + Math.floor(random() * (high - low + 1)), 'hill', open, random);
   }
-  return tiles;
+  return { tiles, rivers };
 }
 
 export function makeMap(random = Math.random) {
@@ -221,7 +309,7 @@ export function makeMap(random = Math.random) {
     if (!fork) continue;
     const path = expand(nodes), mergeCell = [nodes[fork.at][0] * 2 + 1, nodes[fork.at][1] * 2 + 1];
     const merge = path.findIndex(([x, y]) => x === mergeCell[0] && y === mergeCell[1]);
-    const branch = forkCells(fork, nodes[fork.at]), tiles = terrain(path, branch, merge, random);
+    const branch = forkCells(fork, nodes[fork.at]), { tiles, rivers } = terrain(path, branch, merge, random);
     const spots = new Set();
     const road = new Set(path.concat(branch).map(([x, y]) => y * SIZE + x));
     road.forEach((at) => around(at, (next) => {
@@ -234,7 +322,7 @@ export function makeMap(random = Math.random) {
     flat.forEach(([x, y], at) => {
       turned[y * SIZE + x] = tiles[at];
     });
-    return { path: turn(path), branch: turn(branch), merge, tiles: turned, biome };
+    return { path: turn(path), branch: turn(branch), merge, tiles: turned, biome, rivers: rivers.map(turn) };
   }
 }
 

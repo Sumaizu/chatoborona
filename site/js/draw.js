@@ -747,17 +747,13 @@ export class Scene {
     for (const wall of battle.walls) {
       if (!this.built.has(wall)) this.built.set(wall, this.clock - (still ? RISE : 0));
       const rise = Math.min(1, (this.clock - this.built.get(wall)) / RISE);
-      const route = battle.routes[wall.r || 0];
-      const a = route[Math.max(0, wall.d - 1)], b = route[Math.min(route.length - 1, wall.d + 1)];
-      const turn = Math.atan2(b[0] - a[0], -(b[1] - a[1])), share = Math.max(0, wall.hp / wall.max);
-      const angle = Math.round(turn / (Math.PI / 2)) * (Math.PI / 2);
-      const image = wallSprite(share > 0.66 ? 0 : share > 0.33 ? 1 : 2), x = at(wall.x), y = at(wall.y);
+      const share = Math.max(0, wall.hp / wall.max), x = at(wall.x), y = at(wall.y);
+      const image = wallSprite(share > 0.66 ? 0 : share > 0.33 ? 1 : 2);
       ctx.fillStyle = 'rgba(0, 0, 0, .35)';
-      ctx.beginPath();
-      ctx.ellipse(x, y + 6, 17, 6, 0, 0, Math.PI * 2);
+      roundRect(ctx, x - 14, y + 6, 30, 9, 4);
       ctx.fill();
       ctx.globalAlpha = rise;
-      sprite(ctx, image, x, y + (1 - rise) * 10, angle);
+      sprite(ctx, image, x, y - 2 + (1 - rise) * 10, 0);
       ctx.globalAlpha = 1;
       if (share < 1) {
         ctx.fillStyle = '#15111d';

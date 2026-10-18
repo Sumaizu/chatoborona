@@ -36,7 +36,7 @@ export const PAGES = [
       [heartUrl(), ['Мобы выходят из ', bold('двух тоннелей'), ' в горах. Посередине дороги сливаются и дальше идут '
         + 'к сердцу вместе.']],
       [heroUrl('sniper'), [bold('Горы'), ' закрывают выстрел: за горой и в тоннеле моба не достать. С ',
-        bold('холма'), ' бьют на ' + cells(TERRAIN.hill) + ' дальше. На горы и в воду не встать.']],
+        bold('холма'), ' бьют на ' + cells(TERRAIN.hill) + ' дальше. На горы, в озёра и реки не встать.']],
       [heroUrl('frost'), ['Местность каждый раз случайная. ', bold(BIOME_RULES.grass.name), ' — обычная, ',
         bold(BIOME_RULES.volcano.name), ' — лёд слабее, ', bold(BIOME_RULES.snow.name), ' — огонь слабее.']],
       [mobUrl('bat'), [bold(BIOME_RULES.swamp.name), ' — ходячие мобы медленнее, но их больше. ',

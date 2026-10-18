@@ -85,30 +85,39 @@ export function drawNuke() {
   return m.paint();
 }
 
-const WALL_STONES = [
-  [6, 29, 5, 3.6, 3, 0], [15.5, 29.5, 5.2, 3.8, 3, 1], [25, 29, 5, 3.6, 3, 2], [34, 29.5, 4.6, 3.6, 3, 0],
-  [10.5, 23.5, 5, 3.4, 7, 2], [20.5, 23, 5.4, 3.6, 7.5, 0], [30, 23.5, 5, 3.4, 7, 1],
-  [6, 24.5, 3, 2.6, 6, 1], [35, 24.5, 3, 2.6, 6, 2],
-  [15, 17.5, 4.8, 3.2, 11, 1], [25, 17.5, 4.8, 3.2, 11, 0], [20, 13, 4, 2.6, 14, 2],
-];
-const WALL_TONES = ['#958a7a', '#8a7f70', '#a39886'];
+const WALL_TOP = '#b2a794';
+const WALL_FACE = '#83796b';
+const WALL_EDGE = '#bdb3a0';
 
 export function drawWall(stage) {
-  const m = new Model(40, 1), kept = stage >= 2 ? 7 : WALL_STONES.length;
-  m.egg(20, 31, 0, 18, 4, 2, '#5c564d');
-  WALL_STONES.slice(0, kept).forEach(([x, y, rx, ry, z, tone]) => m.egg(x, y, z, rx, ry, 3.2, WALL_TONES[tone], 0.15));
-  if (stage >= 2) {
-    for (const [x, y] of [[4, 34], [13, 35], [30, 34.5], [37, 33]]) m.egg(x, y, 1, 2.4, 1.6, 1.4, WALL_TONES[1]);
+  const m = new Model(36, 1), broken = stage >= 2;
+  m.egg(18, 28, 0, 15.5, 5.5, 2, '#5c564d');
+  [[30.5, 2, 0], [26.5, 5, 1], [22.5, 8, 0]].forEach(([y, z, shift]) => {
+    for (let x = 4 + shift * 3.5; x < 33; x += 7) {
+      m.egg(Math.min(31.5, x + 3), y, z, 3.4, 1.9, 1.6, (x + y) % 3 < 1.5 ? WALL_FACE : '#8b8172', 0.1);
+    }
+  });
+  for (const [x, y] of [[11, 12.5], [25, 12.5], [11, 17.5], [25, 17.5]]) {
+    m.egg(x, y, 10, 7.6, 3.6, 1.4, broken ? '#a39885' : WALL_TOP, 0.1);
   }
-  const cracks = [[[19, 20], [21, 22], [20, 25]], [[9, 26], [11, 28], [10, 31]], [[27, 27], [29, 29], [28, 32]]];
-  for (const line of cracks.slice(0, stage + stage % 2)) {
+  for (let k = 0; k <= 24; k++) m.dot(6 + k, 15, '#8f8574', 13);
+  for (const x of [12, 24]) for (let y = 10; y <= 20; y++) m.dot(x + (y > 15 ? 2 : 0), y, '#8f8574', 13);
+  const rim = [];
+  for (let x = 5; x <= 31; x += 4.33) rim.push([x, 8.6], [x, 21.2]);
+  for (let y = 12.8; y <= 17.5; y += 4.2) rim.push([4.6, y], [31.4, y]);
+  rim.forEach(([x, y], k) => {
+    if (broken && k % 3) return;
+    m.egg(x, y, k % 2 ? 12 : 13.5, 2.1, 1.7, 2.6, WALL_EDGE, 0.2);
+  });
+  const cracks = [[[17, 11], [19, 13], [18, 15]], [[12, 23], [13, 25], [12, 27]], [[25, 27], [26, 29], [25, 31]],
+    [[27, 17], [25, 19]]];
+  for (const line of cracks.slice(0, stage * 2)) {
     for (let k = 0; k + 1 < line.length; k++) {
       const [x0, y0] = line[k], [x1, y1] = line[k + 1], steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
       for (let t = 0; t <= steps; t++) m.dot(x0 + (x1 - x0) * t / steps, y0 + (y1 - y0) * t / steps, '#2b2620');
     }
   }
-  for (const [x, y] of [[13, 15], [14, 15], [27, 15.5], [19, 11], [22, 20.5], [33, 22]].slice(0, stage >= 2 ? 0 : 6)) {
-    m.dot(x, y, '#6f8a3e');
-  }
+  if (broken) for (const [x, y] of [[3, 32], [11, 33.5], [26, 33], [33, 31.5]]) m.egg(x, y, 1, 2, 1.4, 1.2, WALL_FACE);
+  else for (const [x, y] of [[8, 13], [9, 13], [28, 18], [17, 20.5]]) m.dot(x, y, '#6f8a3e', 30);
   return m.paint();
 }

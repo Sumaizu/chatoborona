@@ -74,7 +74,7 @@ test('карта: мобы выходят из гор — первые клет�
       ok([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => tiles[key([start[1][0] + dx, start[1][1] + dy])]
         === 'mountain'), 'у входа гора');
     }
-    for (const cell of path.concat(branch)) ok(['', 'tunnel'].includes(tiles[key(cell)]), 'дорога свободна');
+    for (const cell of path.concat(branch)) ok(['', 'tunnel', 'bridge'].includes(tiles[key(cell)]), 'дорога свободна');
     const road = new Set(path.concat(branch).map(key)), hills = [];
     tiles.forEach((tile, at) => {
       if (tile === 'hill') hills.push(at);
@@ -242,4 +242,29 @@ test('настройки: по умолчанию, границы, адрес т
   const s = clean({ channel: 'someone', lobby: 60, chat: false });
   eq(toQuery(s), 'channel=someone&lobby=60&chat=0');
   eq(fromQuery('?' + toQuery(s)), s);
+});
+
+test('карта: река течёт от края до края, дорогу пересекает только мостом поперёк прямого участка', () => {
+  let seen = 0;
+  for (let seed = 1; seed <= 40; seed++) {
+    const { path, branch, tiles, rivers } = makeMap(seeded(seed)), road = new Set(path.concat(branch).map(key));
+    for (const river of rivers) {
+      seen += 1;
+      ok(river.length >= 10 && edge(river[0]) && edge(river[river.length - 1]), 'от края до края');
+      river.forEach((cell, i) => {
+        if (i) ok(touching(cell, river[i - 1]), 'река непрерывна');
+        const tile = tiles[key(cell)];
+        if (road.has(key(cell))) {
+          eq(tile, 'bridge', 'на дороге — мост');
+          const [a, b] = [river[i - 1], river[i + 1]];
+          ok(a && b && !road.has(key(a)) && !road.has(key(b)) && a[0] - cell[0] === cell[0] - b[0]
+            && a[1] - cell[1] === cell[1] - b[1], 'мост поперёк, река прямо под ним');
+        } else ok(['river', 'lake'].includes(tile), 'вода: ' + tile);
+      });
+    }
+    tiles.forEach((tile, at) => {
+      if (tile === 'bridge') ok(road.has(at), 'мост — только на дороге');
+    });
+  }
+  ok(seen >= 15, 'реки бывают часто: ' + seen);
 });

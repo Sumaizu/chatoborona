@@ -409,14 +409,11 @@ body {
 .profile .lvl {
   flex: none; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
-.profile .marks {
-  flex: none; margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 13px;
-}
+.profile .top .coins { margin-left: auto; }
+.profile .marks { display: flex; align-items: center; gap: 12px; margin: 1px 0 3px; font-size: 13px; min-width: 0; }
 .mark { display: inline-flex; align-items: center; gap: 3px; font-weight: 800; color: #d6d2e6; white-space: nowrap; }
 .mark[hidden] { display: none; }
 .mark img { width: 13px; height: 13px; image-rendering: pixelated; }
-.profile .bar { height: 5px; border-radius: 3px; background: var(--empty); overflow: hidden; margin: 2px 0 3px; }
-.profile .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .4s; }
 .profile .body, .profile .gear-box { grid-column: 1 / -1; }
 .profile .line { margin-top: 2px; font-size: 12px; line-height: 15px; color: var(--muted); }
 .profile .line b { color: var(--ink); font-weight: 700; }

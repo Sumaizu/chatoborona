@@ -4,7 +4,7 @@ import { coinUrl, crownUrl, effectUrl, heroUrl, markUrl, prizeUrl, shieldUrl } f
 import { OUTCOMES, PRICE, RARITIES, SPIN_TIME, UPGRADE_PRICE, amountText, outcomeOf, rarityOf, statName, statText,
   uniqueOf, weaponName } from './gacha.js';
 import { effectOf } from './events.js';
-import { BIOME_RULES, LEVEL_MAX, LIVES, levelOf, tierOf, towerBase, xpForLevel } from './balance.js';
+import { BIOME_RULES, LEVEL_MAX, LIVES, levelOf, tierOf, towerBase } from './balance.js';
 import { SIZE, cellName } from './field.js';
 import { SFX_GAPS, play } from './sound.js';
 import { PAGES, pageAt } from './guide.js';
@@ -899,16 +899,14 @@ export class View {
 
   _profileCard(member) {
     const node = el('div', 'note profile'), top = el('div', 'top'), lvl = el('span', 'lvl');
-    const coins = this._coins(0), bar = el('div', 'bar'), fill = el('i'), body = el('div', 'body');
-    const gear = el('div', 'gear-box'), marks = el('span', 'marks'), spot = el('span', 'mark');
-    const reach = el('span', 'mark'), spotText = el('span'), reachText = el('span');
+    const coins = this._coins(0), body = el('div', 'body'), gear = el('div', 'gear-box'), marks = el('div', 'marks');
+    const spot = el('span', 'mark'), reach = el('span', 'mark'), spotText = el('span'), reachText = el('span');
     spot.append(image(markUrl('spot')), spotText);
     reach.append(image(markUrl('reach')), reachText);
-    marks.append(spot, reach, coins);
-    top.append(this._starName(member.name, member.star, member.color, 'nick'), lvl, marks);
-    bar.append(fill);
+    marks.append(lvl, spot, reach);
+    top.append(this._starName(member.name, member.star, member.color, 'nick'), coins);
     const face = image(heroUrl(member.cls, 64));
-    node.append(face, top, bar, body, gear);
+    node.append(face, top, marks, body, gear);
     const state = { level: 0, cls: '', gear: null, brief: null };
     return {
       node,
@@ -918,13 +916,10 @@ export class View {
         spot.hidden = !seat;
         spotText.textContent = seat ? cellName(Math.floor(seat.x), Math.floor(seat.y)) : '';
         reachText.textContent = num(reachOf(m));
-        const level = levelOf(m.xp), from = xpForLevel(level);
-        const to = level >= LEVEL_MAX ? from + 1 : xpForLevel(level + 1);
+        const level = levelOf(m.xp);
         lvl.textContent = '';
         lvl.append(levelTag('', level, 'ур. '));
         coins.querySelector('.sum').textContent = String(Math.floor(m.coins));
-        const progress = level >= LEVEL_MAX ? 100 : Math.floor((m.xp - from) / (to - from) * 100);
-        fill.style.width = progress + '%';
         if (state.level !== level || state.cls !== m.cls || state.brief !== brief) {
           state.level = level;
           state.cls = m.cls;
