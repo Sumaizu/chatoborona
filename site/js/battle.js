@@ -71,6 +71,19 @@ const UNIQUE = {
   scholar: { xp: 0.6 },
 };
 
+function bendsOf(route) {
+  const turns = [], bends = new Map();
+  for (let i = 1; i < route.length - 1; i++) {
+    const [a, b, c] = [route[i - 1], route[i], route[i + 1]];
+    if ((b[0] - a[0]) * (c[1] - b[1]) !== (b[1] - a[1]) * (c[0] - b[0])) turns.push(i);
+  }
+  turns.forEach((i, k) => {
+    const before = k ? i - turns[k - 1] : i, after = k + 1 < turns.length ? turns[k + 1] - i : route.length - 1 - i;
+    bends.set(i, Math.min(BEND, before / 2, after / 2));
+  });
+  return bends;
+}
+
 function routeOf(path) {
   const first = path[0], second = path[1] || first;
   const last = path[path.length - 1], before = path[path.length - 2] || last;
@@ -81,6 +94,8 @@ function routeOf(path) {
 
 const BODILESS = new Set(TERRAIN.bodiless);
 const GATE_SHIFT = 0.6;
+const BEND = 0.9;
+const JOIN_FADE = 6;
 const SOLID = new Set(['mountain', 'tunnel']);
 const UNSAFE = new Set(['mountain', 'tunnel', 'lake', 'river']);
 
@@ -128,6 +143,7 @@ export class Battle {
     this.length = this.route.length - 1;
     this.joinAt = this.branch.length + 1;
     this.joinShift = this.merge - this.branch.length;
+    this.bends = this.routes.map((route, r) => bendsOf(r ? route.slice(0, -1) : route));
     this.blocked = pathCells(this.road);
     this.solid = null;
     this.sight = null;
@@ -465,7 +481,8 @@ export class Battle {
       y: 0, speed: WAVE.speed * info.speed * Math.max(FLOOR, 1 + this.foe.speed) * ((shape && shape.flying
         ? this.rules.air : this.rules.ground) || 1), slow: 0, slowUntil: 0, chill: 0,
       brittle: 0, corrode: 0, mark: 0, markUntil: 0, holdUntil: 0, holdFree: 0, holdBy: '', pushed: 0, poison: null,
-      burn: null, helpers: new Set(), last: null, dead: false, biting: 0, wall: null, fury: 0,
+      burn: null, helpers: new Set(), last: null, dead: false, biting: 0, wall: null, fury: 0, sx: 0, sy: 0,
+      placed: false,
     };
     this._locate(mob);
     this.mobs.push(mob);
@@ -650,12 +667,34 @@ export class Battle {
   }
 
   _locate(mob) {
+    const was = mob.placed ? [mob.x, mob.y] : null;
     if (mob.r && mob.d >= this.joinAt) {
       mob.r = 0;
       mob.d += this.joinShift;
-    }
-    const route = this.routes[mob.r], length = route.length - 1;
+      this._onRoute(mob);
+      if (was) {
+        mob.sx = was[0] - mob.x;
+        mob.sy = was[1] - mob.y;
+      }
+    } else this._onRoute(mob);
+    mob.placed = true;
+    mob.x += mob.sx;
+    mob.y += mob.sy;
+  }
+
+  _onRoute(mob) {
+    const route = this.routes[mob.r], length = route.length - 1, bends = this.bends[mob.r];
     const d = Math.max(0, Math.min(length, mob.d)), i = Math.min(length - 1, Math.floor(d)), f = d - i;
+    for (const k of [i, i + 1]) {
+      const bend = bends.get(k);
+      if (!bend || Math.abs(d - k) >= bend) continue;
+      const [a, p, c] = [route[k - 1], route[k], route[k + 1]], t = (d - k + bend) / (bend * 2);
+      const from = [p[0] - (p[0] - a[0]) * bend, p[1] - (p[1] - a[1]) * bend];
+      const to = [p[0] + (c[0] - p[0]) * bend, p[1] + (c[1] - p[1]) * bend];
+      mob.x = (1 - t) * (1 - t) * from[0] + 2 * (1 - t) * t * p[0] + t * t * to[0];
+      mob.y = (1 - t) * (1 - t) * from[1] + 2 * (1 - t) * t * p[1] + t * t * to[1];
+      return;
+    }
     const a = route[i], b = route[i + 1];
     mob.x = a[0] + (b[0] - a[0]) * f;
     mob.y = a[1] + (b[1] - a[1]) * f;
@@ -1013,6 +1052,11 @@ export class Battle {
         }
       }
       mob.d = Math.min(next, stop);
+      if (mob.sx || mob.sy) {
+        const fade = Math.exp(-dt * JOIN_FADE);
+        mob.sx = Math.abs(mob.sx) < 0.01 ? 0 : mob.sx * fade;
+        mob.sy = Math.abs(mob.sy) < 0.01 ? 0 : mob.sy * fade;
+      }
       this._locate(mob);
       if (mob.thief) this._steal(mob);
       if (mob.d >= stop && (mob.treasure || mob.fake)) {

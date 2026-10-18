@@ -1177,3 +1177,40 @@ test('паразит: на одном мобе только один — вто�
   battle.step(TICK);
   ok(second.host === fresh, 'появился свободный — прыгнул');
 });
+
+test('карта: на повороте моб идёт по дуге, как нарисована дорога, а не срезает угол клетки', () => {
+  const corner = Array.from({ length: 8 }, (_, x) => [x, 5]).concat(Array.from({ length: 8 }, (_, y) => [7, y + 6]));
+  const battle = makeBattle({ path: corner }), mob = walker(battle, 1, 1e6);
+  const at = (d) => {
+    mob.d = d;
+    battle._locate(mob);
+    return [mob.x, mob.y];
+  };
+  const [x, y] = at(8);
+  ok(Math.hypot(x - 7.5, y - 5.5) > 0.25, 'в углу клетки его нет: ' + [x, y]);
+  ok(x < 7.5 && y > 5.5, 'проходит внутри поворота');
+  const before = at(6.5), after = at(9.5);
+  eq([before[1], after[0]], [5.5, 7.5], 'на прямых — по центру дороги');
+  let jump = 0, last = at(6);
+  for (let d = 6.05; d <= 10; d += 0.05) {
+    const next = at(d);
+    jump = Math.max(jump, Math.hypot(next[0] - last[0], next[1] - last[1]));
+    last = next;
+  }
+  ok(jump < 0.08, 'без рывков: ' + jump);
+});
+
+test('карта: моб второго входа вливается в главную дорогу на повороте без рывка', () => {
+  const path = Array.from({ length: 11 }, (_, x) => [x, 5]).concat(Array.from({ length: 10 }, (_, y) => [10, y + 6]));
+  const battle = new Battle({ path, branch: FORK, merge: 10, tiles: new Array(SIZE * SIZE).fill(''), biome: 'grass' },
+    { random: seeded(7) });
+  const mob = battle._spawn({ type: 'normal', hp: 1e6 }, 3, 1);
+  let last = [mob.x, mob.y], jump = 0;
+  for (let i = 0; i < 200; i++) {
+    battle.step(TICK);
+    jump = Math.max(jump, Math.hypot(mob.x - last[0], mob.y - last[1]));
+    last = [mob.x, mob.y];
+  }
+  eq(mob.r, 0, 'перешёл на главную');
+  ok(jump < 0.15, 'шаг за кадр без скачка: ' + jump.toFixed(3));
+});
