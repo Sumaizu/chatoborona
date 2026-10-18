@@ -1,8 +1,10 @@
 import { Scene } from './draw.js';
 import { CLASSES, CLASS_BY_ID, ROLES, describe, num } from './classes.js';
-import { coinUrl, crownUrl, effectUrl, heroUrl, markUrl, prizeUrl, shieldUrl } from './sprites.js';
-import { OUTCOMES, PRICE, RARITIES, SPIN_TIME, UPGRADE_PRICE, amountText, gearColor, outcomeOf, rarityOf, statName,
-  statText, uniqueOf, weaponName } from './gacha.js';
+import { coinUrl, crownUrl, effectUrl, flagCanvas, flagUrl, heroUrl, markUrl, particleSprite, particleUrl, prizeUrl,
+  shieldUrl } from './sprites.js';
+import { DIVINE, OUTCOMES, PRICE, RARITIES, SPIN_TIME, UPGRADE_PRICE, amountText, gearColor, outcomeOf, rarityOf,
+  statName, statText, uniqueFor, uniqueText, weaponName, weaponTitle } from './gacha.js';
+import { ASCEND_TIME } from './engine.js';
 import { effectOf } from './events.js';
 import { BIOME_RULES, LEVEL_MAX, LIVES, levelOf, tierOf, towerBase } from './balance.js';
 import { SIZE, cellName } from './field.js';
@@ -16,11 +18,18 @@ const NAME_TIME = 6;
 const RANGE_TIME = 30;
 const HERALD_TIME = 10;
 const CHEER_TIME = 7;
+const DIVINE_TIME = 20;
 const CONFETTI = ['#ff6b6b', '#ffd43b', '#69db7c', '#4dabf7', '#da77f2', '#ffa94d', '#ffffff'];
+const EMBERS = ['#ff2e4d', '#ff8fa3', '#ffd38a', '#ffffff', '#ff5c7c'];
+const GOLD = ['#ffcd38', '#fff2a8', '#ffe08a', '#ffffff', '#ff8fa3', '#f5b82e'];
+const ASCEND_CUES = [[0, 'summon'], [0.8, 'charge'], [2.4, 'merge'], [2.9, 'flash'], [3.3, 'flash'], [3.6, 'quake'],
+  [4.6, 'flip'], [5.1, 'drop'], [6.4, 'paragon']];
+const FLASHES = [[2.4, 1], [2.9, 0.7], [3.3, 0.85]];
+const BOARD_SIZE = 640;
 const BIOME_GLOW = { grass: '#4ade80', volcano: '#fb923c', swamp: '#a3e635', snow: '#bae6fd', desert: '#fbbf24',
   graveyard: '#c4b5fd' };
-const MAP_TIPS = 'Мобы выходят из двух тоннелей. Горы закрывают выстрел, с холмов бьют дальше, '
-  + 'на горы и в воду не встать'
+const MAP_TIPS = 'Мобы выходят из двух тоннелей. Горы закрывают выстрел, с холмов бьют дальше, с вышки — ещё '
+  + 'дальше и поверх гор; на горы и в воду не встать'
 const LOW_LIVES = 5;
 const BOSS_EVERY = 10;
 const FINAL_SECONDS = 3;
@@ -28,8 +37,9 @@ const ROWS = { over: 5, roster: 30, pause: 10, pauseShort: 8, queue: 3, cards: 4
 const CARD_GAP = 6;
 const REEL = { cells: 26, result: 21, width: 34 };
 const BIG_PRIZES = new Set(['epic', 'legendary']);
-const CYCLES = new Map([['rainbow', 2400]]);
-const SOUND_PRIORITY = ['over', 'win', 'boss', 'wave', 'jackpot', 'prize', 'upgrade', 'reward', 'meh', 'void', 'level',
+const CYCLES = new Map([['rainbow', 2400], ['snow-glint', 6000]]);
+const SOUND_PRIORITY = ['over', 'divine', 'relic', 'win', 'boss', 'wave', 'jackpot', 'prize', 'upgrade', 'reward',
+  'meh', 'void', 'level',
   'buff', 'debuff', 'spin', 'leak', 'card', 'tick'];
 const SFX_PER_FRAME = 4;
 const SHOTS = { sniper: 'crack', gunner: 'gun', bomber: 'launch', hunter: 'bolt', healer: 'holy', parasite: 'bite' };
@@ -47,6 +57,7 @@ const STATUS = {
   placing: 'Подготовка',
   break: 'Подготовка',
   over: 'Оборона пала',
+  ascend: 'Парагон!',
 };
 const RULES = [
   ['Напиши что угодно', '— и ты в отряде'],
@@ -102,6 +113,20 @@ function reachOf(member) {
   if (cls.role === 'support' && p.aura) return p.aura;
   return tower ? tower.range : p.range || towerBase(level).range;
 }
+
+function paragonTag(paragon) {
+  const node = el('span', 'paragon');
+  node.append(image(flagUrl(), 'flag'), el('b', '', String(paragon)));
+  return node;
+}
+
+const clamp01 = (value) => Math.max(0, Math.min(1, value));
+const span = (t, from, to) => clamp01((t - from) / (to - from));
+const easeOut = (value) => 1 - Math.pow(1 - clamp01(value), 3);
+const easeBack = (value) => {
+  const v = clamp01(value) - 1;
+  return 1 + 2.7 * v * v * v + 1.7 * v * v;
+};
 
 function levelTag(className, level, prefix = '') {
   const top = level >= LEVEL_MAX, node = el('span', className + (top ? ' crown-slot' : ''));
@@ -161,10 +186,19 @@ const PRIZES = OUTCOMES.concat(RARITIES);
 const prizeOf = (outcome) => (outcome.kind === 'weapon' ? rarityOf(outcome.weapon.rarity) : outcomeOf(outcome.kind));
 
 function uniqueLine(weapon) {
-  const unique = weapon.unique ? uniqueOf(weapon.unique) : null;
+  const divine = weapon.rarity === DIVINE.id, unique = weapon.unique ? uniqueFor(weapon.unique, divine) : null;
   if (!unique) return null;
-  const line = el('div', 'unique');
-  line.append(el('b', '', '★ ' + unique.name), ': ' + unique.text);
+  const line = el('div', 'unique' + (divine ? ' divine' : ''));
+  line.append(el('b', '', '★ ' + unique.name), ': ' + uniqueText(unique));
+  return line;
+}
+
+function gearLine(weapon) {
+  const line = el('div', 'gear'), name = el('b', '', weaponTitle(weapon));
+  name.style.color = rarityOf(weapon.rarity).color;
+  line.append(name, statLine(weapon, weapon.cls));
+  const unique = uniqueLine(weapon);
+  if (unique) line.append(unique);
   return line;
 }
 
@@ -190,6 +224,8 @@ export class View {
     this._mapSeen = null;
     this._cheers = [];
     this._cheer = null;
+    this._bits = [];
+    this._ascend = null;
     this._slots = [];
     this._cards = new Map();
     this._cardTall = 0;
@@ -262,8 +298,10 @@ export class View {
       { names, highlight: this._lit(game), still, ranges });
     for (const event of fresh) this._battleEvent(event);
     if (this.scene.impacts) this._sound('hit');
+    this._paintCheer(dt, game);
     this._paintHerald(dt);
-    this._paintCheer(dt);
+    this._paintAscend(game, dt, still);
+    this._paintConfetti(dt);
     this._turnReels(game);
     this._paintIn -= dt;
     if (this._paintIn <= 0 || still) {
@@ -347,6 +385,17 @@ export class View {
       if (event.kind === 'kept') this._cue('meh');
       if (event.kind === 'void') this._cue('void');
       if (event.kind === 'jackpot') this._cue('jackpot');
+      if (event.kind === 'particle') {
+        this._cue('relic');
+        this._names.set(event.login, NAME_TIME);
+      }
+      if (event.kind === 'divine') {
+        const member = game.members.get(event.login);
+        if (member && member.weapon) {
+          this._cheers.push({ kind: 'divine', player: member, weapon: JSON.parse(JSON.stringify(member.weapon)) });
+        }
+        this._cue('divine');
+      }
       if (event.kind === 'upgraded') {
         this._cue('upgrade');
         this._names.set(event.login, NAME_TIME);
@@ -374,7 +423,7 @@ export class View {
     if (kind === 'level') {
       this._cue(event.level >= LEVEL_MAX ? 'win' : 'level');
       this._names.set(event.tower.player.login, NAME_TIME);
-      if (event.level >= LEVEL_MAX) this._cheers.push(event.tower.player);
+      if (event.level >= LEVEL_MAX) this._cheers.push({ kind: 'top', player: event.tower.player });
     } else if (kind === 'leak') {
       this._cue('leak');
     } else if (kind === 'shot') {
@@ -443,6 +492,11 @@ export class View {
       box.hidden = true;
       return;
     }
+    if (this._cheer) {
+      box.hidden = true;
+      this._keys.herald = '';
+      return;
+    }
     this._once('herald', herald.id || String(herald.mob.id), () => {
       const mob = herald.mob || { y: SIZE / 2 };
       box.hidden = false;
@@ -457,38 +511,54 @@ export class View {
     });
   }
 
-  _paintCheer(dt) {
-    const box = $('cheer');
-    if (!this._cheer && this._cheers.length) {
-      const player = this._cheers.shift(), card = $('cheer-box');
-      this._cheer = { left: CHEER_TIME, bits: [] };
+  _paintCheer(dt, game) {
+    if (!this._cheer && this._cheers.length && game.state !== 'ascend') {
+      const show = this._cheers.shift(), player = show.player, card = $('cheer-box'), divine = show.kind === 'divine';
+      this._cheer = { left: divine ? DIVINE_TIME : CHEER_TIME };
       card.textContent = '';
-      card.append(image(crownUrl(), 'crown-big'), image(heroUrl(player.cls, 96), 'face'), el('h2', '', '100 уровень!'),
-        this._starName(player.name, player.star, player.color, 'who'),
-        el('span', 'wish', 'Поздравляем! Это самый высокий уровень в игре'));
+      card.className = 'cheer-box' + (divine ? ' divine' : '');
+      if (divine) {
+        card.append(image(particleUrl(56), 'relic-big'), image(heroUrl(player.cls, 96), 'face'),
+          el('h2', '', 'Божественное оружие!'), this._starName(player.name, player.star, player.color, 'who'),
+          el('span', 'wish', 'улучшает оружие до +30 — оно становится божественным'), gearLine(show.weapon));
+      } else {
+        card.append(image(crownUrl(), 'crown-big'), image(heroUrl(player.cls, 96), 'face'),
+          el('h2', '', '100 уровень!'), this._starName(player.name, player.star, player.color, 'who'),
+          el('span', 'wish', 'Поздравляем! Это самый высокий уровень в игре'));
+      }
       card.style.animation = 'none';
       void card.offsetWidth;
       card.style.animation = '';
-      for (let i = 0; i < 160; i++) {
-        const side = i % 2 ? 1 : -1, cannon = i < 90;
-        this._cheer.bits.push({
-          x: cannon ? (side < 0 ? 20 : 620) : Math.random() * 640, y: cannon ? 350 : -Math.random() * 160,
-          vx: cannon ? -side * (60 + Math.random() * 140) : (Math.random() - 0.5) * 40,
-          vy: cannon ? -(180 + Math.random() * 160) : 40 + Math.random() * 60,
-          turn: Math.random() * 6, spin: (Math.random() - 0.5) * 12, flip: Math.random() * 6,
-          w: 3 + Math.random() * 3, h: 2 + Math.random() * 1.5, color: CONFETTI[i % CONFETTI.length],
-        });
-      }
+      this._burst(divine ? 110 : 160, divine ? EMBERS : CONFETTI, this._cheer.left);
     }
     const cheer = this._cheer;
-    box.hidden = !cheer;
     $('cheer-box').hidden = !cheer;
     if (!cheer) return;
     cheer.left -= dt;
+    if (cheer.left <= 0) this._cheer = null;
+  }
+
+  _burst(count, colors, life, x0 = null) {
+    for (let i = 0; i < count; i++) {
+      const side = i % 2 ? 1 : -1, cannon = i < count * 0.56, from = x0 === null ? (side < 0 ? 20 : 620) : x0;
+      this._bits.push({
+        x: cannon ? from : Math.random() * 640, y: cannon ? (x0 === null ? 350 : 120) : -Math.random() * 160,
+        vx: cannon ? (x0 === null ? -side : side) * (60 + Math.random() * 140) : (Math.random() - 0.5) * 40,
+        vy: cannon ? -(180 + Math.random() * 160) : 40 + Math.random() * 60,
+        turn: Math.random() * 6, spin: (Math.random() - 0.5) * 12, flip: Math.random() * 6,
+        w: 3 + Math.random() * 3, h: 2 + Math.random() * 1.5, color: colors[i % colors.length], left: life,
+      });
+    }
+  }
+
+  _paintConfetti(dt) {
+    const box = $('cheer');
+    box.hidden = !this._bits.length;
+    if (!this._bits.length) return;
     const canvas = $('confetti'), ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.globalAlpha = Math.max(0, Math.min(1, cheer.left));
-    for (const bit of cheer.bits) {
+    for (const bit of this._bits) {
+      bit.left -= dt;
       bit.vy += 140 * dt;
       bit.vx *= 1 - 0.8 * dt;
       bit.vy = Math.min(bit.vy, 90);
@@ -496,6 +566,7 @@ export class View {
       bit.y += bit.vy * dt;
       bit.turn += bit.spin * dt;
       bit.flip += 7 * dt;
+      ctx.globalAlpha = clamp01(bit.left);
       ctx.save();
       ctx.translate(bit.x, bit.y);
       ctx.rotate(bit.turn);
@@ -505,7 +576,89 @@ export class View {
       ctx.restore();
     }
     ctx.globalAlpha = 1;
-    if (cheer.left <= 0) this._cheer = null;
+    this._bits = this._bits.filter((bit) => bit.left > 0);
+    if (!this._bits.length) ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  _ascendView(ascent) {
+    const box = $('ascend');
+    box.textContent = '';
+    const hero = image(heroUrl(ascent.cls, 120), 'hero'), relic = image(particleSprite(17).toDataURL(), 'relic');
+    const pill = el('span', 'pill', 'ур. 100'), flash = el('div', 'flash'), flag = el('div', 'flag');
+    const older = el('b', 'old', ascent.from ? String(ascent.from) : ''), newer = el('b', 'new', String(ascent.to));
+    flag.append(flagCanvas(120, 165, 2), older, newer);
+    const who = el('div', 'who'), title = el('div', 'caption');
+    who.append(image(heroUrl(ascent.cls, 56)), this._starName(ascent.name, ascent.star, ascent.color, 'nick'));
+    title.append(el('b', '', 'Парагон ' + ascent.to + '!'), el('span', '', 'уровень снова первый — путь к сотому '
+      + 'начинается заново'));
+    box.append(el('div', 'glow'), hero, pill, relic, flag, who, title, flash);
+    return { key: ascent.index + ':' + ascent.login, hero, relic, pill, flash, flag, older, newer, who, title,
+      glow: box.firstChild, t: -1 };
+  }
+
+  _paintAscend(game, dt, still) {
+    const ascent = game.ascent, box = $('ascend');
+    box.hidden = !ascent;
+    if (!ascent) {
+      this._ascend = null;
+      return;
+    }
+    const key = ascent.index + ':' + ascent.login;
+    if (!this._ascend || this._ascend.key !== key) this._ascend = this._ascendView(ascent);
+    const view = this._ascend, t = ascent.t, before = view.t;
+    view.t = t;
+    if (!still) {
+      for (const [at, sound] of ASCEND_CUES) if (before < at && t >= at) this._sound(sound);
+      if (before < 6.4 && t >= 6.4) {
+        this._burst(170, GOLD, ASCEND_TIME - 6.4);
+        this._burst(60, GOLD, ASCEND_TIME - 6.4, 320);
+      }
+    }
+    const center = BOARD_SIZE / 2, fade = 1 - span(t, ASCEND_TIME - 0.6, ASCEND_TIME);
+    box.style.opacity = (easeOut(span(t, 0, 0.6)) * fade).toFixed(3);
+    const charge = span(t, 0.8, 2.4), merged = t >= 2.4, heroOut = span(t, 4.9, 5.4);
+    const heroScale = (0.4 + 0.6 * easeOut(span(t, 0, 0.6))) * (1 + 0.12 * Math.sin(Math.min(t, 4.6) * 9) * charge);
+    view.hero.style.opacity = (1 - heroOut).toFixed(3);
+    view.hero.style.transform = 'translate(' + (center - 60) + 'px, ' + (center - 110) + 'px) scale('
+      + heroScale.toFixed(3) + ')';
+    const shine = merged ? 26 - 14 * span(t, 2.4, 4.6) : 6 + 18 * charge;
+    view.hero.style.filter = 'drop-shadow(0 0 ' + shine.toFixed(1) + 'px ' + (merged ? '#ffd38a' : '#ff2e4d') + ')';
+    const path = easeOut(Math.pow(charge, 1.6)), angle = (1 - path) * 2.4;
+    const rx = center + Math.cos(angle) * 170 * (1 - path), ry = center - 50 - Math.sin(angle) * 120 * (1 - path);
+    view.relic.style.opacity = merged ? '0' : easeOut(span(t, 0.2, 0.7)).toFixed(3);
+    view.relic.style.transform = 'translate(' + (rx - 34).toFixed(1) + 'px, ' + (ry - 34).toFixed(1) + 'px) scale('
+      + (1 - 0.7 * path).toFixed(3) + ') rotate(' + (t * 160).toFixed(0) + 'deg)';
+    const shake = t >= 3.6 && t < 4.6 ? span(t, 3.6, 4.6) : 0;
+    const pop = t >= 4.6 ? 1 + 0.6 * (1 - easeOut(span(t, 4.6, 5))) : 1;
+    const jitter = Math.sin(t * 70) * 7 * shake, tilt = Math.sin(t * 53) * 6 * shake;
+    view.pill.textContent = t >= 4.6 ? 'ур. 1' : 'ур. 100';
+    view.pill.classList.toggle('fresh', t >= 4.6);
+    view.pill.style.opacity = (1 - heroOut).toFixed(3);
+    view.pill.style.transform = 'translate(-50%, 0) translate(' + (center + jitter).toFixed(1) + 'px, '
+      + (center + 20) + 'px) rotate(' + tilt.toFixed(1) + 'deg) scale(' + pop.toFixed(3) + ')';
+    const flashes = Math.max(0, ...FLASHES.map(([at, amp]) => amp * Math.exp(-Math.pow((t - at) / 0.13, 2))));
+    view.flash.style.opacity = flashes.toFixed(3);
+    view.glow.style.opacity = (0.5 + 0.5 * Math.max(charge, merged ? 1 : 0)).toFixed(3);
+    const drop = easeBack(span(t, 5.0, 5.8));
+    view.flag.style.opacity = t >= 5.0 ? '1' : '0';
+    view.flag.style.transform = 'translate(' + (center - 60) + 'px, ' + (-200 + 290 * drop).toFixed(1) + 'px)';
+    const flipOut = span(t, 6.4, 6.6), flipIn = span(t, 6.6, 6.8);
+    if (ascent.from) {
+      view.older.style.transform = 'rotateX(' + (90 * flipOut).toFixed(1) + 'deg)';
+      view.older.style.opacity = t < 6.6 ? '1' : '0';
+      view.newer.style.transform = 'rotateX(' + (-90 * (1 - flipIn)).toFixed(1) + 'deg)';
+      view.newer.style.opacity = t >= 6.6 ? '1' : '0';
+    } else {
+      const grow = easeBack(span(t, 6.4, 6.75));
+      view.older.style.opacity = '0';
+      view.newer.style.opacity = t >= 6.4 ? '1' : '0';
+      view.newer.style.transform = 'scale(' + grow.toFixed(3) + ')';
+    }
+    view.who.style.opacity = easeOut(span(t, 5.7, 6.2)).toFixed(3);
+    view.who.style.transform = 'translate(-50%, 0) translate(' + center + 'px, ' + (290 + 20 * (1 - easeOut(span(t,
+      5.7, 6.2)))).toFixed(1) + 'px)';
+    view.title.style.opacity = easeOut(span(t, 6.4, 6.9)).toFixed(3);
+    view.title.style.transform = 'translate(0, ' + (370 + 16 * (1 - easeOut(span(t, 6.4, 6.9)))).toFixed(1) + 'px)';
   }
 
   _once(id, key, paint) {
@@ -565,8 +718,9 @@ export class View {
     return node;
   }
 
-  _coins(amount) {
+  _coins(amount, relic = false) {
     const box = el('span', 'coins');
+    if (relic) box.append(image(particleUrl(), 'relic'));
     box.append(image(coinUrl()), el('span', 'sum', String(Math.floor(amount))));
     return box;
   }
@@ -575,14 +729,16 @@ export class View {
     $('lobby-clock').textContent = clockText(game.left);
     this._paintGuide(game, still);
     const members = Array.from(game.members.values());
-    const rosterKey = JSON.stringify(members.map((m) => [m.login, m.cls, levelOf(m.xp)]));
+    const rosterKey = JSON.stringify(members.map((m) => [m.login, m.cls, levelOf(m.xp), m.paragon]));
     this._once('roster', rosterKey, () => {
       const box = $('roster');
       box.textContent = '';
       if (!members.length) box.append(el('div', 'none', 'Пока никого — напиши что-нибудь в чат!'));
       for (const m of members.slice(0, ROWS.roster)) {
         const item = el('div', 'who' + (!still && !this._rosterSeen.has(m.login) ? ' pop' : ''));
-        item.append(image(heroUrl(m.cls)), this._starName(m.name, m.star), levelTag('lvl', levelOf(m.xp), 'ур. '));
+        item.append(image(heroUrl(m.cls)), this._starName(m.name, m.star));
+        if (m.paragon) item.append(paragonTag(m.paragon));
+        item.append(levelTag('lvl', levelOf(m.xp), 'ур. '));
         box.append(item);
         this._rosterSeen.add(m.login);
       }
@@ -655,8 +811,9 @@ export class View {
     rows.forEach((row, i) => {
       const member = this._game.members.get(row.login);
       const item = el('li', i === 0 ? 'first' : '');
-      item.append(el('span', 'place', i + 1), this._starName(row.name, member ? member.star : ''),
-        unit === 'ур. ' ? levelTag('points', row.value, unit) : el('span', 'points', unit + row.value));
+      item.append(el('span', 'place', i + 1), this._starName(row.name, member ? member.star : ''));
+      if (row.paragon) item.append(paragonTag(row.paragon));
+      item.append(unit === 'ур. ' ? levelTag('points', row.value, unit) : el('span', 'points', unit + row.value));
       list.append(item);
     });
   }
@@ -665,7 +822,8 @@ export class View {
     const people = new Map();
     for (const [login, entry] of game.profiles.data) people.set(login, Object.assign({ login }, entry));
     for (const m of game.members.values()) {
-      people.set(m.login, { login: m.login, name: m.name, xp: m.xp, kills: m.kills, assists: m.assists });
+      people.set(m.login, { login: m.login, name: m.name, xp: m.xp, kills: m.kills, assists: m.assists,
+        paragon: m.paragon });
     }
     return Array.from(people.values());
   }
@@ -674,7 +832,10 @@ export class View {
     const people = this._people(game);
     const best = (field, count) => people.filter((p) => p[field] > 0).sort((a, b) => b[field] - a[field]
       || (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1)).slice(0, count);
-    const top = best('xp', ROWS.pause).map((p) => ({ login: p.login, name: p.name, value: levelOf(p.xp) }));
+    const strength = (p) => (p.paragon || 0) * 1e9 + p.xp;
+    const top = people.filter((p) => strength(p) > 0).sort((a, b) => strength(b) - strength(a)
+      || (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1)).slice(0, ROWS.pause)
+      .map((p) => ({ login: p.login, name: p.name, value: levelOf(p.xp), paragon: p.paragon || 0 }));
     const kills = best('kills', ROWS.pauseShort).map((p) => ({ login: p.login, name: p.name, value: p.kills }));
     const assists = best('assists', ROWS.pauseShort).map((p) => ({ login: p.login, name: p.name, value: p.assists }));
     const record = game.profiles.best;
@@ -746,7 +907,8 @@ export class View {
       const name = member ? this._starName(member.name, member.star, member.color, 'nick') : el('span', '', slot.login);
       const kind = slot.outcome.kind;
       const verb = slot.phase === 'spin' ? ' крутит гачу…' : kind === 'void' ? ': пусто' : kind === 'coins'
-        ? ' возвращает вдвое' : slot.took ? ' надевает' : ' оставляет своё';
+        ? ' возвращает вдвое' : kind === 'particle' ? ' находит частицу бога!' : slot.took ? ' надевает'
+          : ' оставляет своё';
       view.who.append(name, verb);
       view.result.textContent = '';
       view.box.classList.toggle('shown', slot.phase !== 'spin');
@@ -755,7 +917,8 @@ export class View {
       if (kind !== 'weapon') {
         const prize = outcomeOf(kind), title = el('b', 'prize', prize.name);
         title.style.color = prize.color;
-        const what = kind === 'void' ? 'ничего не выпало — повезёт в другой раз'
+        const what = kind === 'void' ? 'ничего не выпало — повезёт в другой раз' : kind === 'particle'
+          ? 'навсегда, для парагона'
           : '+' + slot.coins + ' монет: потраченные ' + slot.coins / 2 + ' вернулись вдвое';
         view.result.append(title, el('div', 'now', what));
         return;
@@ -817,7 +980,7 @@ export class View {
     const two = members.length > rows, fit = two ? rows * 2 : rows;
     const shown = members.length > fit ? members.slice(0, fit - 1) : members;
     const key = JSON.stringify([fit, members.length, shown.map((m) => [m.login, m.cls, levelOf(m.xp),
-      Math.floor(m.coins), m.weapon ? m.weapon.rarity : ''])]);
+      Math.floor(m.coins), m.weapon ? m.weapon.rarity : '', m.paragon])]);
     $('players-count').textContent = members.length ? String(members.length) : '';
     this._once('players', key, () => {
       list.textContent = '';
@@ -827,7 +990,9 @@ export class View {
         const row = el('li'), level = levelTag('lvl', levelOf(m.xp), two ? '' : 'ур. ');
         if (levelOf(m.xp) < LEVEL_MAX || !two) level.style.background = gearColor(m.weapon);
         level.title = 'уровень';
-        row.append(image(heroUrl(m.cls), 'face'), this._starName(m.name, m.star, m.color), level, this._coins(m.coins));
+        row.append(image(heroUrl(m.cls), 'face'), this._starName(m.name, m.star, m.color));
+        if (m.paragon) row.append(paragonTag(m.paragon));
+        row.append(level, this._coins(m.coins));
         list.append(row);
       }
       const more = members.length - shown.length;
@@ -904,7 +1069,8 @@ export class View {
 
   _profileCard(member) {
     const node = el('div', 'note profile'), top = el('div', 'top'), lvl = el('span', 'lvl');
-    const coins = this._coins(0), body = el('div', 'body'), gear = el('div', 'gear-box'), marks = el('div', 'marks');
+    const coins = this._coins(0, true), relic = coins.querySelector('.relic'), body = el('div', 'body');
+    const gear = el('div', 'gear-box'), marks = el('div', 'marks');
     const spot = el('span', 'mark'), reach = el('span', 'mark'), spotText = el('span'), reachText = el('span');
     spot.append(image(markUrl('spot')), spotText);
     reach.append(image(markUrl('reach')), reachText);
@@ -923,7 +1089,9 @@ export class View {
         reachText.textContent = num(reachOf(m));
         const level = levelOf(m.xp);
         lvl.textContent = '';
+        if (m.paragon) lvl.append(paragonTag(m.paragon));
         lvl.append(levelTag('', level, 'ур. '));
+        relic.hidden = !m.particle;
         coins.querySelector('.sum').textContent = String(Math.floor(m.coins));
         if (state.level !== level || state.cls !== m.cls || state.brief !== brief) {
           state.level = level;
@@ -942,18 +1110,12 @@ export class View {
             body.append(line);
           }
         }
-        const gearKey = m.weapon ? JSON.stringify([m.weapon.rarity, m.weapon.stats, m.weapon.ups]) : '';
+        const gearKey = m.weapon ? JSON.stringify([m.weapon.rarity, m.weapon.stats, m.weapon.ups, m.weapon.plus]) : '';
         if (state.gear !== gearKey) {
           state.gear = gearKey;
           gear.textContent = '';
-          if (m.weapon) {
-            const line = el('div', 'gear'), name = el('b', '', weaponName(m.weapon));
-            name.style.color = rarityOf(m.weapon.rarity).color;
-            line.append(name, statLine(m.weapon, m.cls));
-            const unique = uniqueLine(m.weapon);
-            if (unique) line.append(unique);
-            gear.append(line);
-          } else gear.append(el('div', 'line', 'Оружия нет — пиши гача'));
+          if (m.weapon) gear.append(gearLine(m.weapon));
+          else gear.append(el('div', 'line', 'Оружия нет — пиши гача'));
         }
       },
     };

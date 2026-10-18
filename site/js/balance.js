@@ -15,7 +15,7 @@ export const MOBS = {
   boss: { name: 'Босс', hp: 6, speed: 0.6, xp: 20, coins: 10, leak: 6, boss: true },
 };
 
-export const TERRAIN = { weak: 0.75, more: 0.25, hill: 0.8, grave: 0.2,
+export const TERRAIN = { weak: 0.75, more: 0.25, hill: 0.8, watch: 2.5, grave: 0.2,
   bodiless: ['ember', 'frostling', 'stormling', 'sludge', 'slime1', 'slime2', 'slime3', 'ghost', 'mirage', 'golem',
     'mimic', 'shade', 'slimeking'] };
 

@@ -5,7 +5,7 @@ import { NUKE_FLIGHT } from '../../site/js/battle.js';
 import { HERO_SIZE, MOB_KINDS, coinUrl, heroSprite, heroUrl, mobSprite, prizeUrl } from '../../site/js/sprites.js';
 import { PAGES } from '../../site/js/guide.js';
 import { SIZE } from '../../site/js/field.js';
-import { RARITIES, makeWeapon } from '../../site/js/gacha.js';
+import { RARITIES, ascend, makeWeapon } from '../../site/js/gacha.js';
 import { eq, no, ok, test } from './harness.js';
 
 const SITE = '/site/';
@@ -132,6 +132,60 @@ test('страницы: сотый уровень — поздравление �
   ok(text(w, 'cheer-box').includes('100 уровень') && text(w, 'cheer-box').includes('Аня'));
   await until(() => w.document.querySelector('#players .lvl img.crown'), 'корона в отряде');
   frame.remove();
+});
+
+test('страницы: божественное оружие — объявление по центру поля, частица в профиле, снежный ник', async () => {
+  fresh();
+  const frame = await overlay('lobby=10&first_wave=5');
+  const w = frame.contentWindow, game = w.chatoborona.game;
+  await until(() => game.state === 'lobby', 'набор');
+  join(game, 'higashi_vo');
+  join(game, 'Аня');
+  game.next();
+  await until(() => game.state === 'placing', 'расстановка');
+  const anya = game.members.get('аня');
+  anya.weapon = makeWeapon(Math.random, anya.cls, RARITIES[RARITIES.length - 1]);
+  anya.weapon.plus = 29;
+  anya.coins = 100;
+  anya.particle = true;
+  game.feed('Аня', 'улучшить', { login: 'аня' });
+  await until(() => !element(w, 'cheer-box').hidden, 'объявление на экране');
+  ok(element(w, 'cheer-box').classList.contains('divine'));
+  ok(text(w, 'cheer-box').includes('Божественный') && text(w, 'cheer-box').includes('Аня'));
+  game.feed('Аня', 'профиль', { login: 'аня' });
+  await until(() => w.document.querySelector('#cards .profile'), 'профиль');
+  await until(() => !w.document.querySelector('#cards .profile .relic').hidden, 'частица слева от монет');
+  ok(text(w, 'cards').includes('Божественный'));
+  await until(() => w.document.querySelector('#players .snow'), 'снежный ник higashi_vo');
+  frame.remove();
+});
+
+test('страницы: парагон — церемония перед итогами, потом флаг перед уровнем', async () => {
+  fresh();
+  const frame = await overlay('lobby=10&first_wave=5');
+  const w = frame.contentWindow, game = w.chatoborona.game;
+  await until(() => game.state === 'lobby', 'набор');
+  join(game, 'Аня');
+  game.next();
+  await until(() => game.state === 'placing', 'расстановка');
+  const anya = game.members.get('аня');
+  anya.xp = xpForLevel(LEVEL_MAX);
+  anya.particle = true;
+  anya.weapon = ascend(makeWeapon(Math.random, anya.cls, RARITIES[RARITIES.length - 1]));
+  game.next();
+  await until(() => game.state === 'wave', 'волна');
+  anya.tower.run.kills = 3;
+  game.battle.lives = 0;
+  await until(() => game.state === 'ascend', 'церемония');
+  await until(() => !element(w, 'ascend').hidden, 'церемония на экране');
+  ok(text(w, 'ascend').includes('Парагон 1'));
+  ok(element(w, 'over').hidden, 'итоги — потом');
+  await until(() => w.document.querySelector('#players .paragon'), 'флаг парагона в отряде');
+  game.next();
+  await until(() => game.state === 'over', 'итоги');
+  await until(() => element(w, 'ascend').hidden, 'церемония убрана');
+  frame.remove();
+  fresh();
 });
 
 test('страницы: паразит, раз оказавшись в горе, снова виден, когда вышел', async () => {

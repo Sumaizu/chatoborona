@@ -4,7 +4,7 @@ import { BITE_TIME, Battle, MOVE_PAUSE, NUKE_FLIGHT, NUKE_STUN, OVERTIME } from 
 import { SIZE } from '../../site/js/field.js';
 import { BOSSES, ELITES, HEAL_CAP, LIVES, LOOKS, MIMIC, MOBS, POWERS, TERRAIN, TICK, waveSpawns, xpForLevel }
   from '../../site/js/balance.js';
-import { ASSIST_COINS, KILL_COINS } from '../../site/js/gacha.js';
+import { ASSIST_COINS, KILL_COINS, UNIQUES } from '../../site/js/gacha.js';
 import { CLASSES } from '../../site/js/classes.js';
 
 const ATTACK = (battle, t, target) => {
@@ -861,6 +861,100 @@ test('лекарь чинит каменные стены рядом, но не 
   eq(wall.hp, wall.max / 2, 'под ударами не чинит');
 });
 
+const withUnique = (unique) => ({ damage: 0, rate: 0, range: 0, crit: 0, power: 0, xp: 0, coins: 0, unique });
+const ownersOf = (u) => CLASSES.filter((cls) => u.cls ? cls.id === u.cls : !u.role || cls.role === u.role);
+const placeAs = (battle, cls, level = 1) => (cls.rider ? battle.placeRider(player(xpForLevel(level)), cls.id)
+  : battle.place(player(xpForLevel(level)), cls.id, 3, 4));
+
+test('оружие: каждое свойство класса и роли меняет то, что обещает', () => {
+  for (const u of UNIQUES.filter((item) => item.cls || item.role)) {
+    for (const cls of ownersOf(u)) {
+      const battle = makeBattle(), t = placeAs(battle, cls), base = Object.assign({}, t.p);
+      battle.setMods(t, withUnique(u.id));
+      for (const [key, value] of Object.entries(u.mul || {})) {
+        ok(typeof base[key] === 'number' && Math.abs(t.p[key] - base[key] * value) < 1e-9, u.id + ' ' + key);
+      }
+      for (const [key, value] of Object.entries(u.add || {})) {
+        ok(key in base && Math.abs(t.p[key] - (base[key] + value)) < 1e-9, u.id + ' ' + key);
+      }
+      for (const [key, value] of Object.entries(u.set || {})) eq(t.p[key], value, u.id + ' ' + key);
+    }
+  }
+});
+
+test('оружие: со свойством класса или роли каждый класс без ошибок отбивает волны', () => {
+  for (const u of UNIQUES.filter((item) => item.cls || item.role)) {
+    for (const cls of ownersOf(u)) {
+      if (u.attack && !cls.hits) continue;
+      const battle = makeBattle(), t = placeAs(battle, cls, 100);
+      battle.setMods(t, Object.assign(withUnique(u.id), u.mods || {}));
+      battle.place(player(xpForLevel(100)), 'gunner', 4, 4);
+      for (let wave = 4; wave <= 5; wave++) {
+        battle.startWave(wave, 2);
+        finish(battle);
+        battle.endWave();
+      }
+      ok(t.run.xp > 0, u.id + ' ' + cls.id);
+      if (cls.id !== 'banner' && cls.id !== 'sage') ok(t.run.damage > 0, u.id + ' ' + cls.id);
+    }
+  }
+});
+
+test('оружие: шрапнель задевает летучих, уязвимость и оковы — всех, кого задел маг', () => {
+  const battle = makeBattle(), miner = battle.place(player(), 'miner', 3, 4);
+  const flyer = walker(battle, 4, 1e6, bat());
+  battle._detonate(miner, flyer.x, flyer.y, 'strong', false, battle.time);
+  eq(flyer.hp, flyer.max, 'без шрапнели летучих мины не задевают');
+  battle.setMods(miner, withUnique('shrapnel'));
+  battle._detonate(miner, flyer.x, flyer.y, 'strong', false, battle.time);
+  ok(flyer.hp < flyer.max, 'со шрапнелью задевают');
+  const mage = battle.place(player(), 'frost', 6, 4), gun = battle.place(player(), 'gunner', 6, 6);
+  battle.setMods(mage, withUnique('expose'));
+  const mob = walker(battle, 7, 1e6);
+  battle._hurt(mob, 1, mage);
+  const before = mob.hp;
+  battle._hurt(mob, 100, gun);
+  ok(Math.abs(before - mob.hp - 115) < 1e-6, 'задетый магом получает на 15% больше: ' + (before - mob.hp));
+  battle.time += 3.1;
+  const later = mob.hp;
+  battle._hurt(mob, 100, gun);
+  ok(Math.abs(later - mob.hp - 100) < 1e-6, 'через 3 секунды — как обычно');
+  battle.setMods(mage, withUnique('fetters'));
+  const held = walker(battle, 8, 1e6);
+  battle._hold(held, 1, mage);
+  ok(Math.abs(held.holdUntil - battle.time - 1.5) < 1e-9, 'задержки на 50% дольше');
+  let caught = 0;
+  for (let i = 0; i < 200; i++) {
+    const other = walker(battle, 9, 1e6);
+    battle._hurt(other, 1, mage);
+    if (other.holdUntil > battle.time) caught += 1;
+  }
+  ok(caught > 10 && caught < 40, 'примерно каждого восьмого задержал: ' + caught);
+});
+
+test('оружие: оберег защищает соседей от оглушения и паутины, казна прибавляет монет', () => {
+  const battle = makeBattle(), banner = battle.place(player(), 'banner', 5, 3);
+  const sniper = battle.place(player(), 'sniper', 6, 4), far = battle.place(player(), 'sniper', 15, 3);
+  battle.setMods(banner, withUnique('ward'));
+  battle._refreshAuras();
+  const witch = special(battle, 'elite', 'witch', 1e6);
+  witch.d = 7;
+  battle._locate(witch);
+  battle._hex(witch, POWERS.hex);
+  eq(sniper.stunUntil, 0, 'сосед знаменосца не оглушён');
+  battle._web(witch, POWERS.web);
+  eq(sniper.webUntil, 0, 'и не опутан');
+  witch.d = 16;
+  battle._locate(witch);
+  battle._hex(witch, POWERS.hex);
+  ok(far.stunUntil > battle.time, 'далёкого оглушают как обычно');
+  battle.setMods(banner, withUnique('tithe'));
+  battle._refreshAuras();
+  const mob = walker(battle, 7, 10), coins = sniper.player.coins;
+  battle._hurt(mob, 1e6, sniper);
+  eq(sniper.player.coins - coins, Math.round(KILL_COINS * mob.info.coins * 1.3), 'соседу +30% монет');
+});
+
 test('оружие: сила приёма и легендарное свойство класса меняют сам приём', () => {
   const battle = makeBattle(), mage = battle.place(player(), 'earth', 10, 4);
   const plain = mage.p.wallHp;
@@ -1042,6 +1136,22 @@ function mapWith(marks = {}, biome = 'grass') {
   for (const [tile, cells] of Object.entries(marks)) for (const [x, y] of cells) tiles[y * SIZE + x] = tile;
   return new Battle({ path: STRAIGHT, branch: FORK, merge: 10, tiles, biome }, { random: seeded(7) });
 }
+
+test('карта: с вышки бьют на 2,5 клетки дальше и поверх гор, на вышке — один защитник', () => {
+  const battle = mapWith({ watch: [[6, 3]], mountain: [[6, 4]] });
+  const plain = battle.place(player(), 'sniper', 12, 3), high = battle.place(player(), 'sniper', 6, 3);
+  ok(Math.abs(high.range - plain.range - TERRAIN.watch) < 1e-9, 'дальше на ' + TERRAIN.watch);
+  no(battle.free(6, 3), 'вышка занята');
+  const below = walker(battle, 7, 1e6);
+  ok(battle.covered(6.5, 4.5) && battle.sees(high, below), 'гора между ними не мешает');
+  const banner = battle.place(player(), 'banner', 8, 3), aura = banner.p.aura;
+  battle.move(banner, 8, 4);
+  battle.move(high, 7, 3);
+  battle.move(banner, 6, 3);
+  ok(Math.abs(banner.p.aura - aura - TERRAIN.watch) < 1e-9, 'и аура шире');
+  battle.move(banner, 8, 3);
+  ok(Math.abs(banner.p.aura - aura) < 1e-9, 'сошёл — как было');
+});
 
 test('карта: волна идёт сразу из обоих входов, вторые у слияния встают на общую дорогу и доходят до сердца', () => {
   const battle = mapWith();

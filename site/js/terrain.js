@@ -1,4 +1,5 @@
 import { SIZE } from './field.js';
+import { WATCH_TOP, drawWatch } from './props.js';
 
 export const CELL = 30;
 export const EDGE = 16;
@@ -873,6 +874,29 @@ export function paintGround(ctx, battle) {
   });
   ctx.drawImage(reliefOf(battle).low, EDGE, EDGE);
   ctx.drawImage(reliefOf(battle).high, EDGE, EDGE);
+  paintWatches(ctx, battle);
+}
+
+const watchImages = new Map();
+
+function paintWatches(ctx, battle) {
+  if (!watchImages.has(battle.biome)) watchImages.set(battle.biome, drawWatch(battle.biome));
+  const image = watchImages.get(battle.biome), w = image.width, h = image.height;
+  battle.tiles.forEach((tile, cell) => {
+    if (tile !== 'watch') return;
+    const x = at(cell % SIZE + 0.5), y = at(Math.floor(cell / SIZE) + 0.5);
+    ctx.fillStyle = 'rgba(0, 0, 0, .28)';
+    ctx.beginPath();
+    ctx.moveTo(x - 14, y + 20);
+    ctx.lineTo(x + 16, y + 21);
+    ctx.lineTo(x + 27, y + 11);
+    ctx.lineTo(x + 24, y - 5);
+    ctx.lineTo(x + 2, y + 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(image, Math.round(x - w / 2), Math.round(y - WATCH_TOP), w, h);
+  });
 }
 
 export function paintPeaks(ctx, battle) {

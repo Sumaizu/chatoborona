@@ -1,8 +1,8 @@
 import { Battle } from './battle.js';
 import { makeMap, parseCell, parseMove } from './field.js';
 import { CLASSES, CLASS_BY_ID } from './classes.js';
-import { TICK, waveReward } from './balance.js';
-import { PRICE, RARITIES, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, UPGRADE_PRICE, spin, uniqueOf, upgrade,
+import { LEVEL_MAX, TICK, levelOf, waveReward } from './balance.js';
+import { DIVINE, PRICE, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, UPGRADE_PRICE, rankOf, spin, uniqueFor, upgrade,
   weaponStats } from './gacha.js';
 import { LASTING, effectOf, rollEvent } from './events.js';
 
@@ -25,6 +25,7 @@ export const STARS = new Map([
   ['sukoshissrb', 'white'],
   ['fra3a', 'thyme'],
   ['welovegames', 'heart'],
+  ['higashi_vo', 'snow'],
 ]);
 export const BOTS = [
   'nightbot', 'streamelements', 'streamlabs', 'moobot', 'fossabot', 'wizebot', 'jeetbot', 'soundalerts', 'sery_bot',
@@ -39,6 +40,8 @@ export const SPIN_LIMIT = 5;
 export const NOTE_TIME = 4;
 export const QUICK_WAVE = 10;
 export const QUICK_PAUSE = 5;
+export const ASCEND_TIME = 16;
+export const PARAGON_TOP = 5;
 
 const STEP_MAX = 1;
 const EVENTS_MAX = 500;
@@ -49,7 +52,6 @@ const IGNORED = new Set(BOTS);
 const NEAR_PATH = 1.5;
 
 const byText = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
-const rank = (weapon) => RARITIES.findIndex((rarity) => rarity.id === weapon.rarity);
 
 function addMods(total, mods) {
   if (!mods) return total;
@@ -95,6 +97,8 @@ export class Profiles {
           xp: Math.max(0, Number(entry.xp) || 0),
           kills: Math.max(0, Math.trunc(Number(entry.kills) || 0)),
           assists: Math.max(0, Math.trunc(Number(entry.assists) || 0)),
+          paragon: Math.max(0, Math.trunc(Number(entry.paragon) || 0)),
+          particle: entry.particle === true,
         });
       }
       const best = saved.best || {};
@@ -118,7 +122,8 @@ export class Profiles {
   }
 
   update(member) {
-    this.data.set(member.login, { name: member.name, xp: member.xp, kills: member.kills, assists: member.assists });
+    this.data.set(member.login, { name: member.name, xp: member.xp, kills: member.kills, assists: member.assists,
+      paragon: member.paragon || 0, particle: Boolean(member.particle) });
   }
 
   record(waves, players, at) {
@@ -153,6 +158,8 @@ export class Profiles {
       for (const [login, entry] of this.data) {
         players[login] = { name: entry.name, xp: Math.round(entry.xp * 100) / 100, kills: entry.kills,
           assists: entry.assists };
+        if (entry.paragon) players[login].paragon = entry.paragon;
+        if (entry.particle) players[login].particle = true;
       }
       this.storage.setItem(this.key, JSON.stringify({ players, best: this.best }));
       if (this.since === null) this.storage.removeItem(this.key + '.since');
@@ -180,6 +187,7 @@ export class Game {
     this.games = 0;
     this.run = null;
     this.results = null;
+    this.ascents = [];
     this.queue = [];
     this.slots = Array(SLOTS).fill(null);
     this.notes = [];
@@ -251,6 +259,8 @@ export class Game {
       member.xp = 0;
       member.kills = 0;
       member.assists = 0;
+      member.paragon = 0;
+      member.particle = false;
       if (member.tower && this.battle) this.battle.refresh(member.tower);
     }
     this._planReset();
@@ -282,7 +292,7 @@ export class Game {
   }
 
   join(login, name = login, { color = null, cell = null } = {}) {
-    if (this.state === 'stopped' || this.state === 'over') return null;
+    if (this.state === 'stopped' || this.state === 'over' || this.state === 'ascend') return null;
     login = String(login || '').toLowerCase();
     if (!login) return null;
     let member = this.members.get(login);
@@ -295,7 +305,8 @@ export class Game {
       login, name, color: COLOR_RE.test(String(color || '')) ? color : null,
       star: STARS.has(login) ? STARS.get(login) : null,
       xp: saved ? saved.xp : 0, kills: saved ? saved.kills : 0, assists: saved ? saved.assists : 0,
-      coins: 0, cls: this._randomClass(), weapon: null, tower: null, pendingMove: null,
+      paragon: saved ? saved.paragon : 0, particle: saved ? saved.particle : false, coins: 0,
+      cls: this._randomClass(), weapon: null, tower: null, pendingMove: null,
     };
     this.members.set(login, member);
     this.profiles.update(member);
@@ -357,17 +368,19 @@ export class Game {
       return 'poor';
     }
     const ups = new Map();
-    let done = 0;
+    let done = 0, ascended = false;
     for (; done < times && member.coins >= UPGRADE_PRICE; done++) {
       member.coins -= UPGRADE_PRICE;
       const up = upgrade(this.random, member.weapon);
+      if (up.ascended) ascended = true;
       ups.set(up.id, Math.round(((ups.get(up.id) || 0) + up.amount) * 100) / 100);
     }
     this._refresh(member);
     const list = Array.from(ups, ([id, amount]) => ({ id, amount }));
     this._note('upgrade', member, NOTE_TIME, { ups: list, times: done });
     this._emit('upgraded', { login: member.login, ups: list });
-    return 'upgraded';
+    if (ascended) this._emit('divine', { login: member.login });
+    return ascended ? 'divine' : 'upgraded';
   }
 
   _shift(from, to) {
@@ -417,14 +430,16 @@ export class Game {
   }
 
   modsOf(member) {
-    const total = Object.assign({}, NO_MODS), unique = member.weapon ? uniqueOf(member.weapon.unique) : null;
-    if (member.weapon) addMods(total, weaponStats(member.weapon));
+    const weapon = member.weapon, divine = Boolean(weapon) && weapon.rarity === DIVINE.id;
+    const total = Object.assign({}, NO_MODS), unique = weapon ? uniqueFor(weapon.unique, divine) : null;
+    if (weapon) addMods(total, weaponStats(weapon));
     if (unique) addMods(total, unique.mods);
     if (this.run) {
       for (const effect of this.run.now) addMods(total, effect.mods);
       addMods(total, this.run.mods);
     }
-    total.unique = member.weapon && member.weapon.unique ? member.weapon.unique : null;
+    total.unique = weapon && weapon.unique ? weapon.unique : null;
+    total.divine = divine;
     return total;
   }
 
@@ -516,6 +531,7 @@ export class Game {
     this.battle = null;
     this.wave = 0;
     this.results = null;
+    this.ascents = [];
     this.queue = [];
     this.slots = Array(SLOTS).fill(null);
     this.run = { number: this.games, mods: Object.assign({}, NO_MODS), foe: { hp: 0, speed: 0 }, lives: 0,
@@ -617,12 +633,41 @@ export class Game {
       damage: m.tower.run.damage,
     }));
     this.results = { passed, players, record, time: this.battle.time - this.run.started, rows };
-    this.state = 'over';
-    this.left = OVER_TIME;
+    this.ascents = this._ascents(rows);
+    this._saveAll();
+    this.state = this.ascents.length ? 'ascend' : 'over';
+    this.left = this.ascents.length ? ASCEND_TIME * this.ascents.length : OVER_TIME;
     this.queue = [];
     this.slots = Array(SLOTS).fill(null);
     for (const member of this.members.values()) member.pendingMove = null;
     this._emit('over', { passed, record });
+    for (const ascent of this.ascents) this._emit('paragon', { login: ascent.login, paragon: ascent.to });
+  }
+
+  _ascents(rows) {
+    const top = (field) => rows.filter((row) => row[field] > 0).sort((a, b) => b[field] - a[field])
+      .slice(0, PARAGON_TOP).map((row) => row.login);
+    const best = new Set(top('kills').concat(top('assists'))), ascents = [];
+    for (const member of this.members.values()) {
+      const weapon = member.weapon;
+      if (!best.has(member.login) || levelOf(member.xp) < LEVEL_MAX || !member.particle || !weapon
+        || weapon.rarity !== DIVINE.id) continue;
+      ascents.push({ login: member.login, name: member.name, star: member.star, color: member.color, cls: member.cls,
+        from: member.paragon, to: member.paragon + 1 });
+      member.paragon += 1;
+      member.xp = 0;
+      member.particle = false;
+      this.profiles.update(member);
+    }
+    if (ascents.length) this.profiles.save();
+    return ascents;
+  }
+
+  get ascent() {
+    if (this.state !== 'ascend' || !this.ascents.length) return null;
+    const count = this.ascents.length, elapsed = Math.max(0, ASCEND_TIME * count - this.left);
+    const index = Math.min(count - 1, Math.floor(elapsed / ASCEND_TIME));
+    return Object.assign({ index, t: elapsed - index * ASCEND_TIME }, this.ascents[index]);
   }
 
   _tick(dt) {
@@ -642,7 +687,7 @@ export class Game {
       this.notes = this.notes.filter((note) => note.left > 0);
     }
     this._turnCards();
-    if (this.battle && this.state !== 'over') this.battle.step(dt);
+    if (this.battle && this.state !== 'over' && this.state !== 'ascend') this.battle.step(dt);
     if (this.state === 'wave') {
       if (this.battle.lives <= 0) this._over();
       else if (this.battle.cleared) this._endWave();
@@ -652,7 +697,10 @@ export class Game {
     if (this.left > 0) return;
     if (this.state === 'lobby') this._placing();
     else if (this.state === 'placing' || this.state === 'break') this._startWave();
-    else if (this.state === 'over') this._lobby();
+    else if (this.state === 'ascend') {
+      this.state = 'over';
+      this.left = OVER_TIME;
+    } else if (this.state === 'over') this._lobby();
   }
 
   _gacha(dt) {
@@ -673,8 +721,8 @@ export class Game {
       entry.count -= 1;
       if (entry.count <= 0) this.queue.splice(next, 1);
       if (!member) continue;
-      this.slots[i] = { id: ++this._spinNo, login: member.login, outcome: spin(this.random, member.cls),
-        phase: 'spin', left: SPIN_TIME };
+      this.slots[i] = { id: ++this._spinNo, login: member.login, outcome: spin(this.random, member.cls,
+        member.particle), phase: 'spin', left: SPIN_TIME };
       this._emit('spin', { login: member.login });
     }
   }
@@ -695,6 +743,14 @@ export class Game {
       this._emit('void', { login: member.login });
       return;
     }
+    if (outcome.kind === 'particle') {
+      slot.took = true;
+      member.particle = true;
+      this.profiles.update(member);
+      this.profiles.save();
+      this._emit('particle', { login: member.login });
+      return;
+    }
     if (outcome.kind === 'coins') {
       slot.took = true;
       slot.coins = PRICE * 2;
@@ -702,7 +758,7 @@ export class Game {
       this._emit('jackpot', { login: member.login, coins: slot.coins });
       return;
     }
-    slot.took = !member.weapon || rank(weapon) >= rank(member.weapon);
+    slot.took = !member.weapon || rankOf(weapon) >= rankOf(member.weapon);
     if (slot.took) {
       member.weapon = weapon;
       this._refresh(member);

@@ -493,7 +493,7 @@ export class Scene {
     const aura = t.cls.role === 'support' && t.p.aura, range = aura || t.range;
     const key = t.x + ',' + t.y + ',' + range.toFixed(2) + (aura ? 'a' : '');
     if (this.sights.has(key)) return this.sights.get(key);
-    const outline = [], solid = aura ? null : battle.solid, own = t.y * SIZE + t.x;
+    const outline = [], solid = aura || battle.onWatch(t) ? null : battle.solid, own = t.y * SIZE + t.x;
     for (let i = 0; i < SIGHT_RAYS; i++) {
       const a = i / SIGHT_RAYS * Math.PI * 2, dx = Math.cos(a), dy = Math.sin(a);
       let reach = range;

@@ -9,7 +9,7 @@ const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const FORK = { min: 3, good: 5, max: 9 };
 const RIVER = { chance: 0.65, bridge: 6, length: 10, bridges: 3 };
 const TERRAIN = { tunnel: 0.6, patches: [['mountain', [1, 2], 4, 7], ['lake', [1, 2], 3, 6]], hills: [2, 3, 2, 4],
-  spots: 120 };
+  watches: [1, 3], watchGap: 3, spots: 120 };
 export const BIOMES = ['grass', 'volcano', 'swamp', 'snow', 'desert', 'graveyard'];
 const LOOKALIKE = new Map([['a', 'а'], ['b', 'в'], ['e', 'е'], ['k', 'к'], ['m', 'м'], ['h', 'н'], ['o', 'о'],
   ['p', 'р'], ['c', 'с'], ['t', 'т'], ['y', 'у']]);
@@ -299,6 +299,16 @@ function terrain(path, branch, merge, random) {
     const seeds = free().filter((at) => near.has(at));
     if (seeds.length) grow(tiles, pick(seeds), low + Math.floor(random() * (high - low + 1)), 'hill', open, random);
   }
+  const [few, many] = TERRAIN.watches, watches = few + Math.floor(random() * (many - few + 1)), placed = [];
+  const apart = (at) => placed.every((other) => Math.max(Math.abs(other % SIZE - at % SIZE),
+    Math.abs(Math.floor(other / SIZE) - Math.floor(at / SIZE))) > TERRAIN.watchGap);
+  for (let n = 0; n < watches; n++) {
+    const seeds = free().filter((at) => near.has(at) && apart(at));
+    if (!seeds.length) break;
+    const at = pick(seeds);
+    tiles[at] = 'watch';
+    placed.push(at);
+  }
   return { tiles, rivers };
 }
 
@@ -313,7 +323,7 @@ export function makeMap(random = Math.random) {
     const spots = new Set();
     const road = new Set(path.concat(branch).map(([x, y]) => y * SIZE + x));
     road.forEach((at) => around(at, (next) => {
-      if (!road.has(next) && (!tiles[next] || tiles[next] === 'hill')) spots.add(next);
+      if (!road.has(next) && (!tiles[next] || tiles[next] === 'hill' || tiles[next] === 'watch')) spots.add(next);
     }));
     if (spots.size < TERRAIN.spots) continue;
     const turn = turner(random), biome = BIOMES[Math.floor(random() * BIOMES.length)];

@@ -85,6 +85,56 @@ export function drawNuke() {
   return m.paint();
 }
 
+const WATCHES = {
+  grass: { post: '#6e4a2c', plank: '#a87a4a', seam: '#7c5634', face: '#5e3d22', flag: '#e23b3b' },
+  swamp: { post: '#4e4129', plank: '#83704a', seam: '#5f5034', face: '#43381f', flag: '#a3e635' },
+  desert: { post: '#8a5d33', plank: '#d1a46a', seam: '#a77b48', face: '#7a5030', flag: '#2563eb' },
+  snow: { post: '#5c4a38', plank: '#8f7a63', seam: '#6c5a47', face: '#4f3f30', flag: '#38bdf8', snow: '#f2f8ff' },
+  volcano: { post: '#2f2a28', plank: '#5a524d', seam: '#3f3936', face: '#26211f', flag: '#f97316', stone: true },
+  graveyard: { post: '#4f4957', plank: '#8d8697', seam: '#6a6474', face: '#45404c', flag: '#a78bfa', stone: true },
+};
+
+export const WATCH_TOP = 11.5;
+
+export function drawWatch(biome) {
+  const look = WATCHES[biome] || WATCHES.grass, m = new Model(44, 1);
+  for (const [x0, x1] of [[9.5, 17], [34.5, 27]]) {
+    m.limb(x0, 23, 9, x1, 31, 2, 0.6, look.post, 0.2);
+    m.limb(x1, 23, 9, x0, 31, 2, 0.6, look.post, 0.2);
+  }
+  for (const x of [8, 36]) {
+    m.limb(x, 21, 13, x, 32, 0, 1.7, look.post, 0.25);
+    m.egg(x, 32.5, 0, 2.2, 1.1, 0.8, look.face);
+  }
+  for (const x of [19.5, 24.5]) m.limb(x, 21, 14, x, 33, 1, 0.7, look.post, 0.3);
+  for (let k = 0; k < 3; k++) {
+    m.limb(19.5, 24 + k * 3.2, 11 - k * 3.6, 24.5, 24 + k * 3.2, 11 - k * 3.6, 0.55, look.seam);
+  }
+  m.egg(22, 20.2, 13, 16, 1.4, 1.4, look.face, 0.1);
+  for (let y = 5; y <= 18; y += 3.25) {
+    m.egg(22, y, 18, 15.6, 1.6, 1.1, Math.round(y * 4) % 2 ? look.plank : look.seam, look.stone ? 0.1 : 0.25);
+  }
+  if (look.stone) for (const [x, y] of [[13, 6], [28, 9], [17, 15], [31, 16], [11, 12]]) m.dot(x, y, look.seam, 20);
+  else for (let y = 6.6; y <= 18; y += 3.25) for (const x of [13, 22, 31]) m.dot(x, y, look.seam, 20);
+  const corners = [[6.5, 3.5], [37.5, 3.5], [6.5, 19], [37.5, 19]];
+  for (const [[x0, y0], [x1, y1]] of [[corners[0], corners[1]], [corners[0], corners[2]], [corners[1], corners[3]]]) {
+    m.limb(x0, y0, 22, x1, y1, 22, 0.9, look.post, 0.4);
+  }
+  for (const [x0, x1] of [[6.5, 17], [27, 37.5]]) m.limb(x0, 19, 22, x1, 19, 22, 0.9, look.post, 0.4);
+  for (const [x, y] of corners) {
+    m.limb(x, y, 17, x, y, 23, 1.5, look.post, 0.3);
+    m.ball(x, y, 23.5, 1.9, look.face, 0.5);
+  }
+  m.limb(6.5, 3.5, 24, 6.5, 0, 30, 0.6, look.post);
+  for (let k = 0; k < 4; k++) {
+    m.egg(8.2 + k * 1.4, 0.6 + k * 0.35, 30 - k * 0.7, 1.5, 1.2 - k * 0.15, 0.6, look.flag, 0.3);
+  }
+  if (look.snow) {
+    for (const [x, y] of [[11, 5], [30, 8], [16, 13], [28, 16], [9, 17], [35, 6], [22, 5]]) m.dot(x, y, look.snow, 21);
+  }
+  return m.paint();
+}
+
 const WALL_TOP = '#b2a794';
 const WALL_FACE = '#83796b';
 const WALL_EDGE = '#bdb3a0';

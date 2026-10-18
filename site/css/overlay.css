@@ -12,6 +12,8 @@
   --curse: #c084fc;
   --thyme: #5edc1f;
   --heart: #d42426;
+  --divine: #ff2e4d;
+  --snow: #a6d6ff;
 }
 
 * { box-sizing: border-box; }
@@ -121,6 +123,67 @@ body {
 .players ol.two .crown-slot .crown { width: 12px; height: 9px; }
 .profile .crown-slot .crown { width: 19px; height: 14px; }
 @keyframes cheer-in { from { transform: translate(-50%, -50%) scale(.3); opacity: 0; } }
+.cheer-box.divine {
+  box-shadow: 0 0 0 3px var(--divine), 0 0 54px rgba(255, 46, 77, .6), 0 18px 50px rgba(0, 0, 0, .6);
+  max-width: 600px;
+}
+.cheer-box.divine h2 { color: var(--divine); }
+.cheer-box .relic-big {
+  display: block; width: 56px; height: 56px; margin: -52px auto 2px; image-rendering: pixelated;
+  filter: drop-shadow(0 0 10px rgba(255, 46, 77, .9));
+}
+.cheer-box .gear {
+  justify-content: center; flex-direction: column; gap: 2px; margin-top: 10px; font-size: 14px; line-height: 18px;
+}
+.cheer-box .gear > b { font-size: 18px; }
+.paragon { position: relative; flex: none; display: inline-block; width: 14px; height: 19px; vertical-align: middle; }
+.paragon .flag { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.paragon b {
+  position: absolute; left: -2px; right: -2px; top: 3px; text-align: center; font-size: 9px; line-height: 10px;
+  font-weight: 900; color: #4a2c02; font-variant-numeric: tabular-nums; letter-spacing: -.5px;
+}
+.players ol.two .paragon { width: 12px; height: 16px; }
+.players ol.two .paragon b { top: 2px; font-size: 8px; line-height: 9px; }
+.profile .lvl { display: inline-flex; align-items: center; gap: 4px; }
+.coins .relic {
+  width: 14px; height: 14px; margin-right: 2px; image-rendering: pixelated; animation: relic 2.4s ease-in-out infinite;
+}
+.coins .relic[hidden] { display: none; }
+@keyframes relic {
+  50% { filter: drop-shadow(0 0 4px rgba(255, 46, 77, 1)); transform: scale(1.12); }
+}
+.unique.divine b { color: var(--divine); }
+.ascend {
+  position: absolute; inset: 0; z-index: 9; overflow: hidden; border-radius: 14px; pointer-events: none;
+  background: rgba(10, 6, 20, .9);
+}
+.ascend > * { position: absolute; left: 0; top: 0; }
+.ascend .glow {
+  inset: 0; width: 100%; height: 100%;
+  background: radial-gradient(circle at 50% 40%, rgba(255, 46, 77, .45), rgba(255, 205, 56, .12) 45%, transparent 70%);
+}
+.ascend .hero { width: 120px; height: 120px; image-rendering: pixelated; transform-origin: 50% 50%; }
+.ascend .relic { width: 68px; height: 68px; image-rendering: pixelated; filter: drop-shadow(0 0 12px #ff2e4d); }
+.ascend .pill {
+  padding: 2px 16px; border-radius: 10px; font-size: 22px; line-height: 30px; font-weight: 900; color: #3a2304;
+  white-space: nowrap; background: #ffcd38; box-shadow: 0 0 18px rgba(255, 205, 56, .6); transform-origin: 0 50%;
+}
+.ascend .pill.fresh { background: #fff2a8; box-shadow: 0 0 30px rgba(255, 255, 255, .9); }
+.ascend .flash {
+  inset: 0; width: 100%; height: 100%; opacity: 0;
+  background: radial-gradient(circle at 50% 42%, #fff, rgba(255, 220, 230, .7) 35%, rgba(255, 46, 77, .15) 70%);
+}
+.ascend .flag { width: 120px; height: 165px; perspective: 300px; filter: drop-shadow(0 0 22px rgba(255, 205, 56, .7)); }
+.ascend .flag canvas { position: absolute; left: 0; top: 0; width: 120px; height: 165px; }
+.ascend .flag b {
+  position: absolute; left: 0; right: 0; top: 38px; text-align: center; font-size: 62px; line-height: 70px;
+  font-weight: 900; color: #4a2c02; text-shadow: 0 2px 0 rgba(255, 244, 194, .8); font-variant-numeric: tabular-nums;
+}
+.ascend .who { display: flex; align-items: center; gap: 10px; white-space: nowrap; font-size: 30px; font-weight: 900; }
+.ascend .who img { width: 56px; height: 56px; image-rendering: pixelated; }
+.ascend .caption { width: 100%; text-align: center; }
+.ascend .caption b { display: block; font-size: 34px; line-height: 40px; font-weight: 900; color: #ffcd38; }
+.ascend .caption span { display: block; margin-top: 2px; font-size: 16px; color: var(--ink); }
 .rules-board {
   position: absolute; top: 16px; right: 16px; bottom: 16px; left: 326px; z-index: 8; display: flex;
   flex-direction: column; padding: 14px 22px 16px; border-radius: 18px; background: #15131f;
@@ -462,3 +525,10 @@ body {
 .white, .list li.first .name.white { color: #fff; }
 .thyme, .list li.first .name.thyme { color: var(--thyme); }
 .heart, .list li.first .name.heart { color: var(--heart); }
+.snow, .list li.first .name.snow {
+  background: linear-gradient(105deg, var(--snow) 0 46.5%, #fff 49.5% 50.5%, var(--snow) 53.5% 100%) -230px 0 /
+    400px 100%;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+  animation: snow-glint 6s ease-in-out var(--phase, 0s) infinite;
+}
+@keyframes snow-glint { 0%, 70% { background-position: -230px 0; } 100% { background-position: 20px 0; } }

@@ -330,7 +330,153 @@ export const commandUrl = (kind) => remember('command:' + kind, () => {
   return canvas.toDataURL();
 });
 
+const SPARK = { core: '#ffffff', glow: '#ffd1dc', hot: '#ff5c7c', body: '#e0103a', ring: '#ffd38a',
+  ringDark: '#c9853a' };
+
+function drawParticle(p, size) {
+  const c = size / 2, body = size * 0.23, tilt = -0.42, reach = size * 0.5;
+  const ring = (x, y) => {
+    const dx = x + 0.5 - c, dy = y + 0.5 - c;
+    const u = dx * Math.cos(tilt) + dy * Math.sin(tilt), v = -dx * Math.sin(tilt) + dy * Math.cos(tilt);
+    return { on: Math.abs(Math.hypot(u / (size * 0.42), v / (size * 0.16)) - 1) < 0.13, front: v > 0 };
+  };
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const r = ring(x, y), d = Math.hypot(x + 0.5 - c, y + 0.5 - c);
+      if (r.on && !r.front && d > body + 0.5) p.px(x, y, SPARK.ringDark);
+    }
+  }
+  for (let k = -reach; k <= reach; k += 0.5) {
+    const fade = Math.abs(k) / reach;
+    const color = fade < 0.35 ? SPARK.core : fade < 0.6 ? SPARK.glow : fade < 0.85 ? SPARK.hot : SPARK.body;
+    p.px(c - 0.5 + k, c - 0.5, color);
+    p.px(c - 0.5, c - 0.5 + k, color);
+    if (Math.abs(k) < reach * 0.45) {
+      const tip = fade < 0.3 ? SPARK.glow : SPARK.hot;
+      p.px(c - 0.5 + k * 0.7, c - 0.5 + k * 0.7, tip);
+      p.px(c - 0.5 + k * 0.7, c - 0.5 - k * 0.7, tip);
+    }
+  }
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = x + 0.5 - c, dy = y + 0.5 - c, d = Math.hypot(dx, dy);
+      if (d > body) continue;
+      const light = (dx + dy) / body;
+      let color = d < body * 0.4 ? SPARK.core : d < body * 0.7 ? SPARK.glow : SPARK.hot;
+      if (light > 0.6 && d >= body * 0.7) color = SPARK.body;
+      p.px(x, y, color);
+    }
+  }
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const r = ring(x, y);
+      if (r.on && r.front) p.px(x, y, (x + y) % 3 ? SPARK.ring : SPARK.ringDark);
+    }
+  }
+  const sparks = [[0.18, 0.2, SPARK.glow], [0.83, 0.78, SPARK.core], [0.2, 0.84, SPARK.hot], [0.86, 0.16, SPARK.glow]];
+  for (const [fx, fy, color] of sparks) p.px(fx * size, fy * size, color);
+}
+
+export const particleSprite = (size = 17) => remember('particle:' + size, () => {
+  const p = new Pix(size, size);
+  drawParticle(p, size);
+  return p.outline('#2a0610').canvas();
+});
+
+export const particleUrl = (size = 14) => remember('particleUrl:' + size, () => {
+  const image = mapSprite([
+    '.........',
+    '....W....',
+    '...rpr...',
+    '..rpWpr..',
+    '.WpWWWpW.',
+    '..rpWpr..',
+    '...rpr...',
+    '....W....',
+    '.........',
+  ], { W: SPARK.core, p: SPARK.hot, r: SPARK.body });
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(image, 0, 0, size, size);
+  return canvas.toDataURL();
+});
+
+const FLAG = { rod: '#8a5a12', rodLight: '#e6b54a', knob: '#ffe08a', edge: '#6b4106', top: '#ffe58a', mid: '#f5b82e',
+  low: '#c98a12', seam: '#fff4c2' };
+
+export function flagCanvas(width, height, scale = 2) {
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(width * scale);
+  canvas.height = Math.round(height * scale);
+  const g = canvas.getContext('2d');
+  g.scale(scale, scale);
+  const rod = Math.max(2, height * 0.1), left = width * 0.13, right = width * 0.87, notch = height * 0.2;
+  const line = Math.max(0.8, width / 16);
+  g.beginPath();
+  g.moveTo(left, rod * 0.6);
+  g.lineTo(right, rod * 0.6);
+  g.lineTo(right, height - line / 2);
+  g.lineTo(width / 2, height - notch);
+  g.lineTo(left, height - line / 2);
+  g.closePath();
+  const cloth = g.createLinearGradient(0, rod, 0, height);
+  cloth.addColorStop(0, FLAG.top);
+  cloth.addColorStop(0.5, FLAG.mid);
+  cloth.addColorStop(1, FLAG.low);
+  g.fillStyle = cloth;
+  g.fill();
+  g.lineJoin = 'round';
+  g.lineWidth = line;
+  g.strokeStyle = FLAG.edge;
+  g.stroke();
+  if (width >= 24) {
+    const inset = width * 0.12;
+    g.beginPath();
+    g.moveTo(left + inset, rod + inset * 0.6);
+    g.lineTo(right - inset, rod + inset * 0.6);
+    g.lineTo(right - inset, height - inset * 1.6);
+    g.lineTo(width / 2, height - notch - inset * 1.1);
+    g.lineTo(left + inset, height - inset * 1.6);
+    g.closePath();
+    g.lineWidth = line * 0.6;
+    g.strokeStyle = FLAG.seam;
+    g.stroke();
+  }
+  const bar = g.createLinearGradient(0, 0, 0, rod);
+  bar.addColorStop(0, FLAG.rodLight);
+  bar.addColorStop(1, FLAG.rod);
+  g.fillStyle = bar;
+  g.strokeStyle = FLAG.edge;
+  g.lineWidth = line;
+  g.beginPath();
+  g.moveTo(line, line / 2);
+  g.lineTo(width - line, line / 2);
+  g.arcTo(width - line / 2, line / 2, width - line / 2, rod, rod / 2);
+  g.arcTo(width - line / 2, rod, line, rod, rod / 2);
+  g.lineTo(line, rod);
+  g.arcTo(line / 2, rod, line / 2, line / 2, rod / 2);
+  g.arcTo(line / 2, line / 2, width - line, line / 2, rod / 2);
+  g.closePath();
+  g.fill();
+  g.stroke();
+  for (const x of [line * 1.6, width - line * 1.6]) {
+    g.beginPath();
+    g.arc(x, rod / 2, rod * 0.32, 0, Math.PI * 2);
+    g.fillStyle = FLAG.knob;
+    g.fill();
+  }
+  return canvas;
+}
+
+export const flagUrl = (width = 14, height = 19) => remember('flag:' + width + ':' + height,
+  () => flagCanvas(width, height, 3).toDataURL());
+
 const PRIZES = {
+  particle(p) {
+    drawParticle(p, 16);
+  },
   weapon(p, tone) {
     p.bar(3, 12, 11, 4, '#e5e7eb', 2);
     p.line(4, 12, 11, 5, '#9ca3af', 1);

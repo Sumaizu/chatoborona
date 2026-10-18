@@ -1,9 +1,9 @@
 import { test, eq, ok, no } from './harness.js';
 import { PLAIN, makeGame, memoryStorage, runFor, seeded, until } from './fixtures.js';
-import { CARD_MIN, CARD_ROOM, CARD_TIME, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPIN_LIMIT, nextReset }
-  from '../../site/js/engine.js';
-import { TICK, xpForLevel } from '../../site/js/balance.js';
-import { PRICE, RARITIES, SHOW_FAST, SHOW_TIME, SPIN_TIME, WEAPONS, makeWeapon, weaponName }
+import { ASCEND_TIME, CARD_MIN, CARD_ROOM, CARD_TIME, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPIN_LIMIT,
+  nextReset } from '../../site/js/engine.js';
+import { LEVEL_MAX, TICK, xpForLevel } from '../../site/js/balance.js';
+import { ASCEND_AT, PRICE, RARITIES, SHOW_FAST, SHOW_TIME, SPIN_TIME, WEAPONS, ascend, makeWeapon, weaponName }
   from '../../site/js/gacha.js';
 import { ODDS, effectOf, rollEvent } from '../../site/js/events.js';
 import { cellName } from '../../site/js/field.js';
@@ -597,6 +597,102 @@ test('реролл: один раз за игру и только до перв�
   toWave(other);
   say(other, 'Ян', 'привет');
   eq(say(other, 'Ян', 'реролл'), null, 'после начала волн нельзя');
+});
+
+test('улучшение до божественного: событие, свойства бойца, плашка красного цвета', () => {
+  const { game } = makeGame();
+  game.open();
+  say(game, 'Рая', 'привет');
+  toWave(game);
+  const member = game.members.get('рая');
+  drop(game, 'рая', makeWeapon(seeded(3), member.cls, RARITIES[RARITIES.length - 1]));
+  member.coins = 100 * (ASCEND_AT - 1);
+  eq(say(game, 'Рая', 'улучшить все'), 'upgraded');
+  eq(member.weapon.plus, ASCEND_AT - 1);
+  game.events.length = 0;
+  member.coins = 100;
+  eq(say(game, 'Рая', 'улучшить'), 'divine');
+  eq(member.weapon.rarity, 'divine');
+  ok(game.events.some((e) => e.kind === 'divine' && e.login === 'рая'));
+  ok(member.tower.mods.divine, 'боец знает, что оружие божественное');
+});
+
+test('частица бога: выпадает в гаче, хранится между играми и при перезагрузке', () => {
+  const storage = memoryStorage(), { game } = makeGame({ storage });
+  game.open();
+  say(game, 'Лия', 'привет');
+  toWave(game);
+  const member = game.members.get('лия');
+  const slot = { id: 98, login: 'лия', outcome: { kind: 'particle' }, phase: 'spin', left: 0 };
+  game.slots[0] = slot;
+  game._apply(slot);
+  ok(slot.took && member.particle);
+  ok(game.events.some((e) => e.kind === 'particle' && e.login === 'лия'));
+  game.restart();
+  say(game, 'Лия', 'я тут');
+  ok(game.members.get('лия').particle, 'в новой игре частица на месте');
+  ok(new Profiles(storage, 'chatoborona.players.test').get('лия').particle, 'и после перезагрузки');
+  game.resetScores();
+  no(game.members.get('лия').particle, 'сброс уровней забирает и частицу');
+});
+
+function hero(game, name, { level = LEVEL_MAX, particle = true, divine = true } = {}) {
+  say(game, name, 'привет');
+  const member = game.members.get(name.toLowerCase());
+  member.xp = xpForLevel(level);
+  member.particle = particle;
+  const weapon = makeWeapon(seeded(name.length), member.cls, RARITIES[RARITIES.length - 1]);
+  member.weapon = divine ? ascend(weapon) : weapon;
+  return member;
+}
+
+test('парагон: сотый уровень, топ-5, божественное оружие и частица — после игры парагон и снова 1-й уровень', () => {
+  const storage = memoryStorage(), { game } = makeGame({ storage });
+  game.open();
+  const best = hero(game, 'Вера'), bare = hero(game, 'Глеб', { particle: false });
+  const plain = hero(game, 'Дина', { divine: false }), young = hero(game, 'Егор', { level: 99 });
+  toWave(game);
+  for (const member of [best, bare, plain, young]) member.tower.run.kills = 5;
+  game.battle.lives = 0;
+  game.step(TICK);
+  eq(game.state, 'ascend', 'перед итогами — церемония');
+  eq(game.ascents.map((a) => [a.login, a.from, a.to]), [['вера', 0, 1]]);
+  eq(best.paragon, 1);
+  eq(best.xp, 0, 'уровень снова первый');
+  no(best.particle, 'частица сгорает');
+  eq([bare.paragon, plain.paragon, young.paragon], [0, 0, 0], 'без частицы, без божественного, не сотый — нет');
+  eq(game.ascent.login, 'вера');
+  ok(game.ascent.t < 0.1);
+  runFor(game, ASCEND_TIME - 0.2);
+  eq(game.state, 'ascend');
+  runFor(game, 0.4);
+  eq(game.state, 'over', 'потом итоги как обычно');
+  const saved = new Profiles(storage, 'chatoborona.players.test').get('вера');
+  eq([saved.paragon, saved.xp, saved.particle], [1, 0, false]);
+  game.restart();
+  say(game, 'Вера', 'снова');
+  eq(game.members.get('вера').paragon, 1, 'парагон остаётся');
+});
+
+test('парагон: только пятёрка лучших по убийствам или по помощи', () => {
+  const { game } = makeGame();
+  game.open();
+  const names = ['Аня', 'Боря', 'Валя', 'Гена', 'Даня', 'Женя', 'Зоя'];
+  const members = names.map((name) => hero(game, name));
+  toWave(game);
+  members.forEach((member, i) => {
+    member.tower.run.kills = 10 - i;
+    member.tower.run.assists = i === 6 ? 50 : 0;
+  });
+  game.battle.lives = 0;
+  game.step(TICK);
+  eq(game.ascents.map((a) => a.login).sort(), ['аня', 'боря', 'валя', 'гена', 'даня', 'зоя'].sort(),
+    'шестой по убийствам не проходит, зато лучший в помощи — да');
+  eq(game.state, 'ascend');
+  runFor(game, ASCEND_TIME * 6 - 0.2);
+  eq(game.state, 'ascend', 'по церемонии на каждого');
+  runFor(game, 0.4);
+  eq(game.state, 'over');
 });
 
 test('стример переставляет защитников «А1 Б2»; зрителям так нельзя', () => {

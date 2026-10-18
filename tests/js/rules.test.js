@@ -4,7 +4,8 @@ import { BIOMES, SIZE, cellName, coverage, makeMap, parseCell } from '../../site
 import { LEVEL_MAX, MOBS, crowdFactor, eliteCount, levelOf, waveHp, waveReward, waveSpawns, xpForLevel }
   from '../../site/js/balance.js';
 import { CLASSES, PERKS, ROLES } from '../../site/js/classes.js';
-import { OUTCOMES, RARITIES, UNIQUES, makeWeapon, spin, upgrade, uniquesFor, weaponScore, weaponStats }
+import { ASCEND_AT, DIVINE, OUTCOMES, RARITIES, UNIQUES, makeWeapon, rankOf, spin, uniqueFor, uniqueText, upgrade,
+  uniquesFor, weaponScore, weaponStats, weaponTitle }
   from '../../site/js/gacha.js';
 import { clean, fromQuery, toQuery, DEFAULTS } from '../../site/js/config.js';
 
@@ -221,6 +222,64 @@ test('гача: легендарные свойства — общие и под
   ok(pools.general.some((u) => u.id === 'ignite'), 'стрелку — ударные');
 });
 
+test('гача: у каждого класса от трёх своих легендарных свойств, у каждой роли — от двух общих', () => {
+  eq(new Set(UNIQUES.map((u) => u.id)).size, UNIQUES.length, 'имена не повторяются');
+  for (const cls of CLASSES) ok(UNIQUES.filter((u) => u.cls === cls.id).length >= 3, cls.id);
+  for (const role of Object.keys(ROLES)) ok(UNIQUES.filter((u) => u.role === role).length >= 2, role);
+  ok(uniquesFor('frost').own.some((u) => u.id === 'fetters'), 'контролю — свои общие');
+  ok(uniquesFor('healer').own.some((u) => u.id === 'ward'), 'поддержке — свои');
+  no(uniquesFor('sniper').own.some((u) => u.role === 'support'), 'чужая роль не выпадает');
+  no(uniquesFor('miner').own.some((u) => u.id === 'keen'), 'крит не выпадает тому, кто не бьёт');
+});
+
+test('улучшение: легендарное на +30 становится божественным, дальше по 5% от сложенных свойств', () => {
+  const weapon = makeWeapon(seeded(4), 'sniper', RARITIES[RARITIES.length - 1]), random = seeded(5);
+  for (let i = 1; i < ASCEND_AT; i++) {
+    no(upgrade(random, weapon).ascended);
+    eq(weapon.plus, i);
+  }
+  eq(weaponTitle(weapon), 'Легендарный карабин +29');
+  const total = weaponStats(weapon), last = upgrade(random, weapon);
+  ok(last.ascended, 'тридцатое улучшение');
+  eq(weapon.rarity, DIVINE.id);
+  eq(weapon.plus, 0, 'счёт улучшений сначала');
+  eq(weapon.ups, {}, 'прибавки перешли в основные свойства');
+  total[last.id] += last.amount;
+  for (const [id, value] of Object.entries(total)) ok(Math.abs(weapon.stats[id] - value) < 1e-6, id);
+  ok(rankOf(weapon) > rankOf({ rarity: 'legendary' }), 'выше легендарного');
+  const next = upgrade(random, weapon);
+  eq(weapon.plus, 1);
+  ok(Math.abs(next.amount - weapon.stats[next.id] * 0.05) < 0.011, 'по 5%: ' + next.amount);
+  eq(weaponTitle(weapon), 'Божественный карабин +1');
+});
+
+test('божественное оружие усиливает особое свойство в полтора раза, где это возможно', () => {
+  eq(uniqueFor('fury', true).mul.damage, 1.6);
+  eq(uniqueText(uniqueFor('fury', true)), '+60% урона');
+  eq(uniqueText(uniqueFor('fury')), '+40% урона');
+  ok(Math.abs(1 / uniqueFor('frenzy', true).mul.interval - 1.9) < 1e-5, 'кусает на 90% чаще');
+  eq(uniqueText(uniqueFor('frenzy', true)), 'кусает на 90% чаще');
+  ok(Math.abs(uniqueFor('stormcaller', true).set.stormEvery - 3.5 / 1.5) < 1e-5, 'гроза чаще');
+  eq(uniqueFor('ignite', true).values, { dps: 0.45, time: 3 });
+  eq(uniqueFor('bore', true).set, { pierce: 1 }, 'сквозную пулю усиливать некуда');
+  eq(uniqueText(uniqueFor('twin', true)), 'стреляет сразу в двух мобов');
+  eq(uniqueText(uniqueFor('reach', true)), '+1,5 клетки к радиусу атаки и аур');
+  for (const u of UNIQUES) ok(!/[{}]/.test(uniqueText(uniqueFor(u.id, true))), u.id);
+});
+
+test('гача: частица бога — 0,1%, у кого она есть, тому не выпадает', () => {
+  const particle = OUTCOMES.find((outcome) => outcome.id === 'particle');
+  eq(particle.chance, 0.001);
+  const total = OUTCOMES.concat(RARITIES).reduce((sum, item) => sum + item.chance, 0);
+  let seen = 0;
+  for (let i = 0; i < 2000; i++) {
+    const at = (OUTCOMES[0].chance + OUTCOMES[1].chance + particle.chance * (i + 0.5) / 2000) / total;
+    if (spin(() => at, 'sniper').kind === 'particle') seen += 1;
+    no(spin(() => at, 'sniper', true).kind === 'particle', 'уже есть — не выпадает');
+  }
+  eq(seen, 2000);
+});
+
 test('улучшение: +20% от начального значения случайного свойства, бесконечно', () => {
   const weapon = makeWeapon(seeded(2), 'sniper', RARITIES[2]), before = Object.assign({}, weapon.stats);
   for (let i = 0; i < 10; i++) {
@@ -244,9 +303,30 @@ test('настройки: по умолчанию, границы, адрес т
   eq(fromQuery('?' + toQuery(s)), s);
 });
 
+test('карта: одна–три вышки у самой дороги, далеко друг от друга', () => {
+  const counts = new Set();
+  for (let seed = 1; seed <= 30; seed++) {
+    const { path, branch, tiles } = makeMap(seeded(seed)), road = new Set(path.concat(branch).map(key));
+    const watches = [];
+    tiles.forEach((tile, at) => {
+      if (tile === 'watch') watches.push([at % SIZE, Math.floor(at / SIZE)]);
+    });
+    ok(watches.length >= 1 && watches.length <= 3, 'вышек: ' + watches.length);
+    counts.add(watches.length);
+    for (const [x, y] of watches) {
+      no(road.has(key([x, y])), 'не на дороге');
+      ok([-1, 0, 1].some((dx) => [-1, 0, 1].some((dy) => road.has(key([x + dx, y + dy])))), 'у дороги');
+    }
+    watches.forEach(([x, y], i) => watches.slice(i + 1).forEach(([u, v]) => {
+      ok(Math.max(Math.abs(x - u), Math.abs(y - v)) > 3, 'не рядом');
+    }));
+  }
+  ok(counts.size >= 2, 'число вышек разное');
+});
+
 test('карта: река течёт от края до края, дорогу пересекает только мостом поперёк прямого участка', () => {
   let seen = 0;
-  for (let seed = 1; seed <= 40; seed++) {
+  for (let seed = 1; seed <= 80; seed++) {
     const { path, branch, tiles, rivers } = makeMap(seeded(seed)), road = new Set(path.concat(branch).map(key));
     for (const river of rivers) {
       seen += 1;

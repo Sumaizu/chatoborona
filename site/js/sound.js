@@ -284,6 +284,58 @@ const RECIPES = {
   summon(s, at) {
     for (let i = 0; i < 3; i++) s.pop(at + i * 0.07, 1800, 2400, 0.05, 0.08);
   },
+  relic(s, at) {
+    s.pad(at, [D4, A4, D5], 1.6, 0.06);
+    s.swish(at, 400, 6000, 0.8, 0.07);
+    [D6, FS6, A6, 2349, 2960].forEach((note, i) => s.chime(at + 0.1 + i * 0.09, note, 1.1, 0.05, -0.4 + i * 0.2));
+    s.bell(at + 0.5, D5, 1.6, 0.12, 2.76, 1.2);
+  },
+  divine(s, at) {
+    s.thump(at, 140, 40, 0.5, 0.4);
+    s.pad(at, [D4, FS4, A4, D5], 2.4, 0.07);
+    s.horn(at + 0.05, D4, 1.6, 0.09, -0.3);
+    s.horn(at + 0.05, A4, 1.6, 0.07, 0.3);
+    s.bell(at + 0.2, D6, 1.4, 0.11, 2.76, 1.4);
+    [A5, D6, FS6, A6].forEach((note, i) => s.chime(at + 0.35 + i * 0.1, note, 1.2, 0.05, spread()));
+    s.hiss(at + 0.2, 1.4, 0.05, 6000, 11000);
+  },
+  charge(s, at) {
+    s.swish(at, 200, 4800, 1.6, 0.12);
+    s.whistle(at, 300, 1600, 1.6, 0.05);
+  },
+  merge(s, at) {
+    s.thump(at, 160, 40, 0.6, 0.5);
+    s.crunch(at, 0.25, 0.12);
+    s.bell(at, A5, 1.4, 0.15, 2.76, 1.6);
+    s.chime(at + 0.05, 2637, 1, 0.06, 0);
+  },
+  flash(s, at) {
+    s.hiss(at, 0.25, 0.12, 5000, 12000);
+    s.chime(at, 3520, 0.4, 0.05, spread());
+  },
+  quake(s, at) {
+    s.rumble(at, 1, 0.3);
+    s.thump(at, 90, 40, 0.8, 0.3);
+  },
+  flip(s, at) {
+    s.pop(at, 1400, 900, 0.04, 0.12);
+    s.bell(at + 0.02, E6, 0.8, 0.12, 2.76, 1.6);
+    [D6, A6].forEach((note, i) => s.chime(at + 0.1 + i * 0.07, note, 0.7, 0.05, spread()));
+  },
+  drop(s, at) {
+    s.swish(at, 3000, 500, 0.6, 0.12);
+    s.thump(at + 0.55, 130, 50, 0.3, 0.35);
+  },
+  paragon(s, at) {
+    s.thump(at, 150, 45, 0.6, 0.28);
+    [D4, FS4, A4].forEach((note, i) => s.horn(at, note, 1.8, 0.07, -0.3 + i * 0.3));
+    s.horn(at + 0.45, D5, 1.6, 0.07, 0);
+    [D5, FS5, A5, D6, FS6, A6].forEach((note, i) => s.pluck(at + 0.1 + i * 0.07, note, 0.9, 0.1, -0.5 + i * 0.2,
+      1.4));
+    s.hiss(at + 0.1, 1.6, 0.06, 6000, 11000);
+    [2349, 2960, 3520, 2960, 3520].forEach((note, i) => s.chime(at + 0.7 + i * 0.09, note, 1, 0.05, spread()));
+    for (let i = 0; i < 3; i++) s.pop(at + 0.5 + i * 0.12, 600, 200, 0.06, 0.1);
+  },
 };
 
 export const SFX_GAPS = {
