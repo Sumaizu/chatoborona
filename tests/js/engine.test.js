@@ -618,3 +618,18 @@ test('стример переставляет защитников «А1 Б2»; 
   eq(game.feed('Streamer', late, { login: 'streamer' }), 'later');
   eq(gosha.pendingMove, { x: next.x, y: next.y });
 });
+
+test('команда !чатоборона: правила на экране и пауза, «!чатоборона-пауза» продолжает; зрителям нельзя', () => {
+  const { game } = makeGame();
+  game.open();
+  say(game, 'Аня', 'привет');
+  toWave(game);
+  eq(say(game, 'Аня', '!чатоборона'), null, 'зрителю нельзя');
+  no(game.paused);
+  eq(say(game, 'Мод', '!чатоборона', MOD), 'rules');
+  ok(game.paused && game.rulesShown, 'игра стоит, правила на экране');
+  eq(say(game, 'Мод', '!чатоборона-пауза', MOD), 'pause');
+  ok(!game.paused && !game.rulesShown, 'игра идёт, правила убраны');
+  game.pause();
+  no(game.rulesShown, 'обычная пауза — без правил');
+});

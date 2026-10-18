@@ -8,7 +8,7 @@ import { View } from './view.js';
 const CODE_FILES = ['overlay.html', 'css/overlay.css', 'js/overlay.js', 'js/view.js', 'js/draw.js', 'js/sprites.js',
   'js/engine.js', 'js/battle.js', 'js/balance.js', 'js/classes.js', 'js/field.js', 'js/gacha.js', 'js/chat.js',
   'js/config.js', 'js/demo.js', 'js/sound.js', 'js/events.js', 'js/models.js', 'js/monsters.js', 'js/props.js',
-  'js/guide.js'];
+  'js/guide.js', 'js/rules.js'];
 const LOCAL = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
 const UPDATE_CHECK_SECONDS = LOCAL ? 5 : 300;
 const RELOAD_PAUSE_SECONDS = LOCAL ? 0 : 600;

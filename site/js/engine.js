@@ -11,6 +11,7 @@ export const COMMANDS = new Map([
   ['!чатоборона-дальше', 'next'],
   ['!чатоборона-заново', 'restart'],
   ['!чатоборона-сброс', 'reset'],
+  ['!чатоборона', 'rules'],
 ]);
 export const ACTIONS = new Map([
   ['гача', 'spin'],
@@ -183,6 +184,7 @@ export class Game {
     this.slots = Array(SLOTS).fill(null);
     this.notes = [];
     this.cards = [];
+    this.rulesShown = false;
     this.cardRoom = CARD_ROOM;
     this.events = [];
     this._noteNo = 0;
@@ -214,9 +216,17 @@ export class Game {
     return this.setPaused(!this.paused);
   }
 
+  showRules() {
+    if (this.state === 'stopped') return false;
+    this.rulesShown = true;
+    this.setPaused(true);
+    return true;
+  }
+
   setPaused(paused) {
     if (this.state === 'stopped' || this.paused === paused) return false;
     this.paused = paused;
+    if (!paused) this.rulesShown = false;
     this._emit(paused ? 'paused' : 'resumed');
     return true;
   }
@@ -420,6 +430,7 @@ export class Game {
 
   _control(command) {
     if (command === 'pause') return this.pause() ? 'pause' : null;
+    if (command === 'rules') return this.showRules() ? 'rules' : null;
     if (command === 'next') return this.next() ? 'next' : null;
     if (command === 'restart') return this.restart() ? 'restart' : null;
     if (command === 'reset') {

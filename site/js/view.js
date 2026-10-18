@@ -8,6 +8,7 @@ import { BIOME_RULES, LEVEL_MAX, LIVES, levelOf, tierOf, towerBase } from './bal
 import { SIZE, cellName } from './field.js';
 import { SFX_GAPS, play } from './sound.js';
 import { PAGES, pageAt } from './guide.js';
+import { RULES_TITLE, renderRules } from './rules.js';
 
 const STAGE_WIDTH = 1280, STAGE_HEIGHT = 720;
 const PAINT_EVERY = 0.15;
@@ -192,6 +193,8 @@ export class View {
     this._slots = [];
     this._cards = new Map();
     this._cardTall = 0;
+    $('rules-board-title').textContent = RULES_TITLE;
+    renderRules($('rules-text'));
     $('emblem-left').src = shieldUrl(64);
     $('emblem-right').src = shieldUrl(64);
     window.addEventListener('resize', () => this._fitStage());
@@ -544,10 +547,12 @@ export class View {
     this._lives = lives;
     $('lobby').hidden = game.state !== 'lobby';
     $('over').hidden = game.state !== 'over';
-    $('pause').hidden = state !== 'paused';
+    const rules = state === 'paused' && game.rulesShown;
+    $('pause').hidden = state !== 'paused' || rules;
+    $('rules-board').hidden = !rules;
     if (game.state === 'lobby') this._paintLobby(game, still);
     if (game.state === 'over') this._paintOver(game);
-    if (state === 'paused') this._paintPause(game);
+    if (state === 'paused' && !rules) this._paintPause(game);
     this._paintSlots(game);
     this._paintEffects(game);
     this._paintPlayers(game);

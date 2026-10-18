@@ -132,6 +132,22 @@ test('страницы: сотый уровень — поздравление �
   frame.remove();
 });
 
+test('страницы: !чатоборона в оверлее — правила в два столбика на паузе, «!чатоборона-пауза» — дальше', async () => {
+  fresh();
+  const frame = await overlay('lobby=10&first_wave=5');
+  const w = frame.contentWindow, game = w.chatoborona.game;
+  await until(() => game.state === 'lobby', 'набор');
+  game.feed('Мод', '!чатоборона', { login: 'мод', mod: true });
+  await until(() => !element(w, 'rules-board').hidden, 'правила на экране');
+  ok(text(w, 'rules-board').includes('!чатоборона-пауза') && text(w, 'rules-board').includes('Команды для зрителей'));
+  ok(element(w, 'pause').hidden, 'вместо обычного экрана паузы');
+  eq(w.getComputedStyle(element(w, 'rules-text')).columnCount, '2');
+  game.feed('Мод', '!чатоборона-пауза', { login: 'мод', mod: true });
+  await until(() => element(w, 'rules-board').hidden, 'правила убраны');
+  no(game.paused);
+  frame.remove();
+});
+
 test('страницы: в наборе сменяются страницы правил, отряда и классов', async () => {
   fresh();
   const frame = await overlay('lobby=300');
@@ -200,6 +216,9 @@ test('страницы: главная — без канала просит ка
   w.document.getElementById('rules').showModal();
   element(w, 'rules-x').click();
   no(element(w, 'rules').open, 'и крестик тоже');
+  element(w, 'open-rules').click();
+  ok(element(w, 'rules').open, 'кнопка «Правила» открывает снова');
+  element(w, 'rules-close').click();
   await until(() => !element(w, 'play').disabled, 'кнопка Начать');
   element(w, 'play').click();
   ok(text(w, 'status').includes('канал'));

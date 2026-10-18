@@ -1,4 +1,5 @@
 import { clean, fromQuery, toQuery } from './config.js';
+import { RULES_TITLE, renderRules } from './rules.js';
 
 const STORAGE_KEY = 'chatoborona.settings';
 const NUMBERS = ['lobby', 'first_wave', 'wave_pause', 'reset_hour', 'reset_hours', 'volume'];
@@ -227,6 +228,7 @@ $('toggle-settings').addEventListener('click', toggleSettings);
 $('toggle-link').addEventListener('click', () => showLinkPanel(linkPanel.hidden));
 $('copy').addEventListener('click', copyLink);
 for (const id of ['rules-x', 'rules-close']) $(id).addEventListener('click', () => $('rules').close());
+$('open-rules').addEventListener('click', () => $('rules').showModal());
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') showLinkPanel(false);
 });
@@ -236,6 +238,8 @@ document.addEventListener('click', (event) => {
 
 fillForm();
 showLink();
+$('rules-title').textContent = RULES_TITLE;
+renderRules($('rules-body'));
 $('rules').showModal();
 frame.src = overlayLink(['embed=1', toQuery(settings)].filter(Boolean).join('&'));
 sync();
