@@ -149,6 +149,11 @@ def main():
                 browser.wait_for("(() => { const f = document.getElementById('game'); "
                                  "return Boolean(f && f.contentWindow && f.contentWindow.chatoborona); })()", 20)
                 time.sleep(1.5)
+                if "rules" in wanted:
+                    browser.screenshot(out / "rules.png")
+                    print("снято:", out / "rules.png")
+                browser.evaluate("document.getElementById('rules').close()")
+                time.sleep(0.3)
                 browser.screenshot(out / "page.png")
                 print("снято:", out / "page.png")
             if "settings" in wanted:

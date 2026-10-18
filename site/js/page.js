@@ -226,6 +226,7 @@ channelField.addEventListener('input', () => { notice = ''; });
 $('toggle-settings').addEventListener('click', toggleSettings);
 $('toggle-link').addEventListener('click', () => showLinkPanel(linkPanel.hidden));
 $('copy').addEventListener('click', copyLink);
+for (const id of ['rules-x', 'rules-close']) $(id).addEventListener('click', () => $('rules').close());
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') showLinkPanel(false);
 });
@@ -235,6 +236,7 @@ document.addEventListener('click', (event) => {
 
 fillForm();
 showLink();
+$('rules').showModal();
 frame.src = overlayLink(['embed=1', toQuery(settings)].filter(Boolean).join('&'));
 sync();
 setInterval(sync, SYNC_MS);

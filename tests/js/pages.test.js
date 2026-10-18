@@ -193,6 +193,13 @@ test('страницы: главная — без канала просит ка
   const frame = await open('index.html', (w) => w.document.getElementById('game')
     && w.document.getElementById('game').contentWindow.chatoborona);
   const w = frame.contentWindow, inner = element(w, 'game').contentWindow, api = inner.chatoborona;
+  ok(element(w, 'rules').open, 'при открытии — правила для стримера');
+  ok(text(w, 'rules').includes('Ссылка для OBS') && text(w, 'rules').includes('!чатоборона-пауза'));
+  element(w, 'rules-close').click();
+  no(element(w, 'rules').open, 'кнопка «Закрыть» закрывает');
+  w.document.getElementById('rules').showModal();
+  element(w, 'rules-x').click();
+  no(element(w, 'rules').open, 'и крестик тоже');
   await until(() => !element(w, 'play').disabled, 'кнопка Начать');
   element(w, 'play').click();
   ok(text(w, 'status').includes('канал'));
