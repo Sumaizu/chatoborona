@@ -451,7 +451,7 @@ function slabs(style) {
 
 function paintRoad(ctx, battle, look) {
   const style = ROADS[look.road], { joined } = links(battle), width = CELL * 0.8;
-  const lines = [battle.routes[0]].concat(battle.branch.length ? [battle.routes[1].slice(0, -1)] : []);
+  const lines = roadLines(battle);
   ctx.save();
   ctx.beginPath();
   ctx.rect(EDGE, EDGE, CELL * SIZE, CELL * SIZE);
@@ -739,7 +739,6 @@ function paintLakes(data, battle, look) {
   if (!cells.length && !(battle.rivers || []).length) return;
   const { h, box } = heights(cells, 0.6, 700);
   for (const river of battle.rivers || []) flow(h, box, river);
-  keepRoad(h, box, battle);
   const tones = { wet: rgb(style.wet), shore: rgb(style.shore), shallow: rgb(style.shallow), deep: rgb(style.deep),
     shine: rgb(style.shine), mark: rgb(style.mark || style.shine) };
   for (let y = box[1]; y < box[3]; y++) {
@@ -776,9 +775,19 @@ function layer(painters, battle, look) {
 }
 
 function relief(battle, look) {
-  const high = layer([paintLakes, paintMountains], battle, look);
-  paintRivers(high.getContext('2d'), battle);
+  const water = layer([paintLakes], battle, look), high = document.createElement('canvas');
+  high.width = high.height = SIDE;
+  const g = high.getContext('2d'), w = water.getContext('2d');
+  w.globalCompositeOperation = 'destination-out';
+  strokes(w, roadLines(battle), (v) => v * CELL, [[CELL * 0.8 + 3, '#000000']]);
+  g.drawImage(water, 0, 0);
+  g.drawImage(layer([paintMountains], battle, look), 0, 0);
+  paintRivers(g, battle);
   return { low: layer([paintHills], battle, look), high };
+}
+
+function roadLines(battle) {
+  return [battle.routes[0]].concat(battle.branch.length ? [battle.routes[1].slice(0, -1)] : []);
 }
 
 function flow(h, box, cells) {

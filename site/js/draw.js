@@ -7,7 +7,7 @@ import { rarityOf } from './gacha.js';
 import { LEVEL_MAX } from './balance.js';
 
 export const BOARD = EDGE * 2 + CELL * SIZE;
-const FIELD = 616;
+const FIELD = 640;
 
 const ZOOM = 2;
 const SMOOTH = 28;
