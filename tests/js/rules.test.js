@@ -171,12 +171,17 @@ test('классы: у каждого роль, контроль и поддер
   eq(new Set(CLASSES.map((cls) => cls.role)).size, 3);
 });
 
-test('гача: пустота 15%, удвоение монет 15%, остальное — оружие по редкостям', () => {
-  const random = seeded(11), counts = new Map();
+test('гача: пустота, монеты (горстка 50%, мешок 45%, сундук 5% от 15%), остальное — оружие по редкостям', () => {
+  const random = seeded(11), counts = new Map(), money = { handful: [1, 50], bag: [51, 150], chest: [151, 500] };
   for (let i = 0; i < 20000; i++) {
     const outcome = spin(random, 'sniper'), key = outcome.kind === 'weapon' ? outcome.weapon.rarity : outcome.kind;
     counts.set(key, (counts.get(key) || 0) + 1);
+    if (money[key]) ok(outcome.coins >= money[key][0] && outcome.coins <= money[key][1], key + ' ' + outcome.coins);
   }
+  const chance = (id) => OUTCOMES.find((outcome) => outcome.id === id).chance;
+  ok(Math.abs(chance('handful') + chance('bag') + chance('chest') - 0.15) < 1e-9, 'монеты вместе — 15%');
+  eq([chance('handful') / 0.15, chance('bag') / 0.15, chance('chest') / 0.15].map((v) => v.toFixed(3)),
+    ['0.500', '0.450', '0.050']);
   const all = OUTCOMES.concat(RARITIES);
   eq(all.map((r) => r.chance).reduce((a, b) => a + b, 0).toFixed(6), '1.000000');
   for (const item of all) {
@@ -273,7 +278,8 @@ test('гача: частица бога — 0,1%, у кого она есть, �
   const total = OUTCOMES.concat(RARITIES).reduce((sum, item) => sum + item.chance, 0);
   let seen = 0;
   for (let i = 0; i < 2000; i++) {
-    const at = (OUTCOMES[0].chance + OUTCOMES[1].chance + particle.chance * (i + 0.5) / 2000) / total;
+    const before = OUTCOMES.slice(0, OUTCOMES.indexOf(particle)).reduce((sum, item) => sum + item.chance, 0);
+    const at = (before + particle.chance * (i + 0.5) / 2000) / total;
     if (spin(() => at, 'sniper').kind === 'particle') seen += 1;
     no(spin(() => at, 'sniper', true).kind === 'particle', 'уже есть — не выпадает');
   }

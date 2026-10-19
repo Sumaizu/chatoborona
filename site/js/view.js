@@ -50,6 +50,8 @@ const BATTLE_SOUNDS = { wall: 'build', crumble: 'crumble', plant: 'plant', mine:
   swallow: 'burrow', breath: 'flame', web: 'hex', ward: 'block', mirage: 'summon', dig: 'burrow', drop: 'summon',
   hook: 'chain', yank: 'yank' };
 const GOOD_EVENTS = new Set(['buff', 'blessing']);
+const COIN_FINDS = { handful: ' находит горстку монет', bag: ' находит мешок монет!',
+  chest: ' открывает сундук монет!' };
 const NOTE_KINDS = new Set(['card', 'poor', 'bare', 'upgrade']);
 const NEWCOMER_GLOW = { fire: '#f97316', ice: '#67e8f9', storm: '#facc15', poison: '#a3e635' };
 const NICK_COLORS = ['#ff8f85', '#ffb547', '#f2dd6e', '#8fe3ae', '#7fd4ff', '#b7a6ff', '#ff9ad5', '#8fe0d2'];
@@ -385,7 +387,7 @@ export class View {
       }
       if (event.kind === 'kept') this._cue('meh');
       if (event.kind === 'void') this._cue('void');
-      if (event.kind === 'jackpot') this._cue('jackpot');
+      if (event.kind === 'jackpot') this._cue(event.prize === 'chest' ? 'win' : 'jackpot');
       if (event.kind === 'particle') {
         this._cue('relic');
         this._names.set(event.login, NAME_TIME);
@@ -908,9 +910,9 @@ export class View {
       view.who.textContent = '';
       const name = member ? this._starName(member.name, member.star, member.color, 'nick') : el('span', '', slot.login);
       const kind = slot.outcome.kind;
-      const verb = slot.phase === 'spin' ? ' крутит гачу…' : kind === 'void' ? ': пусто' : kind === 'coins'
-        ? ' возвращает вдвое' : kind === 'particle' ? ' находит частицу бога!' : slot.took ? ' надевает'
-          : ' оставляет своё';
+      const verb = slot.phase === 'spin' ? ' крутит гачу…' : kind === 'void' ? ': пусто'
+        : COIN_FINDS[kind] || (kind === 'particle' ? ' находит частицу бога!' : slot.took ? ' надевает'
+          : ' оставляет своё');
       view.who.append(name, verb);
       view.result.textContent = '';
       view.box.classList.toggle('shown', slot.phase !== 'spin');
@@ -920,8 +922,7 @@ export class View {
         const prize = outcomeOf(kind), title = el('b', 'prize', prize.name);
         title.style.color = prize.color;
         const what = kind === 'void' ? 'ничего не выпало — повезёт в другой раз' : kind === 'particle'
-          ? 'навсегда, для парагона'
-          : '+' + slot.coins + ' монет: потраченные ' + slot.coins / 2 + ' вернулись вдвое';
+          ? 'навсегда, для парагона' : '+' + slot.coins + ' ' + plural(slot.coins, 'монета', 'монеты', 'монет');
         view.result.append(title, el('div', 'now', what));
         return;
       }

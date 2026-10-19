@@ -353,5 +353,7 @@ test('спрайты: герои, мобы, оружие и монета рис�
   for (const kind of MOB_KINDS) ok(mobSprite(kind).width >= 8, kind);
   for (const kind of ELITES.concat(BOSSES)) ok(MOB_KINDS.includes(kind.id), kind.id);
   ok(coinUrl().startsWith('data:image/png'));
-  for (const kind of ['weapon', 'void', 'coins']) ok(prizeUrl(kind, '#facc15').startsWith('data:image/png'), kind);
+  for (const kind of ['weapon', 'void', 'handful', 'bag', 'chest', 'particle']) {
+    ok(prizeUrl(kind, '#facc15').startsWith('data:image/png'), kind);
+  }
 });

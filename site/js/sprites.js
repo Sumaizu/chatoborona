@@ -525,11 +525,39 @@ const PRIZES = {
     p.disc(8, 8, 2.6, '#111827');
     p.line(4, 12, 12, 4, '#9ca3af', 1);
   },
-  coins(p) {
+  handful(p) {
     for (const [x, y] of [[5, 11], [10, 11], [7.5, 8], [7.5, 4.5]]) {
       p.oval(x, y, 3, 1.6, '#ffcd38', '#c98a12', '#fff2a8');
     }
     p.px(12, 3, '#ffffff');
+  },
+  bag(p) {
+    p.ball(8, 10, 5, '#b07a3c', '#7a5023', '#d39b55');
+    p.oval(8, 4, 3, 1.5, '#b07a3c', '#7a5023', '#d39b55');
+    p.px(5.5, 3, '#d39b55');
+    p.px(10.5, 3, '#7a5023');
+    p.rect(5, 6, 6, 1, '#f0d08a');
+    p.px(11, 7, '#f0d08a');
+    p.ball(8, 10.5, 2, '#ffcd38', '#c98a12', '#fff2a8');
+    p.px(8, 10.5, '#b77a0c');
+    for (const [x, y] of [[2.6, 14], [13.2, 14.2]]) p.oval(x, y, 1.7, 0.9, '#ffcd38', '#c98a12', '#fff2a8');
+    p.px(12, 2, '#ffffff');
+  },
+  chest(p) {
+    p.box(3, 1, 10, 4, '#7a4e25');
+    p.rect(3, 2, 10, 1, '#5e3a1b');
+    for (const x of [5, 10]) p.rect(x, 1, 1, 4, '#d6a72e');
+    p.box(2, 9, 12, 5, '#8a5a2b');
+    p.rect(2, 11, 12, 1, '#6b4220');
+    for (const x of [4, 11]) p.rect(x, 9, 1, 5, '#d6a72e');
+    for (const [x, y, c] of [[4, 8.2, '#ffcd38'], [7, 7.4, '#fff2a8'], [9.6, 7.8, '#ffcd38'], [12, 8.4, '#c98a12'],
+      [5.6, 6.8, '#ffcd38'], [8.4, 6.2, '#ffcd38'], [11, 6.9, '#fff2a8']]) p.oval(x, y, 1.7, 1.1, c, '#c98a12');
+    p.px(8, 6, '#ffffff');
+    p.px(10, 7, '#ff4d6d');
+    p.px(6, 7, '#60a5fa');
+    p.box(7, 10, 2, 2, '#ffd43b');
+    p.px(7.5, 11, '#5a3a06');
+    for (const [x, y] of [[1, 3], [14, 4], [2, 6]]) p.px(x, y, '#ffffff');
   },
 };
 

@@ -16,7 +16,9 @@ export const DIVINE_POWER = 1.5;
 
 export const OUTCOMES = [
   { id: 'void', name: 'Пустота', color: '#6b7280', chance: 0.149 },
-  { id: 'coins', name: 'Удвоение монет', color: '#facc15', chance: 0.15 },
+  { id: 'handful', name: 'Горстка монет', color: '#facc15', chance: 0.075, coins: [1, 50] },
+  { id: 'bag', name: 'Мешок монет', color: '#e8a33d', chance: 0.0675, coins: [51, 150] },
+  { id: 'chest', name: 'Сундук монет', color: '#ffb020', chance: 0.0075, coins: [151, 500] },
   { id: 'particle', name: 'Частица бога', color: '#ff2e4d', chance: 0.001 },
 ];
 
@@ -324,6 +326,10 @@ export function weaponScore(weapon) {
 
 export function spin(random, cls, owned = false) {
   const roll = pick(OUTCOMES.filter((outcome) => !owned || outcome.id !== 'particle').concat(RARITIES), random);
+  if (roll.coins) {
+    const [low, high] = roll.coins;
+    return { kind: roll.id, coins: low + Math.floor(random() * (high - low + 1)) };
+  }
   if (OUTCOMES.includes(roll)) return { kind: roll.id };
   return { kind: 'weapon', weapon: makeWeapon(random, cls, roll) };
 }

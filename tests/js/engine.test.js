@@ -173,7 +173,7 @@ test('гача: команда без восклицательного знак�
   game.step(TICK);
   const slot = game.slots[0];
   eq(slot.login, 'нина');
-  ok(['weapon', 'void', 'coins'].includes(slot.outcome.kind));
+  ok(['weapon', 'void', 'handful', 'bag', 'chest', 'particle'].includes(slot.outcome.kind));
   if (slot.outcome.kind === 'weapon') eq(slot.outcome.weapon.cls, member.cls);
   for (const cls of Object.keys(WEAPONS)) {
     ok(weaponName(makeWeapon(() => 0.5, cls, RARITIES[3])).endsWith(WEAPONS[cls]), cls);
@@ -471,11 +471,12 @@ test('гача: пустота ничего не даёт, удвоение — 
   game._apply(empty);
   eq(member.coins, 70);
   eq(member.weapon, null);
-  const lucky = { id: 2, login: 'ося', outcome: { kind: 'coins' }, phase: 'spin', left: 0 };
+  const lucky = { id: 2, login: 'ося', outcome: { kind: 'bag', coins: 120 }, phase: 'spin', left: 0 };
   game.slots[1] = lucky;
   game._apply(lucky);
-  eq(member.coins, 70 + PRICE * 2);
-  eq(lucky.coins, PRICE * 2);
+  eq(member.coins, 70 + 120);
+  eq(lucky.coins, 120);
+  ok(game.events.some((e) => e.kind === 'jackpot' && e.prize === 'bag' && e.coins === 120));
 });
 
 test('улучшить: за 100 монет +20% к случайному свойству, без оружия и без денег — нельзя', () => {

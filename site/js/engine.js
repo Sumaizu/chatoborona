@@ -751,11 +751,11 @@ export class Game {
       this._emit('particle', { login: member.login });
       return;
     }
-    if (outcome.kind === 'coins') {
+    if (outcome.coins) {
       slot.took = true;
-      slot.coins = PRICE * 2;
+      slot.coins = outcome.coins;
       member.coins += slot.coins;
-      this._emit('jackpot', { login: member.login, coins: slot.coins });
+      this._emit('jackpot', { login: member.login, coins: slot.coins, prize: outcome.kind });
       return;
     }
     slot.took = !member.weapon || rankOf(weapon) >= rankOf(member.weapon);
