@@ -33,6 +33,7 @@ const WALL_BITE = 0.125;
 const WALL_MARGIN = 2;
 const MINE_TOUCH = 0.45;
 const MINES_PER_CELL = 10;
+const MINE_SPREAD = { along: 0.6, side: 0.24 };
 const TOSS_FLIGHT = 0.6;
 const TOSS_POWER = 0.5;
 const FLASK_FLIGHT = 0.5;
@@ -1303,9 +1304,15 @@ export class Battle {
     const taken = new Set(this.traps.map((trap) => trap.i));
     const cells = this._reach(t.range)[t.y * SIZE + t.x].filter((i) => !taken.has(i) && i > 0);
     if (!cells.length) return;
-    const i = cells[Math.floor(this.random() * cells.length)], [x, y] = this.road[i];
-    this.traps.push({ tower: t, i, x: x + 0.5, y: y + 0.5 });
-    this._event({ kind: 'trap', tower: t, x: x + 0.5, y: y + 0.5 });
+    const i = cells[Math.floor(this.random() * cells.length)], { r, d } = this._spot(i), at = this._roadPoint(r, d);
+    this.traps.push({ tower: t, i, x: at.x, y: at.y });
+    this._event({ kind: 'trap', tower: t, x: at.x, y: at.y });
+  }
+
+  _roadPoint(r, d) {
+    const point = { r, d, x: 0, y: 0 };
+    this._onRoute(point);
+    return point;
   }
 
   _plant(t, cells) {
@@ -1316,10 +1323,12 @@ export class Battle {
     const fewest = Math.min(...cells.map((i) => count.get(i) || 0));
     const free = cells.filter((i) => (count.get(i) || 0) === fewest && fewest < MINES_PER_CELL);
     if (!free.length) return;
-    const i = free[Math.floor(this.random() * free.length)], [x, y] = this.road[i];
+    const i = free[Math.floor(this.random() * free.length)], { r, d } = this._spot(i);
     const kind = MINE_KINDS[Math.floor(this.random() * MINE_KINDS.length)];
-    const shift = () => 0.5 + (this.random() - 0.5) * 0.6;
-    const mine = { tower: t, i, x: x + shift(), y: y + shift(), kind };
+    const along = d + (this.random() - 0.5) * MINE_SPREAD.along, side = (this.random() - 0.5) * MINE_SPREAD.side;
+    const at = this._roadPoint(r, along), ahead = this._roadPoint(r, along + 0.05);
+    const dx = ahead.x - at.x, dy = ahead.y - at.y, length = Math.hypot(dx, dy) || 1;
+    const mine = { tower: t, i, x: at.x - dy / length * side, y: at.y + dx / length * side, kind };
     this.mines.push(mine);
     this._event({ kind: 'plant', tower: t, x: mine.x, y: mine.y, mine: kind });
   }

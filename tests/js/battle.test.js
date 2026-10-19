@@ -1137,6 +1137,35 @@ function mapWith(marks = {}, biome = 'grass') {
   return new Battle({ path: STRAIGHT, branch: FORK, merge: 10, tiles, biome }, { random: seeded(7) });
 }
 
+test('мины и капканы на повороте ложатся на путь мобов, моб на повороте их задевает', () => {
+  const bent = Array.from({ length: 7 }, (_, x) => [x, 5]).concat(Array.from({ length: 10 }, (_, k) => [6, 6 + k]));
+  const battle = new Battle(bent, { random: seeded(3) }), corner = 6;
+  const miner = battle.place(player(xpForLevel(30)), 'miner', 5, 6), hunter = battle.place(player(), 'hunter', 7, 4);
+  const path = [];
+  const probe = { r: 0, d: 0, x: 0, y: 0 };
+  for (let d = 0; d <= battle.length; d += 0.02) {
+    probe.d = d;
+    battle._onRoute(probe);
+    path.push([probe.x, probe.y]);
+  }
+  const gap = (item) => Math.min(...path.map(([x, y]) => Math.hypot(item.x - x, item.y - y)));
+  for (let n = 0; n < 60; n++) {
+    battle.mines = [];
+    battle._plant(miner, [corner]);
+    ok(gap(battle.mines[0]) < 0.2, 'мина на пути: ' + gap(battle.mines[0]).toFixed(2));
+  }
+  battle._setTrap(hunter);
+  for (const trap of battle.traps) ok(gap(trap) < 0.05, 'капкан на пути');
+  battle.remove(hunter);
+  battle.traps = [];
+  battle.mines = [];
+  battle._plant(miner, [corner]);
+  const mine = battle.mines[0], mob = walker(battle, corner - 1, 1e6);
+  runFor(battle, 3);
+  no(battle.mines.includes(mine), 'моб на повороте подорвался');
+  ok(mob.max - mob.hp > 0);
+});
+
 test('мясник: раз в 10 секунд крюк летит пару секунд и пару секунд тащит защитника на клетку рядом с собой', () => {
   const battle = makeBattle(), far = battle.place(player(), 'gunner', 15, 1);
   const butcher = special(battle, 'boss', 'butcher', 1e9);
