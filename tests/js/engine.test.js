@@ -647,7 +647,7 @@ function hero(game, name, { level = LEVEL_MAX, particle = true, divine = true } 
   return member;
 }
 
-test('парагон: сотый уровень, топ-5, божественное оружие и частица — после игры парагон и снова 1-й уровень', () => {
+test('парагон: сотый уровень, божественное оружие и частица — после игры парагон и снова 1-й уровень', () => {
   const storage = memoryStorage(), { game } = makeGame({ storage });
   game.open();
   const best = hero(game, 'Вера'), bare = hero(game, 'Глеб', { particle: false });
@@ -675,22 +675,17 @@ test('парагон: сотый уровень, топ-5, божественн�
   eq(game.members.get('вера').paragon, 1, 'парагон остаётся');
 });
 
-test('парагон: только пятёрка лучших по убийствам или по помощи', () => {
+test('парагон: место в игре не важно — получают все, у кого сошлось, даже без убийств', () => {
   const { game } = makeGame();
   game.open();
   const names = ['Аня', 'Боря', 'Валя', 'Гена', 'Даня', 'Женя', 'Зоя'];
-  const members = names.map((name) => hero(game, name));
+  names.map((name) => hero(game, name));
   toWave(game);
-  members.forEach((member, i) => {
-    member.tower.run.kills = 10 - i;
-    member.tower.run.assists = i === 6 ? 50 : 0;
-  });
   game.battle.lives = 0;
   game.step(TICK);
-  eq(game.ascents.map((a) => a.login).sort(), ['аня', 'боря', 'валя', 'гена', 'даня', 'зоя'].sort(),
-    'шестой по убийствам не проходит, зато лучший в помощи — да');
+  eq(game.ascents.length, names.length, 'все семеро, хотя никто никого не убил');
   eq(game.state, 'ascend');
-  runFor(game, ASCEND_TIME * 6 - 0.2);
+  runFor(game, ASCEND_TIME * names.length - 0.2);
   eq(game.state, 'ascend', 'по церемонии на каждого');
   runFor(game, 0.4);
   eq(game.state, 'over');

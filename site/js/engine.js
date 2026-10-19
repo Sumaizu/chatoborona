@@ -41,7 +41,6 @@ export const NOTE_TIME = 4;
 export const QUICK_WAVE = 10;
 export const QUICK_PAUSE = 5;
 export const ASCEND_TIME = 16;
-export const PARAGON_TOP = 5;
 
 const STEP_MAX = 1;
 const EVENTS_MAX = 500;
@@ -633,7 +632,7 @@ export class Game {
       damage: m.tower.run.damage,
     }));
     this.results = { passed, players, record, time: this.battle.time - this.run.started, rows };
-    this.ascents = this._ascents(rows);
+    this.ascents = this._ascents();
     this._saveAll();
     this.state = this.ascents.length ? 'ascend' : 'over';
     this.left = this.ascents.length ? ASCEND_TIME * this.ascents.length : OVER_TIME;
@@ -644,14 +643,11 @@ export class Game {
     for (const ascent of this.ascents) this._emit('paragon', { login: ascent.login, paragon: ascent.to });
   }
 
-  _ascents(rows) {
-    const top = (field) => rows.filter((row) => row[field] > 0).sort((a, b) => b[field] - a[field])
-      .slice(0, PARAGON_TOP).map((row) => row.login);
-    const best = new Set(top('kills').concat(top('assists'))), ascents = [];
+  _ascents() {
+    const ascents = [];
     for (const member of this.members.values()) {
       const weapon = member.weapon;
-      if (!best.has(member.login) || levelOf(member.xp) < LEVEL_MAX || !member.particle || !weapon
-        || weapon.rarity !== DIVINE.id) continue;
+      if (levelOf(member.xp) < LEVEL_MAX || !member.particle || !weapon || weapon.rarity !== DIVINE.id) continue;
       ascents.push({ login: member.login, name: member.name, star: member.star, color: member.color, cls: member.cls,
         from: member.paragon, to: member.paragon + 1 });
       member.paragon += 1;
