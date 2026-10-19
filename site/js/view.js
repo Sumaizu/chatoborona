@@ -989,8 +989,8 @@ export class View {
       list.classList.toggle('two', two);
       if (!members.length) list.append(el('li', 'empty', 'Пока никого — напиши что-нибудь в чат'));
       for (const m of shown) {
-        const row = el('li'), level = levelTag('lvl', levelOf(m.xp), two ? '' : 'ур. ');
-        if (levelOf(m.xp) < LEVEL_MAX || !two) level.style.background = gearColor(m.weapon);
+        const row = el('li'), level = el('span', 'lvl', (two ? '' : 'ур. ') + levelOf(m.xp));
+        level.style.background = gearColor(m.weapon);
         level.title = 'уровень';
         row.append(image(heroUrl(m.cls), 'face'), this._starName(m.name, m.star, m.color));
         if (m.paragon) row.append(paragonTag(m.paragon));

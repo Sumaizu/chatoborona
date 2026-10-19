@@ -5,6 +5,7 @@ const REVERB_SECONDS = 1.6;
 const REVERB_LEVEL = 0.3;
 const ECHO_SECONDS = 0.19;
 const ECHO_LEVEL = 0.18;
+const HEADROOM = 0.9;
 
 const spread = () => (Math.random() - 0.5) * 0.6;
 
@@ -51,13 +52,13 @@ const RECIPES = {
     s.pluck(at + 0.13, FS4, 0.4, 0.13, 0.1, 0.4);
   },
   win(s, at) {
-    s.thump(at, 160, 50, 0.4, 0.4);
-    s.horn(at, D4, 1.4, 0.12, -0.3);
-    s.horn(at, FS4, 1.4, 0.09, 0.3);
-    s.horn(at, A4, 1.4, 0.09, 0);
-    [D5, FS5, A5, D6, FS6].forEach((note, i) => s.pluck(at + 0.1 + i * 0.06, note, 0.8, 0.16, -0.4 + i * 0.2, 1.4));
-    s.hiss(at + 0.1, 1.2, 0.08, 6000, 10000);
-    [A6, 2349, 2960, 3520].forEach((note, i) => s.chime(at + 0.55 + i * 0.08, note, 1, 0.05, spread()));
+    s.thump(at, 160, 50, 0.4, 0.3);
+    s.horn(at, D4, 1.4, 0.085, -0.3);
+    s.horn(at, FS4, 1.4, 0.07, 0.3);
+    s.horn(at, A4, 1.4, 0.07, 0);
+    [D5, FS5, A5, D6, FS6].forEach((note, i) => s.pluck(at + 0.1 + i * 0.06, note, 0.8, 0.12, -0.4 + i * 0.2, 1.4));
+    s.hiss(at + 0.1, 1.2, 0.05, 6000, 10000);
+    [A6, 2349, 2960, 3520].forEach((note, i) => s.chime(at + 0.55 + i * 0.08, note, 1, 0.045, spread()));
   },
   leak(s, at) {
     s.thump(at, 95, 38, 0.4, 0.7);
@@ -337,14 +338,14 @@ const RECIPES = {
     s.thump(at + 0.55, 130, 50, 0.3, 0.35);
   },
   paragon(s, at) {
-    s.thump(at, 150, 45, 0.6, 0.28);
-    [D4, FS4, A4].forEach((note, i) => s.horn(at, note, 1.8, 0.07, -0.3 + i * 0.3));
-    s.horn(at + 0.45, D5, 1.6, 0.07, 0);
-    [D5, FS5, A5, D6, FS6, A6].forEach((note, i) => s.pluck(at + 0.1 + i * 0.07, note, 0.9, 0.1, -0.5 + i * 0.2,
+    s.thump(at, 150, 45, 0.6, 0.24);
+    [D4, FS4, A4].forEach((note, i) => s.horn(at, note, 1.8, 0.06, -0.3 + i * 0.3));
+    s.horn(at + 0.45, D5, 1.6, 0.06, 0);
+    [D5, FS5, A5, D6, FS6, A6].forEach((note, i) => s.pluck(at + 0.1 + i * 0.07, note, 0.9, 0.085, -0.5 + i * 0.2,
       1.4));
-    s.hiss(at + 0.1, 1.6, 0.06, 6000, 11000);
-    [2349, 2960, 3520, 2960, 3520].forEach((note, i) => s.chime(at + 0.7 + i * 0.09, note, 1, 0.05, spread()));
-    for (let i = 0; i < 3; i++) s.pop(at + 0.5 + i * 0.12, 600, 200, 0.06, 0.1);
+    s.hiss(at + 0.1, 1.6, 0.04, 6000, 11000);
+    [2349, 2960, 3520, 2960, 3520].forEach((note, i) => s.chime(at + 0.7 + i * 0.09, note, 1, 0.045, spread()));
+    for (let i = 0; i < 3; i++) s.pop(at + 0.5 + i * 0.12, 600, 200, 0.06, 0.085);
   },
 };
 
@@ -380,7 +381,7 @@ function whiteNoise(context) {
 }
 
 function createStudio(context) {
-  const master = context.createGain(), limiter = context.createDynamicsCompressor();
+  const master = context.createGain(), limiter = context.createDynamicsCompressor(), output = context.createGain();
   const bus = context.createGain(), reverb = context.createConvolver(), wet = context.createGain();
   const echo = context.createDelay(1), feedback = context.createGain(), echoTone = context.createBiquadFilter();
   const echoLevel = context.createGain();
@@ -405,8 +406,10 @@ function createStudio(context) {
   feedback.connect(echo);
   echoTone.connect(echoLevel);
   echoLevel.connect(master);
+  output.gain.value = HEADROOM;
   master.connect(limiter);
-  limiter.connect(context.destination);
+  limiter.connect(output);
+  output.connect(context.destination);
 
   const envelope = (at, duration, level, attack, pan = 0) => {
     const gain = context.createGain();

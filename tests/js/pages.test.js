@@ -130,7 +130,8 @@ test('страницы: сотый уровень — поздравление �
   game.battle._level(anya.tower);
   await until(() => !element(w, 'cheer').hidden, 'поздравление на экране');
   ok(text(w, 'cheer-box').includes('100 уровень') && text(w, 'cheer-box').includes('Аня'));
-  await until(() => w.document.querySelector('#players .lvl img.crown'), 'корона в отряде');
+  await until(() => text(w, 'players').includes('ур. 100'), 'в отряде — «ур. 100» на плашке, без короны');
+  no(w.document.querySelector('#players .lvl img.crown'));
   frame.remove();
 });
 

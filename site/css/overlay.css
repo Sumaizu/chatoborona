@@ -120,7 +120,6 @@ body {
   position: absolute; left: 50%; top: 50%; width: 15px; height: 11px; transform: translate(-50%, -50%);
   image-rendering: pixelated;
 }
-.players ol.two .crown-slot .crown { width: 12px; height: 9px; }
 .profile .crown-slot .crown { width: 19px; height: 14px; }
 @keyframes cheer-in { from { transform: translate(-50%, -50%) scale(.3); opacity: 0; } }
 .cheer-box.divine {
