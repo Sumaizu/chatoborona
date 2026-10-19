@@ -37,7 +37,7 @@
     show('mobs', mobSprite(id, 1), Math.max(4, zoom - 2), '');
   }
   for (const stage of [0, 1, 2]) show('effects', wallSprite(stage), 4, 'стена ' + stage);
-  for (const kind of ['strong', 'wide', 'stun']) show('effects', mineSprite(kind, true), 6, kind);
+  for (const kind of ['mine', 'big', 'grenade']) show('effects', mineSprite(kind, true), 6, kind);
   for (const kind of ['move', 'spin', 'upgrade', 'card', 'control']) {
     const picture = new Image();
     picture.onload = () => show('effects', picture, 3, kind);

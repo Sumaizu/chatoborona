@@ -1,12 +1,11 @@
 import { test, eq, ok, no } from './harness.js';
 import { seeded } from './fixtures.js';
 import { BIOMES, SIZE, cellName, coverage, makeMap, parseCell } from '../../site/js/field.js';
-import { LEVEL_MAX, MOBS, crowdFactor, eliteCount, levelOf, waveHp, waveReward, waveSpawns, xpForLevel }
+import { LEVEL_MAX, MOBS, STAT, crowdFactor, eliteCount, levelOf, waveHp, waveReward, waveSpawns, xpForLevel }
   from '../../site/js/balance.js';
-import { CLASSES, PERKS, ROLES } from '../../site/js/classes.js';
-import { ASCEND_AT, DIVINE, OUTCOMES, RARITIES, UNIQUES, makeWeapon, rankOf, spin, uniqueFor, uniqueText, upgrade,
-  uniquesFor, weaponScore, weaponStats, weaponTitle }
-  from '../../site/js/gacha.js';
+import { CLASSES, CLASS_BY_ID, PERKS, ROLES, describe, gradeOf, masteryOf, scaled } from '../../site/js/classes.js';
+import { ASCEND_AT, DIVINE, OUTCOMES, RARITIES, STATS, makeWeapon, rankOf, spin, upgrade, weaponScore, weaponStats,
+  weaponTitle } from '../../site/js/gacha.js';
 import { clean, fromQuery, toQuery, DEFAULTS } from '../../site/js/config.js';
 
 test('клетка: буква и число в любом порядке, латинские двойники', () => {
@@ -142,33 +141,36 @@ test('здоровье мобов растёт с волной и с число�
   ok(waveHp(10, 'boss', 1) > waveHp(10, 'elite', 1));
 });
 
-test('классы: приёмы открываются на своих уровнях', () => {
-  eq(CLASSES.length, 15);
-  eq(new Set(CLASSES.map((c) => c.id)).size, 15);
-  const sniper = CLASSES.find((c) => c.id === 'sniper');
-  eq(sniper.params(PERKS[0] - 1, 0).crit, 0);
-  ok(sniper.params(PERKS[0], 1).crit > 0);
-  eq(sniper.params(PERKS[1] - 1, 4).mark, 0);
-  ok(sniper.params(PERKS[1], 5).mark > 0);
-  ok(sniper.params(100, 10).range > sniper.params(1, 0).range);
+test('классы: двенадцать, у каждого оружие, статы, три способности на 10, 30 и 50 уровне и две руны', () => {
+  eq(CLASSES.length, 12);
+  eq(new Set(CLASSES.map((c) => c.id)).size, 12);
+  eq(PERKS, [10, 30, 50]);
+  const runes = CLASSES.flatMap((cls) => cls.runes.map((rune) => rune.id));
+  eq(new Set(runes).size, CLASSES.length * 2, 'руны не повторяются');
   for (const cls of CLASSES) {
-    const p = cls.params(100, 10);
-    ok(p.interval > 0 && p.damage > 0, cls.id);
+    ok(cls.weapon && cls.name && ROLES[cls.role], cls.id);
+    for (const stat of ['str', 'agi', 'int']) ok(STAT.grades[cls.stats[stat]], cls.id + ' ' + stat);
+    eq(cls.skills.length, 3, cls.id);
+    eq(cls.runes.length, 2, cls.id);
+    ok(cls.earn.xp > 0 && cls.earn.coins > 0, cls.id);
+    const info = describe(cls.id, 30);
+    ok(info.main && !/undefined|NaN/.test(info.main), cls.id);
+    eq(info.perks.map((perk) => perk.open), [true, true, false], cls.id);
+    for (const perk of info.perks) ok(perk.text && !/undefined|NaN/.test(perk.text), cls.id + ' ' + perk.name);
   }
+  no(CLASSES.some((cls) => ['banner', 'healer', 'sage'].includes(cls.id)), 'поддержка пока отключена');
 });
 
-test('классы: у каждого роль, контроль и поддержка бьют слабее бойцов', () => {
-  const dps = (cls) => {
-    const p = cls.params(1, 0);
-    return p.damage / p.interval + p.damage * (p.cone ? p.burn : 0) + p.damage * (p.poison || 0);
-  };
-  const shooters = CLASSES.filter((cls) => cls.role === 'damage' && !cls.params(1, 0).passive);
-  const weakest = Math.min(...shooters.filter((cls) => !cls.rider).map(dps));
-  for (const cls of CLASSES) {
-    ok(ROLES[cls.role], cls.id);
-    if (cls.role !== 'damage') ok(dps(cls) < weakest, cls.id + ' слабее любого бойца');
+test('классы: мастерство у всех низкое и усиливает способности, кроме налёта паразита и ядерки минёра', () => {
+  for (const cls of CLASSES) eq(gradeOf(cls, 'mas'), STAT.mastery, cls.id);
+  const strong = masteryOf(20), weak = masteryOf(STAT.mastery), aim = CLASS_BY_ID.get('sniper').skills[2];
+  ok(scaled(aim, strong).bonus > scaled(aim, weak).bonus, 'сильнее');
+  ok(scaled(aim, strong).every < scaled(aim, weak).every, 'чаще');
+  for (const id of ['parasite', 'miner']) {
+    const skill = CLASS_BY_ID.get(id).skills[2];
+    eq(scaled(skill, strong), scaled(skill, weak), id);
   }
-  eq(new Set(CLASSES.map((cls) => cls.role)).size, 3);
+  eq(new Set(CLASSES.map((cls) => cls.role)).size, 2);
 });
 
 test('гача: пустота, монеты (горстка 50%, мешок 45%, сундук 5% от 15%), остальное — оружие по редкостям', () => {
@@ -191,50 +193,25 @@ test('гача: пустота, монеты (горстка 50%, мешок 45%
   no(counts.has('poor'), 'плохого оружия больше нет');
 });
 
-test('гача: обычное — плюс и минус, дальше только плюсы и всё больше; свойства — под класс', () => {
-  const random = seeded(4), scores = [];
+test('гача: обычное — плюс и минус, дальше только плюсы и всё больше; прибавки — к четырём статам', () => {
+  const random = seeded(4), scores = [], ids = STATS.map((stat) => stat.id);
+  eq(ids, ['str', 'agi', 'int', 'mas']);
   for (const rarity of RARITIES) {
     let sum = 0;
     for (let i = 0; i < 300; i++) {
       const weapon = makeWeapon(random, 'frost', rarity), values = Object.entries(weapon.stats);
-      const gear = CLASSES.find((c) => c.id === 'frost').gear;
       eq(weapon.rarity, rarity.id);
-      for (const [stat] of values) ok(gear.includes(stat), stat);
-      eq(values.filter(([, v]) => v > 0).length, Math.min(rarity.good, gear.length), rarity.id);
+      for (const [stat] of values) ok(ids.includes(stat), stat);
+      eq(values.filter(([, v]) => v > 0).length, Math.min(rarity.good, ids.length), rarity.id);
       eq(values.filter(([, v]) => v < 0).length, rarity.bad, rarity.id);
-      for (const [stat, value] of values) if (stat === 'crit') ok(value > 0, 'крит не бывает минусом');
-      eq(Boolean(weapon.unique), Boolean(rarity.unique), rarity.id);
-      if (weapon.unique) ok(UNIQUES.some((u) => u.id === weapon.unique));
+      no('unique' in weapon, 'особых свойств больше нет');
       sum += weaponScore(weapon);
     }
     scores.push(sum / 300);
   }
   for (let i = 1; i < scores.length; i++) ok(scores[i] > scores[i - 1], RARITIES[i].id + ' лучше предыдущего');
-  for (let i = 0; i < 200; i++) {
-    const banner = makeWeapon(random, 'banner', RARITIES[3]);
-    no('damage' in banner.stats || 'crit' in banner.stats, 'знаменосцу урон и крит не выпадают');
-  }
-});
-
-test('гача: легендарные свойства — общие и под свой класс, чужие не выпадают', () => {
-  const random = seeded(9), seen = new Set();
-  for (let i = 0; i < 600; i++) seen.add(makeWeapon(random, 'miner', RARITIES[RARITIES.length - 1]).unique);
-  ok(seen.has('depot'), 'своё для минёра');
-  ok(seen.has('midas'), 'общее');
-  no(seen.has('twin') || seen.has('ignite'), 'ни чужого, ни ударного у того, кто не стреляет');
-  const pools = uniquesFor('sniper');
-  ok(pools.own.some((u) => u.id === 'twin') && pools.own.some((u) => u.id === 'fury'), 'снайперу — своё и урон');
-  ok(pools.general.some((u) => u.id === 'ignite'), 'стрелку — ударные');
-});
-
-test('гача: у каждого класса от трёх своих легендарных свойств, у каждой роли — от двух общих', () => {
-  eq(new Set(UNIQUES.map((u) => u.id)).size, UNIQUES.length, 'имена не повторяются');
-  for (const cls of CLASSES) ok(UNIQUES.filter((u) => u.cls === cls.id).length >= 3, cls.id);
-  for (const role of Object.keys(ROLES)) ok(UNIQUES.filter((u) => u.role === role).length >= 2, role);
-  ok(uniquesFor('frost').own.some((u) => u.id === 'fetters'), 'контролю — свои общие');
-  ok(uniquesFor('healer').own.some((u) => u.id === 'ward'), 'поддержке — свои');
-  no(uniquesFor('sniper').own.some((u) => u.role === 'support'), 'чужая роль не выпадает');
-  no(uniquesFor('miner').own.some((u) => u.id === 'keen'), 'крит не выпадает тому, кто не бьёт');
+  const legendary = RARITIES.find((rarity) => rarity.id === 'legendary');
+  eq(legendary.chance, 0.06, 'легендарное — вдвое чаще прежнего');
 });
 
 test('улучшение: легендарное на +30 становится божественным, дальше по 5% от сложенных свойств', () => {
@@ -258,20 +235,6 @@ test('улучшение: легендарное на +30 становится �
   eq(weaponTitle(weapon), 'Божественный карабин +1');
 });
 
-test('божественное оружие усиливает особое свойство в полтора раза, где это возможно', () => {
-  eq(uniqueFor('fury', true).mul.damage, 1.6);
-  eq(uniqueText(uniqueFor('fury', true)), '+60% урона');
-  eq(uniqueText(uniqueFor('fury')), '+40% урона');
-  ok(Math.abs(1 / uniqueFor('frenzy', true).mul.interval - 1.9) < 1e-5, 'кусает на 90% чаще');
-  eq(uniqueText(uniqueFor('frenzy', true)), 'кусает на 90% чаще');
-  ok(Math.abs(uniqueFor('stormcaller', true).set.stormEvery - 3.5 / 1.5) < 1e-5, 'гроза чаще');
-  eq(uniqueFor('ignite', true).values, { dps: 0.45, time: 3 });
-  eq(uniqueFor('bore', true).set, { pierce: 1 }, 'сквозную пулю усиливать некуда');
-  eq(uniqueText(uniqueFor('twin', true)), 'стреляет сразу в двух мобов');
-  eq(uniqueText(uniqueFor('reach', true)), '+1,5 клетки к радиусу атаки и аур');
-  for (const u of UNIQUES) ok(!/[{}]/.test(uniqueText(uniqueFor(u.id, true))), u.id);
-});
-
 test('гача: частица бога — 0,1%, у кого она есть, тому не выпадает', () => {
   const particle = OUTCOMES.find((outcome) => outcome.id === 'particle');
   eq(particle.chance, 0.001);
@@ -281,9 +244,22 @@ test('гача: частица бога — 0,1%, у кого она есть, �
     const before = OUTCOMES.slice(0, OUTCOMES.indexOf(particle)).reduce((sum, item) => sum + item.chance, 0);
     const at = (before + particle.chance * (i + 0.5) / 2000) / total;
     if (spin(() => at, 'sniper').kind === 'particle') seen += 1;
-    no(spin(() => at, 'sniper', true).kind === 'particle', 'уже есть — не выпадает');
+    no(spin(() => at, 'sniper', { particle: true }).kind === 'particle', 'уже есть — не выпадает');
   }
   eq(seen, 2000);
+});
+
+test('гача: руна способности — 0,5%, у кого обе руны класса, тому не выпадает', () => {
+  const rune = OUTCOMES.find((outcome) => outcome.id === 'rune');
+  eq(rune.chance, 0.005);
+  const total = OUTCOMES.concat(RARITIES).reduce((sum, item) => sum + item.chance, 0);
+  const before = OUTCOMES.slice(0, OUTCOMES.indexOf(rune)).reduce((sum, item) => sum + item.chance, 0);
+  for (let i = 0; i < 500; i++) {
+    const at = (before + rune.chance * (i + 0.5) / 500) / total;
+    eq(spin(() => at, 'sniper').kind, 'rune');
+    eq(spin(() => at, 'sniper', { runes: 1 }).kind, 'rune', 'одна есть — вторая выпадает');
+    no(spin(() => at, 'sniper', { runes: 2 }).kind === 'rune', 'обе есть — не выпадает');
+  }
 });
 
 test('улучшение: +20% от начального значения случайного свойства, бесконечно', () => {

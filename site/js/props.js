@@ -1,7 +1,7 @@
 import { GOLD, METAL, Model, STEEL } from './models.js';
 
 const BRASS = '#c99a2e';
-const LAMPS = { strong: ['#ff3b3b', '#6b1414'], wide: ['#ffb020', '#6b4410'], stun: ['#9ff0ff', '#2c5c8a'] };
+const LAMPS = { big: ['#ff3b3b', '#6b1414'], mine: ['#ffb020', '#6b4410'] };
 
 function around(count, turn, cx, cy, rx, ry, each) {
   for (let i = 0; i < count; i++) {
@@ -11,7 +11,7 @@ function around(count, turn, cx, cy, rx, ry, each) {
 }
 
 const MINES = {
-  strong(m, lit) {
+  big(m, lit) {
     m.ball(11, 12, 0, 6.2, '#4d535e', 0.5);
     around(6, Math.PI / 6, 11, 12, 1, 0.86, (x, y, a) => {
       const ex = 11 + Math.cos(a) * 8.2, ey = 12 + Math.sin(a) * 7;
@@ -20,22 +20,24 @@ const MINES = {
     });
     m.egg(11, 12.4, 1.5, 6.5, 2, 4.6, '#3a3f48', 0.4);
     m.ball(11, 9.4, 5.4, 2, BRASS, 0.8);
-    m.ball(11, 9, 6.8, 1.4, LAMPS.strong[lit ? 0 : 1], 1);
+    m.ball(11, 9, 6.8, 1.4, LAMPS.big[lit ? 0 : 1], 1);
   },
-  wide(m, lit) {
+  mine(m, lit) {
     m.egg(11, 12, 0, 9, 7.6, 2.4, '#5f6136');
     around(16, 0, 11, 12, 8.2, 6.9, (x, y, a, i) => m.ball(x, y, 1.6, 0.95, i % 4 < 2 ? '#e0b43a' : '#2a2a20'));
     m.egg(11, 11.6, 1.8, 5.2, 4.4, 1.4, '#8a8752');
     around(3, -Math.PI / 2, 11, 11.6, 3.4, 2.8, (x, y) => m.ball(x, y, 3, 0.8, STEEL, 0.6));
-    m.egg(11, 11.6, 3, 1.6, 1.4, 0.8, LAMPS.wide[lit ? 0 : 1], 1);
+    m.egg(11, 11.6, 3, 1.6, 1.4, 0.8, LAMPS.mine[lit ? 0 : 1], 1);
   },
-  stun(m, lit) {
-    m.egg(11, 16.5, 0, 6.6, 3.8, 2, '#2d3a55');
-    around(4, 0, 11, 16.5, 5.2, 2.9, (x, y) => m.ball(x, y, 1.6, 0.8, METAL, 0.5));
-    m.limb(11, 16, 2, 11, 8.5, 5, 1.5, STEEL, 0.4);
-    for (let i = 0; i < 4; i++) m.egg(11, 14.6 - i * 1.7, 2.6 + i * 0.8, 2.6, 0.9, 1.2, '#c87a3c', 0.6);
-    m.ball(11, 6.4, 5.6, 3.2, LAMPS.stun[lit ? 0 : 1], 1);
-    if (lit) for (const [x, y] of [[6.5, 4], [15.5, 5], [7.5, 9], [14.5, 2.5]]) m.dot(x, y, '#ffffff');
+  grenade(m, lit) {
+    m.egg(11, 13, 0, 5.6, 6.8, 4.8, '#55642f', 0.3);
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col < 3; col++) m.ball(8.2 + col * 2.8, 8.6 + row * 2.9, 3.4, 1.25, '#6f8040', 0.4);
+    }
+    m.limb(11, 6.8, 4, 11, 3.6, 4.6, 1.5, METAL, 0.6);
+    m.limb(12.4, 4, 5.2, 15.8, 13.4, 5.4, 0.7, STEEL, 0.6);
+    around(8, 0, 7.6, 3.6, 1.7, 1.7, (x, y) => m.ball(x, y, 5, 0.45, METAL, 0.8));
+    if (lit) m.ball(11, 3, 6.4, 0.9, '#ffd84a', 1);
   },
 };
 
@@ -82,6 +84,45 @@ export function drawNuke() {
   });
   m.ball(15, 18, 12.4, 1, '#1d1f26', 0.2);
   m.ball(15, 25.4, 4, 2, GOLD, 0.8);
+  return m.paint();
+}
+
+export function drawRocket() {
+  const m = new Model(20, 1);
+  for (const side of [-1, 1]) m.limb(10 + side * 1.4, 15, 3, 10 + side * 4.4, 18.6, 3, 0.8, '#3f4651', 0.4);
+  m.limb(10, 17, 3.5, 10, 7, 3.5, 2.2, '#5f6b3a', 0.5);
+  m.limb(10, 11.6, 5.6, 10, 10.4, 5.6, 0.5, '#e0b43a', 0.6);
+  m.egg(10, 5.4, 4, 2.7, 4, 2.7, '#c0392b', 0.6);
+  m.ball(10, 2.2, 4.4, 1.1, GOLD, 0.8);
+  return m.paint();
+}
+
+export function drawMeteor() {
+  const m = new Model(24, 1);
+  m.ball(12, 12, 4, 8, '#4a3a30', 0.2);
+  for (const [x, y, r] of [[8, 9, 3.2], [15.5, 14, 3.4], [10, 16.5, 2.4], [16, 7.5, 2.6]]) {
+    m.ball(x, y, 7.6, r, '#5e4a3c', 0.2);
+  }
+  for (const [x0, y0, x1, y1] of [[7, 12, 12, 10], [12, 10, 16, 12], [11, 14, 14, 18], [9, 7, 12, 10]]) {
+    m.limb(x0, y0, 11.4, x1, y1, 11.4, 0.45, '#ff7a1f', 0.9);
+  }
+  for (const [x, y] of [[12, 10], [14, 13], [9, 12]]) m.dot(x, y, '#ffd84a');
+  return m.paint();
+}
+
+export function drawCocoon(frame) {
+  const m = new Model(32, 1.08), swell = frame ? 0.5 : 0;
+  m.egg(16, 18, 3.5, 6.6 + swell, 10 + swell, 5.4 + swell, '#ece0ef', 0.3);
+  for (let i = 0; i < 6; i++) {
+    const y = 11 + i * 3, tilt = i % 2 ? 1 : -1;
+    m.limb(9.6 - swell, y + tilt, 7.4, 22.4 + swell, y - tilt, 7.4, 0.45, '#c9b0d2');
+  }
+  m.egg(16, 8.6, 6.4, 3.6, 3.2, 3.4, '#c026d3', 0.5);
+  m.ball(14.6, 7.6, 9.4, 1, '#fde047', 1);
+  m.ball(17.4, 7.6, 9.4, 1, '#fde047', 1);
+  m.limb(14.8, 5.8, 8.4, 13.6, 3.6, 8.4, 0.4, '#f5d0fe');
+  m.limb(17.2, 5.8, 8.4, 18.4, 3.6, 8.4, 0.4, '#f5d0fe');
+  for (const [x, y] of [[13, 20], [19, 16], [15, 24]]) m.dot(x, y, '#f5d0fe');
   return m.paint();
 }
 

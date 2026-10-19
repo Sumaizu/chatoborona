@@ -151,7 +151,6 @@ body {
 @keyframes relic {
   50% { filter: drop-shadow(0 0 4px rgba(255, 46, 77, 1)); transform: scale(1.12); }
 }
-.unique.divine b { color: var(--divine); }
 .ascend {
   position: absolute; inset: 0; z-index: 9; overflow: hidden; border-radius: 14px; pointer-events: none;
   background: rgba(10, 6, 20, .9);
@@ -299,7 +298,6 @@ body {
 }
 .role.damage { background: #f87171; }
 .role.control { background: #67e8f9; }
-.role.support { background: #86efac; }
 .commands {
   flex: none; margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; justify-content: center;
   gap: 5px 8px; font-size: 13px; color: var(--muted);
@@ -407,7 +405,8 @@ body {
 }
 .result { font-size: 11px; line-height: 13px; }
 .result .stats { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-.result .unique, .result .now { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.result .now { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.result .rune-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .slot.shown .reel { display: none; }
 .slot.busy:not(.shown) .reel { margin-top: 10px; }
 .slot.shown .result {
@@ -425,8 +424,6 @@ body {
 }
 .result .now { color: var(--muted); }
 
-.unique { color: var(--muted); }
-.unique b { color: #f97316; }
 .stats .up { color: var(--good); }
 .stats .down { color: var(--bad); }
 .queue {
@@ -505,8 +502,13 @@ body {
 .profile .body, .profile .gear-box { grid-column: 1 / -1; }
 .profile .line { margin-top: 2px; font-size: 12px; line-height: 15px; color: var(--muted); }
 .profile .line b { color: var(--ink); font-weight: 700; }
+.stat-line { font-size: 11.5px; line-height: 14px; color: var(--muted); margin: 1px 0 2px; }
+.stat-line b { color: var(--ink); font-weight: 800; font-variant-numeric: tabular-nums; }
 .perk { font-size: 11.5px; line-height: 14px; color: var(--ink); margin-top: 1px; }
 .perk i { font-style: normal; font-weight: 800; color: var(--gold); }
+.perk b { font-weight: 800; }
+.rune-line { font-size: 11.5px; line-height: 14px; color: var(--ink); margin-top: 1px; }
+.rune-line i, .rune-line b { font-style: normal; font-weight: 800; color: var(--divine); }
 .perk.locked { color: var(--muted); }
 .perk.locked i { color: var(--muted); }
 .gear { display: flex; gap: 8px; align-items: center; margin-top: 4px; font-size: 11.5px; line-height: 14px; }

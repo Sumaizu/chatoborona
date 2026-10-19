@@ -1,6 +1,7 @@
 import { HERO_IDS, drawHero } from './models.js';
 import { MOB_IDS, drawMob } from './monsters.js';
-import { drawClod, drawMine, drawMound, drawNuke, drawTrap, drawWall } from './props.js';
+import { drawClod, drawCocoon, drawMeteor, drawMine, drawMound, drawNuke, drawRocket, drawTrap, drawWall }
+  from './props.js';
 
 const OUTLINE = '#15111d';
 
@@ -328,6 +329,17 @@ export const flaskSprite = () => remember('flask', () => {
 });
 
 export const mineSprite = (kind, lit) => remember('mine:' + kind + ':' + lit, () => drawMine(kind, lit));
+export const rocketSprite = () => remember('rocket', () => drawRocket());
+export const meteorSprite = () => remember('meteor', () => drawMeteor());
+export const cocoonSprite = (frame) => remember('cocoon:' + frame, () => drawCocoon(frame));
+
+export const bulletSprite = () => remember('bullet', () => mapSprite([
+  '.C.',
+  'CCc',
+  'BBb',
+  'BBb',
+  'bBb',
+], { C: '#f0a060', c: '#b8602a', B: '#e8c050', b: '#a07a20' }));
 
 const COMMAND_ICONS = {
   move(p) {
@@ -519,6 +531,18 @@ const PRIZES = {
     p.px(12, 3, '#ffffff');
     p.bar(3, 9, 6, 12, '#8a5a2b', 1);
     p.box(2, 12, 2, 2, tone);
+  },
+  rune(p, tone) {
+    p.ball(8, 8.5, 6, '#3f3a4a', '#26222e', '#5b5468');
+    p.line(8, 4, 8, 13, tone);
+    p.line(5, 6, 8, 9, tone);
+    p.line(11, 6, 8, 9, tone);
+    p.line(5, 12, 7, 10, tone);
+    p.line(11, 12, 9, 10, tone);
+    p.px(8, 4, '#ffd0d8');
+    p.px(5, 6, '#ffd0d8');
+    p.px(11, 6, '#ffd0d8');
+    for (const [x, y] of [[2, 3], [14, 4], [13, 14]]) p.px(x, y, '#ffffff');
   },
   void(p) {
     p.ball(8, 8, 5, '#374151', '#1f2937', '#4b5563');

@@ -53,7 +53,7 @@ test('страницы: пример в рамке — середина волн
   eq(text(w, 'wave'), '8');
   ok(element(w, 'lobby').hidden && element(w, 'over').hidden);
   ok(text(w, 'slot-0').includes('надевает'), 'выпавшее оружие на месте карусели: ' + text(w, 'slot-0'));
-  ok(w.document.querySelector('#slot-0 .unique'), 'у легендарного видно особое свойство');
+  ok(w.document.querySelector('#slot-0 .stats'), 'у оружия видны прибавки к статам');
   no(w.document.getElementById('chat'), 'чата на экране нет');
   eq(w.document.querySelectorAll('#slot-1 .cell').length, 26, 'вторая карусель крутится');
   eq(w.document.querySelectorAll('.side .slot').length, 3, 'три окна гачи');
@@ -103,11 +103,12 @@ test('страницы: ядерка — свист в полёте, взрыв 
   const w = frame.contentWindow, game = w.chatoborona.game, view = w.chatoborona.view;
   await until(() => game.state === 'lobby', 'набор');
   join(game, 'Аня');
+  game.members.get('аня').cls = 'miner';
   game.next();
   await until(() => game.state === 'placing', 'расстановка');
   const battle = game.battle, tower = game.members.get('аня').tower;
   const mob = battle._spawn({ type: 'normal', hp: 1e6 }, 3);
-  battle._event({ kind: 'toss', tower, mob, mine: 'nuke', time: NUKE_FLIGHT });
+  battle._event({ kind: 'toss', tower, mob, mine: 'nuke', time: NUKE_FLIGHT, radius: tower.s[2].radius });
   await until(() => view.heard.includes('fall'), 'свист падающей бомбы');
   no(element(w, 'blackout').classList.contains('on'));
   battle._nuke(tower, mob.x, mob.y);

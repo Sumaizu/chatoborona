@@ -2,7 +2,7 @@ import { Battle } from './battle.js';
 import { makeMap, parseCell, parseMove } from './field.js';
 import { CLASSES, CLASS_BY_ID } from './classes.js';
 import { LEVEL_MAX, TICK, levelOf, waveReward } from './balance.js';
-import { DIVINE, PRICE, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, UPGRADE_PRICE, rankOf, spin, uniqueFor, upgrade,
+import { DIVINE, PRICE, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, UPGRADE_PRICE, rankOf, spin, upgrade,
   weaponStats } from './gacha.js';
 import { LASTING, effectOf, rollEvent } from './events.js';
 
@@ -44,7 +44,7 @@ export const ASCEND_TIME = 16;
 
 const STEP_MAX = 1;
 const EVENTS_MAX = 500;
-const NO_MODS = { damage: 0, rate: 0, range: 0, crit: 0, power: 0, xp: 0, coins: 0 };
+const NO_MODS = { damage: 0, rate: 0, range: 0, crit: 0, xp: 0, coins: 0 };
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 const INVISIBLE = /[\u200B\u200C\u200D\u2060\uFEFF\u00AD\u034F\u2800\u{E0000}]/gu;
 const IGNORED = new Set(BOTS);
@@ -305,7 +305,7 @@ export class Game {
       star: STARS.has(login) ? STARS.get(login) : null,
       xp: saved ? saved.xp : 0, kills: saved ? saved.kills : 0, assists: saved ? saved.assists : 0,
       paragon: saved ? saved.paragon : 0, particle: saved ? saved.particle : false, coins: 0,
-      cls: this._randomClass(), weapon: null, tower: null, pendingMove: null,
+      cls: this._randomClass(), weapon: null, runes: [], tower: null, pendingMove: null,
     };
     this.members.set(login, member);
     this.profiles.update(member);
@@ -394,6 +394,7 @@ export class Game {
     while (cls === member.cls) cls = this._randomClass();
     member.cls = cls;
     member.rerolled = true;
+    member.runes = [];
     if (member.tower) {
       const cell = member.tower.rider ? null : { x: member.tower.x, y: member.tower.y };
       this.battle.remove(member.tower);
@@ -429,16 +430,14 @@ export class Game {
   }
 
   modsOf(member) {
-    const weapon = member.weapon, divine = Boolean(weapon) && weapon.rarity === DIVINE.id;
-    const total = Object.assign({}, NO_MODS), unique = weapon ? uniqueFor(weapon.unique, divine) : null;
-    if (weapon) addMods(total, weaponStats(weapon));
-    if (unique) addMods(total, unique.mods);
+    const total = Object.assign({}, NO_MODS);
     if (this.run) {
       for (const effect of this.run.now) addMods(total, effect.mods);
       addMods(total, this.run.mods);
     }
-    total.unique = weapon && weapon.unique ? weapon.unique : null;
-    total.divine = divine;
+    total.stats = member.weapon ? weaponStats(member.weapon) : null;
+    total.runes = (member.runes || []).slice();
+    total.paragon = member.paragon || 0;
     return total;
   }
 
@@ -551,11 +550,6 @@ export class Game {
   }
 
   _place(member, cell = null) {
-    const cls = CLASS_BY_ID.get(member.cls);
-    if (cls.rider) {
-      member.tower = this.battle.placeRider(member, member.cls, this.modsOf(member));
-      return member.tower;
-    }
     if (cell && !this.battle.free(cell.x, cell.y)) return null;
     const spot = cell || this.battle.randomCell(NEAR_PATH);
     if (!spot) return null;
@@ -718,7 +712,7 @@ export class Game {
       if (entry.count <= 0) this.queue.splice(next, 1);
       if (!member) continue;
       this.slots[i] = { id: ++this._spinNo, login: member.login, outcome: spin(this.random, member.cls,
-        member.particle), phase: 'spin', left: SPIN_TIME };
+        { particle: member.particle, runes: member.runes.length }), phase: 'spin', left: SPIN_TIME };
       this._emit('spin', { login: member.login });
     }
   }
@@ -745,6 +739,16 @@ export class Game {
       this.profiles.update(member);
       this.profiles.save();
       this._emit('particle', { login: member.login });
+      return;
+    }
+    if (outcome.kind === 'rune') {
+      const missing = CLASS_BY_ID.get(member.cls).runes.filter((rune) => !member.runes.includes(rune.id));
+      slot.took = missing.length > 0;
+      if (!slot.took) return;
+      slot.rune = missing[Math.floor(this.random() * missing.length)].id;
+      member.runes.push(slot.rune);
+      this._refresh(member);
+      this._emit('rune', { login: member.login, rune: slot.rune });
       return;
     }
     if (outcome.coins) {

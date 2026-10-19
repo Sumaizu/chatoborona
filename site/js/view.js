@@ -1,12 +1,13 @@
 import { Scene } from './draw.js';
-import { CLASSES, CLASS_BY_ID, ROLES, describe, num } from './classes.js';
+import { CLASSES, CLASS_BY_ID, ROLES, STAT_IDS, STAT_NAMES, auraOf, describe, num, runeOf, statsOf }
+  from './classes.js';
 import { coinUrl, crownUrl, effectUrl, flagCanvas, flagUrl, heroUrl, markUrl, particleSprite, particleUrl, prizeUrl,
   shieldUrl } from './sprites.js';
-import { DIVINE, OUTCOMES, PRICE, RARITIES, SPIN_TIME, UPGRADE_PRICE, amountText, gearColor, outcomeOf, rarityOf,
-  statName, statText, uniqueFor, uniqueText, weaponName, weaponTitle } from './gacha.js';
+import { OUTCOMES, PRICE, RARITIES, SPIN_TIME, UPGRADE_PRICE, amountText, gearColor, outcomeOf, rarityOf,
+  statName, statText, weaponName, weaponStats, weaponTitle } from './gacha.js';
 import { ASCEND_TIME } from './engine.js';
 import { effectOf } from './events.js';
-import { BIOME_RULES, LEVEL_MAX, LIVES, levelOf, tierOf, towerBase } from './balance.js';
+import { BIOME_RULES, LEVEL_MAX, LIVES, levelOf } from './balance.js';
 import { SIZE, cellName } from './field.js';
 import { SFX_GAPS, play } from './sound.js';
 import { PAGES, pageAt } from './guide.js';
@@ -42,13 +43,17 @@ const SOUND_PRIORITY = ['over', 'divine', 'relic', 'win', 'boss', 'wave', 'jackp
   'meh', 'void', 'level',
   'buff', 'debuff', 'spin', 'leak', 'card', 'tick'];
 const SFX_PER_FRAME = 4;
-const SHOTS = { sniper: 'crack', gunner: 'gun', bomber: 'launch', hunter: 'bolt', healer: 'holy', parasite: 'bite' };
-const BATTLE_SOUNDS = { wall: 'build', crumble: 'crumble', plant: 'plant', mine: 'mine', nuke: 'nuke', leap: 'leap',
+const SHOTS = { sniper: 'crack', gunner: 'gun', bomber: 'launch', hunter: 'bolt', parasite: 'bite' };
+const BATTLE_SOUNDS = { wall: 'build', crumble: 'crumble', plant: 'plant', mine: 'mine', leap: 'leap',
   bite: 'chomp', toss: 'launch', flask: 'flask', splash: 'splash', trap: 'plant', snap: 'snap', nova: 'ice',
-  muse: 'cast', spikes: 'rock', whirl: 'wind', clink: 'clink', treasure: 'treasure', rattle: 'rattle', rise: 'rise',
+  spikes: 'rock', whirl: 'wind', clink: 'clink', treasure: 'treasure', rattle: 'rattle', rise: 'rise',
   hex: 'hex', blink: 'leap', burrow: 'burrow', leech: 'summon', steal: 'clink', loot: 'treasure', reflect: 'block',
   swallow: 'burrow', breath: 'flame', web: 'hex', ward: 'block', mirage: 'summon', dig: 'burrow', drop: 'summon',
-  hook: 'chain', yank: 'yank' };
+  hook: 'chain', yank: 'yank', charge: 'charge', reload: 'reload', ricochet: 'ricochet', burst: 'mine',
+  rocket: 'launch', flash: 'flash', fogtoss: 'flask', fog: 'splash', ignite: 'ignite', oil: 'splash',
+  oilfire: 'flame', net: 'snap', prey: 'prey', bounty: 'treasure', ambush: 'leap', cocoon: 'clink',
+  hatch: 'hatch', heist: 'jackpot', feast: 'clink', shatter: 'freeze', snow: 'snow', gust: 'wind', wind: 'wind',
+  thorns: 'rock' };
 const GOOD_EVENTS = new Set(['buff', 'blessing']);
 const COIN_FINDS = { handful: ' находит горстку монет', bag: ' находит мешок монет!',
   chest: ' открывает сундук монет!' };
@@ -110,11 +115,31 @@ function luminance(red, green, blue) {
   return (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
 }
 
+function statsOfMember(member) {
+  const tower = member.tower;
+  if (tower && tower.stats) return tower.stats;
+  return statsOf(CLASS_BY_ID.get(member.cls), member.weapon ? weaponStats(member.weapon) : null, member.paragon || 0);
+}
+
 function reachOf(member) {
   const cls = CLASS_BY_ID.get(member.cls), tower = member.tower;
-  const level = levelOf(member.xp), p = tower && tower.p ? tower.p : cls.params(level, tierOf(level));
-  if (cls.role === 'support' && p.aura) return p.aura;
-  return tower ? tower.range : p.range || towerBase(level).range;
+  if (tower && !tower.rider && !tower.cocoon) return tower.range;
+  return (cls.base.range || 0) + auraOf(cls, statsOfMember(member));
+}
+
+function statsLine(stats) {
+  const line = el('div', 'stat-line');
+  STAT_IDS.forEach((id, i) => {
+    if (i) line.append(' · ');
+    line.append(STAT_NAMES[id] + ' ', el('b', '', num(stats[id])));
+  });
+  return line;
+}
+
+function runeLine(id) {
+  const rune = runeOf(id), line = el('div', 'rune-line');
+  line.append(el('i', '', '◆'), ' ', el('b', '', rune.name), ': ' + rune.text);
+  return line;
 }
 
 function paragonTag(paragon) {
@@ -188,20 +213,10 @@ function statLine(weapon, cls) {
 const PRIZES = OUTCOMES.concat(RARITIES);
 const prizeOf = (outcome) => (outcome.kind === 'weapon' ? rarityOf(outcome.weapon.rarity) : outcomeOf(outcome.kind));
 
-function uniqueLine(weapon) {
-  const divine = weapon.rarity === DIVINE.id, unique = weapon.unique ? uniqueFor(weapon.unique, divine) : null;
-  if (!unique) return null;
-  const line = el('div', 'unique' + (divine ? ' divine' : ''));
-  line.append(el('b', '', '★ ' + unique.name), ': ' + uniqueText(unique));
-  return line;
-}
-
 function gearLine(weapon) {
   const line = el('div', 'gear'), name = el('b', '', weaponTitle(weapon));
   name.style.color = rarityOf(weapon.rarity).color;
   line.append(name, statLine(weapon, weapon.cls));
-  const unique = uniqueLine(weapon);
-  if (unique) line.append(unique);
   return line;
 }
 
@@ -388,7 +403,7 @@ export class View {
       if (event.kind === 'kept') this._cue('meh');
       if (event.kind === 'void') this._cue('void');
       if (event.kind === 'jackpot') this._cue(event.prize === 'chest' ? 'win' : 'jackpot');
-      if (event.kind === 'particle') {
+      if (event.kind === 'particle' || event.kind === 'rune') {
         this._cue('relic');
         this._names.set(event.login, NAME_TIME);
       }
@@ -435,23 +450,17 @@ export class View {
     } else if (kind === 'chain') {
       this._sound('zap');
     } else if (kind === 'flame') {
-      this._sound(event.flash ? 'crit' : 'flame');
-    } else if (kind === 'boom' || kind === 'storm') {
-      this._sound(kind);
+      this._sound('flame');
+    } else if (kind === 'boom') {
+      this._sound(event.meteor ? 'quake' : 'boom');
+    } else if (kind === 'thunderbolt' || kind === 'discharge') {
+      this._sound('storm');
     } else if (kind === 'kill') {
       this._sound('kill');
     } else if (kind === 'hold') {
       this._sound(event.by === 'frost' ? 'freeze' : 'stun');
-    } else if (kind === 'tornado') {
-      this._sound('wind');
     } else if (kind === 'execute') {
       this._sound('execute');
-    } else if (kind === 'rally') {
-      this._sound('rally');
-    } else if (kind === 'heal') {
-      this._sound('heal');
-    } else if (kind === 'shield') {
-      this._sound('block');
     } else if (kind === 'arrive') {
       this._sound(event.mob.info.boss ? 'roar' : 'growl');
       const mob = event.mob;
@@ -469,12 +478,12 @@ export class View {
         glow: NEWCOMER_GLOW[look.element] || '#4ade80', boss: false, fresh: true };
       this._keys.herald = '';
       this._sound('growl');
-    } else if (kind === 'toss' && event.mine === 'nuke') {
+    } else if (kind === 'toss' && (event.mine === 'nuke' || event.mine === 'fusion') || kind === 'meteor') {
       this._sound('fall', event.time);
     } else if (kind === 'nuke') {
-      this._sound('nuke');
+      this._sound(event.small ? 'mine' : 'nuke');
       const box = $('blackout'), board = $('board');
-      for (const [node, name] of [[box, 'on'], [board, 'shake']]) {
+      for (const [node, name] of event.small ? [[board, 'shake']] : [[box, 'on'], [board, 'shake']]) {
         node.classList.remove(name);
         void node.offsetWidth;
         node.classList.add(name);
@@ -911,13 +920,20 @@ export class View {
       const name = member ? this._starName(member.name, member.star, member.color, 'nick') : el('span', '', slot.login);
       const kind = slot.outcome.kind;
       const verb = slot.phase === 'spin' ? ' крутит гачу…' : kind === 'void' ? ': пусто'
-        : COIN_FINDS[kind] || (kind === 'particle' ? ' находит частицу бога!' : slot.took ? ' надевает'
-          : ' оставляет своё');
+        : COIN_FINDS[kind] || (kind === 'particle' ? ' находит частицу бога!' : kind === 'rune' ? ' находит руну!'
+          : slot.took ? ' надевает' : ' оставляет своё');
       view.who.append(name, verb);
       view.result.textContent = '';
       view.box.classList.toggle('shown', slot.phase !== 'spin');
       if (slot.phase === 'spin') return;
       view.result.append(prizeCell(prizeOf(slot.outcome)));
+      if (kind === 'rune') {
+        const prize = outcomeOf(kind), rune = slot.rune ? runeOf(slot.rune) : null;
+        const title = el('b', 'prize', rune ? 'Руна «' + rune.name + '»' : prize.name);
+        title.style.color = prize.color;
+        view.result.append(title, el('div', 'rune-text', rune ? rune.text : 'все руны класса уже есть'));
+        return;
+      }
       if (kind !== 'weapon') {
         const prize = outcomeOf(kind), title = el('b', 'prize', prize.name);
         title.style.color = prize.color;
@@ -929,8 +945,6 @@ export class View {
       const weapon = slot.outcome.weapon, title = el('b', 'prize', weaponName(weapon));
       title.style.color = rarityOf(weapon.rarity).color;
       view.result.append(title, statLine(weapon, weapon.cls));
-      const unique = uniqueLine(weapon);
-      if (unique) view.result.append(unique);
       if (!slot.took && member && member.weapon) {
         const now = el('div', 'now'), old = el('b', '', weaponName(member.weapon));
         old.style.color = rarityOf(member.weapon.rarity).color;
@@ -1081,7 +1095,7 @@ export class View {
     top.append(this._starName(member.name, member.star, member.color, 'nick'), coins);
     const face = image(heroUrl(member.cls, 64));
     node.append(face, top, marks, body, gear);
-    const state = { level: 0, cls: '', gear: null, brief: null };
+    const state = { body: '', gear: null };
     return {
       node,
       update: (m, game, note) => {
@@ -1096,22 +1110,23 @@ export class View {
         lvl.append(levelTag('', level, 'ур. '));
         relic.hidden = !m.particle;
         coins.querySelector('.sum').textContent = String(Math.floor(m.coins));
-        if (state.level !== level || state.cls !== m.cls || state.brief !== brief) {
-          state.level = level;
-          state.cls = m.cls;
-          state.brief = brief;
+        const stats = statsOfMember(m), runes = m.runes || [];
+        const bodyKey = JSON.stringify([level, m.cls, brief, STAT_IDS.map((id) => num(stats[id])), runes]);
+        if (state.body !== bodyKey) {
+          state.body = bodyKey;
           face.src = heroUrl(m.cls, 64);
-          const cls = CLASS_BY_ID.get(m.cls), info = describe(m.cls, level), kind = el('div', 'line');
+          const cls = CLASS_BY_ID.get(m.cls), info = describe(m.cls, level, stats.mas), kind = el('div', 'line');
           const clsName = el('b', '', cls.name);
           clsName.style.color = cls.color;
           kind.append(clsName, el('i', 'role ' + cls.role, ROLES[cls.role]), brief ? '' : ' ' + info.main);
           body.textContent = '';
-          body.append(kind);
+          body.append(kind, statsLine(stats));
           if (!brief) for (const perk of info.perks) {
             const line = el('div', 'perk' + (perk.open ? '' : ' locked'));
-            line.append(el('i', '', perk.open ? '★' : perk.at + ' ур.'), ' ' + perk.text);
+            line.append(el('i', '', perk.open ? '★' : perk.at + ' ур.'), ' ', el('b', '', perk.name), ': ' + perk.text);
             body.append(line);
           }
+          for (const id of runes) body.append(runeLine(id));
         }
         const gearKey = m.weapon ? JSON.stringify([m.weapon.rarity, m.weapon.stats, m.weapon.ups, m.weapon.plus]) : '';
         if (state.gear !== gearKey) {

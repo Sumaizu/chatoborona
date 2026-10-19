@@ -1,10 +1,24 @@
 export const LIVES = 20;
-export const HEAL_CAP = 2;
 export const LEVEL_MAX = 100;
-export const TIER_EVERY = 10;
 export const TICK = 0.05;
 
-export const TOWER = { damage: 10, interval: 1, range: 2.5, damageGrowth: 0.046, rateGrowth: 0.004 };
+export const TOWER = { damage: 6.5 };
+
+export const STAT = {
+  grades: { low: 6, mid: 12, high: 18 },
+  mastery: 3,
+  paragon: 0.05,
+  damage: 0.03,
+  critBase: 1.5,
+  critPower: 0.025,
+  speed: 0.03,
+  critChance: 0.0075,
+  reach: 0.04,
+  element: 0.03,
+  power: 0.04,
+  chance: 0.04,
+  haste: 0.03,
+};
 
 export const MOBS = {
   normal: { name: 'Зомби', hp: 1, speed: 1, xp: 1, coins: 1, leak: 1 },
@@ -172,7 +186,7 @@ export const lookOf = (id) => {
 export const WAVE = {
   hp: 21,
   growth: 1.05,
-  accel: 0.0007,
+  accel: 0.0004,
   players: 0.75,
   crowd: 0.95,
   pivot: 10,
@@ -200,17 +214,6 @@ const PATTERN = [
   { cycle: ['normal', 'fast', 'tough', 'normal'] },
   { cycle: ['normal'], size: 0.5, bosses: 1 },
 ];
-
-export const tierOf = (level) => Math.floor(level / TIER_EVERY);
-
-export function towerBase(level) {
-  const n = level - 1;
-  return {
-    damage: TOWER.damage * (1 + TOWER.damageGrowth * n),
-    interval: TOWER.interval / (1 + TOWER.rateGrowth * n),
-    range: TOWER.range,
-  };
-}
 
 let table = null, tableKey = '';
 

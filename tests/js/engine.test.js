@@ -3,8 +3,9 @@ import { PLAIN, makeGame, memoryStorage, runFor, seeded, until } from './fixture
 import { ASCEND_TIME, CARD_MIN, CARD_ROOM, CARD_TIME, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPIN_LIMIT,
   nextReset } from '../../site/js/engine.js';
 import { LEVEL_MAX, TICK, xpForLevel } from '../../site/js/balance.js';
-import { ASCEND_AT, PRICE, RARITIES, SHOW_FAST, SHOW_TIME, SPIN_TIME, WEAPONS, ascend, makeWeapon, weaponName }
+import { ASCEND_AT, PRICE, RARITIES, SHOW_FAST, SHOW_TIME, SPIN_TIME, ascend, makeWeapon, weaponName, weaponStats }
   from '../../site/js/gacha.js';
+import { CLASSES, CLASS_BY_ID } from '../../site/js/classes.js';
 import { ODDS, effectOf, rollEvent } from '../../site/js/events.js';
 import { cellName } from '../../site/js/field.js';
 
@@ -111,7 +112,8 @@ test('игра: клетка в чате переводит защитника, 
     made.open();
     say(made, 'Вика', 'привет');
     ok(until(made, () => made.state === 'placing'));
-    if (!made.members.get('вика').tower.rider) game = made;
+    const tower = made.members.get('вика').tower;
+    if (!tower.rider && !tower.cocoon) game = made;
   }
   const free = game.battle.bestCell(2.5);
   eq(say(game, 'Вика', cellName(free.x, free.y).toLowerCase()), 'move');
@@ -147,19 +149,19 @@ test('игра: в лобби клетка ничего не двигает, н�
   ok(game.members.has('гоша'));
 });
 
-test('игра: паразит не встаёт на клетку и не переставляется', () => {
+test('игра: паразит встаёт коконом на случайную клетку у дороги, переставить его нельзя', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Жук', 'привет');
   game.members.get('жук').cls = 'parasite';
   ok(until(game, () => game.state === 'placing'));
-  const tower = game.members.get('жук').tower;
-  ok(tower.rider);
-  eq([tower.x, tower.y], game.battle.path[game.battle.gate], 'ждёт у выхода из пещеры');
-  no(game.battle.covered(tower.cx, tower.cy), 'не в горе');
+  const tower = game.members.get('жук').tower, spot = [tower.x, tower.y];
+  ok(tower.cocoon > 0 && !tower.rider, 'кокон');
+  ok(nearPath(game, tower), 'у дороги');
+  ok(game.battle.towerAt(tower.x, tower.y) === tower, 'занимает клетку');
   const free = game.battle.bestCell(2.5);
   eq(say(game, 'Жук', cellName(free.x, free.y)), null);
-  no(game.battle.byCell.has(free.y * 20 + free.x));
+  eq([tower.x, tower.y], spot, 'остался на месте');
 });
 
 test('гача: команда без восклицательного знака, оружие под класс игрока', () => {
@@ -173,11 +175,12 @@ test('гача: команда без восклицательного знак�
   game.step(TICK);
   const slot = game.slots[0];
   eq(slot.login, 'нина');
-  ok(['weapon', 'void', 'handful', 'bag', 'chest', 'particle'].includes(slot.outcome.kind));
+  ok(['weapon', 'void', 'handful', 'bag', 'chest', 'particle', 'rune'].includes(slot.outcome.kind));
   if (slot.outcome.kind === 'weapon') eq(slot.outcome.weapon.cls, member.cls);
-  for (const cls of Object.keys(WEAPONS)) {
-    ok(weaponName(makeWeapon(() => 0.5, cls, RARITIES[3])).endsWith(WEAPONS[cls]), cls);
+  for (const cls of CLASSES) {
+    ok(weaponName(makeWeapon(() => 0.5, cls.id, RARITIES[3])).endsWith(cls.weapon), cls.id);
   }
+  ok(weaponName(makeWeapon(() => 0.5, 'earth', RARITIES[4])).startsWith('Легендарная'), 'каменная рука — она');
 });
 
 test('гача: «!гача» тоже работает, старых команд больше нет', () => {
@@ -285,7 +288,7 @@ test('гача: та же редкость или выше — меняется 
   eq(member.weapon, first);
   ok(drop(game, 'зоя', mythic).took);
   eq(member.weapon, mythic);
-  ok(Object.keys(mythic.stats).some((key) => member.tower.mods[key] !== 0), 'свойства дошли до бойца');
+  eq(member.tower.mods.stats, weaponStats(mythic), 'статы оружия дошли до бойца');
   game.events.length = 0;
   const slot = drop(game, 'зоя', common);
   no(slot.took);
@@ -295,8 +298,8 @@ test('гача: та же редкость или выше — меняется 
   ok(drop(game, 'зоя', other).took, 'та же редкость меняется');
   eq(member.weapon, other);
   ok(drop(game, 'зоя', legendary).took);
-  ok(legendary.unique, 'у легендарного есть особое свойство');
-  eq(member.tower.unique, legendary.unique);
+  eq(Object.keys(legendary.stats).length, 4, 'у легендарного прибавка ко всем четырём статам');
+  eq(member.tower.mods.stats, weaponStats(legendary));
   runFor(game, SHOW_TIME + 0.2);
   eq(game.slots.filter(Boolean).length, 0, 'места освободились');
 });
@@ -459,7 +462,7 @@ test('сброс по расписанию: раз в день в заданны
   eq(profiles.since, base + 3601);
 });
 
-test('гача: пустота ничего не даёт, удвоение — возвращает потраченное вдвое', () => {
+test('гача: пустота ничего не даёт, мешок — монеты', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Ося', 'привет');
@@ -615,7 +618,7 @@ test('улучшение до божественного: событие, сво
   eq(say(game, 'Рая', 'улучшить'), 'divine');
   eq(member.weapon.rarity, 'divine');
   ok(game.events.some((e) => e.kind === 'divine' && e.login === 'рая'));
-  ok(member.tower.mods.divine, 'боец знает, что оружие божественное');
+  eq(member.tower.mods.stats, weaponStats(member.weapon), 'статы божественного дошли до бойца');
 });
 
 test('частица бога: выпадает в гаче, хранится между играми и при перезагрузке', () => {
@@ -635,6 +638,38 @@ test('частица бога: выпадает в гаче, хранится м
   ok(new Profiles(storage, 'chatoborona.players.test').get('лия').particle, 'и после перезагрузки');
   game.resetScores();
   no(game.members.get('лия').particle, 'сброс уровней забирает и частицу');
+});
+
+test('руна: выпадает в гаче — одна из двух рун класса, действует сразу, в новой игре и после реролла их нет', () => {
+  const { game } = makeGame();
+  game.open();
+  say(game, 'Рина', 'привет');
+  toWave(game);
+  const member = game.members.get('рина'), cls = CLASS_BY_ID.get(member.cls);
+  const give = () => {
+    const slot = { id: 97, login: 'рина', outcome: { kind: 'rune' }, phase: 'spin', left: 0 };
+    game.slots[0] = slot;
+    game._apply(slot);
+    return slot;
+  };
+  const first = give();
+  ok(first.took && cls.runes.some((rune) => rune.id === first.rune), 'руна своего класса');
+  ok(game.events.some((e) => e.kind === 'rune' && e.login === 'рина'));
+  eq(member.tower.mods.runes, [first.rune], 'дошла до бойца');
+  ok(member.tower.runes.has(first.rune));
+  const second = give();
+  no(second.rune === first.rune, 'вторая — другая');
+  eq(member.runes.slice().sort(), cls.runes.map((rune) => rune.id).sort(), 'собраны обе');
+  no(give().took, 'третьей нет');
+  game.restart();
+  say(game, 'Рина', 'снова');
+  eq(game.members.get('рина').runes, [], 'в новой игре рун нет');
+  const other = makeGame().game;
+  other.open();
+  say(other, 'Лев', 'привет');
+  other.members.get('лев').runes = ['twin'];
+  eq(say(other, 'Лев', 'реролл'), 'reroll');
+  eq(other.members.get('лев').runes, [], 'реролл забирает руны');
 });
 
 function hero(game, name, { level = LEVEL_MAX, particle = true, divine = true } = {}) {
