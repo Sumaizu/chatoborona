@@ -3,11 +3,13 @@ import { STAT } from './balance.js';
 export const PERKS = [10, 30, 50];
 export const PRIMARY = { str: 'сила', agi: 'ловкость', int: 'интеллект' };
 export const STAT_IDS = ['str', 'agi', 'int', 'mas'];
-export const STAT_NAMES = { str: 'Сила', agi: 'Ловкость', int: 'Интеллект', mas: 'Мастерство' };
 
-const pct = (value) => Math.round(value * 100) + '%';
-export const num = (value) => String(Math.round(value * 10) / 10).replace('.', ',');
-const sec = (value) => num(value) + ' с';
+export const MARKS = /\{(hit|dmg|mas|int)\}/;
+const mark = (value) => (value && value.mark ? '{' + value.mark + '}' : '');
+const plain = (value) => String(Math.round(value * 10) / 10).replace('.', ',');
+const pct = (value) => Math.round(value * 100) + '%' + mark(value);
+export const num = (value) => plain(value) + mark(value);
+const sec = (value) => plain(value) + ' с' + mark(value);
 
 function cellWord(value, one, few, many) {
   const n = Math.round(value * 10) / 10, units = n % 10, tens = n % 100;
@@ -16,10 +18,11 @@ function cellWord(value, one, few, many) {
 }
 
 export function cells(value) {
-  return num(value) + ' ' + cellWord(value, 'клетка', 'клетки', 'клеток');
+  return plain(value) + ' ' + cellWord(value, 'клетка', 'клетки', 'клеток') + mark(value);
 }
 
-const around = (value) => 'на ' + num(value) + ' ' + cellWord(value, 'клетку', 'клетки', 'клеток') + ' вокруг';
+const around = (value) => 'на ' + plain(value) + ' ' + cellWord(value, 'клетку', 'клетки', 'клеток') + mark(value)
+  + ' вокруг';
 
 export const CLASSES = [
   {
@@ -389,6 +392,102 @@ export const CLASSES = [
       { id: 'stone', name: 'Каменные шипы', text: 'шипы бьют сразу на пять клеток' },
     ],
   },
+  {
+    id: 'banner',
+    name: 'Знаменосец',
+    color: '#ec4899',
+    primary: 'str',
+    earn: { xp: 0.8, coins: 0.8 },
+    weapon: 'штандарт',
+    stats: { str: 'high', agi: 'mid', int: 'low' },
+    base: { damage: 1, interval: 1.2, range: 1.5, banner: 2.5, haste: 0.2, reach: 0.15 },
+    summary: 'Бьёт древком рядом; под его знаменем союзники бьют быстрее и дальше',
+    main: (b) => 'Бьёт древком на ' + cells(b.range) + ', урон ×' + num(b.damage) + '. Над ним знамя на '
+      + cells(b.banner) + ': все под знаменем, и он сам, бьют на ' + pct(b.haste) + ' быстрее и на ' + pct(b.reach)
+      + ' дальше',
+    skills: [
+      { name: 'Боевой клич', v: { every: 12, time: 4, damage: 0.35 },
+        scale: { every: 'haste', time: 'time', damage: 'buff' },
+        text: (v) => 'раз в ' + sec(v.every) + ' все под знаменем ' + sec(v.time) + ' бьют на ' + pct(v.damage)
+          + ' сильнее' },
+      { name: 'Натиск', v: { chance: 0.1 }, scale: { chance: 'luck' },
+        text: (v) => 'с шансом ' + pct(v.chance) + ' удар союзника под знаменем — критический' },
+      { name: 'Знамя победы', v: { every: 45, time: 6, haste: 0.3 },
+        scale: { every: 'haste', time: 'time', haste: 'buff' },
+        text: (v) => 'раз в ' + sec(v.every) + ' поднимает знамя над полем: весь отряд ' + sec(v.time) + ' бьёт на '
+          + pct(v.haste) + ' быстрее' },
+    ],
+    runes: [
+      { id: 'crimson', name: 'Багровый стяг', text: 'во время боевого клича союзники ещё и бьют на 20% быстрее' },
+      { id: 'planted', name: 'Знамя в землю', text: '«Знамя победы» держится на 3 секунды дольше и отбрасывает '
+        + 'мобов вокруг знаменосца на клетку' },
+    ],
+  },
+  {
+    id: 'healer',
+    name: 'Лекарь',
+    color: '#22c55e',
+    element: 'holy',
+    primary: 'int',
+    earn: { xp: 1, coins: 1.05 },
+    weapon: 'святой посох',
+    stats: { str: 'low', agi: 'mid', int: 'high' },
+    base: { damage: 0.85, interval: 1.2, range: 3, undead: 2.5, heal: 1, healCap: 2, mend: 0.04 },
+    summary: 'Святой свет по нежити, жизни сердцу после волны, щит и святая земля',
+    main: (b) => 'Бьёт святым светом на ' + cells(b.range) + ', урон ×' + num(b.damage) + ', по нежити в '
+      + num(b.undead) + ' раза сильнее, и убитая им нежить больше не встаёт. После волны возвращает сердцу '
+      + b.heal + ' жизнь (все лекари вместе — не больше ' + b.healCap + '), каменные стены рядом чинит',
+    skills: [
+      { name: 'Щит', v: { chance: 0.1 }, scale: { chance: 'luck' },
+        text: (v) => 'с шансом ' + pct(v.chance) + ' дошедший до сердца моб не отнимает жизнь; боссы отнимают '
+          + 'всегда' },
+      { name: 'Очищение', v: { every: 15, radius: 2.5, time: 4 }, scale: { every: 'haste', time: 'time' },
+        text: (v) => 'раз в ' + sec(v.every) + ' союзники ' + around(v.radius) + ' стряхивают оглушение, сглаз, '
+          + 'паутину и сон и ' + sec(v.time) + ' ничего не боятся' },
+      { name: 'Святая земля', v: { every: 40, time: 8, radius: 1.5, dps: 3, vuln: 0.25 },
+        scale: { every: 'haste', time: 'time', dps: 'dmg', vuln: 'buff' },
+        text: (v) => 'раз в ' + sec(v.every) + ' освящает дорогу ' + around(v.radius) + ' там, где мобов больше '
+          + 'всего: ' + sec(v.time) + ' нежить на ней горит — урон ×' + num(v.dps) + ' в секунду, — а все мобы '
+          + 'получают на ' + pct(v.vuln) + ' больше урона' },
+    ],
+    runes: [
+      { id: 'guardian', name: 'Ангел-хранитель', text: '«Щит» спасает и от боссов' },
+      { id: 'second', name: 'Второй шанс', text: 'раз за игру, когда у сердца кончаются жизни, лекарь возвращает 5 '
+        + '— один раз на весь отряд' },
+    ],
+  },
+  {
+    id: 'sage',
+    name: 'Мудрец',
+    color: '#a855f7',
+    element: 'arcane',
+    primary: 'int',
+    earn: { xp: 0.85, coins: 1.1 },
+    weapon: 'фолиант',
+    stats: { str: 'low', agi: 'low', int: 'high' },
+    base: { damage: 0.8, interval: 1.3, range: 3, sparks: 2, circle: 2.5, wisdom: 0.25 },
+    summary: 'Искры сразу в двух мобов; рядом с ним больше опыта, вдохновляет союзников',
+    main: (b) => 'Пускает из книги искры сразу в ' + b.sparks + ' мобов на ' + cells(b.range) + ', урон ×'
+      + num(b.damage) + ' каждой. Все ' + around(b.circle) + ', и он сам, получают +' + pct(b.wisdom) + ' опыта',
+    skills: [
+      { name: 'Вдохновение', v: { every: 8, time: 6, bonus: 0.35 },
+        scale: { every: 'haste', time: 'time', bonus: 'buff' },
+        text: (v) => 'раз в ' + sec(v.every) + ' выбирает союзника рядом — тот ' + sec(v.time) + ' бьёт на '
+          + pct(v.bonus) + ' сильнее и быстрее' },
+      { name: 'Озарение', v: { chance: 0.15 }, scale: { chance: 'luck' },
+        text: (v) => 'с шансом ' + pct(v.chance) + ' вдохновлённый сразу перезаряжает свою способность — ракету, '
+          + 'метеорит, удар молнии и другие' },
+      { name: 'Слабое место', v: { every: 30, time: 8, vuln: 0.5, xp: 2 },
+        scale: { every: 'haste', time: 'time', vuln: 'buff' },
+        text: (v) => 'раз в ' + sec(v.every) + ' метит самого сильного моба — сперва босса или элитного: '
+          + sec(v.time) + ' весь урон по нему на ' + pct(v.vuln) + ' больше, а за его убийство каждый, кто его бил, '
+          + 'получает вдвое больше опыта' },
+    ],
+    runes: [
+      { id: 'pupil', name: 'Ученик', text: 'вдохновение достаётся сразу двоим' },
+      { id: 'omniscience', name: 'Всеведение', text: '«Слабое место» метит трёх самых сильных' },
+    ],
+  },
 ];
 
 export const CLASS_BY_ID = new Map(CLASSES.map((c) => [c.id, c]));
@@ -411,8 +510,8 @@ export function scaled(skill, { power = 1, luck = 1, haste = 1 } = {}) {
   const out = {};
   for (const [key, value] of Object.entries(skill.v)) {
     const how = skill.scale && skill.scale[key];
-    out[key] = how === 'power' || how === 'time' ? value * power : how === 'luck' ? 1 - Math.pow(1 - value, luck)
-      : how === 'haste' ? value / haste : value;
+    out[key] = how === 'power' || how === 'buff' || how === 'time' ? value * power : how === 'luck'
+      ? 1 - Math.pow(1 - value, luck) : how === 'haste' ? value / haste : value;
   }
   return out;
 }
@@ -424,11 +523,29 @@ export function masteryOf(mas) {
 
 export const skillOf = (cls, stats) => (1 + STAT.skill * stats[cls.primary]) * masteryOf(stats.mas).power;
 
+const marked = (value, how) => Object.assign(Object(value), { mark: how });
+
+function markedBase(cls) {
+  const base = Object.assign({}, cls.base, { damage: marked(cls.base.damage, 'hit') });
+  for (const key of cls.aura ? ['range'] : ['banner', 'circle']) if (key in base) base[key] = marked(base[key], 'int');
+  return base;
+}
+
+function markedSkill(skill, mastery) {
+  const values = scaled(skill, mastery);
+  for (const [key, how] of Object.entries(skill.scale || {})) {
+    values[key] = marked(values[key], how === 'dmg' || how === 'buff' ? 'dmg' : 'mas');
+  }
+  return values;
+}
+
 export function describe(id, level, mas = STAT.mastery) {
   const cls = CLASS_BY_ID.get(id), mastery = masteryOf(mas);
   return {
-    main: cls.main(cls.base),
+    main: cls.main(markedBase(cls)),
     perks: PERKS.map((at, i) => ({ at, open: level >= at, name: cls.skills[i].name,
-      text: cls.skills[i].text(scaled(cls.skills[i], mastery)) })),
+      text: cls.skills[i].text(markedSkill(cls.skills[i], mastery)) })),
   };
 }
+
+export const plainText = (text) => text.split(new RegExp(MARKS.source, 'g')).filter((part, i) => i % 2 === 0).join('');

@@ -3,7 +3,8 @@ import { seeded } from './fixtures.js';
 import { BIOMES, SIZE, cellName, coverage, makeMap, parseCell } from '../../site/js/field.js';
 import { LEVEL_MAX, MOBS, STAT, crowdFactor, eliteCount, levelOf, waveHp, waveReward, waveSpawns, xpForLevel }
   from '../../site/js/balance.js';
-import { CLASSES, CLASS_BY_ID, PERKS, PRIMARY, describe, gradeOf, masteryOf, scaled } from '../../site/js/classes.js';
+import { CLASSES, CLASS_BY_ID, MARKS, PERKS, PRIMARY, describe, gradeOf, masteryOf, plainText, scaled }
+  from '../../site/js/classes.js';
 import { ASCEND_AT, DIVINE, OUTCOMES, RARITIES, STATS, makeWeapon, rankOf, spin, upgrade, weaponScore, weaponStats,
   weaponTitle } from '../../site/js/gacha.js';
 import { clean, fromQuery, toQuery, DEFAULTS } from '../../site/js/config.js';
@@ -141,9 +142,9 @@ test('здоровье мобов растёт с волной и с число�
   ok(waveHp(10, 'boss', 1) > waveHp(10, 'elite', 1));
 });
 
-test('классы: двенадцать, у каждого оружие, статы, три способности на 10, 30 и 50 уровне и две руны', () => {
-  eq(CLASSES.length, 12);
-  eq(new Set(CLASSES.map((c) => c.id)).size, 12);
+test('классы: пятнадцать, у каждого оружие, статы, три способности на 10, 30 и 50 уровне и две руны', () => {
+  eq(CLASSES.length, 15);
+  eq(new Set(CLASSES.map((c) => c.id)).size, 15);
   eq(PERKS, [10, 30, 50]);
   const runes = CLASSES.flatMap((cls) => cls.runes.map((rune) => rune.id));
   eq(new Set(runes).size, CLASSES.length * 2, 'руны не повторяются');
@@ -158,7 +159,26 @@ test('классы: двенадцать, у каждого оружие, ста
     eq(info.perks.map((perk) => perk.open), [true, true, false], cls.id);
     for (const perk of info.perks) ok(perk.text && !/undefined|NaN/.test(perk.text), cls.id + ' ' + perk.name);
   }
-  no(CLASSES.some((cls) => ['banner', 'healer', 'sage'].includes(cls.id)), 'поддержка пока отключена');
+  for (const id of ['banner', 'healer', 'sage']) ok(CLASSES.some((cls) => cls.id === id), 'поддержка вернулась: ' + id);
+});
+
+test('классы: у чисел, которые растут от статов, стоит метка значка — урон, способности, мастерство', () => {
+  const sniper = describe('sniper', 50), charged = sniper.perks[1].text, aim = sniper.perks[2].text;
+  ok(/×\d+(,\d)?\{hit\}/.test(sniper.main), 'обычный урон — от силы: ' + sniper.main);
+  ok(/шансом \d+%\{mas\}/.test(charged), 'шанс — от мастерства: ' + charged);
+  ok(/×6\{dmg\}/.test(charged), 'урон способности — от основного стата и мастерства: ' + charged);
+  ok(/раз в [\d,]+ с\{mas\}/.test(aim), 'перезарядка — от мастерства: ' + aim);
+  ok(describe('frost', 1).main.includes('{int}'), 'буря шире от интеллекта');
+  ok(describe('banner', 10).perks[0].text.includes('{dmg}'), 'сила клича — от силы и мастерства');
+  const pierce = describe('sniper', 10).perks[0].text;
+  eq(plainText(charged).match(MARKS), null, 'без меток — чистый текст');
+  for (const cls of CLASSES) {
+    const info = describe(cls.id, 50);
+    for (const text of [info.main].concat(info.perks.map((perk) => perk.text))) {
+      eq((text.match(/\{/g) || []).length, (text.match(new RegExp(MARKS.source, 'g')) || []).length, cls.id);
+    }
+  }
+  ok(pierce.includes('{mas}'));
 });
 
 test('классы: мастерство у всех низкое, усиливает способности с убывающей отдачей, шанс никогда не 100%', () => {

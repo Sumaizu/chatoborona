@@ -78,10 +78,13 @@ test('страницы: оверлей сам открывает набор, ч�
   game.next();
   await until(() => game.state === 'placing', 'расстановка');
   await until(() => element(w, 'lobby').hidden, 'карта на экране');
+  const family = game.battle.nextFamily;
+  await until(() => text(w, 'status') === 'Дальше — ' + family.name, 'какой вид мобов будет, видно заранее');
   game.next();
   await until(() => game.state === 'wave', 'волна');
   await until(() => element(w, 'clock').textContent.includes('моб'), 'счётчик мобов');
-  eq(text(w, 'status'), 'Идёт волна');
+  eq(game.battle.family, family, 'вышли те, кого объявили');
+  eq(text(w, 'status'), 'Волна ' + family.of);
   game.feed('Аня', 'профиль', { login: 'аня' });
   await until(() => w.document.querySelector('#cards .profile'), 'карточка');
   const card = w.document.querySelector('#cards .profile');

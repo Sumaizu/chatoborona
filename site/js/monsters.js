@@ -406,6 +406,110 @@ const MOBS = {
     },
   })],
   spiderling: [30, (m, f) => spider(m, f, { s: 0.78, leg: '#3b0764', body: '#7e22ce', head: '#9333ea' })],
+  boar: [30, (m, f) => beast(m, f, {
+    s: 0.98, dy: 1, fur: '#6f5a4c', dark: '#3b2a22', belly: '#8a7262', snout: '#e3a3a3', head: 4.8, wide: 6.6,
+    ear: '#3b2a22', eye: '#1c1917', tail: 0.7, tailColor: '#3b2a22',
+    back: (c, y, s) => {
+      for (let i = 0; i < 6; i++) m.limb(c, y - 6 * s + i * 2.8 * s, 12 * s, c, y - 5 * s + i * 2.8 * s, 13.4 * s, 1,
+        '#2a1d17', 0, 0.3);
+    },
+    face: (c, y, s) => {
+      m.egg(c, y - 14.4 * s, 12.6 * s, 1.8 * s, 1.1 * s, 0.9 * s, '#f0b3b3');
+      m.dot(c - 0.7, y - 14.6 * s, '#7f1d1d', 70);
+      m.dot(c + 0.7, y - 14.6 * s, '#7f1d1d', 70);
+      for (const side of [-1, 1]) m.limb(c + side * 2.2 * s, y - 12 * s, 13 * s, c + side * 3.8 * s, y - 15 * s,
+        14 * s, 0.75, '#fffbeb', 0, 0.3);
+    },
+  })],
+  bear: [30, (m, f) => beast(m, f, {
+    s: 1.04, dy: 1.2, fur: '#6b4423', dark: '#3f2814', belly: '#8a5c36', snout: '#c9a27a', head: 5.4, wide: 7.6,
+    leg: 2.4, ears: false, eye: '#1c1917',
+    face: (c, y, s, step) => {
+      for (const side of [-1, 1]) {
+        m.ball(c + side * 4 * s, y - 6.4 * s, 13 * s, 1.7 * s, '#3f2814');
+        m.ball(c + side * 4 * s, y - 6.6 * s, 13.8 * s, 0.9 * s, '#8a5c36');
+        const foot = y - 5 * s - side * step * 0.8 * s;
+        for (const dx of [-0.9, 0, 0.9]) m.limb(c + side * 5.6 * s + dx, foot, 2, c + side * 5.6 * s + dx * 1.3,
+          foot - 1.6, 2, 0.35, '#f5f0e1', 0, 0.2);
+      }
+      m.ball(c, y - 13.6 * s, 12 * s, 1.1 * s, '#1c1917', 0.8);
+    },
+  })],
+  hand: [30, (m, f) => {
+    const c = 15, step = f ? 1 : -1;
+    m.egg(c, c + 7.4, 4, 3.6, 2.6, 2, '#6b4f8a');
+    m.dot(c - 1.5, c + 8.4, '#9b2226', 40);
+    m.egg(c, c + 2.6, 5, 4.6, 4.4, 2.4, '#8fb35e', 0.3);
+    [-3.2, -1.1, 1.1, 3.2].forEach((dx, i) => {
+      const lift = (i % 2 ? step : -step) * 0.9;
+      m.limb(c + dx * 0.8, c - 0.6, 6, c + dx * 1.15, c - 6.4 + lift, 4, 1.1, '#8fb35e', 0, 0.8);
+      m.dot(c + dx * 1.15, c - 7 + lift, '#e7e2cf', 50);
+    });
+    m.limb(c + 4, c + 3, 5, c + 7.4, c - 0.2 - step * 0.6, 4, 1.2, '#8fb35e', 0, 0.9);
+    m.dot(c - 1, c + 1.6, '#9b2226', 35);
+    m.dot(c + 2, c + 3.4, '#5d7a3c', 35);
+  }],
+  goblinkid: [30, (m, f) => walker(m, f, {
+    s: 0.64, dy: 2, legs: '#451a03', body: '#a16207', skin: '#86d24a', shoulderColor: '#854d0e', reach: 7, head: 5.2,
+    held: (hands) => {
+      const [x, y] = hands[1];
+      m.limb(x, y + 1, 8, x, y - 3.6, 8, 0.45, WOOD);
+      m.limb(x, y - 3.6, 8.2, x - 1.2, y - 5.2, 8.2, 0.35, WOOD);
+      m.limb(x, y - 3.6, 8.2, x + 1.2, y - 5.2, 8.2, 0.35, WOOD);
+    },
+    face: (c, y) => {
+      m.egg(c - 4.6, y - 1.6, 8, 2, 0.8, 0.7, '#86d24a');
+      m.egg(c + 4.6, y - 1.6, 8, 2, 0.8, 0.7, '#86d24a');
+      m.dot(c - 1.2, y - 3.6, '#ffef5a', 60);
+      m.dot(c + 1.2, y - 3.6, '#ffef5a', 60);
+    },
+  })],
+  devilkin: [30, (m, f) => walker(m, f, {
+    s: 0.62, dy: 2, legs: '#5b1414', body: '#e0453a', skin: '#e0453a', reach: 7, head: 5,
+    back: (c, y, s, step) => {
+      m.limb(c, y + 8 * s, 3, c + step * 1.6, y + 13 * s, 2, 0.6, '#7f1d1d', 0, 0.4);
+      m.egg(c + step * 1.6, y + 13.6 * s, 2.4, 1.1, 1.3, 0.6, '#7f1d1d');
+    },
+    held: (hands) => {
+      const [x, y] = hands[1];
+      m.limb(x, y + 2, 8, x, y - 5, 8, 0.45, '#52525b', 0.4);
+      for (const dx of [-1.2, 0, 1.2]) m.limb(x + dx, y - 5, 8.2, x + dx, y - 7.2, 8.2, 0.3, '#a1a1aa', 0.7, 0.15);
+      m.limb(x - 1.2, y - 5, 8.2, x + 1.2, y - 5, 8.2, 0.3, '#a1a1aa', 0.7);
+    },
+    face: (c, y) => {
+      m.limb(c - 1.8, y - 3.4, 8, c - 3, y - 6, 9, 0.7, '#f1e4c8', 0, 0.25);
+      m.limb(c + 1.8, y - 3.4, 8, c + 3, y - 6, 9, 0.7, '#f1e4c8', 0, 0.25);
+      m.dot(c - 1.2, y - 3.2, '#ffd84a', 60);
+      m.dot(c + 1.2, y - 3.2, '#ffd84a', 60);
+    },
+  })],
+  hopper: [30, (m, f) => {
+    const c = 15, up = f ? -1.6 : 0.4;
+    m.ball(c, c + 10.5, 2, 1.4, '#84cc16', 0.6);
+    m.ball(c + (f ? 1 : -1), c + 13.2, 2, 0.9, '#84cc16', 0.6);
+    m.egg(c, c + 1 + up, 4, f ? 7 : 7.8, f ? 8 : 7, 6, '#a3e635', 0.8);
+    m.egg(c - 3.2, c - 2.4 + up, 9, 1.7, 1.1, 0.7, '#f7fee7', 1);
+    for (const side of [-1, 1]) {
+      m.egg(c + side * 2.4, c + up, 10, 1.3, 1.7, 0.7, '#1c1917', 0.4);
+      m.dot(c + side * 2.4 - 0.5, c - 0.8 + up, '#ffffff', 99);
+    }
+    m.limb(c - 1.6, c + 3 + up, 10, c + 1.6, c + 3 + up, 10, 0.5, '#365314');
+  }],
+  spark: [30, (m, f) => {
+    const c = 15, turn = f ? 0.6 : 0;
+    for (let i = 0; i < 5; i++) {
+      const a = turn + i * Math.PI * 2 / 5, bend = a + 0.45, tip = a - 0.15;
+      m.limb(c + Math.cos(a) * 3.4, c + Math.sin(a) * 3.4, 7, c + Math.cos(bend) * 6, c + Math.sin(bend) * 6, 7, 0.55,
+        '#facc15', 1, 0.4);
+      m.limb(c + Math.cos(bend) * 6, c + Math.sin(bend) * 6, 7, c + Math.cos(tip) * 9, c + Math.sin(tip) * 9, 6, 0.45,
+        '#fde047', 1, 0.2);
+    }
+    m.ball(c, c, 6, 4.4, '#eab308', 1);
+    m.ball(c, c - 0.4, 8, 3, '#fde047', 1);
+    m.ball(c - 0.8, c - 1.4, 10, 1.2, '#fefce8', 1);
+    m.dot(c - 1.3, c - 0.4, '#713f12', 70);
+    m.dot(c + 1.3, c - 0.4, '#713f12', 70);
+  }],
   leader: [38, (m, f) => walker(m, f, {
     s: 1.22, legs: '#1f1d24', body: '#2f2d38', skin: '#3a3846', handColor: '#2a2833', shoulderColor: '#25232d',
     headColor: '#34323f', reach: 8.4, spread: 6.8, wide: 8.2,
@@ -752,6 +856,19 @@ const MOBS = {
     m.limb(c + 2.6, c - 15, 14, c + 4, c - 19, 14, 0.8, '#fef3c7', 0, 0.3);
     m.dot(c - 1.6, c - 15, '#fde047', 90);
     m.dot(c + 1.6, c - 15, '#fde047', 90);
+  }],
+  slimemother: [50, (m, f) => {
+    const c = 25, r = 18.5, top = (dx, dy) => 4 + r * 0.8 * Math.sqrt(Math.max(0, 1 - (dx * dx + dy * dy) / (r * r)));
+    blob(m, f, { r, color: '#15803d', shine: '#dcfce7' });
+    for (const [dx, dy, size, color] of [[-8, 7, 3.4, '#4ade80'], [7.5, 8, 2.8, '#86efac'], [0, 13, 2.2, '#4ade80'],
+      [10, -6, 2.4, '#86efac']]) {
+      const z = top(dx, dy - 2) + size * 0.4, bob = f ? -0.5 : 0.5;
+      m.ball(c + dx, c + dy + bob, z, size, color, 0.9);
+      m.dot(c + dx - size * 0.35, c + dy - size * 0.25 + bob, '#14532d', 80);
+      m.dot(c + dx + size * 0.35, c + dy - size * 0.25 + bob, '#14532d', 80);
+    }
+    for (const [dx, dy] of [[-11, -2], [-4, 4], [4, -11], [12, 3]]) m.ball(c + dx, c + dy, top(dx, dy - 2) + 0.6, 0.9,
+      '#bbf7d0', 1);
   }],
   spiderqueen: [50, (m, f) => {
     spider(m, f, { s: 1.6, leg: '#3b0764', body: '#6b21a8', head: '#7e22ce', mark: '#c084fc' });

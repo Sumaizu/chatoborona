@@ -1,11 +1,10 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { BITE_TIME, BURST, Battle, DISCHARGE, FUSION, HEADWIND, MOVE_PAUSE, NUKE_FLIGHT, OVERTIME, PLAGUE, ROT,
-  THORN }
-  from '../../site/js/battle.js';
+import { BITE_TIME, BURST, Battle, CRIMSON, DISCHARGE, FUSION, HEADWIND, MOVE_PAUSE, NUKE_FLIGHT, OVERTIME, PLAGUE,
+  PLANTED, ROT, SECOND, THORN } from '../../site/js/battle.js';
 import { SIZE } from '../../site/js/field.js';
-import { BOSSES, ELITES, LIVES, LOOKS, MIMIC, MOBS, POWERS, STAT, TERRAIN, TICK, TOWER, resistOf, waveSpawns,
-  xpForLevel } from '../../site/js/balance.js';
+import { BOSSES, ELITES, FAMILIES, FAMILY_BY_ID, LIVES, LOOKS, MIMIC, MOBS, POWERS, STAT, TERRAIN, TICK, TOWER,
+  familyPool, resistOf, waveSpawns, xpForLevel } from '../../site/js/balance.js';
 import { ASSIST_COINS, KILL_COINS } from '../../site/js/gacha.js';
 import { CLASSES, CLASS_BY_ID } from '../../site/js/classes.js';
 
@@ -316,23 +315,83 @@ test('бой: моб доходит до сердца, секунду грызё
   ok(mob.dead);
 });
 
-test('мобы: новые виды появляются со своей волны, летучие летают', () => {
-  const early = makeBattle();
-  early.startWave(1, 3);
-  for (const s of early.spawns) ok(!s.look.from || s.look.from <= 1, s.look.id);
-  const looks = new Set();
-  for (let wave = 21; wave <= 30; wave++) {
-    for (let seed = 1; seed <= 3; seed++) {
-      const battle = makeBattle({ random: seeded(seed) });
-      battle.startWave(wave, 3);
-      for (const s of battle.spawns) if (s.look) looks.add(s.look.id);
+const ofFamily = (family, spawn) => spawn.kind === MIMIC || (spawn.kind
+  ? family.elites.includes(spawn.kind.id) || family.bosses.includes(spawn.kind.id) : family.looks.includes(spawn.look.id));
+
+function waveOf(familyId, wave, seed = 1) {
+  const battle = makeBattle({ random: seeded(seed) });
+  battle.nextFamily = FAMILY_BY_ID.get(familyId);
+  battle.startWave(wave, 3);
+  return battle;
+}
+
+test('мобы: новые виды появляются со своей волны, а пока их нет — первый вид той же роли; летучие летают', () => {
+  for (const family of FAMILIES) {
+    const wave = family.from || 1, battle = waveOf(family.id, wave);
+    for (const s of battle.spawns.filter((spawn) => spawn.look)) {
+      const own = LOOKS[s.type].filter((look) => family.looks.includes(look.id));
+      const first = Math.min(...own.map((look) => look.from || 0));
+      ok(!s.look.from || s.look.from <= wave || s.look.from === first, family.id + ': ' + s.look.id);
     }
   }
-  for (const id of ['crow', 'hellhound', 'demon']) ok(looks.has(id), id);
-  for (const id of ['skeleton', 'imp', 'bat']) ok(looks.has(id), id);
+  const looks = new Set();
+  for (const id of ['beasts', 'demons', 'undead']) {
+    for (let wave = 21; wave <= 29; wave++) {
+      for (let seed = 1; seed <= 2; seed++) for (const s of waveOf(id, wave, seed).spawns) if (s.look) looks.add(s.look.id);
+    }
+  }
+  for (const id of ['crow', 'hellhound', 'demon', 'skeleton', 'imp', 'bat', 'bear', 'hand', 'devilkin']) {
+    ok(looks.has(id), id);
+  }
   const battle = makeBattle(), flyer = walker(battle, 2, 100, bat());
   ok(flyer.flying);
   eq(flyer.look, 'bat');
+});
+
+test('виды волн: в волне мобы одного вида — и обычные, и элитные, и босс', () => {
+  for (const family of FAMILIES) {
+    for (const wave of [Math.max(3, family.from || 1), 30, 70]) {
+      for (let seed = 1; seed <= 4; seed++) {
+        const battle = waveOf(family.id, wave, seed);
+        eq(battle.family, family);
+        for (const spawn of battle.spawns) ok(ofFamily(family, spawn), family.id + ' ' + wave + ': '
+          + (spawn.kind ? spawn.kind.id : spawn.look.id));
+      }
+    }
+    const boss = waveOf(family.id, 30).spawns.filter((spawn) => spawn.type === 'boss');
+    ok(boss.length && boss.every((spawn) => family.bosses.includes(spawn.kind.id)), family.id + ': свой босс');
+  }
+});
+
+test('виды волн: у каждого вида с его первой волны есть все роли, элитные и босс; два раза подряд вид не идёт', () => {
+  for (const family of FAMILIES) {
+    const wave = family.from || 1;
+    for (const type of ['normal', 'fast', 'tough', 'swarm']) ok(familyPool(family, LOOKS[type], wave).length,
+      family.id + ': ' + type);
+    ok(familyPool(family, ELITES, wave).length, family.id + ': элитные');
+    ok(familyPool(family, BOSSES, wave).length, family.id + ': босс');
+  }
+  const battle = makeBattle({ random: seeded(11) }), seen = new Map();
+  let last = null;
+  for (let wave = 1; wave <= 60; wave++) {
+    const family = battle.planFamily(wave);
+    ok(!family.from || family.from <= wave, family.id + ' на ' + wave + '-й');
+    ok(family !== last, 'не подряд: ' + wave);
+    seen.set(family.id, (seen.get(family.id) || 0) + 1);
+    battle.startWave(wave, 3);
+    eq(battle.family, family, 'выходит тот вид, что объявлен');
+    battle.spawns = [];
+    last = family;
+  }
+  eq(seen.size, FAMILIES.length, 'выходят все виды');
+  const slime = waveOf('slimes', 30);
+  slime.spawns = [];
+  const mother = slime._spawn({ type: 'boss', kind: BOSSES.find((kind) => kind.id === 'slimemother'), hp: 100 }, 4);
+  runFor(slime, 2.5);
+  ok(slime.mobs.some((mob) => mob.look === 'slime2'), 'праматерь выпускает слизней');
+  slime._hurt(mother, 1e9, slime.place(player(), 'gunner', 2, 4));
+  slime.step(TICK);
+  ok(slime.mobs.filter((mob) => mob.look === 'slime3').length >= 2, 'и распадается на больших');
 });
 
 test('снайпер: бьёт дальше всех, сперва летучих, потом самого крепкого', () => {
@@ -1113,6 +1172,221 @@ test('шаман: с 10-го порыв отбрасывает обычных р
   eq(boss.pushed, 0, 'босса не отбрасывает');
 });
 
+test('знаменосец: под знаменем бьют быстрее и дальше, два знамени не складываются, за добычу под знаменем — помощь', () => {
+  const battle = makeBattle(), flag = battle.place(player(), 'banner', 4, 4), b = flag.cls.base;
+  const ally = battle.place(player(), 'gunner', 5, 4), far = battle.place(player(), 'gunner', 14, 4);
+  const range = far.range;
+  battle.step(TICK);
+  near(ally.range, range * (1 + b.reach), 'дальше');
+  near(far.range, range, 'вне знамени — как было');
+  near(battle._intervalOf(ally, battle.time), ally.interval / (1 + b.haste), 'быстрее');
+  near(flag.boost.rate, b.haste, 'и сам знаменосец');
+  ok(ally.boostBy.has(flag) && !flag.boostBy.has(flag));
+  battle.place(player(), 'banner', 6, 4);
+  battle.step(TICK);
+  near(battle._intervalOf(ally, battle.time), ally.interval / (1 + b.haste), 'второе знамя не прибавляет');
+  const mob = walker(battle, 12, 10);
+  still(mob);
+  battle._hurt(mob, 100, ally);
+  ok(mob.dead && flag.run.assists >= 1, 'знаменосцу — помощь');
+});
+
+test('знаменосец: с 10-го боевой клич, с 30-го натиск, с 50-го знамя победы на весь отряд', () => {
+  const battle = makeBattle(), flag = battle.place(level(50), 'banner', 4, 4);
+  const ally = battle.place(player(), 'sniper', 5, 4), far = battle.place(player(), 'gunner', 16, 6);
+  const mob = walker(battle, 19, 1e9);
+  still(mob);
+  runFor(battle, 2 * TICK);
+  ok(battle.events.some((e) => e.kind === 'cheer') && battle.events.some((e) => e.kind === 'rally'));
+  near(ally.boost.damage, flag.s[0].damage, 'клич');
+  near(ally.boost.crit, flag.s[1].chance, 'натиск');
+  near(far.boost.rate, flag.s[2].haste, 'знамя победы — и дальним');
+  near(ally.boost.rate, flag.cls.base.haste + flag.s[2].haste);
+  const target = walker(battle, 18, 1e9);
+  still(target);
+  ally.critChance = 0;
+  battle.random = () => 0.99;
+  battle._hurt(target, 100, ally);
+  near(hit(target), 100 * (1 + flag.s[0].damage), 'урон под кличем');
+  battle.random = () => flag.s[1].chance / 2;
+  ok(battle.random() < 1 - (1 - ally.critChance) * (1 - ally.boost.crit), 'натиск даёт крит');
+  runFor(battle, Math.max(flag.s[0].time, flag.s[2].time) + 0.1);
+  near(far.boost.rate, 0, 'знамя победы кончилось');
+  near(ally.boost.damage, 0, 'клич кончился');
+});
+
+test('знаменосец: руны — багровый стяг ускоряет под кличем, знамя в землю дольше и отбрасывает', () => {
+  const battle = makeBattle(), flag = battle.place(level(50), 'banner', 4, 4);
+  battle.setMods(flag, { runes: ['crimson', 'planted'] });
+  const ally = battle.place(player(), 'gunner', 5, 4), mob = walker(battle, 5, 1e9);
+  still(mob);
+  runFor(battle, 2 * TICK);
+  near(ally.boost.rate, flag.cls.base.haste + CRIMSON + flag.s[2].haste);
+  near(flag.rallyUntil - battle.time + TICK, flag.s[2].time + PLANTED.time, 'дольше');
+  ok(mob.pushed > 0, 'отбросило');
+});
+
+test('лекарь: святой свет по нежити сильнее, убитая им нежить не встаёт, призрака бьёт в полную силу', () => {
+  const battle = makeBattle(), healer = battle.place(player(), 'healer', 10, 4);
+  healer.critChance = 0;
+  const zombie = creature(battle, 'zombie', 11), rat = creature(battle, 'rat', 11);
+  still(zombie, rat);
+  ATTACK(battle, healer, zombie);
+  battle._hurt(rat, healer.damage, healer, 'holy');
+  near(hit(rat), healer.damage);
+  ok(hit(zombie) >= healer.damage * healer.cls.base.undead - 1e-6, 'нежить — в 2,5 раза');
+  const skeleton = creature(battle, 'skeleton', 12, 10);
+  still(skeleton);
+  battle._hurt(skeleton, 100, healer, 'holy');
+  runFor(battle, 3);
+  no(battle.mobs.some((mob) => mob.look === 'skeleton' && !mob.dead), 'упокоен');
+  const ghost = creature(battle, 'ghost', 13);
+  still(ghost);
+  ghost.phaseUntil = battle.time + 10;
+  battle._hurt(ghost, 100, healer, 'holy');
+  near(hit(ghost), 100, 'свет не режется');
+});
+
+test('лекарь: после волны возвращает сердцу жизнь, все лекари вместе — не больше двух', () => {
+  const battle = makeBattle();
+  battle.place(player(), 'healer', 2, 4);
+  battle.lives = 10;
+  battle.endWave();
+  eq(battle.lives, 11);
+  battle.place(player(), 'healer', 3, 4);
+  battle.place(player(), 'healer', 4, 4);
+  battle.endWave();
+  eq(battle.lives, 13, 'трое — всё равно две');
+  battle.lives = battle.maxLives;
+  battle.endWave();
+  eq(battle.lives, battle.maxLives, 'сверх полного не лечит');
+});
+
+test('лекарь: с 10-го щит — дошедший моб не отнимает жизнь, боссов держит только руна', () => {
+  const battle = makeBattle(), healer = battle.place(level(10), 'healer', 2, 6);
+  healer.busy = 1e9;
+  battle.random = () => 0;
+  const mob = walker(battle, battle.length - 2, 1e9);
+  runFor(battle, 5);
+  ok(mob.dead && battle.lives === LIVES, 'щит спас');
+  ok(battle.events.some((e) => e.kind === 'shield'));
+  const boss = put(battle, special(battle, 'boss', 'crusher', 1e9), battle.length - 2);
+  runFor(battle, 5);
+  ok(boss.dead && battle.lives < LIVES, 'босса щит не держит');
+  battle.setMods(healer, { runes: ['guardian'] });
+  const lives = battle.lives, again = put(battle, special(battle, 'boss', 'crusher', 1e9), battle.length - 2);
+  runFor(battle, 5);
+  ok(again.dead && battle.lives === lives, 'с ангелом-хранителем — держит');
+});
+
+test('лекарь: руна «второй шанс» — раз за игру возвращает сердцу пять жизней', () => {
+  const battle = makeBattle(), healer = battle.place(player(), 'healer', 2, 6);
+  battle.setMods(healer, { runes: ['second'] });
+  healer.busy = 1e9;
+  battle.lives = 1;
+  walker(battle, battle.length - 2, 1e9);
+  runFor(battle, 5);
+  eq(battle.lives, SECOND);
+  ok(battle.events.some((e) => e.kind === 'rescue'));
+  battle.lives = 1;
+  walker(battle, battle.length - 2, 1e9);
+  runFor(battle, 5);
+  ok(battle.lives <= 0, 'второй раз — нет');
+});
+
+test('лекарь: с 30-го очищение будит оглушённых и усыплённых, и потом их не оглушить', () => {
+  const battle = makeBattle(), healer = battle.place(level(30), 'healer', 4, 4);
+  const ally = battle.place(player(), 'gunner', 5, 4), mob = walker(battle, 19, 1e9);
+  still(mob);
+  battle._daze(ally, 10);
+  ally.napUntil = battle.time + 10;
+  battle.step(TICK);
+  ok(battle.events.some((e) => e.kind === 'cleanse'));
+  ok(ally.stunUntil <= battle.time && ally.napUntil <= battle.time && ally.busy <= battle.time, 'проснулся');
+  no(battle._daze(ally, 5), 'сглаз не берёт');
+  runFor(battle, healer.s[1].time + 0.1);
+  ok(battle._daze(ally, 1), 'защита прошла');
+});
+
+test('лекарь: с 50-го святая земля — нежить на ней горит, все мобы получают больше урона, летучих не берёт', () => {
+  const battle = makeBattle(), healer = battle.place(level(50), 'healer', 10, 2);
+  healer.critChance = 0;
+  battle.random = () => 0.99;
+  const zombie = creature(battle, 'zombie', 15), dog = creature(battle, 'dog', 15.3), flyer = walker(battle, 15.2, 1e6,
+    bat());
+  still(zombie, dog, flyer);
+  healer.cooldown = 1e9;
+  battle.step(TICK);
+  ok(battle.events.some((e) => e.kind === 'hallow'));
+  healer.busy = 1e9;
+  runFor(battle, 2);
+  ok(hit(zombie) > 0 && hit(dog) === 0, 'горит только нежить');
+  ok(dog.vuln > 0 && dog.vulnUntil > battle.time, 'уязвим');
+  eq(flyer.vuln, 0, 'летучих не берёт');
+});
+
+test('мудрец: искры в двух мобов, рядом с ним больше опыта', () => {
+  const battle = makeBattle(), sage = battle.place(player(), 'sage', 10, 4);
+  sage.critChance = 0;
+  const a = walker(battle, 10, 1e6), b = walker(battle, 11, 1e6);
+  still(a, b);
+  battle._fire(sage);
+  near(hit(a), sage.damage);
+  near(hit(b), sage.damage);
+  const ally = battle.place(player(), 'gunner', 11, 4), far = battle.place(player(), 'gunner', 2, 6);
+  battle.step(TICK);
+  near(ally.boost.wisdom, sage.cls.base.wisdom);
+  eq(far.boost.wisdom, 0);
+  const before = ally.player.xp, outside = far.player.xp;
+  battle.reward(ally, 100);
+  battle.reward(far, 100);
+  near(ally.player.xp - before, 100 * (1 + sage.cls.base.wisdom));
+  near(far.player.xp - outside, 100);
+});
+
+test('мудрец: с 10-го вдохновение, с 30-го озарение перезаряжает способность, руна «ученик» — двоим', () => {
+  const battle = makeBattle(), sage = battle.place(level(30), 'sage', 10, 4);
+  const ally = battle.place(level(50), 'bomber', 11, 4), mob = walker(battle, 1, 1e9);
+  still(mob);
+  ally.nextActive = 1e9;
+  battle.random = () => 0;
+  battle.step(TICK);
+  ok(battle.events.some((e) => e.kind === 'muse' && e.ally === ally && e.flash));
+  ok(ally.nextActive <= battle.time, 'перезарядилось');
+  ally.busy = 1e9;
+  battle.step(TICK);
+  near(ally.boost.damage, sage.s[0].bonus);
+  near(ally.boost.rate, sage.s[0].bonus);
+  ok(ally.boostBy.has(sage), 'мудрецу — помощь');
+  runFor(battle, sage.s[0].time + 0.1);
+  const other = makeBattle(), wise = other.place(level(10), 'sage', 10, 4);
+  other.setMods(wise, { runes: ['pupil'] });
+  other.place(player(), 'gunner', 11, 4);
+  other.place(player(), 'gunner', 9, 4);
+  still(walker(other, 1, 1e9));
+  other.step(TICK);
+  eq(other.events.filter((e) => e.kind === 'muse').length, 2, 'двоим сразу');
+});
+
+test('мудрец: с 50-го слабое место — сперва босс: урон по нему больше, за убийство вдвое больше опыта', () => {
+  const battle = makeBattle(), sage = battle.place(level(50), 'sage', 2, 4);
+  const boss = put(battle, special(battle, 'boss', 'crusher', 1e9), 14), mob = walker(battle, 15, 1e9);
+  still(boss, mob);
+  sage.busy = 1e9;
+  battle.step(TICK);
+  sage.busy = 0;
+  battle._shoot(0, battle.time);
+  ok(battle.events.some((e) => e.kind === 'expose' && e.mob === boss), 'метит босса');
+  const gunner = battle.place(player(), 'gunner', 16, 4);
+  gunner.critChance = 0;
+  battle._hurt(boss, 100, gunner);
+  near(hit(boss), 100 * (1 + sage.s[2].vuln), 'урон больше');
+  const xp = gunner.player.xp;
+  boss.hp = 1;
+  battle._hurt(boss, 10, gunner);
+  near(gunner.player.xp - xp, boss.info.xp * gunner.cls.earn.xp * sage.s[2].xp, 'вдвое больше опыта');
+});
+
 test('шаман: с 50-го ветер ускоряет союзников рядом, самого шамана — вдвое', () => {
   const battle = makeBattle(), shaman = battle.place(level(50), 'shaman', 10, 4);
   const ally = battle.place(player(), 'gunner', 11, 4), far = battle.place(player(), 'gunner', 2, 4);
@@ -1726,11 +2000,12 @@ test('биомы: в вулкане лёд слабее, в снегах — о�
 test('биомы: в болоте ходячие медленнее и их больше, в пустыне — летучие', () => {
   const count = (biome, wave, check) => {
     const battle = mapWith({}, biome);
+    battle.nextFamily = FAMILY_BY_ID.get('beasts');
     battle.startWave(wave, 4);
     return battle.spawns.filter((spawn) => check(Boolean((spawn.kind || spawn.look || {}).flying))).length;
   };
   ok(count('swamp', 12, (fly) => !fly) > count('grass', 12, (fly) => !fly), 'ходячих больше');
-  ok(count('desert', 12, (fly) => fly) > count('grass', 12, (fly) => fly), 'летучих больше');
+  ok(count('desert', 16, (fly) => fly) > count('grass', 16, (fly) => fly), 'летучих больше');
   const speed = (biome, look) => walker(mapWith({}, biome), 4, 100, look).speed;
   ok(speed('swamp', null) < speed('grass', null));
   ok(speed('desert', bat()) > speed('grass', bat()));

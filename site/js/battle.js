@@ -1,7 +1,7 @@
 import { SIZE, inside, pathCells, reach } from './field.js';
-import { BIOME_RULES, BOSSES, ELITES, LIVES, LOOKS, MIMIC, MOBS, POWERS, SLIMES, STAT, TERRAIN, TOWER, WAVE,
-  eliteCount, levelOf, lookOf, resistOf, waveHp, waveSpawns } from './balance.js';
-import { CLASS_BY_ID, PERKS, auraOf, masteryOf, scaled, skillOf, statsOf } from './classes.js';
+import { BIOME_RULES, BOSSES, ELITES, FAMILIES, LIVES, LOOKS, MIMIC, MOBS, POWERS, SLIMES, STAT, TERRAIN, TOWER,
+  WAVE, eliteCount, familyPool, levelOf, lookOf, resistOf, waveHp, waveSpawns } from './balance.js';
+import { CLASS_BY_ID, PERKS, auraOf, gradeOf, masteryOf, scaled, skillOf, statsOf } from './classes.js';
 import { ASSIST_COINS, KILL_COINS } from './gacha.js';
 
 export const MOVE_PAUSE = 1;
@@ -17,6 +17,9 @@ export const DISCHARGE = { mul: 18, hold: 5 };
 export const ROT = { share: 0.01, boss: 0.003, time: 5 };
 export const PLAGUE = 0.25;
 export const BRITTLE = 0.005;
+export const PLANTED = { time: 3, radius: 1, push: 1 };
+export const CRIMSON = 0.2;
+export const SECOND = 5;
 
 const SHOTS_PER_TICK = 6;
 const BOSS_HOLD = 0.3;
@@ -175,14 +178,18 @@ export class Battle {
     this.oils = [];
     this.traps = [];
     this.whirls = [];
+    this.grounds = [];
     this.births = [];
     this.delayed = [];
     this.prey = null;
     this.headwind = false;
     this.brittle = false;
     this.treasures = 0;
+    this.rescued = false;
     this.lastSpawn = 0;
     this.wild = false;
+    this.family = null;
+    this.nextFamily = null;
     this.met = new Set();
     this.events = [];
     this.leaked = 0;
@@ -252,6 +259,9 @@ export class Battle {
       waveXp: 0, aim: null, ramp: 0, streak: -1e9, lastShot: -1e9, reloadUntil: 0, hot: false, berserk: false,
       charge: null,
       nextActive: 0, nextTrap: 0, nextMine: 0, nextGrenade: 0, nextWall: 0, lastHit: this.time, pull: null,
+      nextCheer: 0, nextCleanse: 0, nextMuse: 0, cheerUntil: 0, rallyUntil: 0, wardUntil: 0, muses: [], lift: 1,
+      ownRange: 0, boost: { rate: 0, range: 0, damage: 0, crit: 0, wisdom: 0, cheer: false, muse: false },
+      boostBy: new Set(),
       run: { damage: 0, kills: 0, assists: 0, xp: 0, coins: 0 },
     };
   }
@@ -355,7 +365,8 @@ export class Battle {
     if (at < 0) return;
     this.towers.splice(at, 1);
     if (!tower.rider) this.byCell.delete(tower.y * SIZE + tower.x);
-    for (const list of ['walls', 'mines', 'tosses', 'puddles', 'fogs', 'oils', 'traps', 'whirls', 'patches']) {
+    for (const list of ['walls', 'mines', 'tosses', 'puddles', 'fogs', 'oils', 'traps', 'whirls', 'patches',
+      'grounds']) {
       this[list] = this[list].filter((item) => item.tower !== tower);
     }
     if (this.prey && this.prey.by === tower) this.prey = null;
@@ -363,13 +374,27 @@ export class Battle {
     this._flags();
   }
 
+  get kin() {
+    return this.family ? this.family.hp : 1;
+  }
+
+  planFamily(wave) {
+    const open = FAMILIES.filter((family) => !family.from || family.from <= wave);
+    const fresh = open.filter((family) => family !== this.family);
+    const pool = fresh.length ? fresh : open;
+    this.nextFamily = pool[Math.floor(this.random() * pool.length)];
+    return this.nextFamily;
+  }
+
   startWave(wave, players = this.towers.length) {
     this.wave = wave;
     this.players = players;
     const start = this.time, toughness = Math.max(FLOOR, 1 + this.foe.hp);
-    const fits = (kind) => !kind.only && (!kind.from || kind.from <= wave);
-    const bosses = BOSSES.filter(fits), elites = ELITES.filter(fits);
-    const boss = bosses[Math.floor(this.random() * bosses.length)];
+    const family = this.nextFamily || this.planFamily(wave);
+    this.family = family;
+    this.nextFamily = null;
+    const pick = (list) => list[Math.floor(this.random() * list.length)];
+    const elites = familyPool(family, ELITES, wave), boss = pick(familyPool(family, BOSSES, wave));
     const plan = waveSpawns(wave), length = plan.length ? plan[plan.length - 1].delay : 0;
     for (let i = eliteCount(wave, this.random); i > 0; i--) plan.push({ type: 'elite', delay: this.random() * length });
     if (wave >= MIMIC.from && this.random() < MIMIC.chance) {
@@ -382,11 +407,13 @@ export class Battle {
       if (s.kind) {
         spawn.kind = s.kind;
         spawn.hp *= s.kind.hp || 1;
-      } else if (s.type === 'boss') spawn.kind = boss;
-      else if (s.type === 'elite') spawn.kind = elites[Math.floor(this.random() * elites.length)];
+        return spawn;
+      }
+      spawn.hp *= family.hp;
+      if (s.type === 'boss') spawn.kind = boss;
+      else if (s.type === 'elite') spawn.kind = pick(elites);
       else {
-        const looks = LOOKS[s.type].filter(fits);
-        spawn.look = looks[Math.floor(this.random() * looks.length)];
+        spawn.look = pick(familyPool(family, LOOKS[s.type], wave));
         spawn.hp *= spawn.look.hp || 1;
       }
       return spawn;
@@ -422,6 +449,13 @@ export class Battle {
 
   endWave() {
     this.patches = [];
+    const healers = this.towers.filter((t) => t.cls.id === 'healer' && !t.cocoon);
+    if (healers.length && this.lives < this.maxLives) {
+      const base = healers[0].cls.base, heal = Math.min(base.healCap, base.heal * healers.length,
+        this.maxLives - this.lives);
+      this.lives += heal;
+      this._event({ kind: 'heal', tower: healers[0], lives: heal });
+    }
     const fighters = this.towers.filter((t) => !t.cocoon);
     const share = fighters.reduce((sum, t) => sum + t.run.xp - t.waveXp, 0) / Math.max(1, fighters.length);
     for (const t of this.towers.slice()) {
@@ -452,6 +486,7 @@ export class Battle {
     this._powers(dt, now);
     this._effects(dt, now);
     this._walk(dt, now);
+    this._buffs(now);
     this._shoot(dt, now);
     if (this.mobs.some((m) => m.dead)) this.mobs = this.mobs.filter((m) => !m.dead);
     if (this.births.some((birth) => birth.at <= now)) {
@@ -509,7 +544,8 @@ export class Battle {
         ? POWERS[kind.skill].first : 0), hook: null,
       y: 0, speed: WAVE.speed * info.speed * Math.max(FLOOR, 1 + this.foe.speed) * ((shape && shape.flying
         ? this.rules.air : this.rules.ground) || 1), slow: 0, slowUntil: 0, chill: 0,
-      mark: 0, markUntil: 0, vuln: 0, vulnUntil: 0, charge: null, rot: null, muteUntil: 0, netUntil: 0,
+      mark: 0, markUntil: 0, vuln: 0, vulnUntil: 0, weak: 0, weakUntil: 0, weakBy: null, charge: null, rot: null,
+      muteUntil: 0, netUntil: 0,
       rollAt: this.time + ROLL_EVERY, thornAt: 0, resist: resistOf(this.wave), holdUntil: 0, holdFree: 0,
       holdBy: '', pushed: 0, poison: null, burn: null, helpers: new Set(), last: null, dead: false, biting: 0,
       wall: null, fury: 0, sx: 0, sy: 0, placed: false,
@@ -632,7 +668,8 @@ export class Battle {
 
   _summon(mob, type, id, share, i) {
     const look = LOOKS[type].find((item) => item.id === id);
-    const child = this._spawn({ type, look, hp: waveHp(Math.max(1, this.wave), type, this.players || 1) * share },
+    const child = this._spawn({ type, look, hp: waveHp(Math.max(1, this.wave), type, this.players || 1) * share
+      * this.kin },
       Math.max(0, mob.d - 0.3 - i * 0.25), mob.r);
     child.summoned = true;
     return child;
@@ -648,9 +685,7 @@ export class Battle {
       }
     }
     if (!target) return;
-    target.busy = Math.max(target.busy, this.time + power.hold);
-    target.stunUntil = Math.max(target.stunUntil, this.time + power.hold);
-    this._event({ kind: 'hex', mob, tower: target });
+    if (this._daze(target, power.hold)) this._event({ kind: 'hex', mob, tower: target });
   }
 
   _ward(mob, power) {
@@ -686,9 +721,7 @@ export class Battle {
       return along >= 0 && along <= power.length && aside <= power.width;
     };
     for (const t of this.towers) {
-      if (t.rider || !burnt({ x: t.cx, y: t.cy })) continue;
-      t.busy = Math.max(t.busy, this.time + power.hold);
-      t.stunUntil = Math.max(t.stunUntil, this.time + power.hold);
+      if (!t.rider && burnt({ x: t.cx, y: t.cy })) this._daze(t, power.hold);
     }
     for (const list of ['mines', 'traps', 'puddles', 'oils']) this[list] = this[list].filter((item) => !burnt(item));
     this._event({ kind: 'breath', mob, x: mob.x + dx * power.length, y: mob.y + dy * power.length });
@@ -703,7 +736,7 @@ export class Battle {
         target = t;
       }
     }
-    if (!target) return;
+    if (!target || target.wardUntil > this.time) return;
     target.webUntil = this.time + power.time;
     target.web = power.slow;
     this._event({ kind: 'web', mob, tower: target });
@@ -811,7 +844,9 @@ export class Battle {
     tower.cone = (b.cone || 0) * (tower.runes.has('nozzle') ? 2 : 1);
     tower.baseRange = Math.max(RANGE_MIN, (b.range || 0) + (mods.range || 0)) + (this.onHill(tower) ? TERRAIN.hill : 0)
       + (this.onWatch(tower) ? TERRAIN.watch : 0);
-    tower.range = tower.baseRange + auraOf(cls, stats);
+    tower.ownRange = tower.baseRange + auraOf(cls, stats);
+    tower.range = tower.ownRange * (1 + tower.boost.range);
+    tower.lift = (1 + STAT.skill * stats[cls.primary]) / (1 + STAT.skill * gradeOf(cls, cls.primary));
     this._flags();
   }
 
@@ -903,6 +938,8 @@ export class Battle {
     if (this.tosses.length) this._tosses(now);
     if (this.traps.length) this._traps(now);
     if (this.whirls.length) this._whirls(dt, now);
+    if (this.grounds.length) this._grounds(dt, now);
+    if (this.walls.length) this._mend(dt);
     for (const mob of this.mobs) {
       if (mob.dead) continue;
       if (mob.poison) {
@@ -1073,9 +1110,7 @@ export class Battle {
       this._hold(mob, FUSION.hold, t);
     }
     for (const tower of this.towers) {
-      if (tower.rider || !near({ x: tower.cx, y: tower.cy }, x, y, FUSION.radius)) continue;
-      tower.busy = Math.max(tower.busy, this.time + FUSION.hold);
-      tower.stunUntil = Math.max(tower.stunUntil, this.time + FUSION.hold);
+      if (!tower.rider && near({ x: tower.cx, y: tower.cy }, x, y, FUSION.radius)) this._daze(tower, FUSION.hold);
     }
   }
 
@@ -1144,9 +1179,15 @@ export class Battle {
       if (mob.biting) {
         if (now - mob.biting < BITE_TIME) continue;
         mob.dead = true;
+        const shield = this._shield(mob);
+        if (shield) {
+          this._event({ kind: 'shield', mob, tower: shield });
+          continue;
+        }
         this.lives -= mob.leak;
         this.leaked += mob.leak;
         this._event({ kind: 'leak', mob });
+        if (this.lives <= 0) this._rescue();
         continue;
       }
       mob.wall = null;
@@ -1210,7 +1251,175 @@ export class Battle {
   }
 
   _intervalOf(t, now) {
-    return t.interval * (t.webUntil > now ? t.web : 1) / ((1 + (t.windUntil > now ? t.wind : 0)) * (1 + t.ramp));
+    return t.interval * (t.webUntil > now ? t.web : 1) / ((1 + (t.windUntil > now ? t.wind : 0)) * (1 + t.ramp)
+      * (1 + t.boost.rate));
+  }
+
+  _bannerOf(t) {
+    return t.cls.base.banner + t.reach;
+  }
+
+  _circleOf(t) {
+    return t.cls.base.circle + t.reach;
+  }
+
+  _buffs(now) {
+    const banners = [], sages = [];
+    for (const t of this.towers) {
+      if (t.cocoon || t.rider) continue;
+      if (t.cls.id === 'banner') banners.push(t);
+      else if (t.cls.id === 'sage') sages.push(t);
+    }
+    const close = (a, b, radius) => (a.cx - b.cx) * (a.cx - b.cx) + (a.cy - b.cy) * (a.cy - b.cy) <= radius * radius;
+    for (const t of this.towers) {
+      const boost = t.boost, by = t.boostBy;
+      let aura = null, cheer = null, rally = null, crit = 0, wisdom = 0, muse = 0;
+      by.clear();
+      for (const flag of banners) {
+        if (flag.rallyUntil > now && (!rally || flag.s[2].haste * flag.lift > rally.s[2].haste * rally.lift)) {
+          rally = flag;
+        }
+        if (t.rider || !close(flag, t, this._bannerOf(flag))) continue;
+        if (!aura || flag.lift > aura.lift) aura = flag;
+        if (flag.cheerUntil > now && (!cheer || flag.s[0].damage * flag.lift > cheer.s[0].damage * cheer.lift)) {
+          cheer = flag;
+        }
+        if (open(flag, 1)) crit = Math.max(crit, flag.s[1].chance);
+      }
+      for (const sage of sages) {
+        if (!t.rider && close(sage, t, this._circleOf(sage))) {
+          wisdom = Math.max(wisdom, sage.cls.base.wisdom * sage.lift);
+        }
+        sage.muses = sage.muses.filter((item) => item.until > now);
+        for (const item of sage.muses) {
+          if (item.tower !== t || item.bonus <= muse) continue;
+          muse = item.bonus;
+          by.add(sage);
+        }
+      }
+      boost.rate = muse;
+      boost.damage = muse;
+      boost.range = 0;
+      if (aura) {
+        boost.rate += aura.cls.base.haste * aura.lift;
+        boost.range = aura.cls.base.reach * aura.lift;
+        by.add(aura);
+      }
+      if (cheer) {
+        boost.damage += cheer.s[0].damage * cheer.lift;
+        if (cheer.runes.has('crimson')) boost.rate += CRIMSON;
+        by.add(cheer);
+      }
+      if (rally && !t.rider) {
+        boost.rate += rally.s[2].haste * rally.lift;
+        by.add(rally);
+      }
+      boost.crit = crit;
+      boost.wisdom = wisdom;
+      boost.cheer = Boolean(cheer);
+      boost.muse = muse > 0;
+      by.delete(t);
+      const range = t.ownRange * (1 + boost.range);
+      if (range !== t.range) t.range = range;
+    }
+  }
+
+  _daze(t, seconds) {
+    if (t.wardUntil > this.time) return false;
+    t.busy = Math.max(t.busy, this.time + seconds);
+    t.stunUntil = Math.max(t.stunUntil, this.time + seconds);
+    return true;
+  }
+
+  _cleanse(t, now) {
+    const s = t.s[1], radius = s.radius + t.reach;
+    t.nextCleanse = now + s.every;
+    const freed = [];
+    for (const ally of this.towers) {
+      if (ally.rider || (ally.cx - t.cx) ** 2 + (ally.cy - t.cy) ** 2 > radius * radius) continue;
+      if (ally.stunUntil > now || ally.napUntil > now) ally.busy = Math.min(ally.busy, now);
+      if (ally.stunUntil > now || ally.napUntil > now || ally.webUntil > now) freed.push(ally);
+      ally.stunUntil = Math.min(ally.stunUntil, now);
+      ally.napUntil = Math.min(ally.napUntil, now);
+      ally.webUntil = Math.min(ally.webUntil, now);
+      ally.wardUntil = now + s.time;
+    }
+    this._event({ kind: 'cleanse', tower: t, radius, freed });
+  }
+
+  _hallow(t, now) {
+    const s = t.s[2];
+    let best = null, most = 0;
+    for (const mob of this.mobs) {
+      if (mob.dead || !grounded(mob, now) || this.covered(mob.x, mob.y)) continue;
+      let count = 0;
+      for (const other of this.mobs) {
+        if (!other.dead && grounded(other, now) && near(other, mob.x, mob.y, s.radius)) count++;
+      }
+      if (count > most) {
+        most = count;
+        best = mob;
+      }
+    }
+    if (!best) return;
+    t.nextActive = now + s.every;
+    this.grounds.push({ tower: t, x: best.x, y: best.y, radius: s.radius, until: now + s.time, born: now,
+      dps: t.skill * s.dps, vuln: s.vuln * t.lift });
+    this._event({ kind: 'hallow', tower: t, x: best.x, y: best.y, radius: s.radius, time: s.time });
+  }
+
+  _grounds(dt, now) {
+    this.grounds = this.grounds.filter((ground) => ground.until > now);
+    for (const ground of this.grounds) {
+      for (const mob of this.mobs) {
+        if (mob.dead || mob.flying || underground(mob, now) || !near(mob, ground.x, ground.y, ground.radius)) continue;
+        this._vulnerable(mob, ground.vuln, 0.25);
+        mob.helpers.add(ground.tower);
+        if (mob.undead) this._hurt(mob, ground.dps * dt, ground.tower, 'holy', true);
+      }
+    }
+  }
+
+  _mend(dt) {
+    for (const t of this.towers) {
+      if (t.cls.id !== 'healer' || t.cocoon) continue;
+      for (const wall of this.walls) {
+        if (wall.hp < wall.max && near(wall, t.cx, t.cy, t.range)) {
+          wall.hp = Math.min(wall.max, wall.hp + wall.max * t.cls.base.mend * dt);
+        }
+      }
+    }
+  }
+
+  _inspire(t, now) {
+    const s = t.s[0], radius = this._circleOf(t);
+    t.nextMuse = now + s.every;
+    const taken = new Set(t.muses.map((item) => item.tower));
+    const pool = this.towers.filter((ally) => ally !== t && !ally.rider && !ally.cocoon && !taken.has(ally)
+      && (ally.cx - t.cx) ** 2 + (ally.cy - t.cy) ** 2 <= radius * radius);
+    for (let n = t.runes.has('pupil') ? 2 : 1; n > 0 && pool.length; n--) {
+      const ally = pool.splice(Math.floor(this.random() * pool.length), 1)[0];
+      t.muses.push({ tower: ally, until: now + s.time, bonus: s.bonus * t.lift });
+      const flash = open(t, 1) && this.random() < t.s[1].chance;
+      if (flash) ally.nextActive = Math.min(ally.nextActive, now);
+      this._event({ kind: 'muse', tower: t, ally, flash });
+    }
+  }
+
+  _expose(t, now) {
+    const s = t.s[2];
+    const living = this.mobs.filter((mob) => !mob.dead && !mob.fake && !hidden(mob, now));
+    if (!living.length) return;
+    living.sort((a, b) => (big(b) ? 1 : 0) - (big(a) ? 1 : 0) || (b.info.boss ? 1 : 0) - (a.info.boss ? 1 : 0)
+      || b.hp - a.hp);
+    t.nextActive = now + s.every;
+    for (const mob of living.slice(0, t.runes.has('omniscience') ? 3 : 1)) {
+      mob.weak = s.vuln * t.lift;
+      mob.weakUntil = now + s.time;
+      mob.weakBy = t;
+      mob.helpers.add(t);
+      this._event({ kind: 'expose', tower: t, mob, time: s.time });
+    }
   }
 
   _shoot(dt, now) {
@@ -1440,18 +1649,18 @@ export class Battle {
     if (power && power.id === 'curl' && mob.powerUntil > now && !guard) return;
     if (power && power.id === 'mirror' && mob.powerUntil > now && !dot && !t.rider && !guard) {
       mob.powerUntil = 0;
-      t.busy = Math.max(t.busy, now + power.hold);
-      t.stunUntil = Math.max(t.stunUntil, now + power.hold);
+      this._daze(t, power.hold);
       this._event({ kind: 'reflect', mob, tower: t });
       return;
     }
     const vulnerable = ((mob.markUntil > now ? mob.mark : 0) + (mob.charge && mob.charge.until > now
-      ? mob.charge.bonus : 0) + (mob.vulnUntil > now ? mob.vuln : 0)) * (1 - mob.resist);
-    let dealt = amount * (1 + vulnerable);
+      ? mob.charge.bonus : 0) + (mob.vulnUntil > now ? mob.vuln : 0) + (mob.weakUntil > now ? mob.weak : 0))
+      * (1 - mob.resist);
+    let dealt = amount * (1 + vulnerable) * (1 + t.boost.damage);
     const cut = Math.max(power && power.cut || 0, mob.armor);
     if (cut && !pierce) dealt *= 1 - cut;
     if (mob.front && !dot && !t.rider && !pierce && this._facing(mob, t)) dealt *= 1 - mob.front;
-    if (ghostly(mob, now)) dealt *= GHOST_CUT;
+    if (ghostly(mob, now) && element !== 'holy') dealt *= GHOST_CUT;
     if (element === 'fire' && mob.fireproof) dealt *= 1 - mob.fireproof;
     if (mob.ward > 0 && !guard) {
       const kept = Math.min(mob.ward, dealt);
@@ -1471,6 +1680,7 @@ export class Battle {
     if (!dot) mob.hitAt = now;
     mob.helpers.add(t);
     if (t.windBy && t.windUntil > now && t.windBy !== t) mob.helpers.add(t.windBy);
+    for (const by of t.boostBy) mob.helpers.add(by);
     mob.last = t;
     if (element === 'poison' && t.runes.has('infection')) mob.rot = { by: t, until: now + ROT.time };
     if (mob.mirage && !mob.fake && !dot) this._mirage(mob);
@@ -1512,9 +1722,10 @@ export class Battle {
       feast = 1 + killer.s[1].bonus;
       this._event({ kind: 'feast', tower: killer, mob });
     }
+    const insight = mob.weakUntil > this.time && mob.weakBy && open(mob.weakBy, 2) ? mob.weakBy.s[2].xp : 1;
     for (const t of mob.helpers) {
       const earn = t.cls.earn || NO_EARN, bonus = t === killer ? feast : 1;
-      this._grant(t, mob.info.xp * earn.xp * bonus);
+      this._grant(t, mob.info.xp * earn.xp * bonus * insight);
       const coins = (t === killer ? KILL_COINS : ASSIST_COINS) * mob.info.coins * earn.coins * bonus
         * Math.max(0, 1 + (t.mods.coins || 0));
       t.player.coins += coins;
@@ -1542,7 +1753,7 @@ export class Battle {
           r: mob.r, at: this.time });
       }
     }
-    if (mob.revive > 0) {
+    if (mob.revive > 0 && !(killer && killer.cls.id === 'healer' && mob.undead)) {
       const spawn = { type: mob.type, kind: mob.kind, look: mob.kind ? null : lookOfMob(mob), hp: mob.max };
       this.births.push({ spawn, d: mob.d, r: mob.r, at: this.time + REVIVE_TIME, risen: true,
         raise: mob.power && mob.power.raise || 0 });
@@ -1573,10 +1784,29 @@ export class Battle {
     if (pieces) {
       const type = SLIMES[pieces - 1], look = LOOKS[type].find((item) => item.slime === pieces);
       for (const shift of [-SPLIT_GAP, SPLIT_GAP]) {
-        const hp = waveHp(Math.max(1, this.wave), type, this.players || 1) * Math.max(FLOOR, 1 + this.foe.hp);
+        const hp = waveHp(Math.max(1, this.wave), type, this.players || 1) * Math.max(FLOOR, 1 + this.foe.hp)
+          * this.kin;
         this.births.push({ spawn: { type, look, hp }, d: Math.max(0, mob.d + shift), r: mob.r, at: this.time });
       }
     }
+  }
+
+  _shield(mob) {
+    let best = null;
+    for (const t of this.towers) {
+      if (t.cls.id !== 'healer' || t.cocoon || !open(t, 0) || mob.info.boss && !t.runes.has('guardian')) continue;
+      if (!best || t.s[0].chance > best.s[0].chance) best = t;
+    }
+    return best && this.random() < best.s[0].chance ? best : null;
+  }
+
+  _rescue() {
+    if (this.rescued) return;
+    const savior = this.towers.find((t) => t.cls.id === 'healer' && !t.cocoon && t.runes.has('second'));
+    if (!savior) return;
+    this.rescued = true;
+    this.lives = SECOND;
+    this._event({ kind: 'rescue', tower: savior, lives: SECOND });
   }
 
   _bounty() {
@@ -1596,7 +1826,7 @@ export class Battle {
   }
 
   _grant(t, xp) {
-    const amount = xp * Math.max(0, 1 + (t.mods.xp || 0));
+    const amount = xp * Math.max(0, 1 + (t.mods.xp || 0)) * (1 + t.boost.wisdom);
     t.player.xp += amount;
     t.run.xp += amount;
     if (this.towers.includes(t)) this._level(t);
@@ -1661,7 +1891,7 @@ export class Battle {
   }
 }
 
-const rollCrit = (b, t) => b.random() < t.critChance;
+const rollCrit = (b, t) => b.random() < 1 - (1 - t.critChance) * (1 - t.boost.crit);
 
 function snipe(b, t, target, { base = t.damage, mul = 1, crit = false, heavy = '', pierce = true } = {}) {
   const head = crit || rollCrit(b, t), damage = base * mul * (head ? t.critMul : 1);
@@ -2092,6 +2322,69 @@ const SKILLS = {
         }
         ally.windUntil = now + s.time;
       }
+    },
+  },
+  banner: {
+    fire(b, t) {
+      const target = b._target(t);
+      if (!target) return false;
+      const crit = rollCrit(b, t);
+      b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target });
+      b._hurt(target, t.damage * (crit ? t.critMul : 1), t);
+      return true;
+    },
+    every(b, t, now, alive) {
+      if (!alive) return;
+      if (open(t, 0) && now >= t.nextCheer) {
+        const s = t.s[0];
+        t.nextCheer = now + s.every;
+        t.cheerUntil = now + s.time;
+        b._event({ kind: 'cheer', tower: t, radius: b._bannerOf(t), time: s.time });
+      }
+      if (!open(t, 2) || now < t.nextActive) return;
+      const s = t.s[2], planted = t.runes.has('planted');
+      t.nextActive = now + s.every;
+      t.rallyUntil = now + s.time + (planted ? PLANTED.time : 0);
+      b._event({ kind: 'rally', tower: t, time: t.rallyUntil - now });
+      if (planted) for (const mob of b._around(t.cx, t.cy, PLANTED.radius)) b._push(mob, PLANTED.push, t);
+    },
+  },
+  healer: {
+    fire(b, t) {
+      const target = b._target(t);
+      if (!target) return false;
+      const crit = rollCrit(b, t);
+      const damage = t.damage * (target.undead ? t.cls.base.undead : 1) * (crit ? t.critMul : 1);
+      b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target, holy: target.undead });
+      b._hurt(target, damage, t, 'holy');
+      return true;
+    },
+    every(b, t, now, alive) {
+      if (open(t, 1) && now >= t.nextCleanse && b.towers.some((ally) => !ally.rider && (ally.stunUntil > now
+        || ally.napUntil > now || ally.webUntil > now) && (ally.cx - t.cx) ** 2 + (ally.cy - t.cy) ** 2
+        <= (t.s[1].radius + t.reach) ** 2)) {
+        b._cleanse(t, now);
+      }
+      if (open(t, 2) && alive && now >= t.nextActive) b._hallow(t, now);
+    },
+  },
+  sage: {
+    fire(b, t) {
+      const first = b._target(t);
+      if (!first) return false;
+      const targets = [first], second = b._target(t, { skip: first });
+      if (second && t.cls.base.sparks > 1) targets.push(second);
+      for (const target of targets) {
+        const crit = rollCrit(b, t);
+        b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target });
+        b._hurt(target, t.damage * (crit ? t.critMul : 1), t);
+      }
+      return true;
+    },
+    every(b, t, now, alive) {
+      if (!alive) return;
+      if (open(t, 0) && now >= t.nextMuse) b._inspire(t, now);
+      if (open(t, 2) && now >= t.nextActive) b._expose(t, now);
     },
   },
   earth: {

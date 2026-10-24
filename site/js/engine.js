@@ -760,6 +760,7 @@ export class Game {
   }
 
   _planEvent() {
+    if (this.battle) this.battle.planFamily(this.wave + 1);
     const event = rollEvent(this.random);
     this.run.next = event ? [event] : [];
     if (event) this._emit('event', { type: event.kind, id: event.id });

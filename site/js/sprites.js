@@ -895,6 +895,78 @@ export const shieldUrl = (size = 64) => remember('shieldUrl:' + size, () => {
   return canvas.toDataURL();
 });
 
+const STAT_LOOKS = {
+  str: { base: '#dc2626', dark: '#7f1d1d', light: '#f87171', colors: { W: '#fde2c8', D: '#9a3412', S: '#7c2d12' },
+    rows: [
+      '.WW.WW.WW.',
+      'WWWDWWDWWW',
+      'WWWDWWDWWW',
+      'WWWDWWDWWW',
+      'WDDDWWWWWW',
+      'WWWDDWWWWW',
+      '.WWWWWWWWW',
+      '..WWWWWWW.',
+      '...WWWWW..',
+      '...SSSSS..',
+    ] },
+  agi: { base: '#16a34a', dark: '#14532d', light: '#4ade80', colors: { W: '#f0fdf4', L: '#bbf7d0' }, rows: [
+    '......WW..',
+    '.WWWWW..W.',
+    '........W.',
+    'WWWWWWWW..',
+    '..........',
+    '.WWWWWWWW.',
+    '.........W',
+    '..LLLLL..W',
+    '.......WW.',
+    '..........',
+  ] },
+  int: { base: '#2563eb', dark: '#1e3a8a', light: '#60a5fa', colors: { W: '#ffffff', Y: '#fde047' }, rows: [
+    '....W.....',
+    '....W.....',
+    '.W..Y..W..',
+    '..WYYYW...',
+    'WWYYYYYWW.',
+    '..WYYYW...',
+    '.W..Y..W..',
+    '....W.....',
+    '....W.....',
+    '..........',
+  ] },
+  mas: { base: '#eab308', dark: '#854d0e', light: '#fde047', colors: { D: '#713f12' }, rows: [
+    '....DD....',
+    '.D.DDDD.D.',
+    '..DDDDDD..',
+    '.DDD..DDD.',
+    'DDD....DDD',
+    'DDD....DDD',
+    '.DDD..DDD.',
+    '..DDDDDD..',
+    '.D.DDDD.D.',
+    '....DD....',
+  ] },
+};
+
+export const statSprite = (id) => remember('stat:' + id, () => {
+  const look = STAT_LOOKS[id], p = new Pix(16, 16);
+  p.disc(8, 8, 7.4, look.dark);
+  p.disc(8, 8, 6.4, look.base);
+  for (const [x, y] of [[4, 3], [3, 4], [5, 3], [3, 5]]) p.px(x, y, look.light);
+  look.rows.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++) if (look.colors[row[x]]) p.px(x + 3, y + 3, look.colors[row[x]]);
+  });
+  return p.outline().canvas();
+});
+
+export const statUrl = (id, size = 32) => remember('statUrl:' + id + ':' + size, () => {
+  const canvas = document.createElement('canvas'), image = statSprite(id);
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(image, 0, 0, size, size);
+  return canvas.toDataURL();
+});
+
 export const EFFECT_IDS = Object.keys(SYMBOLS);
 export const MOB_KINDS = MOB_IDS;
 export const HEROES = HERO_IDS;

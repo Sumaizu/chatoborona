@@ -1,10 +1,10 @@
 import { Scene } from './draw.js';
-import { CLASSES, CLASS_BY_ID, PRIMARY, STAT_IDS, STAT_NAMES, auraOf, describe, num, runeOf, skillOf, statsOf }
+import { CLASSES, CLASS_BY_ID, MARKS, PRIMARY, STAT_IDS, auraOf, describe, num, runeOf, skillOf, statsOf }
   from './classes.js';
 import { coinUrl, crownUrl, effectUrl, flagCanvas, flagUrl, heroUrl, markUrl, particleSprite, particleUrl, prizeUrl,
-  shieldUrl } from './sprites.js';
+  shieldUrl, statUrl } from './sprites.js';
 import { OUTCOMES, PRICE, RARITIES, SPIN_TIME, UPGRADE_PRICE, amountText, gearColor, outcomeOf, rarityOf,
-  statName, statText, weaponName, weaponStats, weaponTitle } from './gacha.js';
+  weaponName, weaponStats, weaponTitle } from './gacha.js';
 import { ASCEND_TIME } from './engine.js';
 import { effectOf } from './events.js';
 import { BIOME_RULES, LEVEL_MAX, LIVES, levelOf, resistOf } from './balance.js';
@@ -43,7 +43,8 @@ const SOUND_PRIORITY = ['over', 'divine', 'relic', 'win', 'boss', 'wave', 'jackp
   'meh', 'void', 'level',
   'buff', 'debuff', 'spin', 'leak', 'card', 'tick'];
 const SFX_PER_FRAME = 4;
-const SHOTS = { sniper: 'crack', gunner: 'gun', bomber: 'launch', hunter: 'bolt', parasite: 'bite' };
+const SHOTS = { sniper: 'crack', gunner: 'gun', bomber: 'launch', hunter: 'bolt', parasite: 'bite', banner: 'hit',
+  healer: 'holy' };
 const BATTLE_SOUNDS = { wall: 'build', crumble: 'crumble', plant: 'plant', mine: 'mine', leap: 'leap',
   bite: 'chomp', toss: 'launch', flask: 'flask', splash: 'splash', trap: 'plant', snap: 'snap', nova: 'ice',
   spikes: 'rock', whirl: 'wind', clink: 'clink', treasure: 'treasure', rattle: 'rattle', rise: 'rise',
@@ -53,7 +54,8 @@ const BATTLE_SOUNDS = { wall: 'build', crumble: 'crumble', plant: 'plant', mine:
   rocket: 'launch', flash: 'flash', fogtoss: 'flask', fog: 'splash', ignite: 'ignite', oil: 'splash',
   oilfire: 'flame', net: 'snap', prey: 'prey', bounty: 'treasure', ambush: 'leap', cocoon: 'clink',
   hatch: 'hatch', heist: 'jackpot', share: 'treasure', feast: 'clink', shatter: 'freeze', snow: 'snow', gust: 'wind',
-  wind: 'wind',
+  wind: 'wind', cheer: 'rally', rally: 'rally', cleanse: 'heal', hallow: 'holy', muse: 'cast', expose: 'hex',
+  heal: 'heal', shield: 'block', rescue: 'win',
   thorns: 'rock' };
 const GOOD_EVENTS = new Set(['buff', 'blessing']);
 const COIN_FINDS = { handful: ' находит горстку монет', bag: ' находит мешок монет!',
@@ -90,9 +92,33 @@ function el(tag, className, text) {
   return node;
 }
 
+function statIcon(id, className = 'stat-icon') {
+  const node = image(statUrl(id), className);
+  node.title = PRIMARY[id] || 'мастерство';
+  return node;
+}
+
+function iconsOf(mark, cls) {
+  if (mark === 'hit') return cls.element ? ['str', 'int'] : ['str'];
+  return mark === 'dmg' ? [cls.primary, 'mas'] : [mark];
+}
+
+function marked(text, cls) {
+  return text.split(new RegExp(MARKS.source, 'g')).map((part, i) => {
+    if (i % 2 === 0) return part;
+    const group = el('span', 'stat-icons');
+    for (const id of iconsOf(part, cls)) group.append(statIcon(id));
+    return group;
+  });
+}
+
 function guidePart(part) {
   if (typeof part === 'string') return part;
-  if (part.primary) return el('i', 'role ' + part.primary, PRIMARY[part.primary]);
+  if (part.primary) {
+    const node = el('span', 'stat-word');
+    node.append(statIcon(part.primary), PRIMARY[part.primary]);
+    return node;
+  }
   const node = el(part.bold ? 'b' : 'span', '', part.text);
   if (part.color) node.style.color = part.color;
   return node;
@@ -137,7 +163,7 @@ function statsLine(cls, stats) {
   STAT_IDS.forEach((id, i) => {
     if (i) line.append(' · ');
     const pair = el('span', 'pair');
-    pair.append(el('span', id === cls.primary ? 'key' : '', STAT_NAMES[id] + ' '), el('b', '', num(stats[id])));
+    pair.append(statIcon(id), el('b', id === cls.primary ? 'key' : '', num(stats[id])));
     line.append(pair);
   });
   const skill = el('span', 'pair');
@@ -214,7 +240,9 @@ function statLine(weapon, cls) {
   const line = el('div', 'stats'), ups = weapon.ups || {};
   Object.entries(weapon.stats).forEach(([stat, value], i) => {
     if (i) line.append(', ');
-    line.append(el('span', value < 0 ? 'down' : 'up', statText(stat, value, cls)));
+    const item = el('span', value < 0 ? 'down' : 'up', (value < 0 ? '−' : '+') + amountText(stat, value));
+    item.append(statIcon(stat));
+    line.append(item);
     if (ups[stat]) line.append(el('span', 'more', ' +' + amountText(stat, ups[stat])));
   });
   return line;
@@ -285,7 +313,10 @@ export class View {
     const line = el('span', 'group');
     RULES.slice(1).forEach(([command], i) => line.append(i ? ' · ' : '', el('b', '', command)));
     const upgrade = el('span', 'group wrap');
-    upgrade.append(el('b', '', 'улучшить'), ' сила / ловкость / интеллект / мастерство');
+    upgrade.append(el('b', '', 'улучшить'));
+    STAT_IDS.forEach((id, i) => upgrade.append(i ? ' / ' : ' ', statIcon(id), id === 'mas' ? 'мастерство'
+      : PRIMARY[id]));
+    upgrade.append(' + ', el('b', '', '5'), ' или ', el('b', '', 'все'));
     hint.append(line, upgrade);
     this._keys = {};
   }
@@ -702,7 +733,9 @@ export class View {
     const status = $('status');
     const fighting = game.state === 'wave', boss = fighting && game.wave % BOSS_EVERY === 0;
     let text = STATUS[game.state] || '';
-    if (fighting) text = 'Идёт волна';
+    const family = battle && (fighting ? battle.family : battle.nextFamily);
+    if (fighting) text = family ? 'Волна ' + family.of : 'Идёт волна';
+    else if (family && (game.state === 'placing' || game.state === 'break')) text = 'Дальше — ' + family.name;
     if (boss) {
       const giant = battle.mobs.concat(battle.spawns).find((m) => m.kind && m.type === 'boss');
       text = giant ? giant.kind.name : 'Босс!';
@@ -782,7 +815,7 @@ export class View {
       for (const cls of shown) {
         const item = el('div', 'cls'), text = el('div'), name = el('b', '', cls.name);
         name.style.color = cls.color;
-        name.append(el('i', 'role ' + cls.primary, PRIMARY[cls.primary]));
+        name.append(statIcon(cls.primary, 'role-icon'));
         text.append(name, cls.summary);
         item.append(image(heroUrl(cls.id)), text);
         box.append(item);
@@ -1124,10 +1157,9 @@ export class View {
       node.append(nick, ': улучшать нечего — сначала выбей оружие в гаче');
     } else {
       node.className = 'note upgrade';
-      const ups = (detail.ups || []).map((up) => '+' + amountText(up.id, up.amount) + ' '
-        + statName(up.id, member.cls));
-      node.append(nick, ' улучшает оружие' + (detail.times > 1 ? ' ×' + detail.times : '') + ': ',
-        el('b', 'up', ups.join(', ')));
+      const ups = el('b', 'up');
+      (detail.ups || []).forEach((up, i) => ups.append(i ? ', +' : '+', amountText(up.id, up.amount), statIcon(up.id)));
+      node.append(nick, ' улучшает оружие' + (detail.times > 1 ? ' ×' + detail.times : '') + ': ', ups);
     }
     return {
       node,
@@ -1173,12 +1205,14 @@ export class View {
           const cls = CLASS_BY_ID.get(m.cls), info = describe(m.cls, level, stats.mas), kind = el('div', 'line');
           const clsName = el('b', '', cls.name);
           clsName.style.color = cls.color;
-          kind.append(clsName, el('i', 'role ' + cls.primary, PRIMARY[cls.primary]), brief ? '' : ' ' + info.main);
+          kind.append(clsName, statIcon(cls.primary, 'role-icon'));
+          if (!brief) kind.append(' ', ...marked(info.main, cls));
           body.textContent = '';
           body.append(kind, statsLine(cls, stats));
           if (!brief) for (const perk of info.perks) {
             const line = el('div', 'perk' + (perk.open ? '' : ' locked'));
-            line.append(el('i', '', perk.open ? '★' : perk.at + ' ур.'), ' ', el('b', '', perk.name), ': ' + perk.text);
+            line.append(el('i', '', perk.open ? '★' : perk.at + ' ур.'), ' ', el('b', '', perk.name), ': ',
+              ...marked(perk.text, cls));
             body.append(line);
           }
           for (const id of runes) body.append(runeLine(id));

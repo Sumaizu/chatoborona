@@ -2,7 +2,7 @@ import { test, eq, ok, no } from './harness.js';
 import { PLAIN, makeGame, memoryStorage, runFor, seeded, until } from './fixtures.js';
 import { ASCEND_TIME, CARD_MIN, CARD_ROOM, CARD_TIME, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPEED_MAX,
   SPIN_LIMIT, SUMMIT_EVERY, SUMMIT_TIME, nextReset } from '../../site/js/engine.js';
-import { LEVEL_MAX, TICK, xpForLevel } from '../../site/js/balance.js';
+import { FAMILY_BY_ID, LEVEL_MAX, TICK, xpForLevel } from '../../site/js/balance.js';
 import { ASCEND_AT, PRICE, RARITIES, SHOW_FAST, SHOW_TIME, SPIN_TIME, ascend, makeWeapon, weaponName, weaponStats }
   from '../../site/js/gacha.js';
 import { CLASSES, CLASS_BY_ID } from '../../site/js/classes.js';
@@ -523,6 +523,31 @@ test('улучшить сила / ловкость / интеллект / мас
   ok(member.weapon.ups.str > 0, '«силу» тоже понимает');
 });
 
+test('улучшить стат с числом или «все» — этот стат нужное число раз или на все монеты', () => {
+  const { game } = makeGame();
+  game.open();
+  say(game, 'Лиза', 'привет');
+  toWave(game);
+  const member = game.members.get('лиза');
+  member.weapon = makeWeapon(seeded(7), member.cls, RARITIES[1]);
+  game._refresh(member);
+  const plus = () => member.weapon.plus || 0;
+  const tries = [['улучшить ловкость все', 750, 'agi', 7, 50], ['улучшить все интеллект', 420, 'int', 4, 20],
+    ['!улучшить мастерство 2', 1000, 'mas', 2, 800], ['улучшить 3 силу', 1000, 'str', 3, 700],
+    ['улучшить силу всё', 330, 'str', 3, 30]];
+  for (const [text, coins, stat, times, left] of tries) {
+    member.coins = coins;
+    const ups = Object.assign({}, member.weapon.ups), before = plus();
+    eq(say(game, 'Лиза', text), 'upgraded', text);
+    eq(plus() - before, times, text + ': сколько раз');
+    eq(member.coins, left, text + ': сколько монет осталось');
+    for (const id of ['str', 'agi', 'int', 'mas']) {
+      if (id === stat) ok((member.weapon.ups[id] || 0) > (ups[id] || 0), text + ': вырос ' + id);
+      else eq(member.weapon.ups[id] || 0, ups[id] || 0, text + ': не тронут ' + id);
+    }
+  }
+});
+
 test('ускорить и замедлить: только стример и модераторы, от ×1 до ×3, игра идёт быстрее', () => {
   const { game } = makeGame();
   game.open();
@@ -581,6 +606,8 @@ test('за пройденную волну всем — монеты и опыт
   const member = game.members.get('тёма');
   ok(until(game, () => game.state === 'break'));
   game.events.length = 0;
+  game.run.next = [];
+  game.battle.nextFamily = FAMILY_BY_ID.get('undead');
   runFor(game, PLAIN.wave_pause + 0.1);
   member.tower.busy = 1e9;
   const coins = member.coins, xp = member.xp;

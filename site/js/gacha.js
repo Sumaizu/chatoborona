@@ -33,10 +33,10 @@ export const RARITIES = [
 export const DIVINE = { id: 'divine', name: 'Божественный', her: 'Божественная', color: '#ff2e4d' };
 
 export const STATS = [
-  { id: 'str', name: 'силы', step: 2.5 },
-  { id: 'agi', name: 'ловкости', step: 2.5 },
-  { id: 'int', name: 'интеллекта', step: 2.5 },
-  { id: 'mas', name: 'мастерства', step: 2 },
+  { id: 'str', step: 2.5 },
+  { id: 'agi', step: 2.5 },
+  { id: 'int', step: 2.5 },
+  { id: 'mas', step: 2 },
 ];
 
 const UNIT = 0.1;
@@ -119,11 +119,8 @@ export function spin(random, cls, { particle = false, runes = 0 } = {}) {
   return { kind: 'weapon', weapon: makeWeapon(random, cls, roll) };
 }
 
-export const statName = (id) => statOf(id).name;
-
 export const amountText = (id, value) => num(Math.abs(value));
 
-export const statText = (id, value) => (value < 0 ? '−' : '+') + amountText(id, value) + ' ' + statName(id);
 
 export const rarityOf = (id) => (id === DIVINE.id ? DIVINE : RARITIES.find((rarity) => rarity.id === id)
   || RARITIES[0]);

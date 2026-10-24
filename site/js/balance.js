@@ -22,7 +22,7 @@ export const MOBS = {
 
 export const TERRAIN = { weak: 0.75, more: 0.25, hill: 0.8, watch: 2.5, grave: 0.2,
   bodiless: ['ember', 'frostling', 'stormling', 'sludge', 'slime1', 'slime2', 'slime3', 'ghost', 'mirage', 'golem',
-    'mimic', 'shade', 'slimeking'] };
+    'mimic', 'shade', 'slimeking', 'hopper', 'spark', 'slimemother'] };
 
 const share = (value) => Math.round(Math.abs(1 - value) * 100) + '%';
 
@@ -87,6 +87,8 @@ export const POWERS = {
     + 'при смерти выпускает восемь паучат', every: 7, range: 3, time: 5, slow: 2, brood: 8, hp: 0.5 },
   treasure: { id: 'treasure', name: 'Сокровище', text: 'за убийство — золото всем, кто бил, и двойные монеты '
     + 'в следующей волне; дойдя до сердца, зарывается в землю' },
+  ooze: { id: 'ooze', name: 'Слизь', text: 'раз в 6 секунд выпускает двух слизней, а при смерти распадается на двух '
+    + 'больших', every: 6, count: 2, hp: 0.7, summon: 'normal', look: 'slime2' },
 };
 
 export const MIMIC = { id: 'mimic', name: 'Мимик', power: 'treasure', glow: '#facc15', treasure: true, hp: 1.6,
@@ -126,6 +128,7 @@ export const BOSSES = [
   { id: 'worm', name: 'Червь-пожиратель', power: 'tunnel', glow: '#c2410c', from: 40, leak: 10 },
   { id: 'dragon', name: 'Дракон', power: 'breath', glow: '#f97316', from: 50, flying: true, fireproof: 0.5 },
   { id: 'spiderqueen', name: 'Матка пауков', power: 'web', glow: '#a855f7', from: 60 },
+  { id: 'slimemother', name: 'Праматерь слизи', power: 'ooze', glow: '#4ade80', slime: 4 },
 ];
 
 export const LOOKS = {
@@ -143,7 +146,8 @@ export const LOOKS = {
       text: 'временами бесплотен: проходит сквозь стены и мины, урон по нему вдвое слабее — кроме света лекаря' },
     { id: 'harpy', name: 'Гарпия', from: 19, flying: true, power: 'swoop',
       text: 'летает и раз в 8 секунд оглушает ближайшего защитника на секунду' },
-    { id: 'goblin', name: 'Гоблин', only: true }],
+    { id: 'goblin', name: 'Гоблин' },
+    { id: 'boar', name: 'Кабан' }],
   fast: [{ id: 'dog', name: 'Пёс' }, { id: 'crow', name: 'Ворон', from: 4, flying: true },
     { id: 'hellhound', name: 'Адская гончая', from: 12 },
     { id: 'bonehound', name: 'Костяной пёс', from: 9, undead: true, revive: 1, hp: 0.6,
@@ -152,17 +156,53 @@ export const LOOKS = {
     { id: 'thief', name: 'Воришка', from: 7, thief: 3,
       text: 'крадёт по 3 монеты у тех, мимо кого бежит; кто его добьёт — заберёт всё украденное' },
     { id: 'mirage', name: 'Мираж', from: 24, mirage: true,
-      text: 'от первого удара распадается на трёх — настоящий один' }],
+      text: 'от первого удара распадается на трёх — настоящий один' },
+    { id: 'hopper', name: 'Попрыгунчик', from: 5 }],
   tough: [{ id: 'brute', name: 'Громила' }, { id: 'demon', name: 'Демон', from: 14 },
     { id: 'skelwarrior', name: 'Скелет-латник', from: 11, undead: true, revive: 1, armor: 0.25, hp: 0.6,
       text: 'в броне: на 25% крепче к урону, и встаёт после смерти' },
     { id: 'slime3', name: 'Большой слизень', from: 20, slime: 3, text: 'при смерти делится на двух слизней' },
     { id: 'sludge', name: 'Ядовитый элементаль', from: 25, element: 'poison', text: 'яд его не берёт' },
     { id: 'shieldbearer', name: 'Щитоносец', from: 15, front: 0.6,
-      text: 'щит спереди: кто стоит впереди него по дороге, бьёт на 60% слабее — бейте сбоку и сзади' }],
+      text: 'щит спереди: кто стоит впереди него по дороге, бьёт на 60% слабее — бейте сбоку и сзади' },
+    { id: 'bear', name: 'Медведь' }],
   swarm: [{ id: 'rat', name: 'Крыса' }, { id: 'bat', name: 'Летучая мышь', from: 6, flying: true },
-    { id: 'slime1', name: 'Слизнёнок', from: 5, slime: 1 }, { id: 'spiderling', name: 'Паучонок', only: true }],
+    { id: 'slime1', name: 'Слизнёнок', from: 5, slime: 1 }, { id: 'spiderling', name: 'Паучонок', only: true },
+    { id: 'hand', name: 'Рука мертвеца', undead: true }, { id: 'goblinkid', name: 'Гоблинёнок' },
+    { id: 'devilkin', name: 'Чертёнок', from: 8 },
+    { id: 'spark', name: 'Искра', from: 16, element: 'storm', text: 'молнии её не берут' }],
 };
+
+export const FAMILIES = [
+  { id: 'undead', name: 'нежить', of: 'нежити', hp: 0.8,
+    looks: ['zombie', 'skeleton', 'ghost', 'bonehound', 'skelwarrior', 'hand', 'bat'],
+    elites: ['plague', 'knight', 'shade', 'necro', 'vampire'], bosses: ['warden', 'lich'] },
+  { id: 'beasts', name: 'звери', of: 'зверей', hp: 1.06,
+    looks: ['boar', 'mole', 'harpy', 'dog', 'crow', 'bear', 'rat', 'bat'],
+    elites: ['leader', 'ratking', 'armadillo'], bosses: ['mother', 'worm', 'spiderqueen'] },
+  { id: 'horde', name: 'орда', of: 'орды', hp: 1.05,
+    looks: ['goblin', 'thief', 'brute', 'shieldbearer', 'goblinkid'],
+    elites: ['witch', 'goblinshaman', 'berserk', 'ogre'], bosses: ['crusher', 'butcher'] },
+  { id: 'slimes', name: 'слизни', of: 'слизней', from: 5, hp: 0.58,
+    looks: ['slime2', 'hopper', 'slime3', 'slime1'], elites: ['slimeking'], bosses: ['slimemother'] },
+  { id: 'demons', name: 'демоны', of: 'демонов', from: 8, hp: 1.2,
+    looks: ['imp', 'hellhound', 'demon', 'devilkin'], elites: ['blazer', 'mirrorknight'], bosses: ['archdemon'] },
+  { id: 'elements', name: 'стихии', of: 'стихий', from: 16, hp: 1.1,
+    looks: ['ember', 'frostling', 'stormling', 'mirage', 'sludge', 'spark'], elites: ['golem', 'blinker'],
+    bosses: ['dragon'] },
+];
+
+export const FAMILY_BY_ID = new Map(FAMILIES.map((family) => [family.id, family]));
+
+const earliest = (list) => list.reduce((best, kind) => ((kind.from || 0) < (best.from || 0) ? kind : best));
+
+export function familyPool(family, list, wave) {
+  const own = list.filter((kind) => family.looks.includes(kind.id) || family.elites.includes(kind.id)
+    || family.bosses.includes(kind.id));
+  if (!own.length) return [];
+  const ready = own.filter((kind) => !kind.from || kind.from <= wave);
+  return ready.length ? ready : [earliest(own)];
+}
 
 export const SLIMES = ['swarm', 'normal', 'tough'];
 
