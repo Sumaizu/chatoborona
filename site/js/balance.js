@@ -2,23 +2,14 @@ export const LIVES = 20;
 export const LEVEL_MAX = 100;
 export const TICK = 0.05;
 
-export const TOWER = { damage: 6.5 };
+export const TOWER = { damage: 7 };
+export const RESIST = { every: 10, keep: 0.93 };
 
-export const STAT = {
-  grades: { low: 6, mid: 12, high: 18 },
-  mastery: 3,
-  paragon: 0.05,
-  damage: 0.03,
-  critBase: 1.5,
-  critPower: 0.025,
-  speed: 0.03,
-  critChance: 0.0075,
-  reach: 0.04,
-  element: 0.03,
-  power: 0.04,
-  chance: 0.04,
-  haste: 0.03,
-};
+export const resistOf = (wave) => 1 - Math.pow(RESIST.keep, Math.floor(Math.max(0, wave) / RESIST.every));
+
+export const STAT = { grades: { low: 6, mid: 12, high: 18 }, mastery: 3, paragon: 0.05, damage: 0.02, skill: 0.02,
+  critBase: 1.5, critPower: 0.015, critChance: 0.005, critMax: 0.5, speed: 0.02, reach: 0.03,
+  element: 0.02, masteryMax: 0.6, masteryHalf: 20, luckHalf: 20 };
 
 export const MOBS = {
   normal: { name: 'Зомби', hp: 1, speed: 1, xp: 1, coins: 1, leak: 1 },
@@ -188,7 +179,7 @@ export const WAVE = {
   growth: 1.05,
   accel: 0.0004,
   players: 0.75,
-  crowd: 0.95,
+  crowd: 0.85,
   pivot: 10,
   solo: 0.6,
   speed: 1.4,

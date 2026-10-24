@@ -12,7 +12,16 @@ export const COMMANDS = new Map([
   ['!чатоборона-заново', 'restart'],
   ['!чатоборона-сброс', 'reset'],
   ['!чатоборона', 'rules'],
+  ['!чатоборона-ускорить', 'faster'],
+  ['!чатоборона-замедлить', 'slower'],
 ]);
+export const SPEED_WORDS = new Map([['ускорить', 'faster'], ['замедлить', 'slower']]);
+export const STAT_WORDS = new Map([['сила', 'str'], ['силу', 'str'], ['силы', 'str'], ['ловкость', 'agi'],
+  ['ловкости', 'agi'], ['ловк', 'agi'], ['интеллект', 'int'], ['интеллекта', 'int'], ['инт', 'int'],
+  ['мастерство', 'mas'], ['мастерства', 'mas'], ['маст', 'mas']]);
+export const SPEED_MAX = 3;
+export const SUMMIT_EVERY = 100;
+export const SUMMIT_TIME = 60;
 export const ACTIONS = new Map([
   ['гача', 'spin'],
   ['профиль', 'card'],
@@ -192,6 +201,7 @@ export class Game {
     this.notes = [];
     this.cards = [];
     this.rulesShown = false;
+    this.speed = 1;
     this.cardRoom = CARD_ROOM;
     this.events = [];
     this._noteNo = 0;
@@ -240,7 +250,28 @@ export class Game {
 
   next() {
     if (this.state === 'stopped' || this.state === 'wave') return false;
+    if (this.state === 'summit') {
+      this.state = 'break';
+      this.left = this.s.wave_pause;
+      this._planEvent();
+      this._emit('onward', { wave: this.wave });
+      return true;
+    }
     this.left = 0;
+    return true;
+  }
+
+  faster() {
+    if (this.speed >= SPEED_MAX) return false;
+    this.speed += 1;
+    this._emit('speed', { speed: this.speed });
+    return true;
+  }
+
+  slower() {
+    if (this.speed <= 1) return false;
+    this.speed -= 1;
+    this._emit('speed', { speed: this.speed });
     return true;
   }
 
@@ -279,7 +310,7 @@ export class Game {
   step(dt) {
     if (this._resetDue !== null && this.clock() >= this._resetDue) this.resetScores();
     if (this.state === 'stopped' || this.paused) return;
-    this._carry += Math.min(Math.max(0, dt), STEP_MAX);
+    this._carry += Math.min(Math.max(0, dt), STEP_MAX) * this.speed;
     while (this._carry >= TICK) {
       this._carry -= TICK;
       this._tick(TICK);
@@ -324,11 +355,13 @@ export class Game {
     const action = ACTIONS.get(word.replace(/^!/, '')), cell = action ? null : parseCell(message);
     const move = action || cell ? null : parseMove(message);
     const amount = words.slice(1).find((part) => /^\d+$/.test(part) || part === 'все' || part === 'всё');
+    const stat = words.slice(1).map((part) => STAT_WORDS.get(part)).find(Boolean) || null;
+    const control = COMMANDS.get(word) || SPEED_WORDS.get(word.replace(/^!/, ''));
     const all = amount === 'все' || amount === 'всё', count = all ? Infinity : Math.max(1, Number(amount) || 1);
     const member = this.join(login, name, { color, cell: cell && this.movable ? cell : null });
     let done = null;
-    if (COMMANDS.has(word)) {
-      done = mod && this.s.chat_commands ? this._control(COMMANDS.get(word)) : null;
+    if (control) {
+      done = mod && this.s.chat_commands ? this._control(control) : null;
     } else if (action === 'spin') {
       done = this.order(member, Math.min(SPIN_LIMIT, count));
     } else if (action === 'card' || action === 'brief') {
@@ -336,7 +369,7 @@ export class Game {
     } else if (action === 'reroll') {
       done = this.reroll(member);
     } else if (action === 'upgrade') {
-      done = this.improve(member, count);
+      done = this.improve(member, count, stat);
     } else if (cell) {
       done = this.goTo(member, cell.x, cell.y) ? 'move' : this._later(member, cell);
     } else if (move && this.s.channel && login === this.s.channel) {
@@ -356,7 +389,7 @@ export class Game {
     return Boolean(this._place(member, { x, y }));
   }
 
-  improve(member, times = 1) {
+  improve(member, times = 1, stat = null) {
     if (!member || !this.battle) return null;
     if (!member.weapon) {
       this._note('bare', member);
@@ -370,7 +403,7 @@ export class Game {
     let done = 0, ascended = false;
     for (; done < times && member.coins >= UPGRADE_PRICE; done++) {
       member.coins -= UPGRADE_PRICE;
-      const up = upgrade(this.random, member.weapon);
+      const up = upgrade(this.random, member.weapon, stat);
       if (up.ascended) ascended = true;
       ups.set(up.id, Math.round(((ups.get(up.id) || 0) + up.amount) * 100) / 100);
     }
@@ -446,6 +479,8 @@ export class Game {
     if (command === 'rules') return this.showRules() ? 'rules' : null;
     if (command === 'next') return this.next() ? 'next' : null;
     if (command === 'restart') return this.restart() ? 'restart' : null;
+    if (command === 'faster') return this.faster() ? 'faster' : null;
+    if (command === 'slower') return this.slower() ? 'slower' : null;
     if (command === 'reset') {
       this.resetScores();
       return 'reset';
@@ -615,17 +650,23 @@ export class Game {
       member.pendingMove = null;
     }
     this._emit('cleared', { wave: this.wave, coins: reward.coins, xp: reward.xp });
+    if (this.wave % SUMMIT_EVERY === 0) {
+      this.state = 'summit';
+      this.left = SUMMIT_TIME;
+      this.run.next = [];
+      this._emit('summit', { wave: this.wave });
+    }
   }
 
-  _over() {
-    const passed = this.wave - 1, players = this.battle.towers.length;
+  _over(victory = false) {
+    const passed = victory ? this.wave : this.wave - 1, players = this.battle.towers.length;
     const record = this.profiles.record(passed, players, this.clock());
     this._saveAll();
     const rows = Array.from(this.members.values()).filter((m) => m.tower).map((m) => ({
       login: m.login, name: m.name, cls: m.cls, kills: m.tower.run.kills, assists: m.tower.run.assists,
       damage: m.tower.run.damage,
     }));
-    this.results = { passed, players, record, time: this.battle.time - this.run.started, rows };
+    this.results = { passed, players, record, time: this.battle.time - this.run.started, rows, victory };
     this.ascents = this._ascents();
     this._saveAll();
     this.state = this.ascents.length ? 'ascend' : 'over';
@@ -686,6 +727,7 @@ export class Game {
     this.left -= dt;
     if (this.left > 0) return;
     if (this.state === 'lobby') this._placing();
+    else if (this.state === 'summit') this._over(true);
     else if (this.state === 'placing' || this.state === 'break') this._startWave();
     else if (this.state === 'ascend') {
       this.state = 'over';

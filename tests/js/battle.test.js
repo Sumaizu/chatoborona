@@ -1,10 +1,11 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { BITE_TIME, BURST, Battle, DISCHARGE, FUSION, HEADWIND, MOVE_PAUSE, NUKE_FLIGHT, OVERTIME, PLAGUE, THORN }
+import { BITE_TIME, BURST, Battle, DISCHARGE, FUSION, HEADWIND, MOVE_PAUSE, NUKE_FLIGHT, OVERTIME, PLAGUE, ROT,
+  THORN }
   from '../../site/js/battle.js';
 import { SIZE } from '../../site/js/field.js';
-import { BOSSES, ELITES, LIVES, LOOKS, MIMIC, MOBS, POWERS, STAT, TERRAIN, TICK, TOWER, waveSpawns, xpForLevel }
-  from '../../site/js/balance.js';
+import { BOSSES, ELITES, LIVES, LOOKS, MIMIC, MOBS, POWERS, STAT, TERRAIN, TICK, TOWER, resistOf, waveSpawns,
+  xpForLevel } from '../../site/js/balance.js';
 import { ASSIST_COINS, KILL_COINS } from '../../site/js/gacha.js';
 import { CLASSES, CLASS_BY_ID } from '../../site/js/classes.js';
 
@@ -95,18 +96,49 @@ test('статы: от уровня не растут; сила — урон и 
   ok(strong.interval < young.interval && strong.critChance > young.critChance, 'ловкость');
 });
 
-test('статы: интеллект — стихии и радиус ауры, мастерство — сила и шанс способностей, парагон — +5% ко всем', () => {
-  const battle = makeBattle(), mage = battle.place(level(30), 'frost', 2, 4);
-  const range = mage.range, elem = mage.elem, slow = mage.s[0].slow, chance = mage.s[1].chance;
-  near(elem, 1 + STAT.element * STAT.grades.high);
+test('статы: интеллект — стихии и радиус ауры, основной стат и мастерство — способности, парагон — +5% ко всем', () => {
+  const battle = makeBattle(), mage = battle.place(level(30), 'frost', 2, 4), cls = CLASS_BY_ID.get('frost');
+  const range = mage.range, damage = mage.damage, skill = mage.skill, slow = mage.s[0].slow, chance = mage.s[1].chance;
+  near(damage, TOWER.damage * cls.base.damage * (1 + STAT.damage * STAT.grades.low)
+    * (1 + STAT.element * STAT.grades.high), 'удар льдом — от силы и интеллекта');
+  eq(cls.primary, 'int');
   battle.setMods(mage, { stats: { int: 10, mas: 10 } });
   near(mage.range, range + STAT.reach * 10, 'буря шире');
-  near(mage.elem, elem + STAT.element * 10, 'лёд сильнее');
-  ok(mage.s[0].slow > slow && mage.s[1].chance > chance, 'способности сильнее и чаще');
+  ok(mage.damage > damage, 'лёд сильнее');
+  ok(mage.skill > skill * (1 + STAT.skill * 10) / (1 + STAT.skill * STAT.grades.high) + 1e-9,
+    'способности сильнее: и от интеллекта, и от мастерства');
+  ok(mage.s[0].slow > slow && mage.s[1].chance > chance, 'замедление сильнее, шанс выше');
+  const sniper = battle.place(player(), 'sniper', 4, 2), before = sniper.skill;
+  battle.setMods(sniper, { stats: { int: 50 } });
+  near(sniper.skill, before, 'у снайпера способности от силы, интеллект им не помогает');
   const hero = battle.place(player(), 'gunner', 6, 4);
   battle.setMods(hero, { paragon: 2 });
   eq(hero.stats, { str: STAT.grades.low * 1.1, agi: STAT.grades.high * 1.1, int: STAT.grades.low * 1.1,
     mas: STAT.mastery * 1.1 });
+});
+
+test('закалка: каждые 10 волн контроль и уязвимость действуют на мобов слабее, но не до нуля', () => {
+  const effect = (wave) => {
+    const battle = makeBattle(), t = battle.place(player(), 'gunner', 2, 4);
+    battle.wave = wave;
+    const mob = walker(battle, 6, 1e9);
+    battle._hold(mob, 2, t);
+    battle._slow(mob, 0.5, 2);
+    mob.vuln = 0.5;
+    mob.vulnUntil = 1e9;
+    const hp = mob.hp;
+    battle._hurt(mob, 100, t, null);
+    battle._push(mob, 1, t);
+    return { hold: mob.holdUntil - battle.time, slow: mob.slow, extra: hp - mob.hp - 100, push: mob.pushed };
+  };
+  const fresh = effect(9), hard = effect(50), harder = effect(300);
+  near(fresh.hold, 2);
+  near(fresh.slow, 0.5);
+  near(fresh.extra, 50);
+  near(fresh.push, 1);
+  for (const key of ['hold', 'slow', 'extra', 'push']) ok(hard[key] < fresh[key] && harder[key] < hard[key], key);
+  ok(harder.hold > 0 && harder.slow > 0, 'контроль всё равно действует');
+  near(hard.hold / fresh.hold, 1 - resistOf(50));
 });
 
 test('бой: шаман не отбросит моба дальше предела, оглушение не чаще, чем позволяет передышка', () => {
@@ -341,7 +373,7 @@ test('снайпер: с 30-го иногда секунду заряжает т
   eq(mob.hp, mob.max, 'заряжает секунду');
   runFor(battle, 0.2);
   ok(battle.events.some((e) => e.kind === 'shot' && e.heavy === 'heavy' && e.crit), 'толстая пуля, крит');
-  near(hit(mob), sniper.damage * sniper.s[1].bonus * sniper.critMul);
+  near(hit(mob), sniper.skill * sniper.s[1].bonus * sniper.critMul);
 });
 
 test('снайпер: с 50-го три секунды целится в элитного, бьёт критом без пробития и метит его', () => {
@@ -356,7 +388,7 @@ test('снайпер: с 50-го три секунды целится в эли�
   eq(elite.hp, elite.max, 'пока целится — не стреляет');
   runFor(battle, 0.3);
   ok(battle.events.some((e) => e.kind === 'shot' && e.heavy === 'mega' && e.crit));
-  near(hit(elite), sniper.damage * sniper.s[2].bonus * sniper.critMul);
+  near(hit(elite), sniper.skill * sniper.s[2].bonus * sniper.critMul);
   eq(plain.hp, plain.max, 'не прошивает');
   ok(elite.markUntil > battle.time + sniper.s[2].markTime - 0.2, 'метка');
   const before = elite.hp;
@@ -385,6 +417,13 @@ test('снайпер: руна «Разрывная пуля» — пуля ин
   battle._fire(sniper);
   ok(battle.events.some((e) => e.kind === 'burst'));
   near(hit(side), sniper.damage * BURST.share, 'сосед получил четверть');
+});
+
+test('пулемётчик: боссов не выделяет и не обходит', () => {
+  const battle = makeBattle(), gun = battle.place(player(), 'gunner', 10, 4);
+  const plain = walker(battle, 10, 1e9), boss = put(battle, special(battle, 'boss', 'crusher', 1e9), 12);
+  still(plain, boss);
+  ok(battle._target(gun) === boss, 'бьёт первого по дороге, хоть это и босс');
 });
 
 test('пулемётчик: держит одну цель и разгоняется на ней, через 7 секунд стрельбы — перезарядка', () => {
@@ -516,7 +555,7 @@ test('громовержец: молния прыгает назад по дор
   for (let d = 13; d >= 0; d--) mobs.push(walker(battle, d, 1e6));
   still(...mobs);
   battle._fire(thunder);
-  mobs.forEach((mob, k) => near(hit(mob), k < 10 ? thunder.damage * thunder.elem * (1 - 0.1 * k) : 0, 'моб ' + k));
+  mobs.forEach((mob, k) => near(hit(mob), k < 10 ? thunder.damage * (1 - 0.1 * k) : 0, 'моб ' + k));
   ok(battle.events.some((e) => e.kind === 'chain' && e.points.length === 11));
 });
 
@@ -532,7 +571,7 @@ test('громовержец: руна «Цепная молния» — без 
   battle._fire(thunder);
   const struck = mobs.concat([ahead]).filter((mob) => hit(mob) > 0);
   eq(struck.length, 15);
-  for (const mob of struck) near(hit(mob), thunder.damage * thunder.elem);
+  for (const mob of struck) near(hit(mob), thunder.damage);
   ok(hit(ahead) > 0, 'и вперёд');
 });
 
@@ -558,7 +597,7 @@ test('громовержец: с 50-го бьёт громом первого м
   battle.random = () => 0.99;
   battle.step(TICK);
   ok(battle.events.some((e) => e.kind === 'thunderbolt' && e.mob === lead));
-  ok(hit(lead) >= thunder.damage * thunder.s[2].bonus * thunder.critMul - 1e-6, 'критический урон');
+  ok(hit(lead) >= thunder.skill * thunder.s[2].bonus * thunder.critMul - 1e-6, 'критический урон');
   ok(lead.holdUntil > battle.time, 'оглушён');
 });
 
@@ -573,7 +612,7 @@ test('громовержец: руна «Разрядка» — заряженн
   const after = hit(mob);
   runFor(battle, thunder.s[0].time + 0.1);
   ok(battle.events.some((e) => e.kind === 'discharge'));
-  near(hit(mob) - after, thunder.damage * thunder.elem * DISCHARGE.mul);
+  near(hit(mob) - after, thunder.skill * DISCHARGE.mul);
   ok(mob.holdUntil > battle.time + DISCHARGE.hold - 0.5);
   eq(mob.charge, null);
 });
@@ -642,10 +681,12 @@ test('алхимик: руна «Инфекция» — отравленный �
   battle._fire(alchemist);
   alchemist.busy = 1e9;
   runFor(battle, alchemist.cls.base.flight + 0.1);
-  ok(mob.rot === alchemist, 'гниёт');
+  ok(mob.rot && mob.rot.by === alchemist, 'гниёт');
   const before = hit(mob);
   runFor(battle, 2);
   ok(hit(mob) - before >= mob.max * 0.019, 'теряет 1% в секунду');
+  runFor(battle, ROT.time);
+  eq(mob.rot, null, 'без нового яда гниение проходит');
   const field = makeBattle(), black = field.place(player(), 'alchemist', 10, 4);
   black.critChance = 0;
   field.random = () => 0.99;
@@ -657,7 +698,7 @@ test('алхимик: руна «Инфекция» — отравленный �
   ok(field._fire(black));
   black.busy = 1e9;
   runFor(field, black.cls.base.flight + 0.1);
-  near(hit(knight), black.damage * black.elem * (1 + PLAGUE), 'сквозь броню и на 25% сильнее');
+  near(hit(knight), black.damage * (1 + PLAGUE), 'сквозь броню и на 25% сильнее');
 });
 
 test('огнемётчик: жжёт узкой струёй в сторону цели, за спиной никого; с 10-го задетые горят', () => {
@@ -713,7 +754,7 @@ test('огнемётчик: нежить горит сильнее; руна «�
   const zombie = creature(battle, 'zombie', 12, 1e6);
   still(zombie);
   battle._fire(pyro);
-  near(hit(zombie), pyro.damage * pyro.elem * pyro.cls.base.undead);
+  near(hit(zombie), pyro.damage * pyro.cls.base.undead);
   const cone = pyro.cone;
   battle.setMods(pyro, { runes: ['nozzle', 'blue'] });
   pyro.critChance = 0;
@@ -790,6 +831,7 @@ test('охотник: руна «Засада» — без дела 10 секу�
   runFor(battle, 10.5);
   ok(battle.events.some((e) => e.kind === 'ambush'));
   ok(Math.abs(hunter.x - Math.floor(mob.x)) <= 1 && Math.abs(hunter.y - Math.floor(mob.y)) <= 1, 'рядом с мобом');
+  mob.dead = true;
   runFor(battle, 30);
   eq(battle.traps.length, hunter.s[0].count * 2);
 });
@@ -862,19 +904,29 @@ test('паразит: с 30-го, добив моба, иногда пирует
   near(bug.player.xp - xp, MOBS.normal.xp * earn.xp * (1 + bug.s[1].bonus));
 });
 
-test('паразит: с 50-го обчищает богатого союзника, раздаёт монеты остальным и спит у него на голове', () => {
+test('паразит: с 50-го забирает монеты богатого союзника себе, а набрав больше 1000 — раздаёт всем и себе', () => {
   const battle = makeBattle(), bug = battle.placeRider(level(50), 'parasite');
   const rich = battle.place(player(), 'gunner', 2, 4), poor = battle.place(player(), 'gunner', 2, 6);
   rich.player.coins = 2000;
   battle.step(TICK);
-  eq(rich.player.coins, 0);
-  near(poor.player.coins + bug.player.coins, 2000, 'всё раздано остальным');
+  const heist = battle.events.find((e) => e.kind === 'heist'), share = battle.events.find((e) => e.kind === 'share');
+  ok(heist && heist.victim === rich && heist.coins === 2000, 'забрал всё себе');
+  ok(share && share.coins === 2000, 'и раздал, раз стало больше 1000');
+  eq(share.shares.map((part) => part.tower).sort(), [bug, rich, poor].sort(), 'всем, себе тоже');
+  near(rich.player.coins + poor.player.coins + bug.player.coins, 2000, 'ни одна монета не пропала');
   ok(bug.perch && bug.perch.tower === rich, 'спит у него на голове');
   ok(rich.napUntil >= battle.time + bug.s[2].sleep - 1, 'союзник спит минуту');
-  ok(battle.events.some((e) => e.kind === 'heist'));
   rich.player.coins = 5000;
   runFor(battle, 30);
   eq(rich.player.coins, 5000, 'не чаще раза в минуту');
+  const field = makeBattle(), alone = field.placeRider(level(50), 'parasite'), mate = field.place(player(), 'gunner',
+    2, 4);
+  alone.player.coins = 1500;
+  field.step(TICK);
+  no(field.events.some((e) => e.kind === 'heist'), 'богатых нет — не прыгает');
+  ok(field.events.some((e) => e.kind === 'share'), 'но свои больше 1000 раздаёт');
+  near(alone.player.coins + mate.player.coins, 1500);
+  no(alone.perch);
 });
 
 test('паразит: руна «Бешенство» — кусает втрое чаще, «Смертельный шип» — иногда добивает раненого', () => {
@@ -1514,7 +1566,7 @@ test('новые боссы: червь под землёй, вынырнув �
   ok(c.stunUntil <= sky.time, 'в стороне — нет');
   eq(sky.mines.length, 0, 'мина на линии сгорела');
   sky._hurt(dragon, 100, a, 'fire');
-  near(hit(dragon), 50 * a.elem, 'огонь вдвое слабее');
+  near(hit(dragon), 50, 'огонь вдвое слабее');
   const lair = makeBattle();
   const web = lair.place(player(), 'gunner', 5, 4);
   const queen = special(lair, 'boss', 'spiderqueen', 1000);
@@ -1660,7 +1712,7 @@ test('биомы: в вулкане лёд слабее, в снегах — о�
   const blow = (biome, cls) => {
     const battle = mapWith({}, biome), t = battle.place(player(), cls, 3, 4), mob = walker(battle, 4, 1e6);
     battle._hurt(mob, 100, t);
-    return hit(mob) / t.elem;
+    return hit(mob);
   };
   near(blow('volcano', 'frost'), 100 * TERRAIN.weak);
   near(blow('volcano', 'pyro'), 100);

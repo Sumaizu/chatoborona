@@ -13,6 +13,7 @@ const LOCAL = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
 const UPDATE_CHECK_SECONDS = LOCAL ? 5 : 300;
 const RELOAD_PAUSE_SECONDS = LOCAL ? 0 : 600;
 const STEP_MS = 50;
+const RELOAD_CHECK_MS = 500;
 const FRAME_MAX = 0.1;
 const FRAME_MIN_MS = 12;
 const EMBEDDED = new URLSearchParams(location.search).get('embed') === '1';
@@ -50,28 +51,34 @@ function refreshCache() {
 }
 
 function watchUpdates(canReload) {
-  let fingerprint = null, outdated = false, reloading = false;
+  let fingerprint = null, fetching = false, ready = false;
+  const prepare = () => {
+    if (fetching) return;
+    fetching = true;
+    const done = () => {
+      ready = true;
+    };
+    refreshCache().then(done, done);
+  };
   const reload = () => {
     const storage = browserStorage();
     const last = storage ? Number(storage.getItem('chatoborona.reloaded')) || 0 : 0;
-    if (reloading || Date.now() - last < RELOAD_PAUSE_SECONDS * 1000) return;
-    reloading = true;
+    if (!ready || !canReload() || Date.now() - last < RELOAD_PAUSE_SECONDS * 1000) return;
     if (storage) storage.setItem('chatoborona.reloaded', String(Date.now()));
-    const restart = () => location.reload();
-    refreshCache().then(restart, restart);
+    location.reload();
   };
   const check = async () => {
     try {
       const current = await filesFingerprint();
       if (fingerprint === null) fingerprint = current;
-      outdated = outdated || current !== fingerprint;
+      if (current !== fingerprint) prepare();
     } catch (error) {
       return;
     }
-    if (outdated && canReload()) reload();
   };
   check();
   setInterval(check, UPDATE_CHECK_SECONDS * 1000);
+  setInterval(reload, RELOAD_CHECK_MS);
 }
 
 function run(view) {
@@ -158,7 +165,8 @@ function run(view) {
   if (EMBEDDED) return;
   chat.start();
   watchVisibility(show, hide);
-  watchUpdates(() => game.state === 'lobby' || game.state === 'over' || game.state === 'stopped');
+  watchUpdates(() => game.state === 'over' || game.state === 'stopped' || game.state === 'lobby'
+    && game.members.size === 0);
 }
 
 run(new View());

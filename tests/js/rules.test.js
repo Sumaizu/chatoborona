@@ -3,7 +3,7 @@ import { seeded } from './fixtures.js';
 import { BIOMES, SIZE, cellName, coverage, makeMap, parseCell } from '../../site/js/field.js';
 import { LEVEL_MAX, MOBS, STAT, crowdFactor, eliteCount, levelOf, waveHp, waveReward, waveSpawns, xpForLevel }
   from '../../site/js/balance.js';
-import { CLASSES, CLASS_BY_ID, PERKS, ROLES, describe, gradeOf, masteryOf, scaled } from '../../site/js/classes.js';
+import { CLASSES, CLASS_BY_ID, PERKS, PRIMARY, describe, gradeOf, masteryOf, scaled } from '../../site/js/classes.js';
 import { ASCEND_AT, DIVINE, OUTCOMES, RARITIES, STATS, makeWeapon, rankOf, spin, upgrade, weaponScore, weaponStats,
   weaponTitle } from '../../site/js/gacha.js';
 import { clean, fromQuery, toQuery, DEFAULTS } from '../../site/js/config.js';
@@ -148,7 +148,7 @@ test('классы: двенадцать, у каждого оружие, ста
   const runes = CLASSES.flatMap((cls) => cls.runes.map((rune) => rune.id));
   eq(new Set(runes).size, CLASSES.length * 2, 'руны не повторяются');
   for (const cls of CLASSES) {
-    ok(cls.weapon && cls.name && ROLES[cls.role], cls.id);
+    ok(cls.weapon && cls.name && PRIMARY[cls.primary], cls.id);
     for (const stat of ['str', 'agi', 'int']) ok(STAT.grades[cls.stats[stat]], cls.id + ' ' + stat);
     eq(cls.skills.length, 3, cls.id);
     eq(cls.runes.length, 2, cls.id);
@@ -161,16 +161,27 @@ test('классы: двенадцать, у каждого оружие, ста
   no(CLASSES.some((cls) => ['banner', 'healer', 'sage'].includes(cls.id)), 'поддержка пока отключена');
 });
 
-test('классы: мастерство у всех низкое и усиливает способности, кроме налёта паразита и ядерки минёра', () => {
+test('классы: мастерство у всех низкое, усиливает способности с убывающей отдачей, шанс никогда не 100%', () => {
   for (const cls of CLASSES) eq(gradeOf(cls, 'mas'), STAT.mastery, cls.id);
   const strong = masteryOf(20), weak = masteryOf(STAT.mastery), aim = CLASS_BY_ID.get('sniper').skills[2];
-  ok(scaled(aim, strong).bonus > scaled(aim, weak).bonus, 'сильнее');
+  ok(scaled(aim, strong).markTime > scaled(aim, weak).markTime, 'дольше');
+  eq(scaled(aim, strong).bonus, scaled(aim, weak).bonus, 'урон способности растёт от основного стата, а не здесь');
   ok(scaled(aim, strong).every < scaled(aim, weak).every, 'чаще');
   for (const id of ['parasite', 'miner']) {
     const skill = CLASS_BY_ID.get(id).skills[2];
     eq(scaled(skill, strong), scaled(skill, weak), id);
   }
-  eq(new Set(CLASSES.map((cls) => cls.role)).size, 2);
+  const huge = masteryOf(1e6);
+  ok(huge.power < 1 + STAT.masteryMax + 1e-9 && huge.haste < 1 + STAT.masteryMax + 1e-9,
+    'отдача от мастерства убывает');
+  for (const cls of CLASSES) {
+    for (const skill of cls.skills) {
+      for (const [key, how] of Object.entries(skill.scale || {})) {
+        if (how === 'luck') ok(scaled(skill, masteryOf(500))[key] < 1, cls.id + ' ' + skill.name + ': шанс не 100%');
+      }
+    }
+  }
+  eq(new Set(CLASSES.map((cls) => cls.primary)), new Set(['str', 'agi', 'int']));
 });
 
 test('гача: пустота, монеты (горстка 50%, мешок 45%, сундук 5% от 15%), остальное — оружие по редкостям', () => {
@@ -235,9 +246,9 @@ test('улучшение: легендарное на +30 становится �
   eq(weaponTitle(weapon), 'Божественный карабин +1');
 });
 
-test('гача: частица бога — 0,1%, у кого она есть, тому не выпадает', () => {
+test('гача: частица бога — 0,2%, у кого она есть, тому не выпадает', () => {
   const particle = OUTCOMES.find((outcome) => outcome.id === 'particle');
-  eq(particle.chance, 0.001);
+  eq(particle.chance, 0.002);
   const total = OUTCOMES.concat(RARITIES).reduce((sum, item) => sum + item.chance, 0);
   let seen = 0;
   for (let i = 0; i < 2000; i++) {
@@ -249,9 +260,9 @@ test('гача: частица бога — 0,1%, у кого она есть, �
   eq(seen, 2000);
 });
 
-test('гача: руна способности — 0,5%, у кого обе руны класса, тому не выпадает', () => {
+test('гача: руна способности — 0,8%, у кого обе руны класса, тому не выпадает', () => {
   const rune = OUTCOMES.find((outcome) => outcome.id === 'rune');
-  eq(rune.chance, 0.005);
+  eq(rune.chance, 0.008);
   const total = OUTCOMES.concat(RARITIES).reduce((sum, item) => sum + item.chance, 0);
   const before = OUTCOMES.slice(0, OUTCOMES.indexOf(rune)).reduce((sum, item) => sum + item.chance, 0);
   for (let i = 0; i < 500; i++) {

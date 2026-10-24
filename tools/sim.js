@@ -1,5 +1,5 @@
 import { Game, Profiles } from '../site/js/engine.js';
-import { CLASSES } from '../site/js/classes.js';
+import { CLASSES, CLASS_BY_ID } from '../site/js/classes.js';
 import { UPGRADE_PRICE, weaponScore } from '../site/js/gacha.js';
 import * as gachaRules from '../site/js/gacha.js';
 import * as balance from '../site/js/balance.js';
@@ -72,7 +72,8 @@ export function runGame({ seed = 1, levels = [1], classes = [], pause = 20, gach
     if (!gacha || clock - thought < THINK) continue;
     thought = clock;
     for (const m of members) {
-      if (m.weapon && m.coins >= UPGRADE_PRICE + game.price && game.improve(m) === 'upgraded') upgrades += 1;
+      const stat = CLASS_BY_ID.get(m.cls).primary;
+      if (m.weapon && m.coins >= UPGRADE_PRICE + game.price && game.improve(m, 1, stat) === 'upgraded') upgrades += 1;
       if (m.coins >= game.price && game.order(m) === 'queued') spins += 1;
     }
   }

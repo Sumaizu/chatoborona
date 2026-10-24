@@ -148,6 +148,8 @@ function sync() {
   $('pause').disabled = $('restart').disabled = $('reset').disabled = !playing;
   $('pause').textContent = paused ? 'Продолжить' : 'Пауза';
   $('next').disabled = !playing || paused || game.state === 'wave' || game.state === 'stopped';
+  $('speed').disabled = !playing;
+  $('speed').textContent = '×' + (playing ? game.speed : 1);
   for (const name of Object.keys(CONFIRMED)) {
     const asking = playing && Date.now() < armedUntil[name];
     $(name).textContent = asking ? 'Точно?' : CONFIRMED[name];
@@ -221,6 +223,12 @@ $('next').addEventListener('click', () => {
   sync();
 });
 $('restart').addEventListener('click', () => confirmed('restart', (game) => game.restart()));
+$('speed').addEventListener('click', () => {
+  const api = overlay();
+  if (!api || !playing) return;
+  if (!api.game.faster()) while (api.game.slower());
+  sync();
+});
 $('reset').addEventListener('click', () => confirmed('reset', (game) => game.resetScores()));
 channelField.addEventListener('change', commitChannel);
 channelField.addEventListener('input', () => { notice = ''; });

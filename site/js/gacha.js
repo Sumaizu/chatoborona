@@ -13,12 +13,12 @@ export const ASCEND_AT = 30;
 export const DIVINE_SHARE = 0.05;
 
 export const OUTCOMES = [
-  { id: 'void', name: 'Пустота', color: '#6b7280', chance: 0.144 },
+  { id: 'void', name: 'Пустота', color: '#6b7280', chance: 0.14 },
   { id: 'handful', name: 'Горстка монет', color: '#facc15', chance: 0.075, coins: [1, 50] },
   { id: 'bag', name: 'Мешок монет', color: '#e8a33d', chance: 0.0675, coins: [51, 150] },
   { id: 'chest', name: 'Сундук монет', color: '#ffb020', chance: 0.0075, coins: [151, 500] },
-  { id: 'particle', name: 'Частица бога', color: '#ff2e4d', chance: 0.001 },
-  { id: 'rune', name: 'Руна способности', color: '#ff2e4d', chance: 0.005 },
+  { id: 'particle', name: 'Частица бога', color: '#ff2e4d', chance: 0.002 },
+  { id: 'rune', name: 'Руна способности', color: '#ff2e4d', chance: 0.008 },
 ];
 
 export const RARITIES = [
@@ -77,11 +77,13 @@ export function weaponStats(weapon) {
   return total;
 }
 
-export function upgrade(random, weapon) {
+export function upgrade(random, weapon, chosen = null) {
   const ids = Object.keys(weapon.stats).filter((key) => weapon.stats[key] > 0);
-  const id = ids[Math.floor(random() * ids.length)];
+  const id = chosen || ids[Math.floor(random() * ids.length)];
   const share = weapon.rarity === DIVINE.id ? DIVINE_SHARE : UPGRADE_SHARE;
-  const amount = Math.max(UNIT, round(weapon.stats[id] * share));
+  const power = (RARITIES.find((rarity) => rarity.id === weapon.rarity) || RARITIES[RARITIES.length - 1]).power;
+  const base = weapon.stats[id] > 0 ? weapon.stats[id] : statOf(id).step * power * 0.8;
+  const amount = Math.max(UNIT, round(base * share));
   weapon.ups = Object.assign({}, weapon.ups);
   weapon.ups[id] = round((weapon.ups[id] || 0) + amount, UNIT / 10);
   weapon.plus = (weapon.plus || 0) + 1;

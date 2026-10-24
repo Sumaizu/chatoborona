@@ -471,7 +471,7 @@ export class Scene {
 
   _ranges(ctx, battle, ranges) {
     for (const t of battle.towers) {
-      if (t.rider || !ranges.has(t.player.login)) continue;
+      if (t.rider || t.cocoon || !ranges.has(t.player.login)) continue;
       const outline = this._sight(battle, t);
       ctx.save();
       ctx.beginPath();
@@ -1653,10 +1653,13 @@ export class Scene {
       const victim = this._pose(event.victim);
       add({ kind: 'text', life: 2, x: victim.x, y: victim.y - 0.8, text: '−' + event.coins, color: '#f87171' });
       add({ kind: 'ring', life: 0.6, x: victim.x, y: victim.y, r: 0.8, color: '#e879f9', width: 2 });
+      this._sparks(victim.x, victim.y, ['#facc15', '#fff7c2', '#d946ef'], 12, 2, 0.6, 2);
+    } else if (event.kind === 'share') {
       for (const share of event.shares) {
-        if (share.coins <= 0 || share.tower === event.victim) continue;
+        if (share.coins <= 0) continue;
         const pose = this._pose(share.tower);
-        add({ kind: 'text', life: 1.6, x: pose.x, y: pose.y - 0.7, text: '+' + share.coins, color: '#fde047' });
+        add({ kind: 'text', life: 1.8, x: pose.x, y: pose.y - 0.7, text: '+' + share.coins, color: '#fde047' });
+        this._sparks(pose.x, pose.y, ['#facc15', '#fff7c2'], 5, 1.4, 0.5, 2);
       }
     } else if (event.kind === 'feast' || event.kind === 'execute') {
       const spot = this.shown.get(event.mob.id) || event.mob;

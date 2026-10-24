@@ -1,7 +1,7 @@
 import { test, eq, ok, no } from './harness.js';
 import { PLAIN, makeGame, memoryStorage, runFor, seeded, until } from './fixtures.js';
-import { ASCEND_TIME, CARD_MIN, CARD_ROOM, CARD_TIME, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPIN_LIMIT,
-  nextReset } from '../../site/js/engine.js';
+import { ASCEND_TIME, CARD_MIN, CARD_ROOM, CARD_TIME, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPEED_MAX,
+  SPIN_LIMIT, SUMMIT_EVERY, SUMMIT_TIME, nextReset } from '../../site/js/engine.js';
 import { LEVEL_MAX, TICK, xpForLevel } from '../../site/js/balance.js';
 import { ASCEND_AT, PRICE, RARITIES, SHOW_FAST, SHOW_TIME, SPIN_TIME, ascend, makeWeapon, weaponName, weaponStats }
   from '../../site/js/gacha.js';
@@ -501,6 +501,76 @@ test('улучшить: за 100 монет +20% к случайному сво�
   member.coins = 50;
   eq(say(game, 'Рита', '!улучшить'), 'poor');
   ok(game.notes.some((n) => n.kind === 'poor' && n.detail.price === 100));
+});
+
+test('улучшить сила / ловкость / интеллект / мастерство — растёт именно этот стат, даже если его не было', () => {
+  const { game } = makeGame();
+  game.open();
+  say(game, 'Рина', 'привет');
+  toWave(game);
+  const member = game.members.get('рина');
+  member.weapon = makeWeapon(seeded(5), member.cls, RARITIES[1]);
+  const missing = ['str', 'agi', 'int', 'mas'].find((id) => !(id in member.weapon.stats));
+  const words = { str: 'сила', agi: 'ловкость', int: 'интеллект', mas: 'мастерство' };
+  game._refresh(member);
+  member.coins = 1000;
+  eq(say(game, 'Рина', 'улучшить ' + words[missing] + ' 3'), 'upgraded');
+  eq(Object.keys(member.weapon.ups), [missing], 'прибавка только к названному стату');
+  ok(member.weapon.ups[missing] > 0);
+  ok(member.tower.mods.stats[missing] > 0, 'дошло до бойца');
+  eq(member.coins, 700);
+  eq(say(game, 'Рина', '!улучшить силу'), 'upgraded');
+  ok(member.weapon.ups.str > 0, '«силу» тоже понимает');
+});
+
+test('ускорить и замедлить: только стример и модераторы, от ×1 до ×3, игра идёт быстрее', () => {
+  const { game } = makeGame();
+  game.open();
+  say(game, 'Зритель', 'привет');
+  eq(say(game, 'Зритель', 'ускорить'), null, 'зрителю нельзя');
+  eq(game.speed, 1);
+  eq(say(game, 'Мод', 'ускорить', MOD), 'faster');
+  eq(say(game, 'Мод', '!чатоборона-ускорить', MOD), 'faster');
+  eq(game.speed, SPEED_MAX);
+  eq(say(game, 'Мод', 'ускорить', MOD), null, 'быстрее ×3 не бывает');
+  const left = game.left;
+  game.step(1);
+  ok(Math.abs(left - game.left - SPEED_MAX) < 0.06, 'за секунду прошло три');
+  eq(say(game, 'Мод', '!замедлить', MOD), 'slower');
+  eq(game.speed, 2);
+  game.restart();
+  eq(game.speed, 2, 'скорость остаётся и в новой игре');
+});
+
+test('каждая сотая волна — победа: минута на экране, сама заканчивается, «!чатоборона-дальше» — ещё сто волн', () => {
+  const { game } = makeGame();
+  game.open();
+  say(game, 'Вера', 'привет');
+  toWave(game);
+  game.wave = SUMMIT_EVERY;
+  game.battle.spawns = [];
+  game.battle.mobs = [];
+  game.step(0.1);
+  eq(game.state, 'summit', 'после сотой волны — победа');
+  ok(game.events.some((e) => e.kind === 'summit' && e.wave === SUMMIT_EVERY));
+  ok(Math.abs(game.left - SUMMIT_TIME) < 0.2, 'минута');
+  eq(say(game, 'Вера', '!чатоборона-дальше'), null, 'зрителю нельзя');
+  eq(say(game, 'Мод', '!чатоборона-дальше', MOD), 'next');
+  eq(game.state, 'break', 'игра идёт дальше');
+  ok(until(game, () => game.state === 'wave'));
+  eq(game.wave, SUMMIT_EVERY + 1);
+  const other = makeGame().game;
+  other.open();
+  say(other, 'Гена', 'привет');
+  toWave(other);
+  other.wave = SUMMIT_EVERY * 2;
+  other.battle.spawns = [];
+  other.battle.mobs = [];
+  other.step(0.1);
+  eq(other.state, 'summit');
+  runFor(other, SUMMIT_TIME + 0.2);
+  ok(other.state === 'over' || other.state === 'ascend', 'не продолжили — итоги');
+  ok(other.results.victory && other.results.passed === SUMMIT_EVERY * 2, 'все двести волн засчитаны');
 });
 
 test('за пройденную волну всем — монеты и опыт', () => {

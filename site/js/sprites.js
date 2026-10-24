@@ -711,7 +711,8 @@ export const shieldSprite = () => remember('shield', () => {
   return p.outline('#0b1530').canvas();
 });
 
-const KIND_COLORS = { buff: '#4ade80', debuff: '#f87171', blessing: '#fbbf24', curse: '#c084fc', biome: '#7dd3fc' };
+const KIND_COLORS = { buff: '#4ade80', debuff: '#f87171', blessing: '#fbbf24', curse: '#c084fc', biome: '#7dd3fc',
+  resist: '#94a3b8' };
 
 const SYMBOLS = {
   grass(p) {
@@ -827,6 +828,14 @@ const SYMBOLS = {
     for (const [y, x] of [[11, 6], [8, 9], [5, 6]]) {
       p.oval(x, y, 4, 1.8, '#ffcd38', '#c98a12', '#fff2a8');
     }
+  },
+  resist(p) {
+    shape(p, (x, y) => {
+      const half = y < 8 ? 5.8 : 5.8 * (1 - (y - 8) / 7.6);
+      if (Math.abs(x - 8) > half || y < 2 || y > 15) return false;
+      return x < 8 ? 'light' : 'base';
+    }, '#7c6f64', '#3f3833', '#a8998a');
+    for (const dx of [-3, 0, 3]) p.line(6 + dx, 4, 9 + dx, 12, '#ef4444');
   },
   iron(p) {
     p.ball(8, 7, 5, '#e5e7eb', '#9ca3af');

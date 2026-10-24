@@ -1,5 +1,5 @@
 import { Scene } from './draw.js';
-import { CLASSES, CLASS_BY_ID, ROLES, STAT_IDS, STAT_NAMES, auraOf, describe, num, runeOf, statsOf }
+import { CLASSES, CLASS_BY_ID, PRIMARY, STAT_IDS, STAT_NAMES, auraOf, describe, num, runeOf, skillOf, statsOf }
   from './classes.js';
 import { coinUrl, crownUrl, effectUrl, flagCanvas, flagUrl, heroUrl, markUrl, particleSprite, particleUrl, prizeUrl,
   shieldUrl } from './sprites.js';
@@ -7,7 +7,7 @@ import { OUTCOMES, PRICE, RARITIES, SPIN_TIME, UPGRADE_PRICE, amountText, gearCo
   statName, statText, weaponName, weaponStats, weaponTitle } from './gacha.js';
 import { ASCEND_TIME } from './engine.js';
 import { effectOf } from './events.js';
-import { BIOME_RULES, LEVEL_MAX, LIVES, levelOf } from './balance.js';
+import { BIOME_RULES, LEVEL_MAX, LIVES, levelOf, resistOf } from './balance.js';
 import { SIZE, cellName } from './field.js';
 import { SFX_GAPS, play } from './sound.js';
 import { PAGES, pageAt } from './guide.js';
@@ -52,7 +52,8 @@ const BATTLE_SOUNDS = { wall: 'build', crumble: 'crumble', plant: 'plant', mine:
   hook: 'chain', yank: 'yank', charge: 'charge', reload: 'reload', ricochet: 'ricochet', burst: 'mine',
   rocket: 'launch', flash: 'flash', fogtoss: 'flask', fog: 'splash', ignite: 'ignite', oil: 'splash',
   oilfire: 'flame', net: 'snap', prey: 'prey', bounty: 'treasure', ambush: 'leap', cocoon: 'clink',
-  hatch: 'hatch', heist: 'jackpot', feast: 'clink', shatter: 'freeze', snow: 'snow', gust: 'wind', wind: 'wind',
+  hatch: 'hatch', heist: 'jackpot', share: 'treasure', feast: 'clink', shatter: 'freeze', snow: 'snow', gust: 'wind',
+  wind: 'wind',
   thorns: 'rock' };
 const GOOD_EVENTS = new Set(['buff', 'blessing']);
 const COIN_FINDS = { handful: ' находит горстку монет', bag: ' находит мешок монет!',
@@ -66,13 +67,17 @@ const STATUS = {
   break: 'Подготовка',
   over: 'Оборона пала',
   ascend: 'Парагон!',
+  summit: 'Победа!',
 };
+const EFFECTS_SHOWN = 3;
+const EFFECT_HOLD = 4;
+const EFFECT_SLIDE = 0.6;
 const RULES = [
   ['Напиши что угодно', '— и ты в отряде'],
   ['К7', '— встать на клетку'],
-  ['гача', '— оружие за ' + PRICE + ' монет'],
+  ['гача', '— оружие, монеты или руна за ' + PRICE + ' монет'],
   ['профиль', '— твоя карточка, проф — короткая'],
-  ['улучшить', '— +20% к случайному свойству оружия за ' + UPGRADE_PRICE + ' монет'],
+  ['улучшить', '— +20% к случайному стату оружия за ' + UPGRADE_PRICE + ' монет, «улучшить сила» — к силе'],
   ['реролл', '— другой класс, один раз до первой волны'],
 ];
 
@@ -87,7 +92,7 @@ function el(tag, className, text) {
 
 function guidePart(part) {
   if (typeof part === 'string') return part;
-  if (part.role) return el('i', 'role ' + part.role, ROLES[part.role]);
+  if (part.primary) return el('i', 'role ' + part.primary, PRIMARY[part.primary]);
   const node = el(part.bold ? 'b' : 'span', '', part.text);
   if (part.color) node.style.color = part.color;
   return node;
@@ -127,12 +132,17 @@ function reachOf(member) {
   return (cls.base.range || 0) + auraOf(cls, statsOfMember(member));
 }
 
-function statsLine(stats) {
+function statsLine(cls, stats) {
   const line = el('div', 'stat-line');
   STAT_IDS.forEach((id, i) => {
     if (i) line.append(' · ');
-    line.append(STAT_NAMES[id] + ' ', el('b', '', num(stats[id])));
+    const pair = el('span', 'pair');
+    pair.append(el('span', id === cls.primary ? 'key' : '', STAT_NAMES[id] + ' '), el('b', '', num(stats[id])));
+    line.append(pair);
   });
+  const skill = el('span', 'pair');
+  skill.append('способности ', el('b', 'key', '×' + num(skillOf(cls, stats))));
+  line.append(' · ', skill);
   return line;
 }
 
@@ -274,7 +284,9 @@ export class View {
     hint.textContent = 'Пиши в чат — и ты в игре:';
     const line = el('span', 'group');
     RULES.slice(1).forEach(([command], i) => line.append(i ? ' · ' : '', el('b', '', command)));
-    hint.append(line);
+    const upgrade = el('span', 'group wrap');
+    upgrade.append(el('b', '', 'улучшить'), ' сила / ловкость / интеллект / мастерство');
+    hint.append(line, upgrade);
     this._keys = {};
   }
 
@@ -427,6 +439,9 @@ export class View {
       if (event.kind === 'event') this._cue(GOOD_EVENTS.has(event.type) ? 'buff' : 'debuff');
       if (event.kind === 'wave') this._cue(event.wave % BOSS_EVERY === 0 ? 'boss' : 'wave');
       if (event.kind === 'over') this._cue('over');
+      if (event.kind === 'summit') this._cue('win');
+      if (event.kind === 'onward') this._cue('wave');
+      if (event.kind === 'speed') this._cue('card');
       if (event.kind === 'spin') this._cue('spin');
     }
     game.events.length = 0;
@@ -693,6 +708,7 @@ export class View {
       text = giant ? giant.kind.name : 'Босс!';
     }
     if (game.paused) text = 'Пауза';
+    if (game.speed > 1 && !game.paused) text += ' · ×' + game.speed;
     status.textContent = text;
     status.classList.toggle('boss', boss);
     const clock = $('clock');
@@ -712,12 +728,12 @@ export class View {
     }
     this._lives = lives;
     $('lobby').hidden = game.state !== 'lobby';
-    $('over').hidden = game.state !== 'over';
+    $('over').hidden = game.state !== 'over' && game.state !== 'summit';
     const rules = state === 'paused' && game.rulesShown;
     $('pause').hidden = state !== 'paused' || rules;
     $('rules-board').hidden = !rules;
     if (game.state === 'lobby') this._paintLobby(game, still);
-    if (game.state === 'over') this._paintOver(game);
+    if (game.state === 'over' || game.state === 'summit') this._paintOver(game);
     if (state === 'paused' && !rules) this._paintPause(game);
     this._paintSlots(game);
     this._paintEffects(game);
@@ -766,7 +782,7 @@ export class View {
       for (const cls of shown) {
         const item = el('div', 'cls'), text = el('div'), name = el('b', '', cls.name);
         name.style.color = cls.color;
-        name.append(el('i', 'role ' + cls.role, ROLES[cls.role]));
+        name.append(el('i', 'role ' + cls.primary, PRIMARY[cls.primary]));
         text.append(name, cls.summary);
         item.append(image(heroUrl(cls.id)), text);
         box.append(item);
@@ -805,11 +821,18 @@ export class View {
   }
 
   _paintOver(game) {
-    const results = game.results;
-    $('over-next').textContent = 'Новая игра через ' + clockText(game.left);
-    this._once('over', JSON.stringify(results), () => {
+    const summit = game.state === 'summit';
+    const results = summit ? { passed: game.wave, victory: true, rows: Array.from(game.members.values())
+      .filter((m) => m.tower).map((m) => ({ login: m.login, name: m.name, kills: m.tower.run.kills,
+        assists: m.tower.run.assists })) } : game.results;
+    $('over-next').textContent = summit ? 'Игра завершится сама через ' + clockText(game.left) + '. Хотите испытать '
+      + 'себя и продолжить — напишите !чатоборона-дальше' : 'Новая игра через ' + clockText(game.left);
+    this._once('over', JSON.stringify([summit, results]), () => {
+      $('over-title').textContent = results.victory ? 'Победа!' : 'Оборона пала';
+      $('over').classList.toggle('win', Boolean(results.victory));
       const passed = $('passed');
-      passed.textContent = 'Пройдено волн: ' + results.passed;
+      passed.textContent = summit ? 'Вы прошли ' + results.passed + ' волн — поздравляем!'
+        : 'Пройдено волн: ' + results.passed;
       if (results.record) passed.append(el('span', 'badge', 'Новый рекорд!'));
       for (const [id, field] of [['over-kills', 'kills'], ['over-assists', 'assists']]) {
         const rows = results.rows.filter((r) => r[field] > 0).sort((a, b) => b[field] - a[field]).slice(0, ROWS.over);
@@ -973,21 +996,51 @@ export class View {
     const run = game.run || { now: [], next: [], effects: [] };
     const lasting = run.effects.map((e) => Object.assign({ kind: e.kind }, effectOf(e.kind, e.id)));
     const biome = game.battle && game.state !== 'over' ? game.battle.biome : '', rules = BIOME_RULES[biome];
+    const resist = biome ? Math.round(resistOf(game.wave) * 100) : 0;
     const rows = (rules ? [['карта', { kind: 'biome', id: biome, name: rules.name, text: rules.text }]] : [])
-      .concat(run.now.map((e) => ['сейчас', e]), run.next.map((e) => ['дальше', e]),
-        lasting.map((e) => ['до конца', e]));
-    this._once('effects', JSON.stringify(rows.map(([when, e]) => when + e.kind + e.id)), () => {
-      const box = $('effects');
+      .concat(resist ? [['мобы', { kind: 'resist', id: 'resist', name: 'Закалка', text: 'оглушения, замедления, '
+        + 'отбрасывания и уязвимость на ' + resist + '% слабее' }]] : [], run.now.map((e) => ['сейчас', e]),
+      run.next.map((e) => ['дальше', e]), lasting.map((e) => ['до конца', e]));
+    this._once('effects', JSON.stringify(rows.map(([when, e]) => when + e.kind + e.id + e.text)), () => {
+      const box = $('effects'), track = el('div', 'track');
       box.textContent = '';
+      box.style.height = '';
       for (const [when, effect] of rows) {
         const row = el('div', 'effect ' + effect.kind), text = el('span'), name = el('b', '', effect.name);
         if (effect.kind === 'biome') name.style.color = BIOME_GLOW[effect.id];
         text.append(name, ' ' + effect.text);
         row.append(image(effectUrl(effect.kind, effect.id, 36)), el('i', 'when', when), text);
-        box.append(row);
+        track.append(row);
       }
+      box.append(track);
+      this._effectsTurn = { at: this.clock, sliding: false };
       if (!rows.length) box.append(el('div', 'empty', 'Пока нет. Перед волной может выпасть бафф или дебафф на всех.'));
     });
+    this._turnEffects();
+  }
+
+  _turnEffects() {
+    const box = $('effects'), track = box.querySelector('.track'), turn = this._effectsTurn;
+    if (!track || !turn) return;
+    const rows = Array.from(track.children);
+    if (rows.length <= EFFECTS_SHOWN) {
+      box.style.height = '';
+      return;
+    }
+    if (turn.sliding && this.clock - turn.at >= EFFECT_SLIDE) {
+      track.style.transition = 'none';
+      track.append(rows[0]);
+      track.style.transform = '';
+      turn.sliding = false;
+      turn.at = this.clock;
+    } else if (!turn.sliding && this.clock - turn.at >= EFFECT_HOLD) {
+      track.style.transition = 'transform ' + EFFECT_SLIDE + 's ease';
+      track.style.transform = 'translateY(' + -track.children[0].offsetHeight + 'px)';
+      turn.sliding = true;
+      turn.at = this.clock;
+    }
+    const first = turn.sliding ? 1 : 0, shown = Array.from(track.children).slice(first, first + EFFECTS_SHOWN);
+    box.style.height = shown.reduce((sum, row) => sum + row.offsetHeight, 0) + 'px';
   }
 
   _paintPlayers(game) {
@@ -1103,7 +1156,9 @@ export class View {
         const rider = Boolean(tower && tower.rider), seat = rider ? tower.host : tower;
         spot.hidden = !seat;
         spotText.textContent = seat ? cellName(Math.floor(seat.x), Math.floor(seat.y)) : '';
-        reachText.textContent = num(reachOf(m));
+        const range = tower && tower.cocoon ? 0 : reachOf(m);
+        reach.hidden = !range;
+        reachText.textContent = num(range);
         const level = levelOf(m.xp);
         lvl.textContent = '';
         if (m.paragon) lvl.append(paragonTag(m.paragon));
@@ -1118,9 +1173,9 @@ export class View {
           const cls = CLASS_BY_ID.get(m.cls), info = describe(m.cls, level, stats.mas), kind = el('div', 'line');
           const clsName = el('b', '', cls.name);
           clsName.style.color = cls.color;
-          kind.append(clsName, el('i', 'role ' + cls.role, ROLES[cls.role]), brief ? '' : ' ' + info.main);
+          kind.append(clsName, el('i', 'role ' + cls.primary, PRIMARY[cls.primary]), brief ? '' : ' ' + info.main);
           body.textContent = '';
-          body.append(kind, statsLine(stats));
+          body.append(kind, statsLine(cls, stats));
           if (!brief) for (const perk of info.perks) {
             const line = el('div', 'perk' + (perk.open ? '' : ' locked'));
             line.append(el('i', '', perk.open ? '★' : perk.at + ' ур.'), ' ', el('b', '', perk.name), ': ' + perk.text);
