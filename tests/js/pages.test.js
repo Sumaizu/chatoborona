@@ -121,7 +121,7 @@ test('страницы: ядерка — свист в полёте, взрыв 
   frame.remove();
 });
 
-test('страницы: сотый уровень — поздравление с конфетти, вместо числа корона', async () => {
+test('страницы: сотый уровень — поздравление с конфетти, уровень числом', async () => {
   fresh();
   const frame = await overlay('lobby=10&first_wave=5');
   const w = frame.contentWindow, game = w.chatoborona.game;
@@ -136,6 +136,25 @@ test('страницы: сотый уровень — поздравление �
   ok(text(w, 'cheer-box').includes('100 уровень') && text(w, 'cheer-box').includes('Аня'));
   await until(() => text(w, 'players').includes('ур. 100'), 'в отряде — «ур. 100» на плашке, без короны');
   no(w.document.querySelector('#players .lvl img.crown'));
+  frame.remove();
+});
+
+test('страницы: ускорение — заметная плашка «×2», «×3» в шапке; без ускорения её нет', async () => {
+  fresh();
+  const frame = await overlay('lobby=10&first_wave=5');
+  const w = frame.contentWindow, game = w.chatoborona.game;
+  await until(() => game.state === 'lobby', 'набор');
+  join(game, 'Аня');
+  await wait(300);
+  ok(element(w, 'speed').hidden, 'без ускорения плашки нет');
+  game.feed('Мод', 'ускорить', { login: 'мод', mod: true });
+  await until(() => !element(w, 'speed').hidden && text(w, 'speed') === '×2', 'плашка ×2');
+  game.feed('Мод', 'ускорить', { login: 'мод', mod: true });
+  await until(() => text(w, 'speed') === '×3' && element(w, 'speed').classList.contains('x3'), 'плашка ×3');
+  no(text(w, 'status').includes('×'), 'в строке состояния не повторяется');
+  game.feed('Мод', 'замедлить', { login: 'мод', mod: true });
+  game.feed('Мод', 'замедлить', { login: 'мод', mod: true });
+  await until(() => element(w, 'speed').hidden, 'скорость обычная — плашка пропала');
   frame.remove();
 });
 

@@ -891,6 +891,21 @@ test('стример переставляет защитников «А1 Б2»; 
   eq(gosha.pendingMove, { x: next.x, y: next.y });
 });
 
+test('стример открывает чужую карточку: «@ник профиль», «@ник проф» — короткую; зрителям так нельзя', () => {
+  const { game } = makeGame({ settings: { channel: 'streamer' } });
+  game.open();
+  say(game, 'Гоша', 'привет');
+  say(game, 'Лиза', 'привет');
+  const shown = () => game.notes.filter((n) => n.kind === 'card').map((n) => [n.login, n.detail.brief]);
+  eq(say(game, 'Лиза', '@Гоша профиль'), null, 'зрителю нельзя');
+  eq(shown(), []);
+  eq(game.feed('Streamer', '@Гоша профиль', { login: 'streamer' }), 'card');
+  eq(shown(), [['гоша', false]]);
+  eq(game.feed('Streamer', '@лиза, проф', { login: 'streamer' }), 'card');
+  eq(shown(), [['гоша', false], ['лиза', true]]);
+  eq(game.feed('Streamer', '@никого профиль', { login: 'streamer' }), null, 'такого игрока нет');
+});
+
 test('команда !чатоборона: правила на экране и пауза, «!чатоборона-пауза» продолжает; зрителям нельзя', () => {
   const { game } = makeGame();
   game.open();

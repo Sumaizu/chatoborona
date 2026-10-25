@@ -1988,7 +1988,8 @@ function explode(b, t, x, y, crit, chance) {
   if (open(t, 0)) {
     const s = t.s[0], wide = t.runes.has('napalm') ? 2 : 1;
     b.patches = b.patches.filter((patch) => patch.tower !== t || !near(patch, x, y, 0.2));
-    b.patches.push({ tower: t, x, y, radius: s.radius * wide, dps: t.skill * s.dps, until: b.time + s.time });
+    b.patches.push({ tower: t, x, y, radius: s.radius * wide, dps: t.skill * s.dps, until: b.time + s.time,
+      born: b.time });
   }
   if (open(t, 1) && b.random() < chance) b._later(ECHO_DELAY, () => explode(b, t, x, y, crit, chance / 2), t);
 }

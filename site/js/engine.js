@@ -356,6 +356,9 @@ export class Game {
     const amount = words.slice(1).find((part) => /^\d+$/.test(part) || part === 'все' || part === 'всё');
     const stat = words.slice(1).map((part) => STAT_WORDS.get(part)).find(Boolean) || null;
     const control = COMMANDS.get(word) || SPEED_WORDS.get(word.replace(/^!/, ''));
+    const owner = Boolean(this.s.channel) && login === this.s.channel;
+    const other = owner && word[0] === '@' ? this._named(word.slice(1).replace(/[,:]+$/, '')) : null;
+    const asked = other ? ACTIONS.get((words[1] || '').replace(/^!/, '')) : null;
     const all = amount === 'все' || amount === 'всё', count = all ? Infinity : Math.max(1, Number(amount) || 1);
     const member = this.join(login, name, { color, cell: cell && this.movable ? cell : null });
     let done = null;
@@ -363,6 +366,8 @@ export class Game {
       done = mod && this.s.chat_commands ? this._control(control) : null;
     } else if (action === 'spin') {
       done = this.order(member, Math.min(SPIN_LIMIT, count));
+    } else if (asked === 'card' || asked === 'brief') {
+      done = this._card(other, asked === 'brief');
     } else if (action === 'card' || action === 'brief') {
       done = member ? this._card(member, action === 'brief') : null;
     } else if (action === 'reroll') {
@@ -371,10 +376,15 @@ export class Game {
       done = this.improve(member, count, stat);
     } else if (cell) {
       done = this.goTo(member, cell.x, cell.y) ? 'move' : this._later(member, cell);
-    } else if (move && this.s.channel && login === this.s.channel) {
+    } else if (move && owner) {
       done = this._shift(move.from, move.to);
     }
     return done;
+  }
+
+  _named(nick) {
+    return this.members.get(nick) || Array.from(this.members.values()).find((m) => m.name.toLowerCase() === nick)
+      || null;
   }
 
   get movable() {

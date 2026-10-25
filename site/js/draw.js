@@ -251,6 +251,17 @@ function glow(ctx, x, y, r, color, strength) {
   ctx.globalAlpha = 1;
 }
 
+function rim(ctx, x, y, r, rgb, alpha) {
+  const fill = ctx.createRadialGradient(x, y, r * 0.78, x, y, r * 1.04);
+  fill.addColorStop(0, 'rgba(' + rgb + ', 0)');
+  fill.addColorStop(0.82, 'rgba(' + rgb + ', ' + alpha + ')');
+  fill.addColorStop(1, 'rgba(' + rgb + ', 0)');
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.arc(x, y, r * 1.04, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 function sparkle(ctx, x, y, arm, color) {
   square(ctx, x, y, 2, color);
   for (let i = 1; i <= arm; i++) {
@@ -407,34 +418,51 @@ export class Scene {
     const fresh = still ? [] : battle.events.splice(0);
     for (const event of fresh) this._effect(event);
     const step = still ? 0 : dt;
-    this._storms(ctx, battle);
-    this._patches(ctx, battle);
-    this._grounds(ctx, battle);
-    this._oils(ctx, battle);
-    this._puddles(ctx, battle);
-    this._decals(ctx, step);
+    this._onField(ctx, () => {
+      this._storms(ctx, battle);
+      this._patches(ctx, battle);
+      this._grounds(ctx, battle);
+      this._oils(ctx, battle);
+      this._puddles(ctx, battle);
+      this._decals(ctx, step);
+    });
     this._corpses(ctx, step);
     this._mines(ctx, battle);
     this._traps(ctx, battle);
     this._layer(ctx, this.peaks);
-    this._glints(ctx, battle);
-    if (ranges && ranges.size) this._ranges(ctx, battle, ranges);
+    this._onField(ctx, () => {
+      this._glints(ctx, battle);
+      if (ranges && ranges.size) this._ranges(ctx, battle, ranges);
+    });
     this._walls(ctx, battle, still);
     this._base(ctx, battle);
     this._mobs(ctx, battle, dt, still);
-    this._fogs(ctx, battle);
+    this._onField(ctx, () => this._fogs(ctx, battle));
     this._layer(ctx, this.roof);
     this._gates(ctx, battle);
-    this._flames(ctx, battle);
-    this._whirls(ctx, battle);
+    this._onField(ctx, () => {
+      this._flames(ctx, battle);
+      this._whirls(ctx, battle);
+    });
     this._towers(ctx, battle, dt, highlight, still);
     this._charges(ctx, battle);
     this._hooks(ctx, battle);
-    this._effects(ctx, step);
-    this._ambient(ctx, battle);
+    this._onField(ctx, () => {
+      this._effects(ctx, step);
+      this._ambient(ctx, battle);
+    });
     if (names) this._names(ctx, battle, names, highlight);
     this._mobTops(ctx, battle);
     return fresh;
+  }
+
+  _onField(ctx, paint) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(EDGE, EDGE, CELL * SIZE, CELL * SIZE);
+    ctx.clip();
+    paint();
+    ctx.restore();
   }
 
   _glints(ctx, battle) {
@@ -621,29 +649,49 @@ export class Scene {
   _bannerOn(ctx, t, now) {
     const x = at(t.cx), y = at(t.cy), r = (t.cls.base.banner + t.reach) * CELL, cheer = t.cheerUntil > now;
     const pulse = 0.5 + 0.5 * Math.sin(this.clock * (cheer ? 7 : 2) + t.x);
-    glow(ctx, x, y, r, cheer ? 'rgba(255, 70, 140, .9)' : 'rgba(236, 72, 153, .7)', (cheer ? 0.22 : 0.08)
+    glow(ctx, x, y, r, cheer ? 'rgba(255, 70, 140, .9)' : 'rgba(236, 72, 153, .7)', (cheer ? 0.22 : 0.1)
       + 0.05 * pulse);
+    rim(ctx, x, y, r, cheer ? '255, 138, 196' : '244, 114, 182', cheer ? 0.6 : 0.38);
     ctx.save();
-    ctx.globalAlpha = cheer ? 0.75 : 0.35;
-    ctx.strokeStyle = cheer ? '#ff8ac4' : '#f472b6';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([6, 7]);
-    ctx.lineDashOffset = -this.clock * 12;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 3; i++) {
+      const k = (this.clock * (cheer ? 0.9 : 0.45) + i / 3) % 1;
+      rim(ctx, x, y, r * (0.2 + 0.8 * k), '249, 168, 212', (1 - k) * (cheer ? 0.6 : 0.35));
+    }
+    for (let i = 0; i < 10; i++) {
+      const k = (this.clock * 0.4 + noise(i, 23)) % 1, a = i * 2.4 + t.y, d = r * (0.55 + 0.4 * noise(i + 3, 23));
+      ctx.globalAlpha = Math.sin(k * Math.PI) * 0.8;
+      square(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d - k * 14, 2, i % 2 ? '#fdf2f8' : '#f472b6');
+    }
     ctx.restore();
   }
 
   _circleOn(ctx, t) {
     const x = at(t.cx), y = at(t.cy), r = (t.cls.base.circle + t.reach) * CELL;
-    glow(ctx, x, y, r, 'rgba(168, 85, 247, .7)', 0.07 + 0.03 * Math.sin(this.clock * 1.5 + t.y));
-    for (let i = 0; i < 5; i++) {
-      const a = this.clock * 0.5 + i * Math.PI * 2 / 5, k = (this.clock * 0.3 + i / 5) % 1;
-      ctx.globalAlpha = 0.6 * Math.sin(k * Math.PI);
-      square(ctx, x + Math.cos(a) * r * 0.85, y + Math.sin(a) * r * 0.85 - k * 8, 2, i % 2 ? '#e9d5ff' : '#c084fc');
+    glow(ctx, x, y, r, 'rgba(168, 85, 247, .8)', 0.14 + 0.05 * Math.sin(this.clock * 1.5 + t.y));
+    rim(ctx, x, y, r, '192, 132, 252', 0.42);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#d8b4fe';
+    for (let i = 0; i < 3; i++) {
+      const a = this.clock * 0.9 + i * Math.PI * 2 / 3;
+      for (let k = 0; k < 6; k++) {
+        ctx.globalAlpha = 0.75 * (1 - k / 6);
+        ctx.lineWidth = 3 - k * 0.4;
+        ctx.beginPath();
+        ctx.arc(x, y, r * 0.96, a - (k + 1) * 0.09, a - k * 0.09);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      square(ctx, x + Math.cos(a) * r * 0.96, y + Math.sin(a) * r * 0.96, 3, '#f3e8ff');
     }
-    ctx.globalAlpha = 1;
+    for (let i = 0; i < 12; i++) {
+      const k = (this.clock * 0.3 + noise(i, 31)) % 1, a = i * 2.4 + t.x, d = r * (0.2 + 0.75 * noise(i + 5, 31));
+      ctx.globalAlpha = 0.75 * Math.sin(k * Math.PI);
+      square(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d - k * 12, 2, i % 2 ? '#f3e8ff' : '#c084fc');
+    }
+    ctx.restore();
   }
 
   _grounds(ctx, battle) {
@@ -764,14 +812,22 @@ export class Scene {
   }
 
   _patches(ctx, battle) {
+    const now = battle.time;
     for (const patch of battle.patches) {
       const x = at(patch.x), y = at(patch.y), r = patch.radius * CELL;
-      glow(ctx, x, y, r, 'rgba(251, 146, 60, .8)', 0.45);
-      for (let i = 0; i < 7; i++) {
-        const a = i * 2.4 + patch.x * 3, d = r * (0.25 + (i % 3) * 0.22);
-        const flicker = Math.sin(this.clock * 14 + i * 2) > 0;
-        square(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d - (flicker ? 1 : 0), 2, flicker ? '#ffd84a' : '#ff6a1f');
+      const seed = Math.round(patch.x * 7 + patch.y * 13) % 9;
+      const fade = Math.max(0, Math.min(1, (now - patch.born) / 0.25, (patch.until - now) / 0.8));
+      glow(ctx, x, y, r * 1.05, 'rgba(40, 14, 6, .9)', 0.55 * fade);
+      glow(ctx, x, y, r * 1.25, 'rgba(255, 110, 30, .9)', 0.8 * fade);
+      glow(ctx, x, y, r * 0.6, 'rgba(255, 220, 120, .9)', (0.5 + 0.15 * Math.sin(this.clock * 9 + seed)) * fade);
+      for (let i = 0, count = Math.round(20 + r * 0.8); i < count; i++) {
+        const a = i * 2.39 + seed, d = r * 0.85 * Math.sqrt(noise(i, seed + 40));
+        const rise = (this.clock * 2.2 + noise(i + 9, seed + 40)) % 1;
+        ctx.globalAlpha = fade * (1 - rise * 0.7);
+        square(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8 - rise * 14, rise < 0.35 ? 4 : 3,
+          FLAME[Math.min(FLAME.length - 1, Math.floor(rise * FLAME.length))]);
       }
+      ctx.globalAlpha = 1;
     }
   }
 

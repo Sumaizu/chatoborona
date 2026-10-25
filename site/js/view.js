@@ -758,8 +758,11 @@ export class View {
       text = giant ? giant.kind.name : 'Босс!';
     }
     if (game.paused) text = 'Пауза';
-    if (game.speed > 1 && !game.paused) text += ' · ×' + game.speed;
     status.textContent = text;
+    const speed = $('speed');
+    speed.hidden = game.speed <= 1 || game.paused;
+    speed.textContent = '×' + game.speed;
+    speed.classList.toggle('x3', game.speed >= 3);
     status.classList.toggle('boss', boss);
     const clock = $('clock');
     clock.classList.toggle('mobs', fighting);
