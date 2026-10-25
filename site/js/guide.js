@@ -1,6 +1,6 @@
 import { CLASSES, cells } from './classes.js';
 import { ASSIST_COINS, KILL_COINS, OUTCOMES, PRICE, RARITIES, UPGRADE_PRICE, UPGRADE_SHARE } from './gacha.js';
-import { BIOME_RULES, ELITE_ODDS, LEVEL_MAX, LIVES, MOBS, TERRAIN } from './balance.js';
+import { BIOME_RULES, ELITE_ODDS, LEVEL_MAX, LIVES, MOBS, REWARD, TERRAIN } from './balance.js';
 import { coinUrl, commandUrl, effectUrl, heartUrl, heroUrl, mobUrl, prizeUrl } from './sprites.js';
 
 const bold = (text) => ({ text, bold: true });
@@ -55,7 +55,7 @@ export const PAGES = [
     time: 18,
     points: () => [
       [coinUrl(), ['За убийство моба — ' + KILL_COINS + ' монеты, за помощь — ' + ASSIST_COINS + '. За каждую '
-        + 'пройденную волну всем ещё монеты и опыт.']],
+        + 'волну — ещё монеты, опыт и +' + Math.round(REWARD.income * 100) + '% к твоим монетам.']],
       [prizeUrl('weapon', RARITIES[RARITIES.length - 1].color), [bold('гача'), ' — крутка за ' + PRICE
         + ' монет: оружие под твой класс (', bold('гача 3'), ' — три, ', bold('гача все'), ' — на все монеты, '
         + 'до пяти за раз). Редкость видна по цвету: ']

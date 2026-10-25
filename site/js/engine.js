@@ -1,7 +1,7 @@
 import { Battle } from './battle.js';
 import { makeMap, parseCell, parseMove } from './field.js';
 import { CLASSES, CLASS_BY_ID } from './classes.js';
-import { LEVEL_MAX, TICK, levelOf, waveReward } from './balance.js';
+import { LEVEL_MAX, REWARD, TICK, levelOf, waveReward } from './balance.js';
 import { DIVINE, EXTRA_SLOTS, PRICE, QUEUE_CAP, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, UPGRADE_PRICE, rankOf,
   spin, upgrade, weaponStats } from './gacha.js';
 import { LASTING, effectOf, rollEvent } from './events.js';
@@ -644,6 +644,7 @@ export class Game {
   }
 
   _endWave() {
+    const savings = new Map(Array.from(this.members.values(), (member) => [member, member.coins]));
     this.battle.endWave();
     if (this.run.now.length) {
       this.run.now = [];
@@ -652,8 +653,9 @@ export class Game {
     const reward = waveReward(this.wave);
     for (const member of this.members.values()) {
       if (!member.tower) continue;
-      member.coins += reward.coins;
-      member.tower.run.coins += reward.coins;
+      const coins = reward.coins + Math.floor(savings.get(member) * REWARD.income);
+      member.coins += coins;
+      member.tower.run.coins += coins;
       this.battle.reward(member.tower, reward.xp);
     }
     this._saveAll();
@@ -671,7 +673,7 @@ export class Game {
       this.goTo(member, member.pendingMove.x, member.pendingMove.y);
       member.pendingMove = null;
     }
-    this._emit('cleared', { wave: this.wave, coins: reward.coins, xp: reward.xp });
+    this._emit('cleared', { wave: this.wave, coins: reward.coins, income: REWARD.income, xp: reward.xp });
     if (this.wave % SUMMIT_EVERY === 0) {
       this.state = 'summit';
       this.left = SUMMIT_TIME;

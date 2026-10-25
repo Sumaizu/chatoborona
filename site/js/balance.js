@@ -138,7 +138,7 @@ export const MIMIC = { id: 'mimic', name: 'Мимик', power: 'treasure', glow:
 
 export const ELITE_ODDS = { from: 3, base: 0.15, step: 0.012, top: 0.7, fall: 0.45, max: 4 };
 
-export const REWARD = { coins: 4, coinsStep: 0.6, xp: 1, xpStep: 0.1 };
+export const REWARD = { coins: 4, coinsStep: 0.6, xp: 1, xpStep: 0.1, income: 0.1 };
 
 export const ELITES = [
   { id: 'leader', name: 'Вожак', power: 'dash', glow: '#facc15' },

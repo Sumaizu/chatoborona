@@ -2,7 +2,7 @@ import { test, eq, ok, no } from './harness.js';
 import { PLAIN, makeGame, memoryStorage, runFor, seeded, until } from './fixtures.js';
 import { ASCEND_TIME, CARD_MIN, CARD_ROOM, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPEED_MAX,
   SPIN_LIMIT, SUMMIT_EVERY, SUMMIT_TIME, SUPPORTS, SUPPORT_EVERY, nextReset } from '../../site/js/engine.js';
-import { FAMILY_BY_ID, LEVEL_MAX, TICK, xpForLevel } from '../../site/js/balance.js';
+import { FAMILY_BY_ID, LEVEL_MAX, REWARD, TICK, waveReward, xpForLevel } from '../../site/js/balance.js';
 import { ASCEND_AT, EXTRA_SLOTS, PRICE, QUEUE_CAP, RARITIES, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, ascend,
   makeWeapon, weaponName, weaponStats } from '../../site/js/gacha.js';
 import { CLASSES, CLASS_BY_ID } from '../../site/js/classes.js';
@@ -640,6 +640,33 @@ test('каждая сотая волна — победа: минута на э�
   runFor(other, SUMMIT_TIME + 0.2);
   ok(other.state === 'over' || other.state === 'ascend', 'не продолжили — итоги');
   ok(other.results.victory && other.results.passed === SUMMIT_EVERY * 2, 'все двести волн засчитаны');
+});
+
+test('доход: после волны — ещё 10% от монет, что были до награды, вниз до целой монеты', () => {
+  const { game } = makeGame();
+  game.open();
+  say(game, 'Тёма', 'привет');
+  say(game, 'Яна', 'привет');
+  say(game, 'Паша', 'привет');
+  const tema = game.members.get('тёма'), yana = game.members.get('яна'), pasha = game.members.get('паша');
+  tema.cls = 'sniper';
+  yana.cls = 'gunner';
+  pasha.cls = 'parasite';
+  toWave(game);
+  pasha.coins = 100;
+  tema.coins = 205;
+  yana.coins = 9;
+  const reward = waveReward(game.wave).coins;
+  game.events.length = 0;
+  game.battle.events.length = 0;
+  game._endWave();
+  eq(tema.coins, 205 + reward + 20);
+  eq(yana.coins, 9 + reward, 'меньше 10 монет — дохода нет');
+  const cocoon = game.battle.events.find((e) => e.kind === 'cocoon' && e.tower === pasha.tower);
+  ok(cocoon, 'паразит в коконе получил монеты за волну');
+  eq(pasha.coins, 100 + cocoon.coins + reward + 10, 'доход — с монет до всех начислений за волну');
+  eq(REWARD.income, 0.1);
+  ok(game.events.some((e) => e.kind === 'cleared' && e.income === REWARD.income));
 });
 
 test('за пройденную волну всем — монеты и опыт', () => {

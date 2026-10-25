@@ -474,8 +474,9 @@ export class View {
       if (event.kind === 'cleared') {
         this._cue('reward');
         const coins = plural(event.coins, 'монета', 'монеты', 'монет');
-        this.scene.say('Волна ' + event.wave + ' пройдена: всем +' + event.coins + ' ' + coins + ' и +'
-          + String(event.xp).replace('.', ',') + ' опыта', '#fde047');
+        this.scene.say('Волна ' + event.wave + ' пройдена: всем +' + event.coins + ' ' + coins + ', +'
+          + Math.round(event.income * 100) + '% к своим монетам и +' + String(event.xp).replace('.', ',') + ' опыта',
+          '#fde047');
       }
       if (event.kind === 'event') this._cue(GOOD_EVENTS.has(event.type) ? 'buff' : 'debuff');
       if (event.kind === 'wave') this._cue(event.wave % BOSS_EVERY === 0 ? 'boss' : 'wave');
