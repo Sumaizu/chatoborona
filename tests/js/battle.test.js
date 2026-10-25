@@ -253,6 +253,21 @@ test('мобы: элитные и боссы появляются с навык�
   for (const kind of ELITES.concat(BOSSES)) ok(POWERS[kind.power], kind.id);
 });
 
+test('мобы: босс объявляется каждый раз, золотой элитный — при первой встрече вида, серебряный — при первом свойстве', () => {
+  const battle = makeBattle(), arrived = () => battle.events.filter((e) => e.kind === 'arrive').length;
+  special(battle, 'elite', 'vampire');
+  special(battle, 'elite', 'vampire');
+  eq(arrived(), 1, 'второй такой же элитный — без объявления');
+  special(battle, 'elite', ELITES.find((k) => k.id !== 'vampire').id);
+  eq(arrived(), 2, 'новый вид — с объявлением');
+  special(battle, 'boss', 'crusher');
+  special(battle, 'boss', 'crusher');
+  eq(arrived(), 4, 'босс — каждый раз');
+  const silvers = () => battle.events.filter((e) => e.kind === 'silver').length;
+  for (let i = 0; i < 2; i++) battle._spawn({ type: 'normal', hp: 100, silver: AFFIXES[0] }, 3);
+  eq(silvers(), 1, 'свойство серебряного — один раз');
+});
+
 test('мобы: броня режет урон, щит не пускает урон совсем', () => {
   const battle = makeBattle(), t = battle.place(player(), 'gunner', 2, 4);
   const knight = special(battle, 'elite', 'knight');

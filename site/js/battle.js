@@ -567,8 +567,10 @@ export class Battle {
     };
     this._locate(mob);
     this.mobs.push(mob);
-    if (kind) this._event({ kind: 'arrive', mob });
-    else if (silver && !this.met.has('silver:' + silver.id)) {
+    if (kind) {
+      if (mob.info.boss || !this.met.has('kind:' + kind.id)) this._event({ kind: 'arrive', mob });
+      this.met.add('kind:' + kind.id);
+    } else if (silver && !this.met.has('silver:' + silver.id)) {
       this.met.add('silver:' + silver.id);
       this._event({ kind: 'silver', mob, affix: silver });
     } else if (spawn.look && spawn.look.text && !this.met.has(spawn.look.id)) {
