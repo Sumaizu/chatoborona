@@ -1,13 +1,13 @@
 import { Scene } from './draw.js';
-import { CLASSES, CLASS_BY_ID, MARKS, PRIMARY, STAT_IDS, describe, num, powerOf, runeOf, statsOf }
+import { CLASSES, CLASS_BY_ID, describe, mightOf, runeOf }
   from './classes.js';
 import { coinUrl, effectUrl, flagCanvas, flagUrl, heroUrl, markUrl, particleSprite, particleUrl, prizeUrl,
-  shieldUrl, statUrl } from './sprites.js';
-import { ASCEND_AT, EXTRA_SLOTS, OUTCOMES, PRICE, RARITIES, SLOTS, SPIN_TIME, UPGRADE_PRICE, UPGRADE_SHARE, amountText,
-  gearColor, outcomeOf, rarityOf, weaponName, weaponStats, weaponTitle } from './gacha.js';
+  mightUrl, shieldUrl } from './sprites.js';
+import { ASCEND_AT, EXTRA_SLOTS, OUTCOMES, PRICE, RARITIES, SLOTS, SPIN_TIME, UPGRADE_PRICE, boonOf, gearColor,
+  outcomeOf, rarityOf, weaponName, weaponTitle } from './gacha.js';
 import { ASCEND_TIME } from './engine.js';
 import { effectOf } from './events.js';
-import { BIOME_RULES, LEVEL_MAX, LIVES, affixText, levelOf, resistOf } from './balance.js';
+import { BIOME_RULES, LEVEL_MAX, LIVES, MIGHT, affixText, levelOf, resistOf } from './balance.js';
 import { SIZE, cellName } from './field.js';
 import { SFX_GAPS, play } from './sound.js';
 import { PAGES, pageAt } from './guide.js';
@@ -32,7 +32,6 @@ const BIOME_GLOW = { grass: '#4ade80', volcano: '#fb923c', swamp: '#a3e635', sno
 const MAP_TIPS = 'Мобы выходят из двух тоннелей. Горы и руины закрывают выстрел, с холмов бьют дальше, с вышки — '
   + 'ещё дальше и поверх них; на горы, руины, в воду и расщелины не встать'
 const LOW_LIVES = 5;
-const STAT_LETTERS = { str: 'с', agi: 'л', int: 'и', mas: 'м' };
 const BOSS_EVERY = 10;
 const FINAL_SECONDS = 3;
 const ROWS = { over: 5, roster: 30, pause: 10, pauseShort: 8, queue: 3, cards: 4, player: 22 };
@@ -82,7 +81,7 @@ const RULES = [
   ['К7', '— встать на клетку'],
   ['гача', '— оружие, монеты или руна за ' + PRICE + ' монет'],
   ['профиль', '— твоя карточка, проф — короткая'],
-  ['улучшить', '— +20% к случайному стату оружия за ' + UPGRADE_PRICE + ' монет, «улучшить с» — к силе'],
+  ['улучшить', '— +' + MIGHT.upgrade + ' мощи оружию за ' + UPGRADE_PRICE + ' монет, «улучшить все» — на все монеты'],
   ['реролл', '— другой класс, один раз до первой волны'],
 ];
 
@@ -95,33 +94,20 @@ function el(tag, className, text) {
   return node;
 }
 
-function statIcon(id, className = 'stat-icon') {
-  const node = image(statUrl(id), className);
-  node.title = PRIMARY[id] || 'мастерство';
+function mightIcon() {
+  const node = image(mightUrl(), 'might-icon');
+  node.title = 'мощь';
   return node;
 }
 
-function iconsOf(mark, cls) {
-  if (mark === 'hit') return cls.element ? ['str', 'int'] : ['str'];
-  return mark === 'dmg' ? [cls.primary, 'mas'] : [mark];
-}
-
-function marked(text, cls) {
-  return text.split(new RegExp(MARKS.source, 'g')).map((part, i) => {
-    if (i % 2 === 0) return part;
-    const group = el('span', 'stat-icons');
-    for (const id of iconsOf(part, cls)) group.append(statIcon(id));
-    return group;
-  });
+function mightTag(value, sign = '') {
+  const node = el('span', 'might');
+  node.append(mightIcon(), el('b', '', sign + value));
+  return node;
 }
 
 function guidePart(part) {
   if (typeof part === 'string') return part;
-  if (part.primary) {
-    const node = el('span', 'stat-word');
-    node.append(statIcon(part.primary), PRIMARY[part.primary]);
-    return node;
-  }
   const node = el(part.bold ? 'b' : 'span', '', part.text);
   if (part.color) node.style.color = part.color;
   return node;
@@ -149,44 +135,8 @@ function luminance(red, green, blue) {
   return (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
 }
 
-function statsOfMember(member) {
-  const tower = member.tower;
-  if (tower && tower.stats) return tower.stats;
-  return statsOf(CLASS_BY_ID.get(member.cls), member.weapon ? weaponStats(member.weapon) : null, member.paragon || 0);
-}
-
-function powerOfMember(member, stats) {
-  const cls = CLASS_BY_ID.get(member.cls), tower = member.tower, base = powerOf(cls, stats);
-  if (!tower || !tower.stats) return Object.assign(base, { range: (cls.base.range || 0) + base.reach });
-  return { damage: tower.damage, interval: tower.interval, crit: tower.critChance, critMul: tower.critMul,
-    range: tower.range, skill: base.skill, haste: tower.haste };
-}
-
-function statsLine(cls, stats) {
-  const line = el('div', 'stat-line');
-  STAT_IDS.forEach((id, i) => {
-    if (i) line.append(' · ');
-    const pair = el('span', 'pair');
-    pair.append(statIcon(id), el('b', id === cls.primary ? 'key' : '', num(stats[id])));
-    line.append(pair);
-  });
-  return line;
-}
-
-function powerLine(cls, power, rider) {
-  const line = el('div', 'stat-line power'), pct = (value) => Math.round(value * 100) + '%';
-  const items = [['урон', num(power.damage), cls.element ? ['str', 'int'] : ['str']],
-    ['скор', num(1 / power.interval) + '/с', ['agi']], ['КШ', pct(power.crit), ['agi']],
-    ['КУ', pct(power.critMul), ['str']], rider ? null : ['дальн.', num(power.range), ['int']],
-    ['способн.', '×' + num(power.skill), [cls.primary, 'mas']], ['перезар.', '−' + pct(1 - 1 / power.haste), ['mas']]];
-  items.filter(Boolean).forEach(([label, value, ids], i) => {
-    if (i) line.append(' · ');
-    const pair = el('span', 'pair');
-    pair.append(label + ' ', el('b', '', value));
-    for (const id of ids) pair.append(statIcon(id));
-    line.append(pair);
-  });
-  return line;
+function mightOfMember(member) {
+  return member.tower ? member.tower.might : mightOf(member.weapon ? member.weapon.power : 0, member.paragon || 0);
 }
 
 function runeLine(id) {
@@ -247,15 +197,10 @@ function pick(list) {
   return list[list.length - 1];
 }
 
-function statLine(weapon, cls) {
-  const line = el('div', 'stats'), ups = weapon.ups || {};
-  Object.entries(weapon.stats).forEach(([stat, value], i) => {
-    if (i) line.append(', ');
-    const item = el('span', value < 0 ? 'down' : 'up', (value < 0 ? '−' : '+') + amountText(stat, value));
-    item.append(statIcon(stat));
-    line.append(item);
-    if (ups[stat]) line.append(el('span', 'more', ' +' + amountText(stat, ups[stat])));
-  });
+function statLine(weapon) {
+  const line = el('div', 'stats'), boon = boonOf(weapon.boon);
+  line.append(mightTag(weapon.power));
+  if (boon) line.append(' · ', el('b', 'boon', boon.name), ': ' + boon.text);
   return line;
 }
 
@@ -265,7 +210,7 @@ const prizeOf = (outcome) => (outcome.kind === 'weapon' ? rarityOf(outcome.weapo
 function gearLine(weapon) {
   const line = el('div', 'gear'), name = el('b', '', weaponTitle(weapon));
   name.style.color = rarityOf(weapon.rarity).color;
-  line.append(name, statLine(weapon, weapon.cls));
+  line.append(name, statLine(weapon));
   return line;
 }
 
@@ -324,9 +269,8 @@ export class View {
     const line = el('span', 'group');
     RULES.slice(1).forEach(([command], i) => line.append(i ? ' · ' : '', el('b', '', command)));
     const upgrade = el('span', 'group wrap');
-    upgrade.append(el('b', '', 'улучшить'));
-    STAT_IDS.forEach((id, i) => upgrade.append(i ? ' / ' : ' ', statIcon(id), el('b', '', STAT_LETTERS[id])));
-    upgrade.append(' + ', el('b', '', '5'), ' или ', el('b', '', 'все'));
+    upgrade.append(el('b', '', 'улучшить'), ' + ', el('b', '', '5'), ' или ', el('b', '', 'все'), ' — мощь оружия ',
+      mightIcon());
     hint.append(line, upgrade);
     this._keys = {};
   }
@@ -837,7 +781,6 @@ export class View {
       for (const cls of shown) {
         const item = el('div', 'cls'), text = el('div'), name = el('b', '', cls.name);
         name.style.color = cls.color;
-        name.append(statIcon(cls.primary, 'role-icon'));
         text.append(name, cls.summary);
         item.append(image(heroUrl(cls.id)), text);
         box.append(item);
@@ -1029,11 +972,11 @@ export class View {
       }
       const weapon = slot.outcome.weapon, title = el('b', 'prize', weaponName(weapon));
       title.style.color = rarityOf(weapon.rarity).color;
-      view.result.append(title, statLine(weapon, weapon.cls));
+      view.result.append(title, statLine(weapon));
       if (!slot.took && member && member.weapon) {
         const now = el('div', 'now'), old = el('b', '', weaponName(member.weapon));
         old.style.color = rarityOf(member.weapon.rarity).color;
-        now.append('у него ', old, ' — редкость не ниже');
+        now.append('у него ', old, ' ', mightTag(member.weapon.power), ' — не хуже');
         view.result.append(now);
       }
     });
@@ -1214,14 +1157,13 @@ export class View {
       } else if (detail.tip === 'spin') {
         node.append(nick, ': у тебя уже ' + PRICE + ' монет — пиши ', el('b', '', 'гача'), ', выпадет оружие');
       } else {
-        node.append(nick, ': пиши ', el('b', '', 'улучшить'), ' — +' + Math.round(UPGRADE_SHARE * 100)
-          + '% к стату оружия за ' + UPGRADE_PRICE + ' монет');
+        node.append(nick, ': пиши ', el('b', '', 'улучшить'), ' — +' + MIGHT.upgrade + ' мощи оружию за '
+          + UPGRADE_PRICE + ' монет');
       }
     } else {
       node.className = 'note upgrade';
-      const ups = el('b', 'up');
-      (detail.ups || []).forEach((up, i) => ups.append(i ? ', +' : '+', amountText(up.id, up.amount), statIcon(up.id)));
-      node.append(nick, ' улучшает оружие' + (detail.times > 1 ? ' ×' + detail.times : '') + ': ', ups);
+      node.append(nick, ' улучшает оружие' + (detail.times > 1 ? ' ×' + detail.times : '') + ': ',
+        mightTag(detail.amount || 0, '+'));
     }
     return {
       node,
@@ -1263,37 +1205,33 @@ export class View {
         lvl.append('ур. ' + level);
         relic.hidden = !m.particle;
         coins.querySelector('.sum').textContent = String(Math.floor(m.coins));
-        const stats = statsOfMember(m), runes = m.runes || [];
-        const bodyKey = JSON.stringify([level, m.cls, brief, STAT_IDS.map((id) => num(stats[id])), runes]);
+        const runes = m.runes || [], bodyKey = JSON.stringify([level, m.cls, brief, runes]);
         if (state.body !== bodyKey) {
           state.body = bodyKey;
           face.src = heroUrl(m.cls, 64);
-          const cls = CLASS_BY_ID.get(m.cls), info = describe(m.cls, level, stats.mas), kind = el('div', 'line');
+          const cls = CLASS_BY_ID.get(m.cls), info = describe(m.cls, level), kind = el('div', 'line');
           const clsName = el('b', '', cls.name);
           clsName.style.color = cls.color;
-          kind.append(clsName, statIcon(cls.primary, 'role-icon'));
-          if (!brief) kind.append(' ', ...marked(info.main, cls));
+          kind.append(clsName);
+          if (!brief) kind.append(' ', info.main);
           body.textContent = '';
           state.power = '';
-          state.powerBox = el('div', 'power-box');
-          body.append(kind, statsLine(cls, stats), state.powerBox);
+          state.powerBox = el('div', 'stat-line power');
+          body.append(kind, state.powerBox);
           if (!brief) for (const perk of info.perks) {
             const line = el('div', 'perk' + (perk.open ? '' : ' locked'));
-            line.append(el('i', '', perk.open ? '★' : perk.at + ' ур.'), ' ', el('b', '', perk.name), ': ',
-              ...marked(perk.text, cls));
+            line.append(el('i', '', perk.open ? '★' : perk.at + ' ур.'), ' ', el('b', '', perk.name), ': ', perk.text);
             body.append(line);
           }
           for (const id of runes) body.append(runeLine(id));
         }
-        const power = powerOfMember(m, stats), cls = CLASS_BY_ID.get(m.cls);
-        const powerKey = JSON.stringify([power.damage, power.interval, power.crit, power.critMul, power.range,
-          power.skill, power.haste].map(num).concat(Boolean(tower && tower.rider)));
-        if (state.power !== powerKey) {
-          state.power = powerKey;
+        const might = mightOfMember(m);
+        if (state.power !== might) {
+          state.power = might;
           state.powerBox.textContent = '';
-          state.powerBox.append(powerLine(cls, power, Boolean(tower && tower.rider)));
+          state.powerBox.append('мощь ', mightTag(might));
         }
-        const gearKey = m.weapon ? JSON.stringify([m.weapon.rarity, m.weapon.stats, m.weapon.ups, m.weapon.plus]) : '';
+        const gearKey = m.weapon ? JSON.stringify([m.weapon.rarity, m.weapon.power, m.weapon.plus, m.weapon.boon]) : '';
         if (state.gear !== gearKey) {
           state.gear = gearKey;
           gear.textContent = '';

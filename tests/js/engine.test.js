@@ -3,9 +3,9 @@ import { PLAIN, makeGame, memoryStorage, runFor, seeded, until } from './fixture
 import { ASCEND_TIME, CARD_MIN, CARD_ROOM, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPEED_MAX,
   SPIN_LIMIT, SUMMIT_EVERY, SUMMIT_TIME, SUPPORTS, SUPPORT_EVERY, TIP_LEVEL, TIP_TIME, nextReset }
   from '../../site/js/engine.js';
-import { FAMILY_BY_ID, LEVEL_MAX, REWARD, TICK, waveReward, xpForLevel } from '../../site/js/balance.js';
+import { FAMILY_BY_ID, LEVEL_MAX, MIGHT, REWARD, TICK, waveReward, xpForLevel } from '../../site/js/balance.js';
 import { ASCEND_AT, EXTRA_SLOTS, PRICE, QUEUE_CAP, RARITIES, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, ascend,
-  makeWeapon, weaponName, weaponStats } from '../../site/js/gacha.js';
+  makeWeapon, weaponName } from '../../site/js/gacha.js';
 import { CLASSES, CLASS_BY_ID } from '../../site/js/classes.js';
 import { ODDS, effectOf, rollEvent } from '../../site/js/events.js';
 import { cellName } from '../../site/js/field.js';
@@ -321,29 +321,31 @@ test('гача: при очереди больше 30 круток — четв�
   ok(until(game, () => game.slots.length === SLOTS, 60), 'очередь кончилась — снова три');
 });
 
-test('гача: та же редкость или выше — меняется само, ниже — остаётся своё; без оружия надевается любое', () => {
+test('гача: редкость выше — меняется само, та же — если мощь больше, ниже — остаётся своё; без оружия — любое', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Зоя', 'привет');
   toWave(game);
-  const member = game.members.get('зоя'), make = (i) => makeWeapon(seeded(i + 1), member.cls, RARITIES[i]);
-  const first = make(0), mythic = make(2), common = make(0), other = make(2), legendary = make(4);
+  const member = game.members.get('зоя'), make = (i, power) => Object.assign(makeWeapon(seeded(i + 1), member.cls,
+    RARITIES[i]), power ? { power } : {});
+  const first = make(0), mythic = make(2, 20), common = make(0), weaker = make(2, 15), stronger = make(2, 25);
+  const legendary = make(4, 30);
   ok(drop(game, 'зоя', first).took);
   eq(member.weapon, first);
   ok(drop(game, 'зоя', mythic).took);
   eq(member.weapon, mythic);
-  eq(member.tower.mods.stats, weaponStats(mythic), 'статы оружия дошли до бойца');
+  eq(member.tower.mods.power, mythic.power, 'мощь оружия дошла до бойца');
+  eq(member.tower.might, MIGHT.base + mythic.power);
   game.events.length = 0;
   const slot = drop(game, 'зоя', common);
   no(slot.took);
   eq(member.weapon, mythic);
   eq(slot.phase, 'show');
   ok(game.events.some((e) => e.kind === 'kept' && e.login === 'зоя'));
-  ok(drop(game, 'зоя', other).took, 'та же редкость меняется');
-  eq(member.weapon, other);
-  ok(drop(game, 'зоя', legendary).took);
-  eq(Object.keys(legendary.stats).length, 4, 'у легендарного прибавка ко всем четырём статам');
-  eq(member.tower.mods.stats, weaponStats(legendary));
+  no(drop(game, 'зоя', weaker).took, 'та же редкость и мощь меньше — остаётся своё');
+  ok(drop(game, 'зоя', stronger).took, 'та же редкость и мощь больше — меняется');
+  ok(drop(game, 'зоя', legendary).took, 'редкость выше — меняется, даже если мощь меньше');
+  eq(member.tower.mods.power, legendary.power);
   runFor(game, SHOW_TIME + 0.2);
   eq(game.slots.filter(Boolean).length, 0, 'места освободились');
 });
@@ -526,7 +528,7 @@ test('гача: пустота ничего не даёт, мешок — мон
   ok(game.events.some((e) => e.kind === 'jackpot' && e.prize === 'bag' && e.coins === 120));
 });
 
-test('улучшить: за 100 монет +20% к случайному свойству, без оружия и без денег — нельзя', () => {
+test('улучшить: за 100 монет +' + MIGHT.upgrade + ' мощи оружию, без оружия и без денег — нельзя', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Рита', 'привет');
@@ -537,37 +539,46 @@ test('улучшить: за 100 монет +20% к случайному сво�
   ok(game.notes.some((n) => n.kind === 'bare'));
   member.weapon = makeWeapon(seeded(3), member.cls, RARITIES[2]);
   game._refresh(member);
-  const before = JSON.stringify(member.tower.mods);
+  const power = member.weapon.power, might = member.tower.might;
   eq(say(game, 'Рита', 'улучшить'), 'upgraded');
   eq(member.coins, 400);
-  ok(Object.keys(member.weapon.ups).length === 1);
-  ok(JSON.stringify(member.tower.mods) !== before, 'свойство дошло до бойца');
+  eq(member.weapon.power, power + MIGHT.upgrade);
+  eq(member.tower.might, might + MIGHT.upgrade, 'мощь дошла до бойца');
+  eq(say(game, 'Рита', 'улучшить сила'), 'upgraded', 'лишние слова не мешают');
   member.coins = 50;
   eq(say(game, 'Рита', '!улучшить'), 'poor');
   ok(game.notes.some((n) => n.kind === 'poor' && n.detail.price === 100));
 });
 
-test('улучшить сила / ловкость / интеллект / мастерство — растёт именно этот стат, даже если его не было', () => {
+test('свойство легендарного действует на бойца: чаще бьёт, дальше, крит, способности, монеты', () => {
   const { game } = makeGame();
   game.open();
-  say(game, 'Рина', 'привет');
+  say(game, 'Ося', 'привет');
+  const member = game.members.get('ося');
+  member.cls = 'sniper';
   toWave(game);
-  const member = game.members.get('рина');
-  member.weapon = makeWeapon(seeded(5), member.cls, RARITIES[1]);
-  const missing = ['str', 'agi', 'int', 'mas'].find((id) => !(id in member.weapon.stats));
-  const words = { str: 'сила', agi: 'ловкость', int: 'интеллект', mas: 'мастерство' };
+  game.run.now = [];
+  for (const key of Object.keys(game.run.mods)) game.run.mods[key] = 0;
   game._refresh(member);
-  member.coins = 1000;
-  eq(say(game, 'Рина', 'улучшить ' + words[missing] + ' 3'), 'upgraded');
-  eq(Object.keys(member.weapon.ups), [missing], 'прибавка только к названному стату');
-  ok(member.weapon.ups[missing] > 0);
-  ok(member.tower.mods.stats[missing] > 0, 'дошло до бойца');
-  eq(member.coins, 700);
-  eq(say(game, 'Рина', '!улучшить силу'), 'upgraded');
-  ok(member.weapon.ups.str > 0, '«силу» тоже понимает');
+  const tower = () => member.tower, plain = { interval: tower().interval, range: tower().range,
+    crit: tower().critChance, every: tower().s[2].every, coins: tower().mods.coins };
+  const wear = (boon) => {
+    member.weapon = Object.assign(makeWeapon(seeded(3), member.cls, RARITIES[RARITIES.length - 1]), { boon });
+    game._refresh(member);
+  };
+  wear('rapid');
+  ok(Math.abs(tower().interval - plain.interval / 1.15) < 1e-9, 'атака на 15% чаще');
+  wear('long');
+  ok(Math.abs(tower().range - plain.range - 0.5) < 1e-9, '+0,5 клетки');
+  wear('keen');
+  ok(Math.abs(tower().critChance - plain.crit - 0.1) < 1e-9, '+10% крита');
+  wear('swift');
+  ok(Math.abs(tower().s[2].every - plain.every / 1.15) < 1e-9, 'способности на 15% чаще');
+  wear('rich');
+  ok(Math.abs(tower().mods.coins - plain.coins - 0.15) < 1e-9, '+15% монет');
 });
 
-test('улучшить стат с числом или «все» — этот стат нужное число раз или на все монеты; стат можно одной буквой', () => {
+test('улучшить с числом или «все» — нужное число раз или на все монеты', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Лиза', 'привет');
@@ -575,22 +586,18 @@ test('улучшить стат с числом или «все» — этот �
   const member = game.members.get('лиза');
   member.weapon = makeWeapon(seeded(7), member.cls, RARITIES[1]);
   game._refresh(member);
-  const plus = () => member.weapon.plus || 0;
-  const tries = [['улучшить ловкость все', 750, 'agi', 7, 50], ['улучшить все интеллект', 420, 'int', 4, 20],
-    ['!улучшить мастерство 2', 1000, 'mas', 2, 800], ['улучшить 3 силу', 1000, 'str', 3, 700],
-    ['улучшить силу всё', 330, 'str', 3, 30], ['улучшить с все', 260, 'str', 2, 60], ['улучшить л', 150, 'agi', 1, 50],
-    ['улучшить и 2', 500, 'int', 2, 300], ['!улучшить м всё', 310, 'mas', 3, 10]];
-  for (const [text, coins, stat, times, left] of tries) {
+  const tries = [['улучшить все', 750, 7, 50], ['!улучшить 2', 1000, 2, 800], ['улучшить 3', 330, 3, 30],
+    ['улучшить всё', 260, 2, 60]];
+  for (const [text, coins, times, left] of tries) {
     member.coins = coins;
-    const ups = Object.assign({}, member.weapon.ups), before = plus();
+    const before = member.weapon.plus, power = member.weapon.power;
     eq(say(game, 'Лиза', text), 'upgraded', text);
-    eq(plus() - before, times, text + ': сколько раз');
+    eq(member.weapon.plus - before, times, text + ': сколько раз');
+    eq(member.weapon.power - power, times * MIGHT.upgrade, text + ': сколько мощи');
     eq(member.coins, left, text + ': сколько монет осталось');
-    for (const id of ['str', 'agi', 'int', 'mas']) {
-      if (id === stat) ok((member.weapon.ups[id] || 0) > (ups[id] || 0), text + ': вырос ' + id);
-      else eq(member.weapon.ups[id] || 0, ups[id] || 0, text + ': не тронут ' + id);
-    }
   }
+  const note = game.notes.find((n) => n.kind === 'upgrade');
+  eq([note.detail.times, note.detail.amount], [2, 2 * MIGHT.upgrade], 'в плашке — сколько раз и сколько мощи');
 });
 
 test('ускорить и замедлить: только стример и модераторы, от ×1 до ×3, игра идёт быстрее', () => {
@@ -748,7 +755,7 @@ test('число и «все» в команде: «гача 3», «гача в�
   eq(gena.coins, 50);
   const note = game.notes.find((n) => n.kind === 'upgrade' && n.login === 'гена');
   eq(note.detail.times, 5);
-  eq(note.detail.ups.map((up) => up.id).sort(), Object.keys(gena.weapon.ups).sort(), 'в карточке все улучшения');
+  eq(note.detail.amount, 5 * MIGHT.upgrade, 'в плашке — вся прибавка мощи');
   gena.coins = 350;
   eq(say(game, 'Гена', 'улучшить всё'), 'upgraded');
   eq(gena.coins, 50);
@@ -820,7 +827,7 @@ test('улучшение до божественного: событие, сво
   eq(say(game, 'Рая', 'улучшить'), 'divine');
   eq(member.weapon.rarity, 'divine');
   ok(game.events.some((e) => e.kind === 'divine' && e.login === 'рая'));
-  eq(member.tower.mods.stats, weaponStats(member.weapon), 'статы божественного дошли до бойца');
+  eq(member.tower.mods.power, member.weapon.power, 'мощь божественного дошла до бойца');
 });
 
 test('частица бога: выпадает в гаче, хранится между играми и при перезагрузке', () => {

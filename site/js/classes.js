@@ -1,16 +1,11 @@
-import { STAT, TOWER } from './balance.js';
+import { MIGHT, STAT, TOWER } from './balance.js';
 
 export const PERKS = [10, 30, 50];
 export const RUNE_CAPS = { rot: 0.6, thorn: 40, shatter: 40 };
-export const PRIMARY = { str: 'сила', agi: 'ловкость', int: 'интеллект' };
-export const STAT_IDS = ['str', 'agi', 'int', 'mas'];
 
-export const MARKS = /\{(hit|dmg|mas|int)\}/;
-const mark = (value) => (value && value.mark ? '{' + value.mark + '}' : '');
-const plain = (value) => String(Math.round(value * 10) / 10).replace('.', ',');
-const pct = (value) => Math.round(value * 100) + '%' + mark(value);
-export const num = (value) => plain(value) + mark(value);
-const sec = (value) => plain(value) + ' с' + mark(value);
+const pct = (value) => Math.round(value * 100) + '%';
+export const num = (value) => String(Math.round(value * 10) / 10).replace('.', ',');
+const sec = (value) => num(value) + ' с';
 
 function cellWord(value, one, few, many) {
   const n = Math.round(value * 10) / 10, units = n % 10, tens = n % 100;
@@ -19,11 +14,10 @@ function cellWord(value, one, few, many) {
 }
 
 export function cells(value) {
-  return plain(value) + ' ' + cellWord(value, 'клетка', 'клетки', 'клеток') + mark(value);
+  return num(value) + ' ' + cellWord(value, 'клетка', 'клетки', 'клеток');
 }
 
-const around = (value) => 'на ' + plain(value) + ' ' + cellWord(value, 'клетку', 'клетки', 'клеток') + mark(value)
-  + ' вокруг';
+const around = (value) => 'на ' + num(value) + ' ' + cellWord(value, 'клетку', 'клетки', 'клеток') + ' вокруг';
 
 export const CLASSES = [
   {
@@ -54,7 +48,7 @@ export const CLASSES = [
     runes: [
       { id: 'twin', name: 'Двойной выстрел', text: 'обычная атака стреляет сразу в двух мобов' },
       { id: 'burst', name: 'Разрывная пуля', text: 'с шансом 5% пуля разрывается: всем на клетку вокруг 25% её '
-        + 'урона (мастерство расширяет)' },
+        + 'урона' },
     ],
   },
   {
@@ -285,7 +279,7 @@ export const CLASSES = [
     stats: { str: 'low', agi: 'low', int: 'high' },
     base: { damage: 0.95, interval: 3, range: 2, cap: 10, mine: 2.5, touch: 0.5 },
     summary: 'Не стреляет: ставит мины, кидает гранаты, а потом и ядерку',
-    main: (b) => 'Не стреляет: раз в ' + sec(b.interval) + ' (с ловкостью — чаще) ставит мину на дорогу в '
+    main: (b) => 'Не стреляет: раз в ' + sec(b.interval) + ' ставит мину на дорогу в '
       + cells(b.range) + ' от себя, до ' + b.cap + ' сразу. Мина рвётся под мобом, урон ×' + num(b.mine)
       + '; летучих мины не задевают',
     skills: [
@@ -316,7 +310,7 @@ export const CLASSES = [
     stats: { str: 'low', agi: 'low', int: 'high' },
     base: { damage: 0.55, interval: 1, range: 2.7 },
     summary: 'Ледяная буря вокруг: бьёт льдом, замедляет, замораживает',
-    main: (b) => 'Вокруг него ледяная буря на ' + cells(b.range) + ' (интеллект её расширяет): раз в секунду бьёт '
+    main: (b) => 'Вокруг него ледяная буря на ' + cells(b.range) + ': раз в секунду бьёт '
       + 'льдом всех в ней, урон ×' + num(b.damage),
     skills: [
       { name: 'Стужа', v: { slow: 0.35, time: 3 }, scale: { slow: 'power', time: 'time' },
@@ -496,15 +490,7 @@ export const CLASS_BY_ID = new Map(CLASSES.map((c) => [c.id, c]));
 
 export const runeOf = (id) => CLASSES.flatMap((cls) => cls.runes).find((rune) => rune.id === id) || null;
 
-export function gradeOf(cls, stat) {
-  return stat === 'mas' ? STAT.mastery : STAT.grades[cls.stats[stat]];
-}
-
-export function statsOf(cls, gear = null, paragon = 0) {
-  const lift = 1 + STAT.paragon * paragon, out = {};
-  for (const id of STAT_IDS) out[id] = Math.max(0, (gradeOf(cls, id) + (gear && gear[id] || 0)) * lift);
-  return out;
-}
+const grade = (cls, id) => STAT.grades[cls.stats[id]];
 
 export function scaled(skill, { power = 1, luck = 1, haste = 1 } = {}) {
   const out = {};
@@ -516,50 +502,30 @@ export function scaled(skill, { power = 1, luck = 1, haste = 1 } = {}) {
   return out;
 }
 
-export function masteryOf(mas) {
-  const gain = STAT.masteryMax * mas / (mas + STAT.masteryHalf);
-  return { power: 1 + gain, haste: 1 + gain, luck: 1 + mas / STAT.luckHalf };
+export function mastery() {
+  const gain = STAT.masteryMax * STAT.mastery / (STAT.mastery + STAT.masteryHalf);
+  return { power: 1 + gain, haste: 1 + gain, luck: 1 + STAT.mastery / STAT.luckHalf };
 }
 
-export const skillOf = (cls, stats) => (1 + STAT.skill * stats[cls.primary]) * masteryOf(stats.mas).power;
-
-export function powerOf(cls, stats) {
-  const b = cls.base, agi = gradeOf(cls, 'agi');
+export function baseOf(cls) {
+  const b = cls.base, str = grade(cls, 'str'), agi = grade(cls, 'agi'), int = grade(cls, 'int');
   return {
-    damage: TOWER.damage * b.damage * (1 + STAT.damage * stats.str) * (cls.element ? 1 + STAT.element * stats.int : 1),
-    interval: (b.interval || 1) / (1 + STAT.speed * Math.min(stats.agi, agi) + STAT.speedExtra * Math.max(0,
-      stats.agi - agi)),
-    crit: Math.min(STAT.critMax, STAT.critChance * stats.agi),
-    critMul: STAT.critBase + STAT.critPower * stats.str,
-    reach: STAT.reach * stats.int,
-    skill: skillOf(cls, stats),
-    haste: masteryOf(stats.mas).haste,
+    damage: TOWER.damage * b.damage * (1 + STAT.damage * str) * (cls.element ? 1 + STAT.element * int : 1),
+    skill: TOWER.damage * b.damage * (1 + STAT.skill * grade(cls, cls.primary)) * mastery().power,
+    interval: (b.interval || 1) / (1 + STAT.speed * agi),
+    crit: Math.min(STAT.critMax, STAT.critChance * agi),
+    critMul: STAT.critBase + STAT.critPower * str,
+    reach: STAT.reach * int,
   };
 }
 
-const marked = (value, how) => Object.assign(Object(value), { mark: how });
+export const mightOf = (power = 0, paragon = 0) => Math.round((MIGHT.base + power) * (1 + MIGHT.paragon * paragon));
 
-function markedBase(cls) {
-  const base = Object.assign({}, cls.base, { damage: marked(cls.base.damage, 'hit') });
-  for (const key of ['range', 'banner', 'circle']) if (key in base) base[key] = marked(base[key], 'int');
-  return base;
-}
-
-function markedSkill(skill, mastery) {
-  const values = scaled(skill, mastery);
-  for (const [key, how] of Object.entries(skill.scale || {})) {
-    values[key] = marked(values[key], how === 'dmg' || how === 'buff' ? 'dmg' : 'mas');
-  }
-  return values;
-}
-
-export function describe(id, level, mas = STAT.mastery) {
-  const cls = CLASS_BY_ID.get(id), mastery = masteryOf(mas);
+export function describe(id, level) {
+  const cls = CLASS_BY_ID.get(id);
   return {
-    main: cls.main(markedBase(cls)),
+    main: cls.main(cls.base),
     perks: PERKS.map((at, i) => ({ at, open: level >= at, name: cls.skills[i].name,
-      text: cls.skills[i].text(markedSkill(cls.skills[i], mastery)) })),
+      text: cls.skills[i].text(scaled(cls.skills[i], mastery())) })),
   };
 }
-
-export const plainText = (text) => text.split(new RegExp(MARKS.source, 'g')).filter((part, i) => i % 2 === 0).join('');

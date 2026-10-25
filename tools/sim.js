@@ -1,6 +1,6 @@
 import { Game, Profiles } from '../site/js/engine.js';
-import { CLASSES, CLASS_BY_ID } from '../site/js/classes.js';
-import { UPGRADE_PRICE, weaponScore } from '../site/js/gacha.js';
+import { CLASSES } from '../site/js/classes.js';
+import { UPGRADE_PRICE, weaponPower } from '../site/js/gacha.js';
 import * as gachaRules from '../site/js/gacha.js';
 import * as balance from '../site/js/balance.js';
 
@@ -29,7 +29,7 @@ export function tune(changes) {
   return () => undo.reverse().forEach(([target, values]) => Object.assign(target, values));
 }
 
-export function runGame({ seed = 1, levels = [1], classes = [], pause = 20, gacha = true, stat = null }) {
+export function runGame({ seed = 1, levels = [1], classes = [], pause = 20, gacha = true }) {
   const random = seeded(seed);
   const profiles = new Profiles();
   const game = new Game(Object.assign({}, SETTINGS, { wave_pause: pause }), profiles,
@@ -74,9 +74,7 @@ export function runGame({ seed = 1, levels = [1], classes = [], pause = 20, gach
     for (const m of members) {
       const rarity = m.weapon ? m.weapon.rarity : '';
       const improve = () => {
-        const pick = (m.botUps || 0) % 3 === 2 ? 'mas' : stat || CLASS_BY_ID.get(m.cls).primary;
-        if (game.improve(m, 1, pick) === 'poor') return false;
-        m.botUps = (m.botUps || 0) + 1;
+        if (game.improve(m, 1) === 'poor') return false;
         upgrades += 1;
         return true;
       };
@@ -102,7 +100,7 @@ export function runGame({ seed = 1, levels = [1], classes = [], pause = 20, gach
     bosses: Array.from(bosses, ([mob, at]) => ({ wave: at, killed: mob.dead && mob.hp <= 0,
       risen: Boolean(mob.risen) })),
     effects: game.run.effects.map((e) => e.id),
-    weapons: members.map((m) => (m.weapon ? weaponScore(m.weapon) : 0)),
+    weapons: members.map((m) => weaponPower(m.weapon)),
     gear: members.map((m) => ({ rarity: m.weapon ? m.weapon.rarity : null, plus: m.weapon ? m.weapon.plus || 0 : 0,
       runes: (m.runes || []).length, particle: Boolean(m.particle) })),
     players: members.map((m, i) => ({

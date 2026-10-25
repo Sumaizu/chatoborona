@@ -3,10 +3,10 @@ import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
 import { BITE_TIME, BURST, Battle, CRIMSON, DISCHARGE, FUSION, HEADWIND, MOVE_PAUSE, NUKE_FLIGHT, OVERTIME, PLAGUE,
   PLANTED, ROT, SECOND, SHELL_FLIGHT, SPLIT_TIME, THORN } from '../../site/js/battle.js';
 import { SIZE } from '../../site/js/field.js';
-import { AFFIXES, BOSSES, ELITES, FAMILIES, FAMILY_BY_ID, LIVES, LOOKS, MIMIC, MOBS, POWERS, SILVER, STAT, TERRAIN,
-  TICK, TOWER, familyPool, resistOf, silverChance, waveSpawns, xpForLevel } from '../../site/js/balance.js';
+import { AFFIXES, BOSSES, ELITES, FAMILIES, FAMILY_BY_ID, LIVES, LOOKS, MIGHT, MIMIC, MOBS, POWERS, SILVER, TERRAIN,
+  TICK, familyPool, resistOf, silverChance, waveSpawns, xpForLevel } from '../../site/js/balance.js';
 import { ASSIST_COINS, KILL_COINS } from '../../site/js/gacha.js';
-import { CLASSES, CLASS_BY_ID, RUNE_CAPS } from '../../site/js/classes.js';
+import { CLASSES, CLASS_BY_ID, RUNE_CAPS, baseOf } from '../../site/js/classes.js';
 
 const ATTACK = (battle, t, target) => {
   battle.time = Math.max(battle.time, t.leapUntil);
@@ -80,40 +80,33 @@ test('бой: у каждого класса свой множитель опы�
   }
 });
 
-test('статы: от уровня не растут; сила — урон и сила крита, ловкость — скорость и шанс крита', () => {
-  const battle = makeBattle(), cls = CLASS_BY_ID.get('gunner');
+test('мощь: от уровня не растёт; урон и способности — в мощь раз, скорость, крит и дальность — свои у класса', () => {
+  const battle = makeBattle(), cls = CLASS_BY_ID.get('gunner'), base = baseOf(cls);
   const young = battle.place(player(), 'gunner', 2, 4), old = battle.place(level(100), 'gunner', 4, 4);
-  eq([old.damage, old.interval, old.critChance, old.critMul], [young.damage, young.interval, young.critChance,
-    young.critMul], 'уровень статы не меняет');
-  eq(young.stats, { str: STAT.grades.low, agi: STAT.grades.high, int: STAT.grades.low, mas: STAT.mastery });
-  near(young.damage, TOWER.damage * cls.base.damage * (1 + STAT.damage * STAT.grades.low));
-  near(young.critChance, STAT.critChance * STAT.grades.high);
-  near(young.critMul, STAT.critBase + STAT.critPower * STAT.grades.low);
+  eq([old.might, old.damage, old.interval, old.critChance], [young.might, young.damage, young.interval,
+    young.critChance], 'уровень мощь не меняет');
+  eq(young.might, MIGHT.base);
+  near(young.damage, base.damage);
+  near(young.skill, base.skill);
+  near(young.interval, base.interval);
+  near(young.critChance, base.crit);
   const strong = battle.place(player(), 'gunner', 6, 4);
-  battle.setMods(strong, { stats: { str: 10, agi: 10 } });
-  ok(strong.damage > young.damage && strong.critMul > young.critMul, 'сила');
-  ok(strong.interval < young.interval && strong.critChance > young.critChance, 'ловкость');
+  battle.setMods(strong, { power: 50 });
+  eq(strong.might, 150);
+  near(strong.damage, young.damage * 1.5, 'урон — в полтора раза');
+  near(strong.skill, young.skill * 1.5, 'способности — тоже');
+  eq([strong.interval, strong.critChance, strong.critMul, strong.range], [young.interval, young.critChance,
+    young.critMul, young.range], 'скорость, крит и дальность от оружия не меняются');
+  battle.setMods(strong, { power: 50, paragon: 2 });
+  eq(strong.might, Math.round(150 * (1 + 2 * MIGHT.paragon)), 'парагон — +5% мощи за каждый');
 });
 
-test('статы: интеллект — стихии и радиус ауры, основной стат и мастерство — способности, парагон — +5% ко всем', () => {
-  const battle = makeBattle(), mage = battle.place(level(30), 'frost', 2, 4), cls = CLASS_BY_ID.get('frost');
-  const range = mage.range, damage = mage.damage, skill = mage.skill, slow = mage.s[0].slow, chance = mage.s[1].chance;
-  near(damage, TOWER.damage * cls.base.damage * (1 + STAT.damage * STAT.grades.low)
-    * (1 + STAT.element * STAT.grades.high), 'удар льдом — от силы и интеллекта');
-  eq(cls.primary, 'int');
-  battle.setMods(mage, { stats: { int: 10, mas: 10 } });
-  near(mage.range, range + STAT.reach * 10, 'буря шире');
-  ok(mage.damage > damage, 'лёд сильнее');
-  ok(mage.skill > skill * (1 + STAT.skill * 10) / (1 + STAT.skill * STAT.grades.high) + 1e-9,
-    'способности сильнее: и от интеллекта, и от мастерства');
-  ok(mage.s[0].slow > slow && mage.s[1].chance > chance, 'замедление сильнее, шанс выше');
-  const sniper = battle.place(player(), 'sniper', 4, 2), before = sniper.skill;
-  battle.setMods(sniper, { stats: { int: 50 } });
-  near(sniper.skill, before, 'у снайпера способности от силы, интеллект им не помогает');
-  const hero = battle.place(player(), 'gunner', 6, 4);
-  battle.setMods(hero, { paragon: 2 });
-  eq(hero.stats, { str: STAT.grades.low * 1.1, agi: STAT.grades.high * 1.1, int: STAT.grades.low * 1.1,
-    mas: STAT.mastery * 1.1 });
+test('мощь: баффы саппортов растут от мощи мягче, чем урон', () => {
+  const battle = makeBattle(), flag = battle.place(player(), 'banner', 4, 4);
+  eq(flag.lift, 1);
+  battle.setMods(flag, { power: 100 });
+  near(flag.lift, 1 + MIGHT.lift);
+  ok(flag.lift < flag.might / MIGHT.base);
 });
 
 test('закалка: каждые 10 волн контроль и уязвимость действуют на мобов слабее, но не до нуля', () => {
@@ -253,7 +246,7 @@ test('мобы: элитные и боссы появляются с навык�
   for (const kind of ELITES.concat(BOSSES)) ok(POWERS[kind.power], kind.id);
 });
 
-test('мобы: босс объявляется каждый раз, золотой элитный — при первой встрече вида, серебряный — при первом свойстве', () => {
+test('мобы: босс объявляется всегда, золотой элитный — при первой встрече вида, серебряный — при первом свойстве', () => {
   const battle = makeBattle(), arrived = () => battle.events.filter((e) => e.kind === 'arrive').length;
   special(battle, 'elite', 'vampire');
   special(battle, 'elite', 'vampire');
@@ -1334,15 +1327,6 @@ test('орда: в волне орды мобов больше, чем у дру
   ok(FAMILY_BY_ID.get('horde').count > 1);
 });
 
-test('интеллект: дальность атаки у всех классов растёт от интеллекта', () => {
-  const battle = makeBattle();
-  for (const id of ['sniper', 'gunner', 'frost', 'banner']) {
-    const t = battle.place(player(), id, 2 + ['sniper', 'gunner', 'frost', 'banner'].indexOf(id) * 3, 2), range = t.range;
-    battle.setMods(t, { stats: { int: 25 } });
-    near(t.range - range, STAT.reach * 25, id);
-  }
-});
-
 test('знаменосец: под знаменем бьют быстрее и дальше, два знамени не складываются, за добычу под знаменем — помощь', () => {
   const battle = makeBattle(), flag = battle.place(player(), 'banner', 4, 4), b = flag.cls.base;
   const ally = battle.place(player(), 'gunner', 5, 4), far = battle.place(player(), 'gunner', 14, 4);
@@ -1381,9 +1365,14 @@ test('знаменосец: с 10-го боевой клич, с 30-го нат�
   near(hit(target), 100 * (1 + flag.s[0].damage), 'урон под кличем');
   battle.random = () => flag.s[1].chance / 2;
   ok(battle.random() < 1 - (1 - ally.critChance) * (1 - ally.boost.crit), 'натиск даёт крит');
-  runFor(battle, Math.max(flag.s[0].time, flag.s[2].time) + 0.1);
-  near(far.boost.rate, 0, 'знамя победы кончилось');
-  near(ally.boost.damage, 0, 'клич кончился');
+  let cheerOff = false, rallyOff = false;
+  for (let i = 0; i < 20 / TICK && !(cheerOff && rallyOff); i++) {
+    battle.step(TICK);
+    cheerOff = cheerOff || ally.boost.damage === 0;
+    rallyOff = rallyOff || far.boost.rate === 0;
+  }
+  ok(rallyOff, 'знамя победы кончается');
+  ok(cheerOff, 'клич кончается');
 });
 
 test('знаменосец: руны — багровый стяг ускоряет под кличем, знамя в землю дольше и отбрасывает', () => {
@@ -2201,15 +2190,6 @@ test('карта: руины, круг камней и склеп закрыва
   const mob = walker(battle, 4, 1e6);
   still(mob);
   ok(battle._target(tower) === mob, 'с вышки видно и поверх руин');
-});
-
-test('ловкость: своя у класса ускоряет атаку на 2% за очко, а прибавленная оружием — вдвое сильнее', () => {
-  const battle = makeBattle(), gunner = CLASS_BY_ID.get('gunner'), t = battle.place(player(), 'gunner', 10, 4);
-  const grade = STAT.grades[gunner.stats.agi];
-  near(t.interval, gunner.base.interval / (1 + STAT.speed * grade), 'без оружия');
-  battle.setMods(t, { stats: { agi: 10 } });
-  near(t.interval, gunner.base.interval / (1 + STAT.speed * grade + STAT.speedExtra * 10), 'с ловкостью от оружия');
-  eq(STAT.speedExtra, STAT.speed * 2);
 });
 
 test('серебряные — тоже элитные: охотник бьёт их первым (после золотых и боссов), «Добыча» и «Наповал» их видят', () => {

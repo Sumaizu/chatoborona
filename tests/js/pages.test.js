@@ -54,7 +54,7 @@ test('страницы: пример в рамке — середина волн
   eq(text(w, 'wave'), '8');
   ok(element(w, 'lobby').hidden && element(w, 'over').hidden);
   ok(text(w, 'slot-0').includes('надевает'), 'выпавшее оружие на месте карусели: ' + text(w, 'slot-0'));
-  ok(w.document.querySelector('#slot-0 .stats'), 'у оружия видны прибавки к статам');
+  ok(w.document.querySelector('#slot-0 .stats .might-icon'), 'у оружия видна мощь');
   no(w.document.getElementById('chat'), 'чата на экране нет');
   eq(w.document.querySelectorAll('#slot-1 .cell').length, 26, 'вторая карусель крутится');
   eq(w.document.querySelectorAll('.side .slot:not([hidden])').length, 3, 'три окна гачи');
@@ -195,7 +195,7 @@ test('страницы: божественное оружие — объявле
   frame.remove();
 });
 
-test('страницы: в карточке игрока — убийства и помощь, строка силы со значками статов', async () => {
+test('страницы: в карточке игрока — убийства, помощь и мощь, статов нет', async () => {
   fresh();
   const frame = await overlay('lobby=10&first_wave=5');
   const w = frame.contentWindow, game = w.chatoborona.game;
@@ -209,17 +209,17 @@ test('страницы: в карточке игрока — убийства и
   anya.tower.run.kills = 4;
   anya.tower.run.assists = 7;
   game.feed('Аня', 'профиль', { login: 'аня' });
-  await until(() => w.document.querySelector('#cards .profile .power-box .stat-line'), 'строка силы');
+  await until(() => w.document.querySelector('#cards .profile .stat-line.power'), 'строка мощи');
   const card = w.document.querySelector('#cards .profile');
   const marks = () => Array.from(card.querySelectorAll('.marks .mark')).map((mark) => mark.textContent);
   await until(() => marks().includes(String(anya.tower.run.kills)) && marks().includes(String(anya.tower.run.assists)),
     'убийства и помощь');
-  const power = card.querySelector('.power-box').textContent;
-  for (const word of ['урон', 'скор', 'КШ', 'КУ', 'дальн.', 'способн.', 'перезар.']) ok(power.includes(word), word);
-  ok(card.querySelectorAll('.power-box img.stat-icon').length >= 7, 'у каждой величины значок стата');
-  const before = card.querySelector('.power-box').textContent;
-  game.battle.setMods(anya.tower, Object.assign({}, anya.tower.mods, { stats: { str: 40, agi: 40, int: 40, mas: 40 } }));
-  await until(() => card.querySelector('.power-box').textContent !== before, 'строка силы обновилась');
+  const might = () => card.querySelector('.stat-line.power').textContent;
+  eq(might(), 'мощь 100', 'без оружия — мощь 100');
+  ok(card.querySelector('.stat-line.power img.might-icon'), 'со значком мощи');
+  no(/КШ|КУ|скор \d|ловкост|интеллект|мастерств/.test(card.textContent), 'статов в карточке нет');
+  game.battle.setMods(anya.tower, Object.assign({}, anya.tower.mods, { power: 40 }));
+  await until(() => might() === 'мощь 140', 'мощь обновилась');
   anya.tower.run.kills = 9;
   await until(() => Array.from(card.querySelectorAll('.marks .mark')).some((mark) => mark.textContent === '9'), 'счёт идёт');
   frame.remove();

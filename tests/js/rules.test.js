@@ -1,12 +1,11 @@
 import { test, eq, ok, no } from './harness.js';
 import { seeded } from './fixtures.js';
 import { BIOMES, SIZE, cellName, coverage, makeMap, parseCell } from '../../site/js/field.js';
-import { LEVEL_MAX, MOBS, STAT, WAVE, crowdFactor, eliteCount, levelOf, waveHp, waveReward, waveSpawns,
+import { LEVEL_MAX, MIGHT, MOBS, STAT, WAVE, crowdFactor, eliteCount, levelOf, waveHp, waveReward, waveSpawns,
   xpForLevel }
   from '../../site/js/balance.js';
-import { CLASSES, CLASS_BY_ID, MARKS, PERKS, PRIMARY, describe, gradeOf, masteryOf, plainText, scaled }
-  from '../../site/js/classes.js';
-import { ASCEND_AT, DIVINE, OUTCOMES, RARITIES, STATS, makeWeapon, rankOf, spin, upgrade, weaponScore, weaponStats,
+import { CLASSES, CLASS_BY_ID, PERKS, describe, mastery, mightOf, scaled } from '../../site/js/classes.js';
+import { ASCEND_AT, BOONS, DIVINE, OUTCOMES, RARITIES, boonOf, makeWeapon, rankOf, spin, upgrade, weaponPower,
   weaponTitle } from '../../site/js/gacha.js';
 import { clean, fromQuery, toQuery, DEFAULTS } from '../../site/js/config.js';
 
@@ -168,14 +167,14 @@ test('здоровье мобов растёт с волной и с число�
   ok(waveHp(10, 'boss', 1) > waveHp(10, 'elite', 1));
 });
 
-test('классы: пятнадцать, у каждого оружие, статы, три способности на 10, 30 и 50 уровне и две руны', () => {
+test('классы: пятнадцать, у каждого оружие, свой склад, три способности на 10, 30 и 50 уровне и две руны', () => {
   eq(CLASSES.length, 15);
   eq(new Set(CLASSES.map((c) => c.id)).size, 15);
   eq(PERKS, [10, 30, 50]);
   const runes = CLASSES.flatMap((cls) => cls.runes.map((rune) => rune.id));
   eq(new Set(runes).size, CLASSES.length * 2, 'руны не повторяются');
   for (const cls of CLASSES) {
-    ok(cls.weapon && cls.name && PRIMARY[cls.primary], cls.id);
+    ok(cls.weapon && cls.name && ['str', 'agi', 'int'].includes(cls.primary), cls.id);
     for (const stat of ['str', 'agi', 'int']) ok(STAT.grades[cls.stats[stat]], cls.id + ' ' + stat);
     eq(cls.skills.length, 3, cls.id);
     eq(cls.runes.length, 2, cls.id);
@@ -188,46 +187,34 @@ test('классы: пятнадцать, у каждого оружие, ста
   for (const id of ['banner', 'healer', 'sage']) ok(CLASSES.some((cls) => cls.id === id), 'поддержка вернулась: ' + id);
 });
 
-test('классы: у чисел, которые растут от статов, стоит метка значка — урон, способности, мастерство', () => {
-  const sniper = describe('sniper', 50), charged = sniper.perks[1].text, aim = sniper.perks[2].text;
-  ok(/×\d+(,\d)?\{hit\}/.test(sniper.main), 'обычный урон — от силы: ' + sniper.main);
-  ok(/шансом \d+%\{mas\}/.test(charged), 'шанс — от мастерства: ' + charged);
-  ok(/×6\{dmg\}/.test(charged), 'урон способности — от основного стата и мастерства: ' + charged);
-  ok(/раз в [\d,]+ с\{mas\}/.test(aim), 'перезарядка — от мастерства: ' + aim);
-  ok(describe('frost', 1).main.includes('{int}'), 'буря шире от интеллекта');
-  ok(describe('banner', 10).perks[0].text.includes('{dmg}'), 'сила клича — от силы и мастерства');
-  const pierce = describe('sniper', 10).perks[0].text;
-  eq(plainText(charged).match(MARKS), null, 'без меток — чистый текст');
+test('классы: описания — простой текст, без меток и значков', () => {
   for (const cls of CLASSES) {
     const info = describe(cls.id, 50);
     for (const text of [info.main].concat(info.perks.map((perk) => perk.text))) {
-      eq((text.match(/\{/g) || []).length, (text.match(new RegExp(MARKS.source, 'g')) || []).length, cls.id);
+      no(/[{}]/.test(text), cls.id + ': ' + text);
     }
   }
-  ok(pierce.includes('{mas}'));
 });
 
-test('классы: мастерство у всех низкое, усиливает способности с убывающей отдачей, шанс никогда не 100%', () => {
-  for (const cls of CLASSES) eq(gradeOf(cls, 'mas'), STAT.mastery, cls.id);
-  const strong = masteryOf(20), weak = masteryOf(STAT.mastery), aim = CLASS_BY_ID.get('sniper').skills[2];
-  ok(scaled(aim, strong).markTime > scaled(aim, weak).markTime, 'дольше');
-  eq(scaled(aim, strong).bonus, scaled(aim, weak).bonus, 'урон способности растёт от основного стата, а не здесь');
-  ok(scaled(aim, strong).every < scaled(aim, weak).every, 'чаще');
-  for (const id of ['parasite', 'miner']) {
-    const skill = CLASS_BY_ID.get(id).skills[2];
-    eq(scaled(skill, strong), scaled(skill, weak), id);
-  }
-  const huge = masteryOf(1e6);
-  ok(huge.power < 1 + STAT.masteryMax + 1e-9 && huge.haste < 1 + STAT.masteryMax + 1e-9,
-    'отдача от мастерства убывает');
+test('классы: мастерство одно на всех и постоянное, шанс способности никогда не 100%', () => {
+  const skill = mastery(), aim = CLASS_BY_ID.get('sniper').skills[2];
+  ok(skill.power > 1 && skill.haste > 1 && skill.luck > 1);
+  ok(scaled(aim, skill).every < aim.v.every, 'перезарядка короче базовой');
   for (const cls of CLASSES) {
-    for (const skill of cls.skills) {
-      for (const [key, how] of Object.entries(skill.scale || {})) {
-        if (how === 'luck') ok(scaled(skill, masteryOf(500))[key] < 1, cls.id + ' ' + skill.name + ': шанс не 100%');
+    for (const item of cls.skills) {
+      for (const [key, how] of Object.entries(item.scale || {})) {
+        if (how === 'luck') ok(scaled(item, skill)[key] < 1, cls.id + ' ' + item.name + ': шанс не 100%');
       }
     }
   }
   eq(new Set(CLASSES.map((cls) => cls.primary)), new Set(['str', 'agi', 'int']));
+});
+
+test('мощь: 100 без оружия, оружие прибавляет свою мощь, парагон — +5% за каждый', () => {
+  eq(mightOf(), MIGHT.base);
+  eq(mightOf(40), 140);
+  eq(mightOf(40, 2), Math.round(140 * 1.1));
+  eq(MIGHT.paragon, 0.05);
 });
 
 test('гача: пустота, монеты (горстка 50%, мешок 45%, сундук 5% от 15%), остальное — оружие по редкостям', () => {
@@ -250,46 +237,62 @@ test('гача: пустота, монеты (горстка 50%, мешок 45%
   no(counts.has('poor'), 'плохого оружия больше нет');
 });
 
-test('гача: обычное — плюс и минус, дальше только плюсы и всё больше; прибавки — к четырём статам', () => {
-  const random = seeded(4), scores = [], ids = STATS.map((stat) => stat.id);
-  eq(ids, ['str', 'agi', 'int', 'mas']);
+test('гача: у оружия одно число — мощь; чем реже, тем больше, разброс не больше 20%', () => {
+  const random = seeded(4), means = [];
   for (const rarity of RARITIES) {
+    const base = MIGHT.rarity[rarity.id];
     let sum = 0;
     for (let i = 0; i < 300; i++) {
-      const weapon = makeWeapon(random, 'frost', rarity), values = Object.entries(weapon.stats);
+      const weapon = makeWeapon(random, 'frost', rarity);
       eq(weapon.rarity, rarity.id);
-      for (const [stat] of values) ok(ids.includes(stat), stat);
-      eq(values.filter(([, v]) => v > 0).length, Math.min(rarity.good, ids.length), rarity.id);
-      eq(values.filter(([, v]) => v < 0).length, rarity.bad, rarity.id);
-      no('unique' in weapon, 'особых свойств больше нет');
-      sum += weaponScore(weapon);
+      no('stats' in weapon, 'статов нет');
+      ok(weapon.power >= Math.floor(base * (1 - MIGHT.spread)) && weapon.power <= Math.ceil(base * (1 + MIGHT.spread)),
+        rarity.id + ': ' + weapon.power);
+      sum += weaponPower(weapon);
     }
-    scores.push(sum / 300);
+    means.push(sum / 300);
   }
-  for (let i = 1; i < scores.length; i++) ok(scores[i] > scores[i - 1], RARITIES[i].id + ' лучше предыдущего');
+  for (let i = 1; i < means.length; i++) ok(means[i] > means[i - 1], RARITIES[i].id + ' сильнее предыдущего');
+  eq(weaponPower(null), 0);
   const legendary = RARITIES.find((rarity) => rarity.id === 'legendary');
   eq(legendary.chance, 0.06, 'легендарное — вдвое чаще прежнего');
 });
 
-test('улучшение: легендарное на +30 становится божественным, дальше по 5% от сложенных свойств', () => {
-  const weapon = makeWeapon(seeded(4), 'sniper', RARITIES[RARITIES.length - 1]), random = seeded(5);
+test('свойство легендарного: у каждого легендарного одно из пяти, у остальной редкости — нет', () => {
+  const random = seeded(9), seen = new Set();
+  eq(BOONS.map((boon) => boon.id), ['rapid', 'long', 'keen', 'swift', 'rich']);
+  for (const boon of BOONS) ok(boon.name && boon.text && Object.keys(boon.mods).length === 1, boon.id);
+  for (let i = 0; i < 400; i++) {
+    const cls = i % 2 ? 'parasite' : 'sniper', weapon = makeWeapon(random, cls, RARITIES[RARITIES.length - 1]);
+    ok(boonOf(weapon.boon), 'у легендарного есть свойство');
+    if (cls === 'parasite') no(weapon.boon === 'long', 'паразиту дальнобойность не выпадает');
+    seen.add(weapon.boon);
+  }
+  eq(seen.size, BOONS.length, 'выпадают все пять');
+  for (const rarity of RARITIES.slice(0, -1)) no(makeWeapon(random, 'sniper', rarity).boon, rarity.id);
+  const weapon = makeWeapon(random, 'sniper', RARITIES[RARITIES.length - 1]), boon = weapon.boon;
+  for (let i = 0; i < ASCEND_AT; i++) upgrade(weapon);
+  eq([weapon.rarity, weapon.boon], [DIVINE.id, boon], 'у божественного свойство остаётся');
+});
+
+test('улучшение: легендарное на +30 становится божественным, дальше — проценты от мощи', () => {
+  const weapon = makeWeapon(seeded(4), 'sniper', RARITIES[RARITIES.length - 1]), start = weapon.power;
   for (let i = 1; i < ASCEND_AT; i++) {
-    no(upgrade(random, weapon).ascended);
+    no(upgrade(weapon).ascended);
     eq(weapon.plus, i);
   }
   eq(weaponTitle(weapon), 'Легендарный карабин +' + (ASCEND_AT - 1));
   eq(ASCEND_AT, 30);
-  const total = weaponStats(weapon), last = upgrade(random, weapon);
+  const last = upgrade(weapon);
   ok(last.ascended, 'тридцатое улучшение');
   eq(weapon.rarity, DIVINE.id);
   eq(weapon.plus, 0, 'счёт улучшений сначала');
-  eq(weapon.ups, {}, 'прибавки перешли в основные свойства');
-  total[last.id] += last.amount;
-  for (const [id, value] of Object.entries(total)) ok(Math.abs(weapon.stats[id] - value) < 1e-6, id);
+  eq(weapon.power, start + ASCEND_AT * MIGHT.upgrade, 'мощь со всеми улучшениями осталась');
   ok(rankOf(weapon) > rankOf({ rarity: 'legendary' }), 'выше легендарного');
-  const next = upgrade(random, weapon);
+  const before = weapon.power, next = upgrade(weapon);
   eq(weapon.plus, 1);
-  ok(Math.abs(next.amount - weapon.stats[next.id] * 0.05) < 0.011, 'по 5%: ' + next.amount);
+  eq(next.amount, Math.round(before * MIGHT.divine), 'по ' + MIGHT.divine * 100 + '%: ' + next.amount);
+  eq(weapon.power, before + next.amount);
   eq(weaponTitle(weapon), 'Божественный карабин +1');
 });
 
@@ -320,16 +323,11 @@ test('гача: руна способности — 1,5%, у кого обе р�
   }
 });
 
-test('улучшение: +20% от начального значения случайного свойства, бесконечно', () => {
-  const weapon = makeWeapon(seeded(2), 'sniper', RARITIES[2]), before = Object.assign({}, weapon.stats);
-  for (let i = 0; i < 10; i++) {
-    const up = upgrade(seeded(i + 1), weapon);
-    ok(up.id in before);
-    ok(Math.abs(up.amount - Math.max(0.01, Math.round(Math.abs(before[up.id]) * 0.2 * 100) / 100)) < 0.051);
-  }
-  eq(weapon.stats, before, 'начальные свойства не меняются');
-  const total = weaponStats(weapon);
-  ok(Object.keys(before).some((id) => total[id] > before[id]), 'прибавки складываются');
+test('улучшение: +' + MIGHT.upgrade + ' мощи за каждое, сколько угодно раз', () => {
+  const weapon = makeWeapon(seeded(2), 'sniper', RARITIES[2]), start = weapon.power;
+  for (let i = 0; i < 10; i++) eq(upgrade(weapon).amount, MIGHT.upgrade);
+  eq(weapon.power, start + 10 * MIGHT.upgrade);
+  eq(weapon.plus, 10);
 });
 
 test('настройки: по умолчанию, границы, адрес туда и обратно', () => {

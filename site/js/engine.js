@@ -2,8 +2,8 @@ import { Battle } from './battle.js';
 import { makeMap, parseCell, parseMove } from './field.js';
 import { CLASSES, CLASS_BY_ID } from './classes.js';
 import { LEVEL_MAX, REWARD, TICK, levelOf, waveReward } from './balance.js';
-import { DIVINE, EXTRA_SLOTS, PRICE, QUEUE_CAP, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, UPGRADE_PRICE, rankOf,
-  spin, upgrade, weaponStats } from './gacha.js';
+import { DIVINE, EXTRA_SLOTS, PRICE, QUEUE_CAP, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, UPGRADE_PRICE, boonOf,
+  rankOf, spin, upgrade } from './gacha.js';
 import { LASTING, effectOf, rollEvent } from './events.js';
 
 export const COMMANDS = new Map([
@@ -16,9 +16,6 @@ export const COMMANDS = new Map([
   ['!чатоборона-замедлить', 'slower'],
 ]);
 export const SPEED_WORDS = new Map([['ускорить', 'faster'], ['замедлить', 'slower']]);
-export const STAT_WORDS = new Map([['сила', 'str'], ['силу', 'str'], ['силы', 'str'], ['с', 'str'], ['ловкость', 'agi'],
-  ['ловкости', 'agi'], ['ловк', 'agi'], ['л', 'agi'], ['интеллект', 'int'], ['интеллекта', 'int'], ['инт', 'int'],
-  ['и', 'int'], ['мастерство', 'mas'], ['мастерства', 'mas'], ['маст', 'mas'], ['м', 'mas']]);
 export const SPEED_MAX = 3;
 export const SUMMIT_EVERY = 100;
 export const SUMMIT_TIME = 60;
@@ -58,7 +55,7 @@ export const ASCEND_TIME = 16;
 
 const STEP_MAX = 1;
 const EVENTS_MAX = 500;
-const NO_MODS = { damage: 0, rate: 0, range: 0, crit: 0, xp: 0, coins: 0 };
+const NO_MODS = { damage: 0, rate: 0, range: 0, crit: 0, xp: 0, coins: 0, haste: 0 };
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 const INVISIBLE = /[\u200B\u200C\u200D\u2060\uFEFF\u00AD\u034F\u2800\u{E0000}]/gu;
 const IGNORED = new Set(BOTS);
@@ -363,7 +360,6 @@ export class Game {
     const action = ACTIONS.get(word.replace(/^!/, '')), cell = action ? null : parseCell(message);
     const move = action || cell ? null : parseMove(message);
     const amount = words.slice(1).find((part) => /^\d+$/.test(part) || part === 'все' || part === 'всё');
-    const stat = words.slice(1).map((part) => STAT_WORDS.get(part)).find(Boolean) || null;
     const control = COMMANDS.get(word) || SPEED_WORDS.get(word.replace(/^!/, ''));
     const owner = Boolean(this.s.channel) && login === this.s.channel;
     const other = owner && word[0] === '@' ? this._named(word.slice(1).replace(/[,:]+$/, '')) : null;
@@ -382,7 +378,7 @@ export class Game {
     } else if (action === 'reroll') {
       done = this.reroll(member);
     } else if (action === 'upgrade') {
-      done = this.improve(member, count, stat);
+      done = this.improve(member, count);
     } else if (cell) {
       done = this.goTo(member, cell.x, cell.y) ? 'move' : this._later(member, cell);
     } else if (move && owner) {
@@ -407,7 +403,7 @@ export class Game {
     return Boolean(this._place(member, { x, y }));
   }
 
-  improve(member, times = 1, stat = null) {
+  improve(member, times = 1) {
     if (!member || !this.battle) return null;
     if (!member.weapon) {
       this._note('bare', member);
@@ -417,18 +413,16 @@ export class Game {
       this._note('poor', member, NOTE_TIME, { price: UPGRADE_PRICE });
       return 'poor';
     }
-    const ups = new Map();
-    let done = 0, ascended = false;
+    let done = 0, amount = 0, ascended = false;
     for (; done < times && member.coins >= UPGRADE_PRICE; done++) {
       member.coins -= UPGRADE_PRICE;
-      const up = upgrade(this.random, member.weapon, stat);
+      const up = upgrade(member.weapon);
       if (up.ascended) ascended = true;
-      ups.set(up.id, Math.round(((ups.get(up.id) || 0) + up.amount) * 100) / 100);
+      amount += up.amount;
     }
     this._refresh(member);
-    const list = Array.from(ups, ([id, amount]) => ({ id, amount }));
-    this._note('upgrade', member, NOTE_TIME, { ups: list, times: done });
-    this._emit('upgraded', { login: member.login, ups: list });
+    this._note('upgrade', member, NOTE_TIME, { amount, times: done });
+    this._emit('upgraded', { login: member.login, amount });
     if (ascended) this._emit('divine', { login: member.login });
     return ascended ? 'divine' : 'upgraded';
   }
@@ -493,7 +487,8 @@ export class Game {
       for (const effect of this.run.now) addMods(total, effect.mods);
       addMods(total, this.run.mods);
     }
-    total.stats = member.weapon ? weaponStats(member.weapon) : null;
+    total.power = member.weapon ? member.weapon.power : 0;
+    if (member.weapon && member.weapon.boon) addMods(total, boonOf(member.weapon.boon).mods);
     total.runes = (member.runes || []).slice();
     total.paragon = member.paragon || 0;
     return total;
@@ -860,7 +855,8 @@ export class Game {
       this._emit('jackpot', { login: member.login, coins: slot.coins, prize: outcome.kind });
       return;
     }
-    slot.took = !member.weapon || rankOf(weapon) >= rankOf(member.weapon);
+    const held = member.weapon;
+    slot.took = !held || rankOf(weapon) > rankOf(held) || rankOf(weapon) === rankOf(held) && weapon.power > held.power;
     if (slot.took) {
       member.weapon = weapon;
       this._refresh(member);

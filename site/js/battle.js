@@ -1,8 +1,8 @@
 import { SIZE, inside, pathCells, reach } from './field.js';
-import { AFFIXES, BIOME_RULES, BOSSES, ELITES, FAMILIES, LIVES, LOOKS, MIMIC, MOBS, POWERS, SILVER, SLIMES, STAT,
-  TERRAIN, TOWER, WAVE, eliteCount, familyPool, levelOf, lookOf, resistOf, silverChance, waveHp, waveSpawns }
+import { AFFIXES, BIOME_RULES, BOSSES, ELITES, FAMILIES, LIVES, LOOKS, MIGHT, MIMIC, MOBS, POWERS, SILVER, SLIMES,
+  STAT, TERRAIN, WAVE, eliteCount, familyPool, levelOf, lookOf, resistOf, silverChance, waveHp, waveSpawns }
   from './balance.js';
-import { CLASS_BY_ID, PERKS, RUNE_CAPS, gradeOf, masteryOf, powerOf, scaled, statsOf } from './classes.js';
+import { CLASS_BY_ID, PERKS, RUNE_CAPS, baseOf, mastery, mightOf, scaled } from './classes.js';
 import { ASSIST_COINS, KILL_COINS } from './gacha.js';
 
 export const MOVE_PAUSE = 1;
@@ -258,8 +258,9 @@ export class Battle {
   _tower(player, classId, x, y, mods) {
     return {
       player, cls: CLASS_BY_ID.get(classId), x, y, cx: x + 0.5, cy: y + 0.5, level: 0, mods, s: [], runes: new Set(),
-      stats: null, damage: 0, skill: 0, interval: 1, range: 0, baseRange: 0, critChance: 0, critMul: STAT.critBase,
-      reach: 0, cone: 0, power: 1, luck: 1, haste: 1, cooldown: 0, busy: 0, napUntil: 0, stunUntil: 0, webUntil: 0,
+      might: MIGHT.base, damage: 0, skill: 0, interval: 1, range: 0, baseRange: 0, critChance: 0,
+      critMul: STAT.critBase, reach: 0, cone: 0, power: 1, luck: 1, haste: 1, cooldown: 0, busy: 0, napUntil: 0,
+      stunUntil: 0, webUntil: 0,
       web: 1, windUntil: 0, wind: 0, windBy: null, rider: false, host: null, leapUntil: 0, cocoon: 0, perch: null,
       waveXp: 0, aim: null, ramp: 0, streak: -1e9, lastShot: -1e9, reloadUntil: 0, hot: false, berserk: false,
       charge: null,
@@ -866,27 +867,27 @@ export class Battle {
   }
 
   _stats(tower) {
-    const cls = tower.cls, mods = tower.mods, b = cls.base, stats = statsOf(cls, mods.stats, mods.paragon || 0);
-    const mastery = masteryOf(stats.mas);
-    tower.stats = stats;
-    tower.power = mastery.power;
-    tower.luck = mastery.luck;
-    tower.haste = mastery.haste;
-    tower.s = cls.skills.map((skill) => scaled(skill, mastery));
+    const cls = tower.cls, mods = tower.mods, b = cls.base, base = baseOf(cls);
+    const skill = mastery(), haste = skill.haste * (1 + (mods.haste || 0));
+    tower.might = mightOf(mods.power || 0, mods.paragon || 0);
+    tower.power = skill.power;
+    tower.luck = skill.luck;
+    tower.haste = haste;
+    tower.s = cls.skills.map((item) => scaled(item, { power: skill.power, luck: skill.luck, haste }));
     tower.runes = new Set(mods.runes || []);
-    const boost = Math.max(FLOOR, 1 + (mods.damage || 0)), power = powerOf(cls, stats);
-    tower.damage = power.damage * boost;
-    tower.skill = TOWER.damage * b.damage * boost * power.skill;
-    tower.interval = power.interval / (Math.max(FLOOR, 1 + (mods.rate || 0)) * (tower.runes.has('frenzy') ? 3 : 1));
-    tower.critChance = Math.min(STAT.critMax, power.crit + (mods.crit || 0));
-    tower.critMul = power.critMul;
-    tower.reach = power.reach;
+    const boost = Math.max(FLOOR, 1 + (mods.damage || 0)) * tower.might / MIGHT.base;
+    tower.damage = base.damage * boost;
+    tower.skill = base.skill * boost;
+    tower.interval = base.interval / (Math.max(FLOOR, 1 + (mods.rate || 0)) * (tower.runes.has('frenzy') ? 3 : 1));
+    tower.critChance = Math.min(STAT.critMax, base.crit + (mods.crit || 0));
+    tower.critMul = base.critMul;
+    tower.reach = base.reach;
     tower.cone = (b.cone || 0) * (tower.runes.has('nozzle') ? 2 : 1);
     tower.baseRange = Math.max(RANGE_MIN, (b.range || 0) + (mods.range || 0)) + (this.onHill(tower) ? TERRAIN.hill : 0)
       + (this.onWatch(tower) ? TERRAIN.watch : 0);
     tower.ownRange = tower.baseRange + tower.reach;
     tower.range = tower.ownRange * (1 + tower.boost.range);
-    tower.lift = (1 + STAT.skill * stats[cls.primary]) / (1 + STAT.skill * gradeOf(cls, cls.primary));
+    tower.lift = 1 + (tower.might / MIGHT.base - 1) * MIGHT.lift;
     this._flags();
   }
 
