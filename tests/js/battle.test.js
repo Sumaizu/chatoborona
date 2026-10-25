@@ -1080,6 +1080,32 @@ test('минёр: с 50-го, если моб ближе пяти клеток, 
   eq(nukes(), count, 'следующая — не раньше, чем через две минуты');
 });
 
+test('минёр: ядерка взрывается там, где цель сейчас, а если цель умерла в полёте — там, где она умерла', () => {
+  const blastOf = (battle) => battle.events.filter((e) => e.kind === 'nuke').pop();
+  const live = makeBattle(), liveMiner = live.place(level(50), 'miner', 10, 4);
+  live.random = () => 0.99;
+  const runner = walker(live, 7, 1e12);
+  live.step(TICK);
+  ok(live.tosses.some((toss) => toss.kind === 'nuke' && toss.mob === runner), 'кинул в бегущего');
+  const start = [runner.x, runner.y];
+  runFor(live, NUKE_FLIGHT + TICK);
+  ok(!runner.dead && Math.hypot(runner.x - start[0], runner.y - start[1]) > 1, 'моб жив и успел убежать');
+  const blast = blastOf(live);
+  ok(blast && Math.hypot(blast.x - runner.x, blast.y - runner.y) < 0.3, 'взрыв у моба, а не там, где его выбрали');
+  no(liveMiner.dead);
+  const dying = makeBattle(), miner = dying.place(level(50), 'miner', 10, 4);
+  dying.random = () => 0.99;
+  const doomed = walker(dying, 7, 1e12), from = [doomed.x, doomed.y];
+  dying.step(TICK);
+  runFor(dying, NUKE_FLIGHT / 2);
+  const death = [doomed.x, doomed.y];
+  ok(Math.hypot(death[0] - from[0], death[1] - from[1]) > 0.5, 'до смерти моб отошёл');
+  dying._slay(doomed, miner);
+  runFor(dying, NUKE_FLIGHT);
+  const late = blastOf(dying);
+  ok(late && Math.hypot(late.x - death[0], late.y - death[1]) < 0.3, 'взрыв там, где моб умер');
+});
+
 test('минёр: руна «Большой запас» — мин вдвое больше, «Ядерный синтез» — граната бывает маленькой ядеркой', () => {
   const battle = makeBattle(), miner = battle.place(level(10), 'miner', 10, 4);
   battle.setMods(miner, { runes: ['stock', 'fusion'] });

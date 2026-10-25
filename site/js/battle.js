@@ -1112,11 +1112,16 @@ export class Battle {
   }
 
   _tosses(now) {
+    for (const toss of this.tosses) {
+      if (toss.mob.dead) continue;
+      toss.x = toss.mob.x;
+      toss.y = toss.mob.y;
+    }
     const due = this.tosses.filter((toss) => toss.at <= now);
     if (!due.length) return;
     this.tosses = this.tosses.filter((toss) => toss.at > now);
     for (const toss of due) {
-      const mob = toss.mob, x = mob.dead ? toss.x : mob.x, y = mob.dead ? toss.y : mob.y, t = toss.tower;
+      const x = toss.x, y = toss.y, t = toss.tower;
       if (toss.kind === 'nuke') this._nuke(t, x, y);
       else if (toss.kind === 'fusion') this._fusion(t, x, y);
       else {
