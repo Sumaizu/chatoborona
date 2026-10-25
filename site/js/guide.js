@@ -1,6 +1,6 @@
-import { CLASSES, cells } from './classes.js';
+import { cells } from './classes.js';
 import { ASSIST_COINS, KILL_COINS, OUTCOMES, PRICE, RARITIES, UPGRADE_PRICE, UPGRADE_SHARE } from './gacha.js';
-import { BIOME_RULES, ELITE_ODDS, LEVEL_MAX, LIVES, MOBS, REWARD, TERRAIN } from './balance.js';
+import { BIOME_RULES, ELITE_ODDS, LEVEL_MAX, LIVES, REWARD, TERRAIN } from './balance.js';
 import { coinUrl, commandUrl, effectUrl, heartUrl, heroUrl, mobUrl, prizeUrl } from './sprites.js';
 
 const bold = (text) => ({ text, bold: true });
@@ -15,17 +15,14 @@ export const PAGES = [
     title: 'Как играть',
     time: 28,
     points: () => [
-      [heroUrl('hunter'), ['Напиши в чат ', bold('что угодно'), ' — и ты в отряде. Класс выпадает случайно — один из '
-        + CLASSES.length + '. Не нравится — ', bold('реролл'), ': другой класс, один раз и только до первой волны.']],
-      [heroUrl('gunner'), ['Потом появится карта с дорогой. Ты — защитник на клетке у дороги и бьёшь мобов ',
-        bold('сам'), ': команды для атаки не нужны.']],
-      [commandUrl('move'), ['Хочешь в другое место — напиши клетку: букву столбца и номер строки, например ',
-        bold('к7'), '. Во время волны перебежишь, когда она кончится.']],
-      [heartUrl(), ['Мобы идут из тоннелей к сердцу. Дошедший отнимает жизни: обычный — ' + MOBS.normal.leak
-        + ', крепкий — ' + MOBS.tough.leak + ', элитный — ' + MOBS.elite.leak + ', босс — ' + MOBS.boss.leak
-        + '. У сердца ' + LIVES + ' жизней.']],
-      [mobUrl('zombie'), ['Волны бесконечные, и каждая сильнее прошлой. Быстро отбили волну — следующая придёт '
-        + 'раньше. Каждая 100-я волна — победа. Цель — ', bold('новый рекорд канала'), '.']],
+      [heroUrl('hunter'), ['Напиши в чат ', bold('что угодно'), ' — и ты в отряде: у тебя свой защитник на карте, '
+        + 'класс выпадает случайно.']],
+      [heroUrl('gunner'), ['Защитник бьёт мобов ', bold('сам'), ' — команды для атаки не нужны. Мобы идут по дороге '
+        + 'к сердцу, у него ' + LIVES + ' жизней.']],
+      [coinUrl(), ['За мобов — монеты: ', bold('гача'), ' — оружие за ' + PRICE + ' монет, ', bold('улучшить'),
+        ' — оружие сильнее.']],
+      [mobUrl('zombie'), ['Волны бесконечные и всё сильнее. Цель — ', bold('новый рекорд канала'), '. Что делать '
+        + 'дальше, игра подскажет по ходу.']],
     ],
   },
   {

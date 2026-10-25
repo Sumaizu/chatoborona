@@ -1,7 +1,8 @@
 import { test, eq, ok, no } from './harness.js';
 import { PLAIN, makeGame, memoryStorage, runFor, seeded, until } from './fixtures.js';
 import { ASCEND_TIME, CARD_MIN, CARD_ROOM, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPEED_MAX,
-  SPIN_LIMIT, SUMMIT_EVERY, SUMMIT_TIME, SUPPORTS, SUPPORT_EVERY, nextReset } from '../../site/js/engine.js';
+  SPIN_LIMIT, SUMMIT_EVERY, SUMMIT_TIME, SUPPORTS, SUPPORT_EVERY, TIP_LEVEL, TIP_TIME, nextReset }
+  from '../../site/js/engine.js';
 import { FAMILY_BY_ID, LEVEL_MAX, REWARD, TICK, waveReward, xpForLevel } from '../../site/js/balance.js';
 import { ASCEND_AT, EXTRA_SLOTS, PRICE, QUEUE_CAP, RARITIES, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, ascend,
   makeWeapon, weaponName, weaponStats } from '../../site/js/gacha.js';
@@ -640,6 +641,35 @@ test('каждая сотая волна — победа: минута на э�
   runFor(other, SUMMIT_TIME + 0.2);
   ok(other.state === 'over' || other.state === 'ascend', 'не продолжили — итоги');
   ok(other.results.victory && other.results.passed === SUMMIT_EVERY * 2, 'все двести волн засчитаны');
+});
+
+test('подсказки новичкам: при входе, на 50 монетах — «гача», с оружием и 100 монетами — «улучшить»; по одной', () => {
+  const { game } = makeGame();
+  game.open();
+  game.profiles.data.set('вера', { name: 'Вера', xp: xpForLevel(TIP_LEVEL), kills: 0, assists: 0 });
+  for (const name of ['Аня', 'Вера', 'Боря']) say(game, name, 'привет');
+  const tips = () => game.notes.filter((n) => n.kind === 'tip').map((n) => [n.login, n.detail.tip]);
+  runFor(game, 0.6);
+  eq(tips(), [['аня', 'hello']], 'по одной: сначала Аня');
+  eq(game.notes.find((n) => n.kind === 'tip').detail.cls, game.members.get('аня').cls, 'с её классом');
+  runFor(game, TIP_TIME);
+  eq(tips(), [['боря', 'hello']], 'потом Боря; Вере (' + TIP_LEVEL + '-й уровень) — нет');
+  runFor(game, TIP_TIME);
+  eq(tips(), []);
+  game.next();
+  ok(until(game, () => game.state === 'placing'));
+  const anya = game.members.get('аня'), borya = game.members.get('боря');
+  borya.tipped.add('spin');
+  borya.tipped.add('upgrade');
+  anya.coins = PRICE;
+  runFor(game, 0.6);
+  eq(tips(), [['аня', 'spin']], 'накопила на крутку — «гача»');
+  anya.weapon = makeWeapon(seeded(2), anya.cls, RARITIES[0]);
+  anya.coins = 100;
+  runFor(game, TIP_TIME);
+  eq(tips(), [['аня', 'upgrade']], 'с оружием и сотней монет — «улучшить»');
+  runFor(game, TIP_TIME * 2);
+  eq(tips(), [], 'каждая — один раз за игру');
 });
 
 test('доход: после волны — ещё 10% от монет, что были до награды, вниз до целой монеты', () => {

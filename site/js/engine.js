@@ -48,6 +48,10 @@ export const SUPPORT_EVERY = 10;
 export const CARD_ROOM = 2;
 export const SPIN_LIMIT = 5;
 export const NOTE_TIME = 4;
+export const TIP_LEVEL = 5;
+export const TIP_TIME = 7;
+const TIP_QUEUE = 3;
+const TIP_EVERY = 0.5;
 export const QUICK_WAVE = 10;
 export const QUICK_PAUSE = 5;
 export const ASCEND_TIME = 16;
@@ -201,6 +205,8 @@ export class Game {
     this.slots = Array(SLOTS).fill(null);
     this.notes = [];
     this.cards = [];
+    this.tips = [];
+    this._tipAt = 0;
     this.rulesShown = false;
     this.speed = 1;
     this.cardRoom = CARD_ROOM;
@@ -337,10 +343,11 @@ export class Game {
       star: STARS.has(login) ? STARS.get(login) : null,
       xp: saved ? saved.xp : 0, kills: saved ? saved.kills : 0, assists: saved ? saved.assists : 0,
       paragon: saved ? saved.paragon : 0, particle: saved ? saved.particle : false, coins: 0,
-      cls: this._randomClass(), weapon: null, runes: [], tower: null, pendingMove: null,
+      cls: this._randomClass(), weapon: null, runes: [], tower: null, pendingMove: null, tipped: new Set(),
     };
     this.members.set(login, member);
     this.profiles.update(member);
+    this._tip(member, 'hello');
     if (this.battle) this._place(member, cell && this.movable && this.battle.free(cell.x, cell.y) ? cell : null);
     this._emit('join', { login, name });
     return member;
@@ -526,6 +533,24 @@ export class Game {
     this.notes.push({ kind, login: member.login, left: time, detail, id: ++this._noteNo });
   }
 
+  _tip(member, kind) {
+    if (this.quiet || member.tipped.has(kind) || levelOf(member.xp) >= TIP_LEVEL) return;
+    member.tipped.add(kind);
+    this.tips.push({ login: member.login, kind });
+    if (this.tips.length > TIP_QUEUE) this.tips.shift();
+  }
+
+  _tips() {
+    for (const member of this.members.values()) {
+      if (!member.tower) continue;
+      if (!member.weapon && member.coins >= this.price) this._tip(member, 'spin');
+      else if (member.weapon && !member.weapon.plus && member.coins >= UPGRADE_PRICE) this._tip(member, 'upgrade');
+    }
+    if (!this.tips.length || this.notes.some((note) => note.kind === 'tip')) return;
+    const next = this.tips.shift(), member = this.members.get(next.login);
+    if (member) this._note('tip', member, TIP_TIME, { tip: next.kind, cls: member.cls });
+  }
+
   _card(member, brief) {
     const shown = this._shownCards(), own = shown.find((note) => note.login === member.login);
     const waiting = this.cards.find((card) => card.login === member.login);
@@ -592,6 +617,7 @@ export class Game {
     this.run = { number: this.games, mods: Object.assign({}, NO_MODS), foe: { hp: 0, speed: 0 }, lives: 0,
       effects: [], now: [], next: [], started: null };
     this.members = new Map();
+    this.tips = [];
     this._emit('lobby');
   }
 
@@ -727,6 +753,11 @@ export class Game {
 
   _tick(dt) {
     this._gacha(dt);
+    this._tipAt -= dt;
+    if (this._tipAt <= 0) {
+      this._tipAt = TIP_EVERY;
+      this._tips();
+    }
     if (this.notes.length) {
       for (const note of this.notes) {
         note.left -= dt;

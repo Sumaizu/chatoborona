@@ -3,8 +3,8 @@ import { CLASSES, CLASS_BY_ID, MARKS, PRIMARY, STAT_IDS, describe, num, powerOf,
   from './classes.js';
 import { coinUrl, effectUrl, flagCanvas, flagUrl, heroUrl, markUrl, particleSprite, particleUrl, prizeUrl,
   shieldUrl, statUrl } from './sprites.js';
-import { ASCEND_AT, EXTRA_SLOTS, OUTCOMES, PRICE, RARITIES, SLOTS, SPIN_TIME, UPGRADE_PRICE, amountText, gearColor,
-  outcomeOf, rarityOf, weaponName, weaponStats, weaponTitle } from './gacha.js';
+import { ASCEND_AT, EXTRA_SLOTS, OUTCOMES, PRICE, RARITIES, SLOTS, SPIN_TIME, UPGRADE_PRICE, UPGRADE_SHARE, amountText,
+  gearColor, outcomeOf, rarityOf, weaponName, weaponStats, weaponTitle } from './gacha.js';
 import { ASCEND_TIME } from './engine.js';
 import { effectOf } from './events.js';
 import { BIOME_RULES, LEVEL_MAX, LIVES, affixText, levelOf, resistOf } from './balance.js';
@@ -61,7 +61,7 @@ const BATTLE_SOUNDS = { wall: 'build', crumble: 'crumble', plant: 'plant', mine:
 const GOOD_EVENTS = new Set(['buff', 'blessing']);
 const COIN_FINDS = { handful: ' находит горстку монет', bag: ' находит мешок монет!',
   chest: ' открывает сундук монет!' };
-const NOTE_KINDS = new Set(['card', 'poor', 'bare', 'upgrade', 'queue']);
+const NOTE_KINDS = new Set(['card', 'poor', 'bare', 'upgrade', 'queue', 'tip']);
 const NEWCOMER_GLOW = { fire: '#f97316', ice: '#67e8f9', storm: '#facc15', poison: '#a3e635' };
 const NICK_COLORS = ['#ff8f85', '#ffb547', '#f2dd6e', '#8fe3ae', '#7fd4ff', '#b7a6ff', '#ff9ad5', '#8fe0d2'];
 const STATUS = {
@@ -1203,6 +1203,20 @@ export class View {
       node.append(nick, ': твои крутки ещё в очереди — дождись, пока они выпадут');
     } else if (note.kind === 'bare') {
       node.append(nick, ': улучшать нечего — сначала выбей оружие в гаче');
+    } else if (note.kind === 'tip') {
+      node.className = 'note tip';
+      const cls = CLASS_BY_ID.get(detail.cls);
+      if (detail.tip === 'hello') {
+        const role = cls.rider ? ': первые ' + cls.base.cocoon + ' волн — кокон, потом грызёшь мобов сам. '
+          : ': бьёшь мобов сам. ';
+        node.append(nick, ', ты — ', el('b', '', cls.name), role, 'Накопишь ' + PRICE + ' монет — пиши ',
+          el('b', '', 'гача'));
+      } else if (detail.tip === 'spin') {
+        node.append(nick, ': у тебя уже ' + PRICE + ' монет — пиши ', el('b', '', 'гача'), ', выпадет оружие');
+      } else {
+        node.append(nick, ': пиши ', el('b', '', 'улучшить'), ' — +' + Math.round(UPGRADE_SHARE * 100)
+          + '% к стату оружия за ' + UPGRADE_PRICE + ' монет');
+      }
     } else {
       node.className = 'note upgrade';
       const ups = el('b', 'up');

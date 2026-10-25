@@ -158,7 +158,7 @@ test('страницы: ускорение — заметная плашка «�
   const ratio = (view.scene.clock - field) / (view.clock - real);
   ok(Math.abs(ratio - 3) < 0.01, 'на ×3 поле — снаряды, взрывы, движение — идёт втрое быстрее, вровень с боем: ' + ratio);
   game.next();
-  await until(() => game.state === 'placing', 'расстановка');
+  await until(() => game.state === 'placing' && view.scene.battle === game.battle, 'расстановка на поле');
   view.scene.say('проверка', '#ffffff');
   const banner = view.scene.effects.find((e) => e.kind === 'banner'), shown = view.clock;
   await wait(400);
@@ -348,7 +348,8 @@ test('страницы: в наборе сменяются страницы пр
   const w = frame.contentWindow, game = w.chatoborona.game;
   await until(() => game.state === 'lobby', 'набор');
   await until(() => w.document.querySelectorAll('#lobby-tabs span').length === PAGES.length, 'вкладки');
-  ok(!element(w, 'lobby-guide').hidden && text(w, 'lobby-guide').includes('к7'), 'сначала — как играть');
+  ok(!element(w, 'lobby-guide').hidden && text(w, 'lobby-guide').includes('что угодно')
+    && text(w, 'lobby-guide').includes('гача'), 'сначала — как играть');
   const start = (id) => PAGES.slice(0, PAGES.findIndex((page) => page.id === id)).reduce((t, page) => t + page.time, 0);
   join(game, 'Аня');
   game.left = game.s.lobby - start('squad') - 1;
@@ -357,8 +358,8 @@ test('страницы: в наборе сменяются страницы пр
   game.left = game.s.lobby - start('classes') - 1;
   await until(() => !element(w, 'lobby-classes').hidden && element(w, 'lobby-squad').hidden, 'классы');
   game.left = game.s.lobby - start('coins') - 1;
-  await until(() => text(w, 'lobby-guide').includes('улучшить'), 'монеты и гача');
-  eq(w.document.querySelector('#lobby-tabs .on').textContent, 'Монеты и гача');
+  await until(() => w.document.querySelector('#lobby-tabs .on').textContent === 'Монеты и гача', 'монеты и гача');
+  await until(() => !element(w, 'lobby-guide').hidden && text(w, 'lobby-guide').includes('сундук'), 'текст страницы');
   frame.remove();
 });
 
