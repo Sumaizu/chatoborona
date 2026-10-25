@@ -365,8 +365,9 @@ export class View {
     const names = game.state === 'placing' ? true : this._namesShown(game);
     const ranges = new Set(this._ranges.keys());
     for (const note of game.notes) if (note.kind === 'card') ranges.add(note.login);
-    const fresh = this.scene.draw(showField ? game.battle : null, dt,
-      { names, highlight: this._lit(game), still, ranges });
+    const pace = game.paused ? 1 : game.speed;
+    const fresh = this.scene.draw(showField ? game.battle : null, dt * pace,
+      { names, highlight: this._lit(game), still, ranges, pace });
     for (const event of fresh) this._battleEvent(event);
     if (this.scene.impacts) this._sound('hit');
     this._paintCheer(dt, game);

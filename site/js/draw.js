@@ -359,6 +359,7 @@ export class Scene {
     this.built = new WeakMap();
     this.battle = null;
     this.clock = 0;
+    this.pace = 1;
     this.impacts = 0;
     this.labels = new Map();
     this.sights = new Map();
@@ -394,8 +395,9 @@ export class Scene {
       image.height / this.k);
   }
 
-  draw(battle, dt, { names = null, highlight = null, still = false, ranges = null } = {}) {
+  draw(battle, dt, { names = null, highlight = null, still = false, ranges = null, pace = 1 } = {}) {
     const ctx = this.ctx;
+    this.pace = pace;
     this.impacts = 0;
     if (battle !== this.battle) {
       this.battle = battle;
@@ -1882,8 +1884,8 @@ export class Scene {
       let bolt = BOLTS[t.cls.id] || { look: 'dot', color: t.cls.color, size: 2 };
       if (event.heavy) bolt = Object.assign({}, bolt, { width: event.heavy === 'mega' ? 5 : 3.5, color: '#ffffff' });
       else if (event.hot) bolt = Object.assign({}, bolt, { color: '#ff9a1f', size: 3 });
-      add({ kind: 'shot', life: TRAVEL * (bolt.look === 'lob' ? 2.5 : 1), x1: t.cx, y1: t.cy, x2: event.x, y2: event.y,
-        bolt, crit: event.crit, heavy: event.heavy });
+      add({ kind: 'shot', life: event.time || TRAVEL * (bolt.look === 'lob' ? 2.5 : 1), x1: t.cx, y1: t.cy,
+        x2: event.x, y2: event.y, bolt, crit: event.crit, heavy: event.heavy });
       if (event.heavy) {
         this._pose(t).flash = FLASH * 3;
         this._sparks(t.cx, t.cy, CHARGES.heavy.sparks, event.heavy === 'mega' ? 14 : 8, 2.4, 0.35);
@@ -2231,7 +2233,7 @@ export class Scene {
   _effects(ctx, dt) {
     const next = [];
     for (const e of this.effects) {
-      e.t += dt;
+      e.t += e.kind === 'banner' ? dt / this.pace : dt;
       if (e.t >= e.life) {
         if (e.kind === 'shot') {
           this.impacts += 1;

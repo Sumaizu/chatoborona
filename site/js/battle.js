@@ -49,6 +49,7 @@ const PIERCE_REACH = 1.4;
 const PIERCE_WIDTH = 0.4;
 const ECHO_DELAY = 0.3;
 const ROCKET_FLIGHT = 0.6;
+export const SHELL_FLIGHT = 0.25;
 const METEOR_FLIGHT = 1.2;
 const FOG_FLIGHT = 0.6;
 const SPIKE_TOUCH = 0.55;
@@ -115,6 +116,7 @@ const STEAL_RANGE = 1.2;
 const GHOST_CUT = 0.5;
 const MIRAGE_GAP = 0.35;
 const big = (mob) => mob.info.elite || mob.info.boss;
+const prized = (mob) => big(mob) || Boolean(mob.silver);
 const lookOfMob = (mob) => Object.values(LOOKS).flat().find((look) => look.id === mob.look) || null;
 const steady = (mob, now) => mob.wild || Boolean(mob.power) && (mob.power.id === 'steadfast'
   || mob.power.steady && mob.powerUntil > now);
@@ -1458,7 +1460,7 @@ export class Battle {
     const s = t.s[2];
     const living = this.mobs.filter((mob) => !mob.dead && !mob.fake && !hidden(mob, now));
     if (!living.length) return;
-    living.sort((a, b) => (big(b) ? 1 : 0) - (big(a) ? 1 : 0) || (b.info.boss ? 1 : 0) - (a.info.boss ? 1 : 0)
+    living.sort((a, b) => (prized(b) ? 1 : 0) - (prized(a) ? 1 : 0) || (b.info.boss ? 1 : 0) - (a.info.boss ? 1 : 0)
       || b.hp - a.hp);
     t.nextActive = now + s.every;
     for (const mob of living.slice(0, t.runes.has('omniscience') ? 3 : 1)) {
@@ -1637,8 +1639,8 @@ export class Battle {
       if (mob === skip || !this._targetable(t, mob, range, mode)) continue;
       let score = this.ahead(mob);
       if (mode === 'strongest') score = mob.hp + (t.cls.base.skyFirst && mob.flying ? 1e12 : 0);
-      else if (mode === 'bigFirst' && big(mob)) score += 1e6;
-      else if (mode === 'small' && big(mob)) score -= 1e6;
+      else if (mode === 'bigFirst' && prized(mob)) score += big(mob) ? 2e6 : 1e6;
+      else if (mode === 'small' && prized(mob)) score -= 1e6;
       if (immune(mob, t.cls.element)) score -= 1e15;
       if (score > bestScore) {
         bestScore = score;
@@ -1660,8 +1662,8 @@ export class Battle {
   _closestBig(t) {
     let best = null, gap = Infinity;
     for (const mob of this.mobs) {
-      if (mob.dead || !big(mob) || hidden(mob, this.time) || this.covered(mob.x, mob.y)) continue;
-      const far = (mob.x - t.cx) ** 2 + (mob.y - t.cy) ** 2;
+      if (mob.dead || !prized(mob) || hidden(mob, this.time) || this.covered(mob.x, mob.y)) continue;
+      const far = (mob.x - t.cx) ** 2 + (mob.y - t.cy) ** 2 - (big(mob) ? 1e6 : 0);
       if (far < gap) {
         gap = far;
         best = mob;
@@ -2062,7 +2064,7 @@ const SKILLS = {
     },
     every(b, t, now, alive) {
       if (!open(t, 2) || !alive || t.charge || now < t.nextActive) return;
-      const lead = b._target(t, { mode: 'bigFirst' }), target = lead && big(lead) ? lead : b._target(t);
+      const lead = b._target(t, { mode: 'bigFirst' }), target = lead && prized(lead) ? lead : b._target(t);
       if (!target) return;
       t.nextActive = now + t.s[2].every;
       b._charge(t, now, 'aim', t.s[2].charge, target);
@@ -2142,8 +2144,9 @@ const SKILLS = {
       if (!target) return false;
       const second = t.runes.has('cluster') ? b._target(t, { skip: target }) : null;
       for (const mob of second ? [target, second] : [target]) {
-        b._event({ kind: 'shot', tower: t, x: mob.x, y: mob.y, mob });
-        explode(b, t, mob.x, mob.y, rollCrit(b, t), open(t, 1) ? t.s[1].chance : 0);
+        const x = mob.x, y = mob.y, crit = rollCrit(b, t);
+        b._event({ kind: 'shot', tower: t, x, y, mob, time: SHELL_FLIGHT });
+        b._later(SHELL_FLIGHT, () => explode(b, t, x, y, crit, open(t, 1) ? t.s[1].chance : 0), t);
       }
       return true;
     },
@@ -2159,9 +2162,8 @@ const SKILLS = {
       if (!target) return;
       const s = t.s[2], crit = rollCrit(b, t);
       b._event({ kind: 'rocket', tower: t, mob: target, x: target.x, y: target.y, time: ROCKET_FLIGHT });
-      const fx = target.x, fy = target.y;
       b._later(ROCKET_FLIGHT, () => {
-        const x = target.dead ? fx : target.x, y = target.dead ? fy : target.y;
+        const x = target.x, y = target.y;
         b._event({ kind: 'boom', tower: t, x, y, radius: s.radius, rocket: true });
         for (const mob of b._around(x, y, s.radius)) {
           b._hurt(mob, t.skill * s.bonus * (crit ? t.critMul : 1), t);
@@ -2257,7 +2259,7 @@ const SKILLS = {
     fire(b, t) {
       const target = b._target(t);
       if (!target) return false;
-      const crit = rollCrit(b, t), damage = t.damage * (big(target) ? t.cls.base.big : 1) * (crit ? t.critMul : 1);
+      const crit = rollCrit(b, t), damage = t.damage * (prized(target) ? t.cls.base.big : 1) * (crit ? t.critMul : 1);
       t.lastHit = b.time;
       b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target });
       b._hurt(target, damage, t);

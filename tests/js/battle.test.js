@@ -1,7 +1,7 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
 import { BITE_TIME, BURST, Battle, CRIMSON, DISCHARGE, FUSION, HEADWIND, MOVE_PAUSE, NUKE_FLIGHT, OVERTIME, PLAGUE,
-  PLANTED, ROT, SECOND, SPLIT_TIME, THORN } from '../../site/js/battle.js';
+  PLANTED, ROT, SECOND, SHELL_FLIGHT, SPLIT_TIME, THORN } from '../../site/js/battle.js';
 import { SIZE } from '../../site/js/field.js';
 import { AFFIXES, BOSSES, ELITES, FAMILIES, FAMILY_BY_ID, LIVES, LOOKS, MIMIC, MOBS, POWERS, SILVER, STAT, TERRAIN,
   TICK, TOWER, familyPool, resistOf, silverChance, waveSpawns, xpForLevel } from '../../site/js/balance.js';
@@ -551,7 +551,7 @@ test('пулемётчик: с 30-го пуля отскакивает в сос
   ok(gun.ramp >= gun.cls.base.rampMax, 'на предельной скорости');
 });
 
-test('подрывник: взрыв бьёт всех рядом одинаково; с 10-го горит земля, летучих не жжёт', () => {
+test('подрывник: взрыв — когда снаряд долетел — бьёт всех рядом одинаково; с 10-го горит земля, летучих не жжёт', () => {
   const battle = makeBattle(), bomber = battle.place(level(10), 'bomber', 10, 4);
   bomber.critChance = 0;
   battle.random = () => 0.99;
@@ -560,7 +560,12 @@ test('подрывник: взрыв бьёт всех рядом одинако
   still(a, b, far, flyer);
   battle._fire(bomber);
   bomber.busy = 1e9;
-  for (const mob of [a, b, flyer]) near(hit(mob), bomber.damage, 'поровну');
+  eq(hit(a), 0, 'пока снаряд летит — урона нет');
+  for (let i = 0; i < 100 && !battle.events.some((e) => e.kind === 'boom'); i++) battle.step(TICK);
+  ok(Math.abs(battle.time - SHELL_FLIGHT) < TICK * 1.5, 'взрыв — когда снаряд долетел');
+  near(hit(flyer), bomber.damage, 'летучему — ровно взрыв');
+  near(hit(a), hit(b), 'стоящим — поровну');
+  ok(hit(a) >= bomber.damage - 1e-6 && hit(a) < bomber.damage * 1.5);
   eq(far.hp, far.max);
   eq(battle.patches.length, 1, 'земля горит');
   const flown = hit(flyer), walked = hit(a);
@@ -595,6 +600,22 @@ test('подрывник: с 50-го две секунды заряжает РП
   ok(elite.holdUntil > battle.time && side.holdUntil > battle.time, 'оглушены');
 });
 
+test('подрывник: ракета РПГ взрывается там, где цель была в последний момент, даже если та погибла в полёте', () => {
+  const battle = makeBattle(), bomber = battle.place(level(50), 'bomber', 10, 4);
+  battle.random = () => 0.99;
+  const elite = put(battle, special(battle, 'elite', 'vampire', 1e12), 7);
+  for (let i = 0; i < 400 && !battle.events.some((e) => e.kind === 'rocket'); i++) battle.step(TICK);
+  ok(battle.events.some((e) => e.kind === 'rocket'), 'ракета пущена');
+  const start = [elite.x, elite.y];
+  runFor(battle, 0.3);
+  const death = [elite.x, elite.y];
+  ok(Math.hypot(death[0] - start[0], death[1] - start[1]) > 0.1, 'цель успела сдвинуться');
+  battle._slay(elite, bomber);
+  runFor(battle, 0.5);
+  const boom = battle.events.filter((e) => e.kind === 'boom' && e.rocket).pop();
+  ok(boom && Math.hypot(boom.x - death[0], boom.y - death[1]) < 0.05, 'взрыв там, где цель погибла');
+});
+
 test('подрывник: руна «Кассетный выстрел» — два снаряда в разные цели, «Напалм» — огонь вдвое шире', () => {
   const battle = makeBattle(), bomber = battle.place(level(10), 'bomber', 10, 4);
   battle.setMods(bomber, { runes: ['cluster', 'napalm'] });
@@ -602,6 +623,7 @@ test('подрывник: руна «Кассетный выстрел» — д�
   const a = walker(battle, 9, 1e6), b = walker(battle, 13, 1e6);
   still(a, b);
   battle._fire(bomber);
+  runFor(battle, SHELL_FLIGHT + TICK);
   ok(hit(a) > 0 && hit(b) > 0, 'оба');
   near(battle.patches[0].radius, bomber.s[0].radius * 2);
 });
@@ -2173,6 +2195,24 @@ test('ловкость: своя у класса ускоряет атаку н�
   battle.setMods(t, { stats: { agi: 10 } });
   near(t.interval, gunner.base.interval / (1 + STAT.speed * grade + STAT.speedExtra * 10), 'с ловкостью от оружия');
   eq(STAT.speedExtra, STAT.speed * 2);
+});
+
+test('серебряные — тоже элитные: охотник бьёт их первым (после золотых и боссов), «Добыча» и «Наповал» их видят', () => {
+  const battle = makeBattle(), hunter = battle.place(level(50), 'hunter', 10, 4);
+  const plain = walker(battle, 12, 1e9), silver = walker(battle, 9, 1e9);
+  silver.silver = AFFIXES[0];
+  still(plain, silver);
+  ok(battle._target(hunter) === silver, 'серебряного — первым, хоть обычный и впереди');
+  ok(battle._closestBig(hunter) === silver, '«Добыча» и РПГ метят серебряного');
+  const gold = walker(battle, 8, 1e9);
+  gold.info = MOBS.elite;
+  still(gold);
+  ok(battle._target(hunter) === gold, 'золотой элитный — раньше серебряного');
+  const sniper = battle.place(level(50), 'sniper', 9, 4);
+  gold.dead = true;
+  battle.time = sniper.nextActive;
+  battle.step(TICK);
+  ok(sniper.charge && sniper.charge.target === silver, '«Наповал» целится в серебряного');
 });
 
 test('карта: с холма бьют дальше', () => {

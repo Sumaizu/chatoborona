@@ -4,6 +4,7 @@ import { BOSSES, ELITES, LEVEL_MAX, xpForLevel } from '../../site/js/balance.js'
 import { NUKE_FLIGHT } from '../../site/js/battle.js';
 import { HERO_SIZE, MOB_KINDS, coinUrl, heroSprite, heroUrl, mobSprite, prizeUrl } from '../../site/js/sprites.js';
 import { PAGES } from '../../site/js/guide.js';
+import { DEFAULTS } from '../../site/js/config.js';
 import { SIZE } from '../../site/js/field.js';
 import { RARITIES, ascend, makeWeapon } from '../../site/js/gacha.js';
 import { eq, no, ok, test } from './harness.js';
@@ -152,6 +153,16 @@ test('страницы: ускорение — заметная плашка «�
   game.feed('Мод', 'ускорить', { login: 'мод', mod: true });
   await until(() => text(w, 'speed') === '×3' && element(w, 'speed').classList.contains('x3'), 'плашка ×3');
   no(text(w, 'status').includes('×'), 'в строке состояния не повторяется');
+  const view = w.chatoborona.view, real = view.clock, field = view.scene.clock;
+  await wait(600);
+  const ratio = (view.scene.clock - field) / (view.clock - real);
+  ok(Math.abs(ratio - 3) < 0.01, 'на ×3 поле — снаряды, взрывы, движение — идёт втрое быстрее, вровень с боем: ' + ratio);
+  game.next();
+  await until(() => game.state === 'placing', 'расстановка');
+  view.scene.say('проверка', '#ffffff');
+  const banner = view.scene.effects.find((e) => e.kind === 'banner'), shown = view.clock;
+  await wait(400);
+  ok(Math.abs(banner.t - (view.clock - shown)) < 0.05, 'надписи на поле висят в обычном времени');
   game.feed('Мод', 'замедлить', { login: 'мод', mod: true });
   game.feed('Мод', 'замедлить', { login: 'мод', mod: true });
   await until(() => element(w, 'speed').hidden, 'скорость обычная — плашка пропала');
@@ -321,6 +332,7 @@ test('страницы: !чатоборона в оверлее — правил
   game.feed('Мод', '!чатоборона', { login: 'мод', mod: true });
   await until(() => !element(w, 'rules-board').hidden, 'правила на экране');
   ok(text(w, 'rules-board').includes('!чатоборона-пауза') && text(w, 'rules-board').includes('Команды для зрителей'));
+  no(text(w, 'rules-board').includes('[object'), 'в тексте нет «[object Object]»');
   ok(element(w, 'pause').hidden, 'вместо обычного экрана паузы');
   eq(w.getComputedStyle(element(w, 'rules-text')).columnCount, '2');
   game.feed('Мод', '!чатоборона-пауза', { login: 'мод', mod: true });
@@ -329,7 +341,8 @@ test('страницы: !чатоборона в оверлее — правил
   frame.remove();
 });
 
-test('страницы: в наборе сменяются страницы правил, отряда и классов', async () => {
+test('страницы: в наборе сменяются страницы правил, отряда и классов; круг — ровно весь набор', async () => {
+  eq(PAGES.reduce((sum, page) => sum + page.time, 0), DEFAULTS.lobby, 'страницы кончаются вместе с набором');
   fresh();
   const frame = await overlay('lobby=300');
   const w = frame.contentWindow, game = w.chatoborona.game;
@@ -392,6 +405,8 @@ test('страницы: главная — без канала просит ка
   const w = frame.contentWindow, inner = element(w, 'game').contentWindow, api = inner.chatoborona;
   ok(element(w, 'rules').open, 'при открытии — правила для стримера');
   ok(text(w, 'rules').includes('Ссылка для OBS') && text(w, 'rules').includes('!чатоборона-пауза'));
+  no(text(w, 'rules').includes('[object'), 'в тексте нет «[object Object]»');
+  ok(text(w, 'rules').includes('написать !чатоборона-дальше — ещё сто волн'));
   element(w, 'rules-close').click();
   no(element(w, 'rules').open, 'кнопка «Закрыть» закрывает');
   w.document.getElementById('rules').showModal();
