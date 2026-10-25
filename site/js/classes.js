@@ -524,10 +524,11 @@ export function masteryOf(mas) {
 export const skillOf = (cls, stats) => (1 + STAT.skill * stats[cls.primary]) * masteryOf(stats.mas).power;
 
 export function powerOf(cls, stats) {
-  const b = cls.base;
+  const b = cls.base, agi = gradeOf(cls, 'agi');
   return {
     damage: TOWER.damage * b.damage * (1 + STAT.damage * stats.str) * (cls.element ? 1 + STAT.element * stats.int : 1),
-    interval: (b.interval || 1) / (1 + STAT.speed * stats.agi),
+    interval: (b.interval || 1) / (1 + STAT.speed * Math.min(stats.agi, agi) + STAT.speedExtra * Math.max(0,
+      stats.agi - agi)),
     crit: Math.min(STAT.critMax, STAT.critChance * stats.agi),
     critMul: STAT.critBase + STAT.critPower * stats.str,
     reach: STAT.reach * stats.int,

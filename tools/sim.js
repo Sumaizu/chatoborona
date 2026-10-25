@@ -29,7 +29,7 @@ export function tune(changes) {
   return () => undo.reverse().forEach(([target, values]) => Object.assign(target, values));
 }
 
-export function runGame({ seed = 1, levels = [1], classes = [], pause = 20, gacha = true }) {
+export function runGame({ seed = 1, levels = [1], classes = [], pause = 20, gacha = true, stat = null }) {
   const random = seeded(seed);
   const profiles = new Profiles();
   const game = new Game(Object.assign({}, SETTINGS, { wave_pause: pause }), profiles,
@@ -74,8 +74,8 @@ export function runGame({ seed = 1, levels = [1], classes = [], pause = 20, gach
     for (const m of members) {
       const rarity = m.weapon ? m.weapon.rarity : '';
       const improve = () => {
-        const stat = (m.botUps || 0) % 3 === 2 ? 'mas' : CLASS_BY_ID.get(m.cls).primary;
-        if (game.improve(m, 1, stat) === 'poor') return false;
+        const pick = (m.botUps || 0) % 3 === 2 ? 'mas' : stat || CLASS_BY_ID.get(m.cls).primary;
+        if (game.improve(m, 1, pick) === 'poor') return false;
         m.botUps = (m.botUps || 0) + 1;
         upgrades += 1;
         return true;

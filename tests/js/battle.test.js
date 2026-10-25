@@ -2140,6 +2140,15 @@ test('карта: руины, круг камней и склеп закрыва
   ok(battle._target(tower) === mob, 'с вышки видно и поверх руин');
 });
 
+test('ловкость: своя у класса ускоряет атаку на 2% за очко, а прибавленная оружием — вдвое сильнее', () => {
+  const battle = makeBattle(), gunner = CLASS_BY_ID.get('gunner'), t = battle.place(player(), 'gunner', 10, 4);
+  const grade = STAT.grades[gunner.stats.agi];
+  near(t.interval, gunner.base.interval / (1 + STAT.speed * grade), 'без оружия');
+  battle.setMods(t, { stats: { agi: 10 } });
+  near(t.interval, gunner.base.interval / (1 + STAT.speed * grade + STAT.speedExtra * 10), 'с ловкостью от оружия');
+  eq(STAT.speedExtra, STAT.speed * 2);
+});
+
 test('карта: с холма бьют дальше', () => {
   const battle = mapWith({ hill: [[6, 4]] });
   const flat = battle.place(player(), 'gunner', 2, 4), high = battle.place(player(), 'gunner', 6, 4);

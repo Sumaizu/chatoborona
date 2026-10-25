@@ -277,7 +277,8 @@ test('улучшение: легендарное на +30 становится �
     no(upgrade(random, weapon).ascended);
     eq(weapon.plus, i);
   }
-  eq(weaponTitle(weapon), 'Легендарный карабин +29');
+  eq(weaponTitle(weapon), 'Легендарный карабин +' + (ASCEND_AT - 1));
+  eq(ASCEND_AT, 30);
   const total = weaponStats(weapon), last = upgrade(random, weapon);
   ok(last.ascended, 'тридцатое улучшение');
   eq(weapon.rarity, DIVINE.id);

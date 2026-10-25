@@ -1,10 +1,10 @@
 import { Scene } from './draw.js';
 import { CLASSES, CLASS_BY_ID, MARKS, PRIMARY, STAT_IDS, describe, num, powerOf, runeOf, statsOf }
   from './classes.js';
-import { coinUrl, crownUrl, effectUrl, flagCanvas, flagUrl, heroUrl, markUrl, particleSprite, particleUrl, prizeUrl,
+import { coinUrl, effectUrl, flagCanvas, flagUrl, heroUrl, markUrl, particleSprite, particleUrl, prizeUrl,
   shieldUrl, statUrl } from './sprites.js';
-import { EXTRA_SLOTS, OUTCOMES, PRICE, RARITIES, SLOTS, SPIN_TIME, UPGRADE_PRICE, amountText, gearColor, outcomeOf,
-  rarityOf, weaponName, weaponStats, weaponTitle } from './gacha.js';
+import { ASCEND_AT, EXTRA_SLOTS, OUTCOMES, PRICE, RARITIES, SLOTS, SPIN_TIME, UPGRADE_PRICE, amountText, gearColor,
+  outcomeOf, rarityOf, weaponName, weaponStats, weaponTitle } from './gacha.js';
 import { ASCEND_TIME } from './engine.js';
 import { effectOf } from './events.js';
 import { BIOME_RULES, LEVEL_MAX, LIVES, affixText, levelOf, resistOf } from './balance.js';
@@ -209,13 +209,6 @@ const easeBack = (value) => {
   const v = clamp01(value) - 1;
   return 1 + 2.7 * v * v * v + 1.7 * v * v;
 };
-
-function levelTag(className, level, prefix = '') {
-  const top = level >= LEVEL_MAX, node = el('span', className + (top ? ' crown-slot' : ''));
-  if (top) node.append(el('span', 'ghost', prefix + '00'), image(crownUrl(), 'crown'));
-  else node.textContent = prefix + level;
-  return node;
-}
 
 function prizeCell(prize) {
   const cell = el('div', 'cell');
@@ -602,9 +595,10 @@ export class View {
       if (divine) {
         card.append(image(particleUrl(56), 'relic-big'), image(heroUrl(player.cls, 96), 'face'),
           el('h2', '', 'Божественное оружие!'), this._starName(player.name, player.star, player.color, 'who'),
-          el('span', 'wish', 'улучшает оружие до +30 — оно становится божественным'), gearLine(show.weapon));
+          el('span', 'wish', 'улучшает оружие до +' + ASCEND_AT + ' — оно становится божественным'),
+          gearLine(show.weapon));
       } else {
-        card.append(image(crownUrl(), 'crown-big'), image(heroUrl(player.cls, 96), 'face'),
+        card.append(image(heroUrl(player.cls, 96), 'face'),
           el('h2', '', '100 уровень!'), this._starName(player.name, player.star, player.color, 'who'),
           el('span', 'wish', 'Поздравляем! Это самый высокий уровень в игре'));
       }
@@ -823,7 +817,7 @@ export class View {
         const item = el('div', 'who' + (!still && !this._rosterSeen.has(m.login) ? ' pop' : ''));
         item.append(image(heroUrl(m.cls)), this._starName(m.name, m.star));
         if (m.paragon) item.append(paragonTag(m.paragon));
-        item.append(levelTag('lvl', levelOf(m.xp), 'ур. '));
+        item.append(el('span', 'lvl', 'ур. ' + levelOf(m.xp)));
         box.append(item);
         this._rosterSeen.add(m.login);
       }
@@ -905,7 +899,7 @@ export class View {
       const item = el('li', i === 0 ? 'first' : '');
       item.append(el('span', 'place', i + 1), this._starName(row.name, member ? member.star : ''));
       if (row.paragon) item.append(paragonTag(row.paragon));
-      item.append(unit === 'ур. ' ? levelTag('points', row.value, unit) : el('span', 'points', unit + row.value));
+      item.append(el('span', 'points', unit + row.value));
       list.append(item);
     });
   }
@@ -1247,7 +1241,7 @@ export class View {
         const level = levelOf(m.xp);
         lvl.textContent = '';
         if (m.paragon) lvl.append(paragonTag(m.paragon));
-        lvl.append(levelTag('', level, 'ур. '));
+        lvl.append('ур. ' + level);
         relic.hidden = !m.particle;
         coins.querySelector('.sum').textContent = String(Math.floor(m.coins));
         const stats = statsOfMember(m), runes = m.runes || [];

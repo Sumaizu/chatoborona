@@ -186,30 +186,6 @@ export const starSprite = () => remember('star', () => mapSprite([
   '.Y...Y.',
 ], { Y: '#ffd43b', y: '#fff7c2' }));
 
-const crownSprite = () => remember('crown', () => mapSprite([
-  '...............',
-  '.W.....R.....W.',
-  '.Y....YYY....Y.',
-  '.YY..YYyYY..YY.',
-  '.YyY.YyyyY.YyY.',
-  '.YyyYYyyyYYyyY.',
-  '.YyyyyyyyyyyyY.',
-  '.DDDDDDDDDDDDD.',
-  '.DBDDDDRDDDDBD.',
-  '.DDDDDDDDDDDDD.',
-  '...............',
-], { Y: '#ffcd38', y: '#fff2a8', D: '#c98a12', R: '#ef4444', B: '#60a5fa', W: '#ffffff' }));
-
-export const crownUrl = () => remember('crownUrl', () => {
-  const image = crownSprite(), canvas = document.createElement('canvas');
-  canvas.width = image.width * 4;
-  canvas.height = image.height * 4;
-  const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL();
-});
-
 export const reticleSprite = () => remember('reticle', () => mapSprite([
   'RRR.......RRR',
   'R...........R',

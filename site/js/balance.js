@@ -8,7 +8,7 @@ export const RESIST = { every: 10, keep: 0.93 };
 export const resistOf = (wave) => 1 - Math.pow(RESIST.keep, Math.floor(Math.max(0, wave) / RESIST.every));
 
 export const STAT = { grades: { low: 6, mid: 12, high: 18 }, mastery: 3, paragon: 0.05, damage: 0.02, skill: 0.02,
-  critBase: 1.5, critPower: 0.015, critChance: 0.005, critMax: 0.5, speed: 0.02, reach: 0.02,
+  critBase: 1.5, critPower: 0.015, critChance: 0.005, critMax: 0.5, speed: 0.02, speedExtra: 0.04, reach: 0.02,
   element: 0.02, masteryMax: 0.6, masteryHalf: 20, luckHalf: 20 };
 
 export const MOBS = {
@@ -138,7 +138,7 @@ export const MIMIC = { id: 'mimic', name: 'Мимик', power: 'treasure', glow:
 
 export const ELITE_ODDS = { from: 3, base: 0.15, step: 0.012, top: 0.7, fall: 0.45, max: 4 };
 
-export const REWARD = { coins: 4, coinsStep: 0.4, xp: 1, xpStep: 0.1 };
+export const REWARD = { coins: 4, coinsStep: 0.6, xp: 1, xpStep: 0.1 };
 
 export const ELITES = [
   { id: 'leader', name: 'Вожак', power: 'dash', glow: '#facc15' },
