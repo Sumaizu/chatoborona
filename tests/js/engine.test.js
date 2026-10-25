@@ -1,7 +1,7 @@
 import { test, eq, ok, no } from './harness.js';
 import { PLAIN, makeGame, memoryStorage, runFor, seeded, until } from './fixtures.js';
 import { ASCEND_TIME, CARD_MIN, CARD_ROOM, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPEED_MAX,
-  SPIN_LIMIT, SUMMIT_EVERY, SUMMIT_TIME, nextReset } from '../../site/js/engine.js';
+  SPIN_LIMIT, SUMMIT_EVERY, SUMMIT_TIME, SUPPORTS, SUPPORT_EVERY, nextReset } from '../../site/js/engine.js';
 import { FAMILY_BY_ID, LEVEL_MAX, TICK, xpForLevel } from '../../site/js/balance.js';
 import { ASCEND_AT, EXTRA_SLOTS, PRICE, QUEUE_CAP, RARITIES, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, ascend,
   makeWeapon, weaponName, weaponStats } from '../../site/js/gacha.js';
@@ -889,6 +889,37 @@ test('стример переставляет защитников «А1 Б2»; 
   const late = cellName(tower.x, tower.y) + ' ' + cellName(next.x, next.y);
   eq(game.feed('Streamer', late, { login: 'streamer' }), 'later');
   eq(gosha.pendingMove, { x: next.x, y: next.y });
+});
+
+test('знаменосцев и мудрецов — не больше одного на каждые 10 игроков, рерол их не добавляет; лекарей — сколько угодно', () => {
+  for (let seed = 1; seed <= 6; seed++) {
+    const { game } = makeGame({ seed });
+    game.open();
+    for (let n = 1; n <= 35; n++) {
+      say(game, 'Игрок' + n, 'привет');
+      for (const id of SUPPORTS) {
+        const count = Array.from(game.members.values()).filter((m) => m.cls === id).length;
+        ok(count <= Math.ceil(n / SUPPORT_EVERY), seed + ': ' + id + ' ×' + count + ' на ' + n);
+      }
+    }
+  }
+  const { game } = makeGame();
+  game.open();
+  for (let n = 1; n <= 9; n++) say(game, 'Боец' + n, 'привет');
+  const members = Array.from(game.members.values());
+  members[0].cls = 'banner';
+  members[1].cls = 'sage';
+  members[2].cls = 'healer';
+  members[3].cls = 'sniper';
+  const seen = new Set();
+  for (let i = 0; i < 300; i++) {
+    const cls = game._randomClass(members[3]);
+    seen.add(cls);
+    no(SUPPORTS.has(cls), 'знаменосцу и мудрецу места нет — рерол их не даёт');
+    ok(cls !== 'sniper', 'рерол меняет класс');
+  }
+  ok(seen.has('healer'), 'второй лекарь — можно');
+  eq(Array.from(SUPPORTS).sort(), ['banner', 'sage']);
 });
 
 test('стример открывает чужую карточку: «@ник профиль», «@ник проф» — короткую; зрителям так нельзя', () => {

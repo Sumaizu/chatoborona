@@ -43,6 +43,8 @@ export const BOTS = [
 ];
 export const OVER_TIME = 15;
 export const CARD_MIN = 10;
+export const SUPPORTS = new Set(['banner', 'sage']);
+export const SUPPORT_EVERY = 10;
 export const CARD_ROOM = 2;
 export const SPIN_LIMIT = 5;
 export const NOTE_TIME = 4;
@@ -432,9 +434,7 @@ export class Game {
 
   reroll(member) {
     if (!member || member.rerolled || this.state !== 'lobby' && this.state !== 'placing') return null;
-    let cls = member.cls;
-    while (cls === member.cls) cls = this._randomClass();
-    member.cls = cls;
+    member.cls = this._randomClass(member);
     member.rerolled = true;
     member.runes = [];
     if (member.tower) {
@@ -443,7 +443,7 @@ export class Game {
       member.tower = null;
       this._place(member, cell);
     }
-    this._emit('rerolled', { login: member.login, cls });
+    this._emit('rerolled', { login: member.login, cls: member.cls });
     return this._card(member, false) && 'reroll';
   }
 
@@ -506,8 +506,12 @@ export class Game {
     return null;
   }
 
-  _randomClass() {
-    return CLASSES[Math.floor(this.random() * CLASSES.length)].id;
+  _randomClass(member = null) {
+    const others = Array.from(this.members.values()).filter((m) => m !== member);
+    const room = Math.ceil((others.length + 1) / SUPPORT_EVERY);
+    const open = CLASSES.filter((cls) => (!member || cls.id !== member.cls)
+      && (!SUPPORTS.has(cls.id) || others.filter((m) => m.cls === cls.id).length < room));
+    return open[Math.floor(this.random() * open.length)].id;
   }
 
   _emit(kind, details = {}) {
