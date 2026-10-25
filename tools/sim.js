@@ -72,9 +72,23 @@ export function runGame({ seed = 1, levels = [1], classes = [], pause = 20, gach
     if (!gacha || clock - thought < THINK) continue;
     thought = clock;
     for (const m of members) {
-      const stat = CLASS_BY_ID.get(m.cls).primary;
-      if (m.weapon && m.coins >= UPGRADE_PRICE + game.price && game.improve(m, 1, stat) === 'upgraded') upgrades += 1;
-      if (m.coins >= game.price && game.order(m) === 'queued') spins += 1;
+      const rarity = m.weapon ? m.weapon.rarity : '';
+      const improve = () => {
+        const stat = (m.botUps || 0) % 3 === 2 ? 'mas' : CLASS_BY_ID.get(m.cls).primary;
+        if (game.improve(m, 1, stat) === 'poor') return false;
+        m.botUps = (m.botUps || 0) + 1;
+        upgrades += 1;
+        return true;
+      };
+      if (rarity === 'legendary') {
+        if (m.coins >= UPGRADE_PRICE) improve();
+      } else if (rarity === 'divine') {
+        if (m.botTurn && m.coins >= UPGRADE_PRICE && improve()) m.botTurn = false;
+        else if (!m.botTurn && m.coins >= game.price && game.order(m) === 'queued') {
+          spins += 1;
+          m.botTurn = true;
+        }
+      } else if (m.coins >= game.price && game.order(m) === 'queued') spins += 1;
     }
   }
   const r = game.results || { passed: game.wave - 1, time: clock };
@@ -89,6 +103,8 @@ export function runGame({ seed = 1, levels = [1], classes = [], pause = 20, gach
       risen: Boolean(mob.risen) })),
     effects: game.run.effects.map((e) => e.id),
     weapons: members.map((m) => (m.weapon ? weaponScore(m.weapon) : 0)),
+    gear: members.map((m) => ({ rarity: m.weapon ? m.weapon.rarity : null, plus: m.weapon ? m.weapon.plus || 0 : 0,
+      runes: (m.runes || []).length, particle: Boolean(m.particle) })),
     players: members.map((m, i) => ({
       cls: m.cls, from: start[i].level, to: balance.levelOf(m.xp), xp: m.xp - start[i].xp,
       kills: m.tower ? m.tower.run.kills : 0, assists: m.tower ? m.tower.run.assists : 0,

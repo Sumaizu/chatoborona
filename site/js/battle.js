@@ -1,7 +1,8 @@
 import { SIZE, inside, pathCells, reach } from './field.js';
-import { BIOME_RULES, BOSSES, ELITES, FAMILIES, LIVES, LOOKS, MIMIC, MOBS, POWERS, SLIMES, STAT, TERRAIN, TOWER,
-  WAVE, eliteCount, familyPool, levelOf, lookOf, resistOf, waveHp, waveSpawns } from './balance.js';
-import { CLASS_BY_ID, PERKS, auraOf, gradeOf, masteryOf, scaled, skillOf, statsOf } from './classes.js';
+import { AFFIXES, BIOME_RULES, BOSSES, ELITES, FAMILIES, LIVES, LOOKS, MIMIC, MOBS, POWERS, SILVER, SLIMES, STAT,
+  TERRAIN, TOWER, WAVE, eliteCount, familyPool, levelOf, lookOf, resistOf, silverChance, waveHp, waveSpawns }
+  from './balance.js';
+import { CLASS_BY_ID, PERKS, RUNE_CAPS, gradeOf, masteryOf, powerOf, scaled, statsOf } from './classes.js';
 import { ASSIST_COINS, KILL_COINS } from './gacha.js';
 
 export const MOVE_PAUSE = 1;
@@ -108,6 +109,7 @@ const near = (a, x, y, range) => (a.x - x) * (a.x - x) + (a.y - y) * (a.y - y) <
 const immune = (mob, element) => Boolean(element) && mob.element === element;
 const IMMUNE_GAP = 0.6;
 const SPLIT_GAP = 0.3;
+export const SPLIT_TIME = 0.35;
 const STEAL_RANGE = 1.2;
 const GHOST_CUT = 0.5;
 const MIRAGE_GAP = 0.35;
@@ -395,7 +397,7 @@ export class Battle {
     this.nextFamily = null;
     const pick = (list) => list[Math.floor(this.random() * list.length)];
     const elites = familyPool(family, ELITES, wave), boss = pick(familyPool(family, BOSSES, wave));
-    const plan = waveSpawns(wave), length = plan.length ? plan[plan.length - 1].delay : 0;
+    const plan = waveSpawns(wave, family.count || 1), length = plan.length ? plan[plan.length - 1].delay : 0;
     for (let i = eliteCount(wave, this.random); i > 0; i--) plan.push({ type: 'elite', delay: this.random() * length });
     if (wave >= MIMIC.from && this.random() < MIMIC.chance) {
       plan.push({ type: 'elite', delay: this.random() * length, kind: MIMIC });
@@ -415,6 +417,11 @@ export class Battle {
       else {
         spawn.look = pick(familyPool(family, LOOKS[s.type], wave));
         spawn.hp *= spawn.look.hp || 1;
+        if (this.random() < silverChance(wave)) {
+          spawn.silver = pick(AFFIXES.filter((affix) => !(affix.power && spawn.look.power)
+            && !(affix.element && spawn.look.element)));
+          spawn.hp *= SILVER.hp * (spawn.silver.hp || 1);
+        }
       }
       return spawn;
     });
@@ -524,7 +531,8 @@ export class Battle {
 
   _spawn(spawn, d = 0, r = 0) {
     const info = MOBS[spawn.type], kind = spawn.kind || null, shape = kind || spawn.look || null;
-    const power = shape && shape.power ? POWERS[shape.power] : null;
+    const silver = spawn.silver || null;
+    const power = shape && shape.power ? POWERS[shape.power] : silver && silver.power ? POWERS[silver.power] : null;
     const fallback = LOOKS[spawn.type] || (info.boss ? BOSSES : ELITES);
     const look = kind ? kind.id : spawn.look ? spawn.look.id : fallback[0].id;
     const mob = {
@@ -535,16 +543,19 @@ export class Battle {
       robbed: null, mirage: Boolean(shape && shape.mirage), fake: Boolean(spawn.fake), front: shape && shape.front
         || 0, ward: 0, cargo: power && power.cargo || 0, leak: kind && kind.leak || info.leak,
       fireproof: kind && kind.fireproof || 0, curlReady: 0,
-      element: shape && shape.element || null, slime: shape && shape.slime || 0, immuneAt: 0,
-      undead: Boolean(shape && shape.undead), armor: shape && shape.armor || 0,
+      element: shape && shape.element || silver && silver.element || null, slime: shape && shape.slime || 0,
+      immuneAt: 0, silver, undead: Boolean(shape && shape.undead),
+      armor: Math.max(shape && shape.armor || 0, silver && silver.armor || 0),
       revive: shape && shape.revive || power && power.revive || 0, treasure: Boolean(kind && kind.treasure),
       clinkAt: 0, rattleAt: this.time + RATTLE.min, wild: this.wild, hitAt: -1e9,
       powerAt: this.time + (power && power.every ? 2 : 0), powerUntil: 0, hp: spawn.hp, max: spawn.hp, d, r, x: 0,
       skill: kind && kind.skill ? POWERS[kind.skill] : null, skillAt: this.time + (kind && kind.skill
         ? POWERS[kind.skill].first : 0), hook: null,
       y: 0, speed: WAVE.speed * info.speed * Math.max(FLOOR, 1 + this.foe.speed) * ((shape && shape.flying
-        ? this.rules.air : this.rules.ground) || 1), slow: 0, slowUntil: 0, chill: 0,
-      mark: 0, markUntil: 0, vuln: 0, vulnUntil: 0, weak: 0, weakUntil: 0, weakBy: null, charge: null, rot: null,
+        ? this.rules.air : this.rules.ground) || 1) * (1 + (silver && silver.speed || 0)), slow: 0, slowUntil: 0,
+      chill: 0,
+      mark: 0, markUntil: 0, vuln: 0, vulnUntil: 0, weak: 0, weakUntil: 0, weakBy: null, rush: 0, rushUntil: 0,
+      charge: null, rot: null,
       muteUntil: 0, netUntil: 0,
       rollAt: this.time + ROLL_EVERY, thornAt: 0, resist: resistOf(this.wave), holdUntil: 0, holdFree: 0,
       holdBy: '', pushed: 0, poison: null, burn: null, helpers: new Set(), last: null, dead: false, biting: 0,
@@ -553,7 +564,10 @@ export class Battle {
     this._locate(mob);
     this.mobs.push(mob);
     if (kind) this._event({ kind: 'arrive', mob });
-    else if (spawn.look && spawn.look.text && !this.met.has(spawn.look.id)) {
+    else if (silver && !this.met.has('silver:' + silver.id)) {
+      this.met.add('silver:' + silver.id);
+      this._event({ kind: 'silver', mob, affix: silver });
+    } else if (spawn.look && spawn.look.text && !this.met.has(spawn.look.id)) {
       this.met.add(spawn.look.id);
       this._event({ kind: 'newcomer', mob, look: spawn.look });
     }
@@ -596,6 +610,12 @@ export class Battle {
         if (power.id === 'tunnel') this._swallow(mob, power);
         if (power.id === 'breath') this._breathe(mob, power);
         if (power.id === 'web') this._web(mob, power);
+        if (power.id === 'wail') this._wail(mob, power);
+        if (power.id === 'roar') this._roar(mob, power, now);
+        if (power.id === 'shift') {
+          mob.element = power.cycle[(power.cycle.indexOf(mob.element) + 1) % power.cycle.length];
+          this._event({ kind: 'shift', mob, element: mob.element });
+        }
       }
       if (mob.treasure && now >= mob.rattleAt) {
         mob.rattleAt = now + RATTLE.min + this.random() * RATTLE.spread;
@@ -686,6 +706,21 @@ export class Battle {
     }
     if (!target) return;
     if (this._daze(target, power.hold)) this._event({ kind: 'hex', mob, tower: target });
+  }
+
+  _wail(mob, power) {
+    const dazed = this.towers.filter((t) => !t.rider && near({ x: t.cx, y: t.cy }, mob.x, mob.y, power.range)
+      && this._daze(t, power.hold));
+    this._event({ kind: 'wail', mob, radius: power.range, towers: dazed });
+  }
+
+  _roar(mob, power, now) {
+    for (const other of this.mobs) {
+      if (other.dead || !near(other, mob.x, mob.y, power.range)) continue;
+      other.rush = power.boost;
+      other.rushUntil = now + power.time;
+    }
+    this._event({ kind: 'roar', mob, radius: power.range });
   }
 
   _ward(mob, power) {
@@ -833,18 +868,17 @@ export class Battle {
     tower.haste = mastery.haste;
     tower.s = cls.skills.map((skill) => scaled(skill, mastery));
     tower.runes = new Set(mods.runes || []);
-    const boost = Math.max(FLOOR, 1 + (mods.damage || 0)), base = TOWER.damage * b.damage * boost;
-    tower.damage = base * (1 + STAT.damage * stats.str) * (cls.element ? 1 + STAT.element * stats.int : 1);
-    tower.skill = base * skillOf(cls, stats);
-    tower.interval = (b.interval || 1) / ((1 + STAT.speed * stats.agi) * Math.max(FLOOR, 1 + (mods.rate || 0))
-      * (tower.runes.has('frenzy') ? 3 : 1));
-    tower.critChance = Math.min(STAT.critMax, STAT.critChance * stats.agi + (mods.crit || 0));
-    tower.critMul = STAT.critBase + STAT.critPower * stats.str;
-    tower.reach = STAT.reach * stats.int;
+    const boost = Math.max(FLOOR, 1 + (mods.damage || 0)), power = powerOf(cls, stats);
+    tower.damage = power.damage * boost;
+    tower.skill = TOWER.damage * b.damage * boost * power.skill;
+    tower.interval = power.interval / (Math.max(FLOOR, 1 + (mods.rate || 0)) * (tower.runes.has('frenzy') ? 3 : 1));
+    tower.critChance = Math.min(STAT.critMax, power.crit + (mods.crit || 0));
+    tower.critMul = power.critMul;
+    tower.reach = power.reach;
     tower.cone = (b.cone || 0) * (tower.runes.has('nozzle') ? 2 : 1);
     tower.baseRange = Math.max(RANGE_MIN, (b.range || 0) + (mods.range || 0)) + (this.onHill(tower) ? TERRAIN.hill : 0)
       + (this.onWatch(tower) ? TERRAIN.watch : 0);
-    tower.ownRange = tower.baseRange + auraOf(cls, stats);
+    tower.ownRange = tower.baseRange + tower.reach;
     tower.range = tower.ownRange * (1 + tower.boost.range);
     tower.lift = (1 + STAT.skill * stats[cls.primary]) / (1 + STAT.skill * gradeOf(cls, cls.primary));
     this._flags();
@@ -957,7 +991,8 @@ export class Battle {
       if (mob.rot && !mob.dead && mob.rot.until <= now) mob.rot = null;
       if (mob.rot && !mob.dead) {
         const share = mob.info.boss ? ROT.boss : ROT.share;
-        this._hurt(mob, mob.max * share * dt, mob.rot.by, null, true, SHIELDS);
+        const rot = Math.min(mob.max * share, mob.rot.by.skill * RUNE_CAPS.rot);
+        this._hurt(mob, rot * dt, mob.rot.by, null, true, SHIELDS);
       }
       if (mob.charge && !mob.dead && mob.charge.until <= now) {
         const by = mob.charge.by;
@@ -1098,8 +1133,13 @@ export class Battle {
     const radius = t.s[2].radius;
     this._event({ kind: 'nuke', tower: t, x, y, radius });
     for (const mob of this.mobs.slice()) {
-      if (!mob.dead && near(mob, x, y, radius)) this._slay(mob, t);
+      if (!mob.dead && near(mob, x, y, radius)) this._execute(mob, t, t.skill * t.s[2].cap);
     }
+  }
+
+  _execute(mob, t, cap) {
+    if (mob.hp <= cap) this._slay(mob, t);
+    else this._hurt(mob, cap, t, null, true, ARMOR);
   }
 
   _fusion(t, x, y) {
@@ -1194,7 +1234,8 @@ export class Battle {
       if (mob.holdUntil > now && !steady(mob, now)) continue;
       let slow = steady(mob, now) ? 0 : Math.max(mob.slowUntil > now ? mob.slow : 0, mob.chill);
       if (mob.info.boss) slow *= BOSS_SLOW;
-      let speed = mob.speed * (1 + mob.fury) * (mob.wild ? 1 + OVERTIME_SPEED : 1) * wind;
+      let speed = mob.speed * (1 + mob.fury) * (mob.wild ? 1 + OVERTIME_SPEED : 1) * wind
+        * (mob.rushUntil > now ? 1 + mob.rush : 1);
       const power = mob.muteUntil > now ? null : mob.power;
       if (power && power.boost && power.time && mob.powerUntil > now) speed *= 1 + power.boost;
       if (power && power.id === 'rage') speed *= 1 + power.boost * (1 - mob.hp / mob.max);
@@ -1697,7 +1738,7 @@ export class Battle {
     }
     if (!dot && this.brittle && mob.holdUntil > now && mob.holdBy === 'frost' && this.random() < BRITTLE) {
       this._event({ kind: 'shatter', mob });
-      this._slay(mob, t);
+      this._execute(mob, t, t.skill * RUNE_CAPS.shatter);
     }
   }
 
@@ -1723,10 +1764,11 @@ export class Battle {
       this._event({ kind: 'feast', tower: killer, mob });
     }
     const insight = mob.weakUntil > this.time && mob.weakBy && open(mob.weakBy, 2) ? mob.weakBy.s[2].xp : 1;
+    const prize = mob.silver ? SILVER.xp : 1, purse = mob.silver ? SILVER.coins : 1;
     for (const t of mob.helpers) {
       const earn = t.cls.earn || NO_EARN, bonus = t === killer ? feast : 1;
-      this._grant(t, mob.info.xp * earn.xp * bonus * insight);
-      const coins = (t === killer ? KILL_COINS : ASSIST_COINS) * mob.info.coins * earn.coins * bonus
+      this._grant(t, mob.info.xp * earn.xp * bonus * insight * prize);
+      const coins = (t === killer ? KILL_COINS : ASSIST_COINS) * mob.info.coins * earn.coins * bonus * purse
         * Math.max(0, 1 + (t.mods.coins || 0));
       t.player.coins += coins;
       t.run.coins += coins;
@@ -1746,6 +1788,18 @@ export class Battle {
       this._event({ kind: 'loot', mob, tower: killer, coins: mob.stolen });
     }
     if (mob.cargo) this._unload(mob, true);
+    if (mob.silver && mob.silver.burst) {
+      this._event({ kind: 'boom', x: mob.x, y: mob.y, radius: SILVER.burst });
+      for (const t of this.towers) {
+        if (!t.rider && near({ x: t.cx, y: t.cy }, mob.x, mob.y, SILVER.burst)) this._daze(t, SILVER.daze);
+      }
+    }
+    if (mob.silver && mob.silver.split) {
+      for (const shift of [-0.3, 0.3]) {
+        this.births.push({ spawn: { type: mob.type, look: lookOfMob(mob), hp: mob.max * SILVER.split / SILVER.hp },
+          d: Math.max(0, mob.d + shift), r: mob.r, at: this.time });
+      }
+    }
     if (mob.power && mob.power.brood) {
       const hp = waveHp(Math.max(1, this.wave), 'swarm', this.players || 1) * mob.power.hp;
       for (let i = 0; i < mob.power.brood; i++) {
@@ -1782,12 +1836,15 @@ export class Battle {
     }
     const pieces = mob.power && mob.power.id === 'split' ? 3 : mob.slime > 1 ? mob.slime - 1 : 0;
     if (pieces) {
-      const type = SLIMES[pieces - 1], look = LOOKS[type].find((item) => item.slime === pieces);
+      const type = SLIMES[pieces - 1], look = LOOKS[type].find((item) => item.slime === pieces), spots = [];
       for (const shift of [-SPLIT_GAP, SPLIT_GAP]) {
         const hp = waveHp(Math.max(1, this.wave), type, this.players || 1) * Math.max(FLOOR, 1 + this.foe.hp)
-          * this.kin;
-        this.births.push({ spawn: { type, look, hp }, d: Math.max(0, mob.d + shift), r: mob.r, at: this.time });
+          * this.kin, d = Math.max(0, mob.d + shift), spot = { d, r: mob.r, sx: 0, sy: 0, placed: false };
+        this._locate(spot);
+        spots.push([spot.x, spot.y]);
+        this.births.push({ spawn: { type, look, hp }, d, r: mob.r, at: this.time + SPLIT_TIME });
       }
+      this._event({ kind: 'split', mob, spots });
     }
   }
 
@@ -2220,14 +2277,14 @@ const SKILLS = {
       b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target });
       if (t.runes.has('thorn') && target.hp < target.max * THORN.below && b.random() < THORN.chance) {
         b._event({ kind: 'execute', mob: target, tower: t });
-        b._slay(target, t);
+        b._execute(target, t, t.skill * RUNE_CAPS.thorn);
         return true;
       }
       b._hurt(target, t.damage * (crit ? t.critMul : 1), t);
       if (crit && open(t, 0) && !target.dead) {
         const s = t.s[0], share = target.info.boss ? s.boss : target.info.elite ? s.elite : s.share;
         b._hold(target, s.stun, t);
-        b._hurt(target, target.max * share, t, null, false, ARMOR);
+        b._hurt(target, Math.min(target.max * share, t.skill * s.cap), t, null, false, ARMOR);
       }
       return true;
     },

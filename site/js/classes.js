@@ -1,6 +1,7 @@
-import { STAT } from './balance.js';
+import { STAT, TOWER } from './balance.js';
 
 export const PERKS = [10, 30, 50];
+export const RUNE_CAPS = { rot: 0.6, thorn: 40, shatter: 40 };
 export const PRIMARY = { str: 'сила', agi: 'ловкость', int: 'интеллект' };
 export const STAT_IDS = ['str', 'agi', 'int', 'mas'];
 
@@ -174,7 +175,7 @@ export const CLASSES = [
     ],
     runes: [
       { id: 'infection', name: 'Инфекция', text: 'отравленные гниют ещё 5 с после яда: теряют 1% здоровья в секунду '
-        + '(боссы — 0,3%)' },
+        + '(боссы — 0,3%), но не больше урона ×' + num(RUNE_CAPS.rot) + ' в секунду' },
       { id: 'plague', name: 'Чума', text: 'яд чернеет: берёт и нежить, пробивает броню и бьёт на 25% сильнее' },
     ],
   },
@@ -253,9 +254,10 @@ export const CLASSES = [
       + b.gold[0] + ' до ' + b.gold[1] + ' монет. Потом цепляется к самому крепкому мобу и грызёт его, убил — прыгает '
       + 'на следующего',
     skills: [
-      { name: 'Шок', v: { stun: 0.5, share: 0.1, elite: 0.05, boss: 0.03 }, scale: { stun: 'time' },
+      { name: 'Шок', v: { stun: 0.5, share: 0.1, elite: 0.05, boss: 0.03, cap: 25 },
+        scale: { stun: 'time', cap: 'dmg' },
         text: (v) => 'крит оглушает на ' + sec(v.stun) + ' и отнимает ещё ' + pct(v.share) + ' здоровья (у элитных '
-          + pct(v.elite) + ', у боссов ' + pct(v.boss) + ')' },
+          + pct(v.elite) + ', у боссов ' + pct(v.boss) + '), но не больше урона ×' + num(v.cap) },
       { name: 'Пир', v: { chance: 0.3, bonus: 1 }, scale: { chance: 'luck', bonus: 'power' },
         text: (v) => 'добив моба, с шансом ' + pct(v.chance) + ' получает на ' + pct(v.bonus)
           + ' больше опыта и монет' },
@@ -267,8 +269,8 @@ export const CLASSES = [
     ],
     runes: [
       { id: 'frenzy', name: 'Бешенство', text: 'кусает втрое чаще' },
-      { id: 'thorn', name: 'Смертельный шип', text: 'с шансом 3% добивает любого моба, у которого меньше 30% '
-        + 'здоровья' },
+      { id: 'thorn', name: 'Смертельный шип', text: 'с шансом 3% добивает моба, у которого меньше 30% здоровья; '
+        + 'слишком крепкому наносит урон ×' + num(RUNE_CAPS.thorn) },
     ],
   },
   {
@@ -277,25 +279,25 @@ export const CLASSES = [
     color: '#6366f1',
     element: 'blast',
     primary: 'int',
-    earn: { xp: 0.75, coins: 0.7 },
+    earn: { xp: 0.85, coins: 0.8 },
     weapon: 'детонатор',
     passive: true,
     stats: { str: 'low', agi: 'low', int: 'high' },
-    base: { damage: 1, interval: 3, range: 2, cap: 10, mine: 2.5, touch: 0.5 },
+    base: { damage: 0.95, interval: 3, range: 2, cap: 10, mine: 2.5, touch: 0.5 },
     summary: 'Не стреляет: ставит мины, кидает гранаты, а потом и ядерку',
     main: (b) => 'Не стреляет: раз в ' + sec(b.interval) + ' (с ловкостью — чаще) ставит мину на дорогу в '
       + cells(b.range) + ' от себя, до ' + b.cap + ' сразу. Мина рвётся под мобом, урон ×' + num(b.mine)
       + '; летучих мины не задевают',
     skills: [
-      { name: 'Граната', v: { every: 6, bonus: 6, radius: 0.6 }, scale: { every: 'haste', bonus: 'dmg' },
+      { name: 'Граната', v: { every: 6, bonus: 4.6, radius: 0.6 }, scale: { every: 'haste', bonus: 'dmg' },
         text: (v) => 'раз в ' + sec(v.every) + ' кидает гранату в случайного моба на поле: урон ×' + num(v.bonus) },
-      { name: 'Усиленная мина', v: { chance: 0.12, cap: 5, range: 10, bonus: 4.5, radius: 0.9 },
+      { name: 'Усиленная мина', v: { chance: 0.12, cap: 5, range: 10, bonus: 3.8, radius: 0.9 },
         scale: { chance: 'luck', bonus: 'dmg' },
         text: (v) => 'с шансом ' + pct(v.chance) + ' вместо обычной ставит усиленную в ' + v.range + ' клетках от '
           + 'себя (до ' + v.cap + ' сразу, а когда обычных полный запас — всегда): урон ×' + num(v.bonus * 4) },
-      { name: 'Ядерка', v: { every: 120, range: 5, radius: 2 },
+      { name: 'Ядерка', v: { every: 120, range: 5, radius: 2, cap: 200 }, scale: { cap: 'dmg' },
         text: (v) => 'раз в 2 минуты, если моб ближе ' + cells(v.range) + ', запускает в него ядерку: она убивает '
-          + 'его и всех мобов ' + around(v.radius) },
+          + 'его и всех мобов ' + around(v.radius) + ', а слишком крепким наносит урон ×' + num(v.cap) },
     ],
     runes: [
       { id: 'fusion', name: 'Ядерный синтез', text: 'граната иногда оказывается маленькой ядеркой: огромный урон '
@@ -309,11 +311,10 @@ export const CLASSES = [
     color: '#67e8f9',
     element: 'ice',
     primary: 'int',
-    earn: { xp: 0.78, coins: 0.77 },
+    earn: { xp: 0.82, coins: 0.96 },
     weapon: 'жезл',
-    aura: true,
     stats: { str: 'low', agi: 'low', int: 'high' },
-    base: { damage: 0.4, interval: 1, range: 2.5 },
+    base: { damage: 0.55, interval: 1, range: 2.7 },
     summary: 'Ледяная буря вокруг: бьёт льдом, замедляет, замораживает',
     main: (b) => 'Вокруг него ледяная буря на ' + cells(b.range) + ' (интеллект её расширяет): раз в секунду бьёт '
       + 'льдом всех в ней, урон ×' + num(b.damage),
@@ -330,7 +331,8 @@ export const CLASSES = [
     ],
     runes: [
       { id: 'permafrost', name: 'Вечная мерзлота', text: 'подморозка и заморозка вдвое дольше' },
-      { id: 'brittle', name: 'Хрупкость', text: 'замороженный моб с шансом 0,5% гибнет от любого удара' },
+      { id: 'brittle', name: 'Хрупкость', text: 'замороженный моб с шансом 0,5% гибнет от любого удара; слишком '
+        + 'крепкий получает урон ×' + num(RUNE_CAPS.shatter) },
     ],
   },
   {
@@ -338,10 +340,10 @@ export const CLASSES = [
     name: 'Шаман ветра',
     color: '#14b8a6',
     primary: 'int',
-    earn: { xp: 1.08, coins: 1.1 },
+    earn: { xp: 1.18, coins: 1.2 },
     weapon: 'тотем',
     stats: { str: 'low', agi: 'mid', int: 'mid' },
-    base: { damage: 1.6, interval: 2, range: 3, whirlSpeed: 2, whirlTime: 0.6 },
+    base: { damage: 1.85, interval: 2, range: 3, whirlSpeed: 2, whirlTime: 0.6 },
     summary: 'Пускает вихри сквозь броню, отбрасывает, ускоряет союзников',
     main: (b) => 'Пускает по дороге вихри на ' + cells(b.range) + ': вихрь катится назад и бьёт всех на пути сквозь '
       + 'броню, урон ×' + num(b.damage),
@@ -351,7 +353,7 @@ export const CLASSES = [
           + ' и отбрасывает их на клетку назад' },
       { name: 'Отброс', v: { chance: 0.15, push: 1 }, scale: { push: 'power' },
         text: (v) => 'с шансом ' + pct(v.chance) + ' удар отбрасывает задетых на ' + cells(v.push) },
-      { name: 'Пронзающий ветер', v: { every: 25, radius: 2.5, haste: 0.35, time: 6 },
+      { name: 'Пронзающий ветер', v: { every: 25, radius: 2.5, haste: 0.4, time: 6 },
         scale: { every: 'haste', radius: 'power', haste: 'power', time: 'time' },
         text: (v) => 'раз в ' + sec(v.every) + ' ветер ' + around(v.radius) + ': союзники ' + sec(v.time)
           + ' бьют на ' + pct(v.haste) + ' быстрее, сам он — на ' + pct(v.haste * 2) },
@@ -368,7 +370,7 @@ export const CLASSES = [
     color: '#c08a4a',
     element: 'earth',
     primary: 'int',
-    earn: { xp: 1.06, coins: 1.06 },
+    earn: { xp: 0.98, coins: 1.02 },
     weapon: 'каменная рука',
     her: true,
     stats: { str: 'low', agi: 'low', int: 'high' },
@@ -377,12 +379,12 @@ export const CLASSES = [
     main: (b) => 'На ' + cells(b.range) + ' бьёт шипами из-под земли — сразу две клетки дороги, урон ×'
       + num(b.damage),
     skills: [
-      { name: 'Каменная стена', v: { wall: 3 }, scale: { wall: 'power' },
+      { name: 'Каменная стена', v: { wall: 2.4 }, scale: { wall: 'power' },
         text: (v) => 'ставит на ближайшую клетку дороги стену прочностью ' + num(v.wall) + ' зомби: мобы стоят и '
           + 'грызут её, боссы — сильнее' },
       { name: 'Шипастая стена', v: { chance: 0.5, bonus: 6 }, scale: { bonus: 'dmg' },
         text: (v) => 'грызущий стену с шансом ' + pct(v.chance) + ' в секунду получает урон ×' + num(v.bonus) },
-      { name: 'Метеорит', v: { every: 35, radius: 2, bonus: 30, stun: 10 },
+      { name: 'Метеорит', v: { every: 35, radius: 2, bonus: 26, stun: 10 },
         scale: { every: 'haste', radius: 'power', bonus: 'dmg' },
         text: (v) => 'раз в ' + sec(v.every) + ' на дорогу падает метеорит: всем ' + around(v.radius) + ' урон ×'
           + num(v.bonus) + ' землёй и огнём и оглушение на ' + sec(v.stun) },
@@ -400,19 +402,19 @@ export const CLASSES = [
     earn: { xp: 0.8, coins: 0.8 },
     weapon: 'штандарт',
     stats: { str: 'high', agi: 'mid', int: 'low' },
-    base: { damage: 1, interval: 1.2, range: 1.5, banner: 2.5, haste: 0.2, reach: 0.15 },
+    base: { damage: 1, interval: 1.2, range: 1.5, banner: 3.2, haste: 0.35, reach: 0.2 },
     summary: 'Бьёт древком рядом; под его знаменем союзники бьют быстрее и дальше',
     main: (b) => 'Бьёт древком на ' + cells(b.range) + ', урон ×' + num(b.damage) + '. Над ним знамя на '
       + cells(b.banner) + ': все под знаменем, и он сам, бьют на ' + pct(b.haste) + ' быстрее и на ' + pct(b.reach)
       + ' дальше',
     skills: [
-      { name: 'Боевой клич', v: { every: 12, time: 4, damage: 0.35 },
+      { name: 'Боевой клич', v: { every: 10, time: 4, damage: 0.5 },
         scale: { every: 'haste', time: 'time', damage: 'buff' },
         text: (v) => 'раз в ' + sec(v.every) + ' все под знаменем ' + sec(v.time) + ' бьют на ' + pct(v.damage)
           + ' сильнее' },
       { name: 'Натиск', v: { chance: 0.1 }, scale: { chance: 'luck' },
         text: (v) => 'с шансом ' + pct(v.chance) + ' удар союзника под знаменем — критический' },
-      { name: 'Знамя победы', v: { every: 45, time: 6, haste: 0.3 },
+      { name: 'Знамя победы', v: { every: 35, time: 8, haste: 0.4 },
         scale: { every: 'haste', time: 'time', haste: 'buff' },
         text: (v) => 'раз в ' + sec(v.every) + ' поднимает знамя над полем: весь отряд ' + sec(v.time) + ' бьёт на '
           + pct(v.haste) + ' быстрее' },
@@ -438,13 +440,13 @@ export const CLASSES = [
       + num(b.undead) + ' раза сильнее, и убитая им нежить больше не встаёт. После волны возвращает сердцу '
       + b.heal + ' жизнь (все лекари вместе — не больше ' + b.healCap + '), каменные стены рядом чинит',
     skills: [
-      { name: 'Щит', v: { chance: 0.1 }, scale: { chance: 'luck' },
+      { name: 'Щит', v: { chance: 0.15 }, scale: { chance: 'luck' },
         text: (v) => 'с шансом ' + pct(v.chance) + ' дошедший до сердца моб не отнимает жизнь; боссы отнимают '
           + 'всегда' },
-      { name: 'Очищение', v: { every: 15, radius: 2.5, time: 4 }, scale: { every: 'haste', time: 'time' },
+      { name: 'Очищение', v: { every: 15, radius: 3.2, time: 4 }, scale: { every: 'haste', time: 'time' },
         text: (v) => 'раз в ' + sec(v.every) + ' союзники ' + around(v.radius) + ' стряхивают оглушение, сглаз, '
           + 'паутину и сон и ' + sec(v.time) + ' ничего не боятся' },
-      { name: 'Святая земля', v: { every: 40, time: 8, radius: 1.5, dps: 3, vuln: 0.25 },
+      { name: 'Святая земля', v: { every: 30, time: 8, radius: 2.2, dps: 3, vuln: 0.4 },
         scale: { every: 'haste', time: 'time', dps: 'dmg', vuln: 'buff' },
         text: (v) => 'раз в ' + sec(v.every) + ' освящает дорогу ' + around(v.radius) + ' там, где мобов больше '
           + 'всего: ' + sec(v.time) + ' нежить на ней горит — урон ×' + num(v.dps) + ' в секунду, — а все мобы '
@@ -462,22 +464,22 @@ export const CLASSES = [
     color: '#a855f7',
     element: 'arcane',
     primary: 'int',
-    earn: { xp: 0.85, coins: 1.1 },
+    earn: { xp: 0.75, coins: 1.1 },
     weapon: 'фолиант',
     stats: { str: 'low', agi: 'low', int: 'high' },
-    base: { damage: 0.8, interval: 1.3, range: 3, sparks: 2, circle: 2.5, wisdom: 0.25 },
+    base: { damage: 0.8, interval: 1.3, range: 3, sparks: 2, circle: 3.2, wisdom: 0.25 },
     summary: 'Искры сразу в двух мобов; рядом с ним больше опыта, вдохновляет союзников',
     main: (b) => 'Пускает из книги искры сразу в ' + b.sparks + ' мобов на ' + cells(b.range) + ', урон ×'
       + num(b.damage) + ' каждой. Все ' + around(b.circle) + ', и он сам, получают +' + pct(b.wisdom) + ' опыта',
     skills: [
-      { name: 'Вдохновение', v: { every: 8, time: 6, bonus: 0.35 },
+      { name: 'Вдохновение', v: { every: 6, time: 7, bonus: 0.5 },
         scale: { every: 'haste', time: 'time', bonus: 'buff' },
         text: (v) => 'раз в ' + sec(v.every) + ' выбирает союзника рядом — тот ' + sec(v.time) + ' бьёт на '
           + pct(v.bonus) + ' сильнее и быстрее' },
-      { name: 'Озарение', v: { chance: 0.15 }, scale: { chance: 'luck' },
+      { name: 'Озарение', v: { chance: 0.2 }, scale: { chance: 'luck' },
         text: (v) => 'с шансом ' + pct(v.chance) + ' вдохновлённый сразу перезаряжает свою способность — ракету, '
           + 'метеорит, удар молнии и другие' },
-      { name: 'Слабое место', v: { every: 30, time: 8, vuln: 0.5, xp: 2 },
+      { name: 'Слабое место', v: { every: 22, time: 8, vuln: 0.7, xp: 2 },
         scale: { every: 'haste', time: 'time', vuln: 'buff' },
         text: (v) => 'раз в ' + sec(v.every) + ' метит самого сильного моба — сперва босса или элитного: '
           + sec(v.time) + ' весь урон по нему на ' + pct(v.vuln) + ' больше, а за его убийство каждый, кто его бил, '
@@ -504,8 +506,6 @@ export function statsOf(cls, gear = null, paragon = 0) {
   return out;
 }
 
-export const auraOf = (cls, stats) => (cls.aura ? STAT.reach * stats.int : 0);
-
 export function scaled(skill, { power = 1, luck = 1, haste = 1 } = {}) {
   const out = {};
   for (const [key, value] of Object.entries(skill.v)) {
@@ -523,11 +523,24 @@ export function masteryOf(mas) {
 
 export const skillOf = (cls, stats) => (1 + STAT.skill * stats[cls.primary]) * masteryOf(stats.mas).power;
 
+export function powerOf(cls, stats) {
+  const b = cls.base;
+  return {
+    damage: TOWER.damage * b.damage * (1 + STAT.damage * stats.str) * (cls.element ? 1 + STAT.element * stats.int : 1),
+    interval: (b.interval || 1) / (1 + STAT.speed * stats.agi),
+    crit: Math.min(STAT.critMax, STAT.critChance * stats.agi),
+    critMul: STAT.critBase + STAT.critPower * stats.str,
+    reach: STAT.reach * stats.int,
+    skill: skillOf(cls, stats),
+    haste: masteryOf(stats.mas).haste,
+  };
+}
+
 const marked = (value, how) => Object.assign(Object(value), { mark: how });
 
 function markedBase(cls) {
   const base = Object.assign({}, cls.base, { damage: marked(cls.base.damage, 'hit') });
-  for (const key of cls.aura ? ['range'] : ['banner', 'circle']) if (key in base) base[key] = marked(base[key], 'int');
+  for (const key of ['range', 'banner', 'circle']) if (key in base) base[key] = marked(base[key], 'int');
   return base;
 }
 

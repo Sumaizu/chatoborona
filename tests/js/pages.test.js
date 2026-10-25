@@ -56,7 +56,7 @@ test('страницы: пример в рамке — середина волн
   ok(w.document.querySelector('#slot-0 .stats'), 'у оружия видны прибавки к статам');
   no(w.document.getElementById('chat'), 'чата на экране нет');
   eq(w.document.querySelectorAll('#slot-1 .cell').length, 26, 'вторая карусель крутится');
-  eq(w.document.querySelectorAll('.side .slot').length, 3, 'три окна гачи');
+  eq(w.document.querySelectorAll('.side .slot:not([hidden])').length, 3, 'три окна гачи');
   ok(w.document.querySelectorAll('#left #players li').length >= 5, 'отряд слева');
   ok(w.document.querySelectorAll('#left #effects .effect').length >= 3, 'эффекты слева');
   const effects = element(w, 'effects').getBoundingClientRect();
@@ -162,6 +162,73 @@ test('страницы: божественное оружие — объявле
   await until(() => !w.document.querySelector('#cards .profile .relic').hidden, 'частица слева от монет');
   ok(text(w, 'cards').includes('Божественный'));
   await until(() => w.document.querySelector('#players .snow'), 'снежный ник higashi_vo');
+  frame.remove();
+});
+
+test('страницы: в карточке игрока — убийства и помощь, строка силы со значками статов', async () => {
+  fresh();
+  const frame = await overlay('lobby=10&first_wave=5');
+  const w = frame.contentWindow, game = w.chatoborona.game;
+  await until(() => game.state === 'lobby', 'набор');
+  join(game, 'Аня');
+  game.next();
+  await until(() => game.state === 'placing', 'расстановка');
+  game.next();
+  await until(() => game.state === 'wave', 'волна');
+  const anya = game.members.get('аня');
+  anya.tower.run.kills = 4;
+  anya.tower.run.assists = 7;
+  game.feed('Аня', 'профиль', { login: 'аня' });
+  await until(() => w.document.querySelector('#cards .profile .power-box .stat-line'), 'строка силы');
+  const card = w.document.querySelector('#cards .profile');
+  const marks = () => Array.from(card.querySelectorAll('.marks .mark')).map((mark) => mark.textContent);
+  await until(() => marks().includes(String(anya.tower.run.kills)) && marks().includes(String(anya.tower.run.assists)),
+    'убийства и помощь');
+  const power = card.querySelector('.power-box').textContent;
+  for (const word of ['урон', 'скор', 'КШ', 'КУ', 'дальн.', 'способн.', 'перезар.']) ok(power.includes(word), word);
+  ok(card.querySelectorAll('.power-box img.stat-icon').length >= 7, 'у каждой величины значок стата');
+  const before = card.querySelector('.power-box').textContent;
+  game.battle.setMods(anya.tower, Object.assign({}, anya.tower.mods, { stats: { str: 40, agi: 40, int: 40, mas: 40 } }));
+  await until(() => card.querySelector('.power-box').textContent !== before, 'строка силы обновилась');
+  anya.tower.run.kills = 9;
+  await until(() => Array.from(card.querySelectorAll('.marks .mark')).some((mark) => mark.textContent === '9'), 'счёт идёт');
+  frame.remove();
+});
+
+test('страницы: игроков больше, чем помещается в «Отряде», — список листается страницами по кругу', async () => {
+  fresh();
+  const frame = await overlay('lobby=60');
+  const w = frame.contentWindow, game = w.chatoborona.game, view = w.chatoborona.view;
+  await until(() => game.state === 'lobby', 'набор');
+  for (let i = 0; i < 70; i++) join(game, 'Игрок' + i);
+  await until(() => w.document.querySelector('#players.paged .pages'), 'список листается');
+  const page = () => Array.from(w.document.querySelectorAll('#players .page:first-child li')).map((li) => li.textContent);
+  const first = page(), seen = new Set(first);
+  ok(first.length > 0 && first.length < 70, 'на странице часть отряда: ' + first.length);
+  for (let turn = 0; turn < 12 && seen.size < 70; turn++) {
+    const before = page()[0];
+    view.clock += 5.7;
+    await until(() => page()[0] !== before, 'следующая страница');
+    for (const name of page()) seen.add(name);
+  }
+  eq(seen.size, 70, 'по кругу видно всех');
+  frame.remove();
+});
+
+test('страницы: при длинной очереди гачи появляются четвёртое и пятое окошки', async () => {
+  fresh();
+  const frame = await overlay('lobby=10&first_wave=5');
+  const w = frame.contentWindow, game = w.chatoborona.game;
+  await until(() => game.state === 'lobby', 'набор');
+  join(game, 'Аня');
+  game.next();
+  await until(() => game.state === 'placing', 'расстановка');
+  ok(element(w, 'slot-3').hidden && element(w, 'slot-4').hidden, 'сначала три окошка');
+  game.members.get('аня').coins = 1e6;
+  game.queue = [{ login: 'аня', count: 120 }];
+  await until(() => !element(w, 'slot-3').hidden && !element(w, 'slot-4').hidden, 'пять окошек');
+  game.queue = [];
+  await until(() => element(w, 'slot-4').hidden && element(w, 'slot-3').hidden, 'очередь кончилась — снова три', 30000);
   frame.remove();
 });
 
@@ -349,12 +416,25 @@ test('звуки: каждый слышно и ни один не хрипит, 
   for (const name of Object.keys(SFX_GAPS)) ok(SOUNDS.includes(name), name);
 });
 
-test('спрайты: герои, мобы, оружие и монета рисуются', () => {
+test('спрайты: герои, мобы, оружие и монета рисуются, ничего не обрезано по краям', () => {
+  const clipped = (image) => {
+    const data = image.getContext('2d').getImageData(0, 0, image.width, image.height).data, w = image.width;
+    for (let y = 0; y < image.height; y++) {
+      for (let x = 0; x < w; x++) {
+        if ((x === 0 || y === 0 || x === w - 1 || y === image.height - 1) && data[(y * w + x) * 4 + 3] > 0) return true;
+      }
+    }
+    return false;
+  };
   for (const cls of CLASSES) {
     ok(heroUrl(cls.id).startsWith('data:image/png'), cls.id);
-    eq(heroSprite(cls.id).width / heroSprite(cls.id).fine, HERO_SIZE);
+    eq(heroSprite(cls.id).span / heroSprite(cls.id).fine, HERO_SIZE);
+    no(clipped(heroSprite(cls.id)), 'герой обрезан: ' + cls.id);
   }
-  for (const kind of MOB_KINDS) ok(mobSprite(kind).width >= 8, kind);
+  for (const kind of MOB_KINDS) {
+    ok(mobSprite(kind).width >= 8, kind);
+    for (const frame of [0, 1]) no(clipped(mobSprite(kind, frame)), 'моб обрезан: ' + kind + ' ' + frame);
+  }
   for (const kind of ELITES.concat(BOSSES)) ok(MOB_KINDS.includes(kind.id), kind.id);
   ok(coinUrl().startsWith('data:image/png'));
   for (const kind of ['weapon', 'void', 'handful', 'bag', 'chest', 'particle']) {

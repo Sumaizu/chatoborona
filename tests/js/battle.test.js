@@ -1,12 +1,12 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
 import { BITE_TIME, BURST, Battle, CRIMSON, DISCHARGE, FUSION, HEADWIND, MOVE_PAUSE, NUKE_FLIGHT, OVERTIME, PLAGUE,
-  PLANTED, ROT, SECOND, THORN } from '../../site/js/battle.js';
+  PLANTED, ROT, SECOND, SPLIT_TIME, THORN } from '../../site/js/battle.js';
 import { SIZE } from '../../site/js/field.js';
-import { BOSSES, ELITES, FAMILIES, FAMILY_BY_ID, LIVES, LOOKS, MIMIC, MOBS, POWERS, STAT, TERRAIN, TICK, TOWER,
-  familyPool, resistOf, waveSpawns, xpForLevel } from '../../site/js/balance.js';
+import { AFFIXES, BOSSES, ELITES, FAMILIES, FAMILY_BY_ID, LIVES, LOOKS, MIMIC, MOBS, POWERS, SILVER, STAT, TERRAIN,
+  TICK, TOWER, familyPool, resistOf, silverChance, waveSpawns, xpForLevel } from '../../site/js/balance.js';
 import { ASSIST_COINS, KILL_COINS } from '../../site/js/gacha.js';
-import { CLASSES, CLASS_BY_ID } from '../../site/js/classes.js';
+import { CLASSES, CLASS_BY_ID, RUNE_CAPS } from '../../site/js/classes.js';
 
 const ATTACK = (battle, t, target) => {
   battle.time = Math.max(battle.time, t.leapUntil);
@@ -388,10 +388,10 @@ test('виды волн: у каждого вида с его первой во�
   slime.spawns = [];
   const mother = slime._spawn({ type: 'boss', kind: BOSSES.find((kind) => kind.id === 'slimemother'), hp: 100 }, 4);
   runFor(slime, 2.5);
-  ok(slime.mobs.some((mob) => mob.look === 'slime2'), 'праматерь выпускает слизней');
+  ok(slime.mobs.some((mob) => mob.look === 'slime1'), 'праматерь выпускает слизнят');
   slime._hurt(mother, 1e9, slime.place(player(), 'gunner', 2, 4));
-  slime.step(TICK);
-  ok(slime.mobs.filter((mob) => mob.look === 'slime3').length >= 2, 'и распадается на больших');
+  runFor(slime, SPLIT_TIME + TICK);
+  ok(slime.mobs.filter((mob) => mob.look === 'slime2').length >= 2, 'и распадается на слизней');
 });
 
 test('снайпер: бьёт дальше всех, сперва летучих, потом самого крепкого', () => {
@@ -743,7 +743,9 @@ test('алхимик: руна «Инфекция» — отравленный �
   ok(mob.rot && mob.rot.by === alchemist, 'гниёт');
   const before = hit(mob);
   runFor(battle, 2);
-  ok(hit(mob) - before >= mob.max * 0.019, 'теряет 1% в секунду');
+  const rate = Math.min(mob.max * ROT.share, alchemist.skill * RUNE_CAPS.rot);
+  ok(rate < mob.max * ROT.share, 'у очень крепкого — не больше предела от силы алхимика');
+  ok(hit(mob) - before >= rate * 1.9, 'гниёт каждую секунду');
   runFor(battle, ROT.time);
   eq(mob.rot, null, 'без нового яда гниение проходит');
   const field = makeBattle(), black = field.place(player(), 'alchemist', 10, 4);
@@ -945,11 +947,13 @@ test('паразит: с 10-го крит оглушает и отнимает �
   battle.random = () => 0;
   const mob = walker(battle, 5, 1000), boss = special(battle, 'boss', 'crusher', 1e6);
   still(mob, boss);
+  const cap = bug.skill * bug.s[0].cap;
   ATTACK(battle, bug, mob);
-  near(hit(mob), bug.damage * bug.critMul + 1000 * bug.s[0].share);
+  near(hit(mob), bug.damage * bug.critMul + Math.min(1000 * bug.s[0].share, cap));
   ok(mob.holdUntil > battle.time, 'оглушён');
   ATTACK(battle, bug, boss);
-  near(hit(boss), bug.damage * bug.critMul + 1e6 * bug.s[0].boss);
+  near(hit(boss), bug.damage * bug.critMul + Math.min(1e6 * bug.s[0].boss, cap), 'у очень крепкого — не больше предела');
+  ok(cap < 1e6 * bug.s[0].boss);
 });
 
 test('паразит: с 30-го, добив моба, иногда пирует — больше опыта и монет', () => {
@@ -993,10 +997,16 @@ test('паразит: руна «Бешенство» — кусает втро�
   battle.setMods(bug, { runes: ['frenzy', 'thorn'] });
   near(bug.interval, interval / 3);
   battle.random = () => THORN.chance / 2;
+  const weak = walker(battle, 5, 100), cap = bug.skill * RUNE_CAPS.thorn;
+  still(weak);
+  weak.hp = Math.min(weak.max * (THORN.below - 0.05), cap * 0.9);
+  ATTACK(battle, bug, weak);
+  ok(weak.dead, 'добит');
   const boss = special(battle, 'boss', 'crusher', 1e6);
   boss.hp = boss.max * (THORN.below - 0.05);
+  const left = boss.hp;
   ATTACK(battle, bug, boss);
-  ok(boss.dead, 'добит');
+  ok(!boss.dead && left - boss.hp >= cap - 1e-6, 'слишком крепкий — получает урон, но жив');
 });
 
 test('минёр: не стреляет, ставит до 10 мин на дорогу рядом; мина рвётся под мобом, летучих не замечает', () => {
@@ -1047,25 +1057,27 @@ test('минёр: с 30-го иногда ставит усиленную мин
   ok(big.every((mine) => Math.hypot(mine.x - miner.cx, mine.y - miner.cy) <= miner.s[1].range + 0.5));
 });
 
-test('минёр: с 50-го, если моб ближе пяти клеток, — ядерка: убивает его и всех рядом, даже босса', () => {
+test('минёр: с 50-го, если моб ближе пяти клеток, — ядерка: убивает всех рядом, слишком крепких сильно ранит', () => {
   const battle = makeBattle(), miner = battle.place(level(50), 'miner', 10, 4);
   battle.random = () => 0.99;
   const far = walker(battle, 17, 1e6);
   still(far);
   runFor(battle, 1);
   no(battle.tosses.some((toss) => toss.kind === 'nuke'), 'далеко — не кидает');
-  const boss = put(battle, special(battle, 'boss', 'crusher', 1e9), 12), close = walker(battle, 13, 1e6);
+  const cap = miner.skill * miner.s[2].cap;
+  const boss = put(battle, special(battle, 'boss', 'crusher', 1e9), 12), close = walker(battle, 13, cap * 0.9);
   still(boss, close);
   battle.step(TICK);
   const nuke = battle.tosses.find((toss) => toss.kind === 'nuke');
   ok(nuke && Math.abs(nuke.at - battle.time - NUKE_FLIGHT) < TICK * 1.5, 'летит долго');
   runFor(battle, NUKE_FLIGHT + TICK);
-  ok(boss.dead && close.dead, 'убила всех рядом');
+  ok(close.dead, 'убила тех, кто слабее предела');
+  ok(!boss.dead && hit(boss) >= cap * 0.99, 'босса с огромным здоровьем — сильно ранила');
   no(far.dead);
-  const other = put(battle, special(battle, 'boss', 'crusher', 1e9), 12);
-  still(other);
+  const nukes = () => battle.events.filter((e) => e.kind === 'nuke').length, count = nukes();
+  still(put(battle, special(battle, 'boss', 'crusher', 1e12), 12));
   runFor(battle, 60);
-  no(other.dead, 'следующая — не раньше, чем через две минуты');
+  eq(nukes(), count, 'следующая — не раньше, чем через две минуты');
 });
 
 test('минёр: руна «Большой запас» — мин вдвое больше, «Ядерный синтез» — граната бывает маленькой ядеркой', () => {
@@ -1138,12 +1150,15 @@ test('ледяной маг: руна «Хрупкость» — заморож�
   const battle = makeBattle(), frost = battle.place(level(30), 'frost', 10, 4), gun = battle.place(player(), 'gunner',
     2, 4);
   battle.setMods(frost, { runes: ['brittle'] });
-  const mob = walker(battle, 6, 1e9);
+  const cap = gun.skill * RUNE_CAPS.shatter, mob = walker(battle, 6, cap * 0.8), big = walker(battle, 7, 1e9);
   battle._hold(mob, 3, frost);
+  battle._hold(big, 3, frost);
   battle.random = () => 0;
   battle._hurt(mob, 1, gun);
   ok(mob.dead, 'рассыпался');
   ok(battle.events.some((e) => e.kind === 'shatter'));
+  battle._hurt(big, 1, gun);
+  ok(!big.dead && hit(big) >= cap, 'слишком крепкий — получает урон, но жив');
 });
 
 test('шаман: вихрь катится назад по дороге и бьёт всех на пути сквозь броню', () => {
@@ -1170,6 +1185,99 @@ test('шаман: с 10-го порыв отбрасывает обычных р
   ok(battle.events.some((e) => e.kind === 'gust'));
   ok(mob.pushed > 0 && mob.d < 11, 'отброшен');
   eq(boss.pushed, 0, 'босса не отбрасывает');
+});
+
+test('серебряные элитные: обычный моб с шансом становится серебряным — крепче, со свойством, дороже; объявляется раз', () => {
+  eq(silverChance(1), 0, 'в первых волнах их нет');
+  ok(silverChance(30) > silverChance(5) && silverChance(500) === SILVER.max, 'чем дальше, тем чаще, но не больше предела');
+  let silvers = 0, plain = 0;
+  for (let seed = 1; seed <= 6; seed++) {
+    const battle = makeBattle({ random: seeded(seed) });
+    battle.startWave(40, 5);
+    for (const spawn of battle.spawns) {
+      if (spawn.kind) continue;
+      if (spawn.silver) silvers++;
+      else plain++;
+    }
+  }
+  ok(silvers > 0 && plain > silvers * 3, 'серебряных меньшинство: ' + silvers + ' из ' + (silvers + plain));
+  const battle = makeBattle(), t = battle.place(player(), 'gunner', 3, 4);
+  t.busy = 1e9;
+  const affix = (id) => AFFIXES.find((a) => a.id === id);
+  const swift = battle._spawn({ type: 'normal', look: lookOf('zombie'), hp: 100, silver: affix('swift') }, 5);
+  const usual = battle._spawn({ type: 'normal', look: lookOf('zombie'), hp: 100 }, 5);
+  near(swift.speed, usual.speed * 1.4, 'быстрый');
+  ok(battle.events.filter((e) => e.kind === 'silver').length === 1);
+  battle._spawn({ type: 'normal', look: lookOf('zombie'), hp: 100, silver: affix('swift') }, 6);
+  eq(battle.events.filter((e) => e.kind === 'silver').length, 1, 'то же свойство второй раз не объявляют');
+  const fireproof = battle._spawn({ type: 'normal', look: lookOf('zombie'), hp: 100, silver: affix('fireproof') }, 7);
+  battle._hurt(fireproof, 50, t, 'fire');
+  eq(fireproof.hp, 100, 'огонь не берёт');
+  const regen = battle._spawn({ type: 'normal', look: lookOf('zombie'), hp: 100, silver: affix('regen') }, 7);
+  eq(regen.power.id, 'regen', 'свойство-навык');
+  const xp = t.player.xp;
+  battle._hurt(usual, 1e9, t);
+  const plainXp = t.player.xp - xp;
+  battle._hurt(swift, 1e9, t);
+  near(t.player.xp - xp - plainXp, plainXp * SILVER.xp, 'опыта втрое больше');
+  const bomb = battle._spawn({ type: 'normal', look: lookOf('zombie'), hp: 10, silver: affix('burst') }, 3.6);
+  battle._hurt(bomb, 1e9, t);
+  ok(t.stunUntil > battle.time, 'взрывной оглушает защитников рядом');
+  const twin = battle._spawn({ type: 'normal', look: lookOf('zombie'), hp: 250, silver: affix('split') }, 9);
+  battle._hurt(twin, 1e9, t);
+  battle.step(TICK);
+  eq(battle.mobs.filter((m) => m.look === 'zombie' && !m.silver && !m.dead && m.max < 100).length, 2, 'делящийся — на двух');
+});
+
+test('новые боссы: банши оглушает, шатун ускоряет зверей, владыка стихий меняет стихию, привратник и вождь призывают', () => {
+  const kind = (id) => BOSSES.find((k) => k.id === id);
+  const banshee = makeBattle(), tower = banshee.place(player(), 'gunner', 5, 4), far = banshee.place(player(), 'gunner', 18, 8);
+  const wail = banshee._spawn({ type: 'boss', kind: kind('banshee'), hp: 1e9 }, 6);
+  wail.speed = 0;
+  runFor(banshee, 2.2);
+  ok(tower.stunUntil > banshee.time - 1 && far.stunUntil === 0, 'оглушает только тех, кто рядом');
+  ok(wail.flying, 'летает');
+  const bear = makeBattle(), shatun = bear._spawn({ type: 'boss', kind: kind('shatun'), hp: 1e9 }, 6);
+  const pup = walker(bear, 6.5, 1e9);
+  still(shatun, pup);
+  runFor(bear, 2.2);
+  ok(pup.rushUntil > bear.time && pup.rush > 0, 'рёв ускоряет соседей');
+  const lord = makeBattle(), elem = lord._spawn({ type: 'boss', kind: kind('elemlord'), hp: 1e9 }, 6);
+  still(elem);
+  const first = elem.element;
+  runFor(lord, 2.2);
+  ok(elem.element && elem.element !== first, 'сменил стихию');
+  const t = lord.place(player(), 'gunner', 5, 4), hp = elem.hp;
+  lord._hurt(elem, 100, t, elem.element);
+  eq(elem.hp, hp, 'своя стихия его не берёт');
+  for (const [id, look] of [['gatekeeper', 'hellhound'], ['warlord', 'goblin']]) {
+    const field = makeBattle(), boss = field._spawn({ type: 'boss', kind: kind(id), hp: 1e9 }, 6);
+    still(boss);
+    runFor(field, 2.2);
+    ok(field.mobs.some((mob) => mob.look === look), id + ' призывает: ' + look);
+  }
+});
+
+test('орда: в волне орды мобов больше, чем у других видов, но каждый слабее', () => {
+  ok(Math.abs(waveSpawns(12, 1.6).length - waveSpawns(12).length * 1.6) <= 1);
+  const count = (id) => {
+    const battle = makeBattle({ random: seeded(2) });
+    battle.nextFamily = FAMILY_BY_ID.get(id);
+    battle.startWave(12, 5);
+    return battle.spawns.filter((spawn) => !spawn.kind);
+  };
+  const horde = count('horde'), undead = count('undead');
+  ok(horde.length > undead.length * 1.4, 'орда многочисленнее');
+  ok(FAMILY_BY_ID.get('horde').count > 1);
+});
+
+test('интеллект: дальность атаки у всех классов растёт от интеллекта', () => {
+  const battle = makeBattle();
+  for (const id of ['sniper', 'gunner', 'frost', 'banner']) {
+    const t = battle.place(player(), id, 2 + ['sniper', 'gunner', 'frost', 'banner'].indexOf(id) * 3, 2), range = t.range;
+    battle.setMods(t, { stats: { int: 25 } });
+    near(t.range - range, STAT.reach * 25, id);
+  }
 });
 
 test('знаменосец: под знаменем бьют быстрее и дальше, два знамени не складываются, за добычу под знаменем — помощь', () => {
@@ -1540,25 +1648,33 @@ test('элементали: своя стихия их не берёт, оста
   ok(battle.events.some((e) => e.kind === 'immune'));
 });
 
-test('слизни: большой делится на двух средних, те — на маленьких; король — на двух больших', () => {
+test('слизни: большой делится на двух средних, те — на маленьких; король — на двух больших; деление видно', () => {
   const battle = makeBattle(), t = battle.place(player(), 'gunner', 3, 4);
   battle.startWave(30, 3);
   battle.spawns = [];
+  t.busy = 1e9;
   const big = creature(battle, 'slime3', 8, 10);
   battle._hurt(big, 100, t);
+  const split = battle.events.find((e) => e.kind === 'split' && e.mob === big);
+  ok(split && split.spots.length === 2, 'событие деления с местами детей');
   battle.step(TICK);
+  eq(battle.mobs.filter((m) => m.split).length, 0, 'дети появляются, когда деление доиграло');
+  runFor(battle, SPLIT_TIME);
   let pieces = battle.mobs.filter((m) => m.split);
   eq(pieces.map((m) => m.look), ['slime2', 'slime2']);
+  for (const piece of pieces) {
+    ok(split.spots.some(([x, y]) => Math.hypot(piece.x - x, piece.y - y) < 0.2), 'там, куда уехала половинка');
+  }
   for (const piece of pieces) battle._hurt(piece, 1e9, t);
-  battle.step(TICK);
+  runFor(battle, SPLIT_TIME + TICK);
   pieces = battle.mobs.filter((m) => m.split);
   eq(pieces.map((m) => m.look), ['slime1', 'slime1', 'slime1', 'slime1']);
   for (const piece of pieces) battle._hurt(piece, 1e9, t);
-  battle.step(TICK);
+  runFor(battle, SPLIT_TIME + TICK);
   eq(battle.mobs.filter((m) => m.split).length, 0, 'маленькие умирают насовсем');
   const king = special(battle, 'elite', 'slimeking', 10);
   battle._hurt(king, 1e9, t);
-  battle.step(TICK);
+  runFor(battle, SPLIT_TIME + TICK);
   eq(battle.mobs.filter((m) => m.split).map((m) => m.look), ['slime3', 'slime3']);
 });
 

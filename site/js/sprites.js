@@ -1,5 +1,5 @@
 import { HERO_IDS, drawHero } from './models.js';
-import { MOB_IDS, drawMob } from './monsters.js';
+import { MOB_IDS, drawMelt, drawMob, drawSplit, gooColor } from './monsters.js';
 import { drawClod, drawCocoon, drawMeteor, drawMine, drawMound, drawNuke, drawRocket, drawTrap, drawWall }
   from './props.js';
 
@@ -133,7 +133,25 @@ export const heroSprite = (id) => remember('hero:' + id, () => drawHero(id));
 
 export const mobSprite = (id, frame = 0) => remember('mob:' + id + ':' + frame, () => drawMob(id, frame ? 1 : 0));
 
-export const mobUrl = (id) => remember('mobUrl:' + id, () => mobSprite(id).toDataURL());
+function fitted(image, size) {
+  const pixels = pixelsOf(image), xs = pixels.map((px) => px.x), ys = pixels.map((px) => px.y);
+  const left = Math.min(...xs), right = Math.max(...xs) + 1, top = Math.min(...ys), bottom = Math.max(...ys) + 1;
+  const span = Math.max(right - left, bottom - top, image.span || 0), cx = (left + right) / 2, cy = (top + bottom) / 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size || span;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const scale = canvas.width / span;
+  ctx.drawImage(image, canvas.width / 2 - cx * scale, canvas.height / 2 - cy * scale, image.width * scale,
+    image.height * scale);
+  return canvas;
+}
+
+export const mobUrl = (id) => remember('mobUrl:' + id, () => fitted(mobSprite(id)).toDataURL());
+export const meltSprite = (id, stage) => remember('melt:' + id + ':' + stage, () => drawMelt(id, stage));
+export const splitSprite = (id, stage, apart) => remember('split:' + id + ':' + stage + ':' + apart,
+  () => drawSplit(id, stage, apart));
+export { gooColor };
 
 export function tintSprite(image, color) {
   return own(image, color, () => {
@@ -620,12 +638,7 @@ export const coinSprite = () => remember('coin', () => {
 
 export function heroUrl(id, size = 48) {
   return remember('heroUrl:' + id + ':' + size, () => {
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(heroSprite(id), 0, 0, size, size);
-    return canvas.toDataURL();
+    return fitted(heroSprite(id), size).toDataURL();
   });
 }
 
@@ -642,21 +655,26 @@ export const coinUrl = () => remember('coinUrl', () => {
 });
 
 const MARKS = {
+  sword(p) {
+    for (let i = 0; i < 4; i++) p.px(6 - i, i, i ? '#e2e8f0' : '#ffffff');
+    p.px(2, 4, '#cbd5e1');
+    for (const [x, y] of [[1, 3], [3, 5]]) p.px(x, y, '#f5c542');
+    p.px(1, 5, '#8b5a2b');
+    p.px(0, 6, '#f5c542');
+  },
+  shield(p) {
+    const rows = [[1, 5], [0, 6], [0, 6], [0, 6], [1, 5], [2, 4], [3, 3]];
+    rows.forEach(([from, to], y) => {
+      for (let x = from; x <= to; x++) p.px(x, y, x + y < 4 ? '#bfdbfe' : x - y > 2 || y > 4 ? '#3b6fd6' : '#60a5fa');
+    });
+    for (let y = 1; y < 6; y++) p.px(3, y, '#1e3a8a');
+  },
   spot(p) {
     const rows = [[2, 4], [1, 5], [1, 5], [1, 5], [2, 4], [3, 3]];
     rows.forEach(([from, to], y) => {
       for (let x = from; x <= to; x++) p.px(x, y, x + y < 4 ? '#f3f0fb' : x - y > 2 || y > 3 ? '#8f89aa' : '#c9c4dd');
     });
     p.px(3, 2, '#2a2540');
-  },
-  reach(p) {
-    for (let y = 0; y < 7; y++) {
-      for (let x = 0; x < 7; x++) {
-        const d = Math.hypot(x + 0.5 - 3.5, y + 0.5 - 3.5);
-        if (d > 1.6 && d < 2.75) p.px(x, y, x + y < 6 ? '#f3f0fb' : '#a9a3c4');
-      }
-    }
-    for (const [x, y] of [[3, 0], [0, 3], [6, 3], [3, 6], [3, 3]]) p.px(x, y, '#c9c4dd');
   },
 };
 

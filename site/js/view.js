@@ -1,13 +1,13 @@
 import { Scene } from './draw.js';
-import { CLASSES, CLASS_BY_ID, MARKS, PRIMARY, STAT_IDS, auraOf, describe, num, runeOf, skillOf, statsOf }
+import { CLASSES, CLASS_BY_ID, MARKS, PRIMARY, STAT_IDS, describe, num, powerOf, runeOf, statsOf }
   from './classes.js';
 import { coinUrl, crownUrl, effectUrl, flagCanvas, flagUrl, heroUrl, markUrl, particleSprite, particleUrl, prizeUrl,
   shieldUrl, statUrl } from './sprites.js';
-import { OUTCOMES, PRICE, RARITIES, SPIN_TIME, UPGRADE_PRICE, amountText, gearColor, outcomeOf, rarityOf,
-  weaponName, weaponStats, weaponTitle } from './gacha.js';
+import { EXTRA_SLOTS, OUTCOMES, PRICE, RARITIES, SLOTS, SPIN_TIME, UPGRADE_PRICE, amountText, gearColor, outcomeOf,
+  rarityOf, weaponName, weaponStats, weaponTitle } from './gacha.js';
 import { ASCEND_TIME } from './engine.js';
 import { effectOf } from './events.js';
-import { BIOME_RULES, LEVEL_MAX, LIVES, levelOf, resistOf } from './balance.js';
+import { BIOME_RULES, LEVEL_MAX, LIVES, affixText, levelOf, resistOf } from './balance.js';
 import { SIZE, cellName } from './field.js';
 import { SFX_GAPS, play } from './sound.js';
 import { PAGES, pageAt } from './guide.js';
@@ -60,7 +60,7 @@ const BATTLE_SOUNDS = { wall: 'build', crumble: 'crumble', plant: 'plant', mine:
 const GOOD_EVENTS = new Set(['buff', 'blessing']);
 const COIN_FINDS = { handful: ' находит горстку монет', bag: ' находит мешок монет!',
   chest: ' открывает сундук монет!' };
-const NOTE_KINDS = new Set(['card', 'poor', 'bare', 'upgrade']);
+const NOTE_KINDS = new Set(['card', 'poor', 'bare', 'upgrade', 'queue']);
 const NEWCOMER_GLOW = { fire: '#f97316', ice: '#67e8f9', storm: '#facc15', poison: '#a3e635' };
 const NICK_COLORS = ['#ff8f85', '#ffb547', '#f2dd6e', '#8fe3ae', '#7fd4ff', '#b7a6ff', '#ff9ad5', '#8fe0d2'];
 const STATUS = {
@@ -74,6 +74,8 @@ const STATUS = {
 const EFFECTS_SHOWN = 3;
 const EFFECT_HOLD = 4;
 const EFFECT_SLIDE = 0.6;
+const PLAYERS_HOLD = 5;
+const PLAYERS_SLIDE = 0.6;
 const RULES = [
   ['Напиши что угодно', '— и ты в отряде'],
   ['К7', '— встать на клетку'],
@@ -152,10 +154,11 @@ function statsOfMember(member) {
   return statsOf(CLASS_BY_ID.get(member.cls), member.weapon ? weaponStats(member.weapon) : null, member.paragon || 0);
 }
 
-function reachOf(member) {
-  const cls = CLASS_BY_ID.get(member.cls), tower = member.tower;
-  if (tower && !tower.rider && !tower.cocoon) return tower.range;
-  return (cls.base.range || 0) + auraOf(cls, statsOfMember(member));
+function powerOfMember(member, stats) {
+  const cls = CLASS_BY_ID.get(member.cls), tower = member.tower, base = powerOf(cls, stats);
+  if (!tower || !tower.stats) return Object.assign(base, { range: (cls.base.range || 0) + base.reach });
+  return { damage: tower.damage, interval: tower.interval, crit: tower.critChance, critMul: tower.critMul,
+    range: tower.range, skill: base.skill, haste: tower.haste };
 }
 
 function statsLine(cls, stats) {
@@ -166,9 +169,22 @@ function statsLine(cls, stats) {
     pair.append(statIcon(id), el('b', id === cls.primary ? 'key' : '', num(stats[id])));
     line.append(pair);
   });
-  const skill = el('span', 'pair');
-  skill.append('способности ', el('b', 'key', '×' + num(skillOf(cls, stats))));
-  line.append(' · ', skill);
+  return line;
+}
+
+function powerLine(cls, power, rider) {
+  const line = el('div', 'stat-line power'), pct = (value) => Math.round(value * 100) + '%';
+  const items = [['урон', num(power.damage), cls.element ? ['str', 'int'] : ['str']],
+    ['скор', num(1 / power.interval) + '/с', ['agi']], ['КШ', pct(power.crit), ['agi']],
+    ['КУ', pct(power.critMul), ['str']], rider ? null : ['дальн.', num(power.range), ['int']],
+    ['способн.', '×' + num(power.skill), [cls.primary, 'mas']], ['перезар.', '−' + pct(1 - 1 / power.haste), ['mas']]];
+  items.filter(Boolean).forEach(([label, value, ids], i) => {
+    if (i) line.append(' · ');
+    const pair = el('span', 'pair');
+    pair.append(label + ' ', el('b', '', value));
+    for (const id of ids) pair.append(statIcon(id));
+    line.append(pair);
+  });
   return line;
 }
 
@@ -187,6 +203,7 @@ function paragonTag(paragon) {
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const span = (t, from, to) => clamp01((t - from) / (to - from));
 const easeOut = (value) => 1 - Math.pow(1 - clamp01(value), 3);
+const easeInOut = (value) => (1 - Math.cos(Math.PI * clamp01(value))) / 2;
 const easeBack = (value) => {
   const v = clamp01(value) - 1;
   return 1 + 2.7 * v * v * v + 1.7 * v * v;
@@ -517,6 +534,12 @@ export class View {
     } else if (kind === 'wild') {
       this._sound('roar');
       this.scene.say('Мобы рассвирепели: бегут быстрее, сквозь стены и оковы', '#ef4444');
+    } else if (kind === 'silver') {
+      if (this._herald && this._herald.left > HERALD_TIME / 2 && !this._herald.fresh) return;
+      this._herald = { mob: event.mob, left: HERALD_TIME, title: 'Серебряный элитный', name: event.affix.name,
+        text: affixText(event.affix), glow: '#e2e8f0', boss: false, fresh: true };
+      this._keys.herald = '';
+      this._sound('growl');
     } else if (kind === 'newcomer') {
       if (this._herald && this._herald.left > HERALD_TIME / 2 && !this._herald.fresh) return;
       const look = event.look;
@@ -945,7 +968,7 @@ export class View {
     game.slots.forEach((slot, i) => {
       if (!slot) return;
       const view = this._slotView(i, slot, game);
-      const progress = slot.phase === 'spin' ? Math.max(0, Math.min(1, 1 - slot.left / SPIN_TIME)) : 1;
+      const progress = slot.phase === 'spin' ? Math.max(0, Math.min(1, 1 - slot.left / (slot.span || SPIN_TIME))) : 1;
       const eased = 1 - Math.pow(1 - progress, 3);
       view.strip.style.transform = 'translateX(' + (-view.stop * eased).toFixed(1) + 'px)';
       view.cells[REEL.result].classList.toggle('won', slot.phase !== 'spin');
@@ -954,8 +977,14 @@ export class View {
 
   _paintSlots(game) {
     $('price').textContent = PRICE + ' ' + plural(PRICE, 'монета', 'монеты', 'монет');
+    for (let i = game.slots.length; i < SLOTS + EXTRA_SLOTS.length; i++) {
+      $('slot-' + i).hidden = true;
+      this._slots[i] = null;
+      this._keys['slot' + i] = '';
+    }
     game.slots.forEach((slot, i) => {
       const box = $('slot-' + i);
+      box.hidden = false;
       if (!slot) {
         this._slots[i] = null;
         this._once('slot' + i, 'idle', () => {
@@ -1080,27 +1109,44 @@ export class View {
     const members = Array.from(game.members.values()).sort((a, b) => b.xp - a.xp
       || (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1));
     const list = $('players'), rows = Math.max(1, Math.floor((list.clientHeight || 200) / ROWS.player));
-    const two = members.length > rows, fit = two ? rows * 2 : rows;
-    const shown = members.length > fit ? members.slice(0, fit - 1) : members;
-    const key = JSON.stringify([fit, members.length, shown.map((m) => [m.login, m.cls, levelOf(m.xp),
-      Math.floor(m.coins), m.weapon ? m.weapon.rarity : '', m.paragon])]);
+    const two = members.length > rows, fit = two ? rows * 2 : rows, pages = Math.ceil(members.length / fit);
+    const cycle = PLAYERS_HOLD + PLAYERS_SLIDE, page = pages > 1 ? Math.floor(this.clock / cycle) % pages : 0;
+    const phase = this.clock % cycle;
+    const slide = pages > 1 && phase > PLAYERS_HOLD ? (phase - PLAYERS_HOLD) / PLAYERS_SLIDE : 0;
+    const chunk = (k) => members.slice((k % pages) * fit, (k % pages) * fit + fit);
+    const visible = pages > 1 ? [chunk(page), chunk(page + 1)] : [members];
+    const key = JSON.stringify([fit, pages, page, visible.map((group) => group.map((m) => [m.login, m.cls,
+      levelOf(m.xp), Math.floor(m.coins), m.weapon ? m.weapon.rarity : '', m.paragon]))]);
     $('players-count').textContent = members.length ? String(members.length) : '';
     this._once('players', key, () => {
       list.textContent = '';
       list.classList.toggle('two', two);
+      list.classList.toggle('paged', pages > 1);
       if (!members.length) list.append(el('li', 'empty', 'Пока никого — напиши что-нибудь в чат'));
-      for (const m of shown) {
-        const row = el('li'), level = el('span', 'lvl', (two ? '' : 'ур. ') + levelOf(m.xp));
-        level.style.background = gearColor(m.weapon);
-        level.title = 'уровень';
-        row.append(image(heroUrl(m.cls), 'face'), this._starName(m.name, m.star, m.color));
-        if (m.paragon) row.append(paragonTag(m.paragon));
-        row.append(level, this._coins(m.coins));
-        list.append(row);
+      const track = pages > 1 ? el('div', 'pages') : null;
+      for (const group of visible) {
+        const box = track ? el('div', 'page') : list;
+        if (track) box.style.height = rows * ROWS.player + 'px';
+        for (const m of group) {
+          const row = el('li'), level = el('span', 'lvl', (two ? '' : 'ур. ') + levelOf(m.xp));
+          level.style.background = gearColor(m.weapon);
+          level.title = 'уровень';
+          row.append(image(heroUrl(m.cls), 'face'), this._starName(m.name, m.star, m.color));
+          if (m.paragon) row.append(paragonTag(m.paragon));
+          row.append(level, this._coins(m.coins));
+          box.append(row);
+        }
+        if (track) track.append(box);
       }
-      const more = members.length - shown.length;
-      if (more > 0) list.append(el('li', 'empty', 'и ещё ' + more + ' ' + plural(more, 'игрок', 'игрока', 'игроков')));
+      if (track) {
+        const pane = el('div', 'page-window');
+        pane.style.height = rows * ROWS.player + 'px';
+        pane.append(track);
+        list.append(pane);
+      }
     });
+    const track = list.querySelector('.pages');
+    if (track) track.style.transform = 'translateY(' + (-easeInOut(slide) * rows * ROWS.player).toFixed(1) + 'px)';
   }
 
   _paintCards(game, still) {
@@ -1153,6 +1199,8 @@ export class View {
     if (note.kind === 'poor') {
       node.append(nick, detail.price === UPGRADE_PRICE ? ': на улучшение нужно ' : ': на крутку нужно ',
         el('b', '', String(detail.price || PRICE)), ', у тебя ', has);
+    } else if (note.kind === 'queue') {
+      node.append(nick, ': твои крутки ещё в очереди — дождись, пока они выпадут');
     } else if (note.kind === 'bare') {
       node.append(nick, ': улучшать нечего — сначала выбей оружие в гаче');
     } else {
@@ -1173,14 +1221,18 @@ export class View {
     const node = el('div', 'note profile'), top = el('div', 'top'), lvl = el('span', 'lvl');
     const coins = this._coins(0, true), relic = coins.querySelector('.relic'), body = el('div', 'body');
     const gear = el('div', 'gear-box'), marks = el('div', 'marks');
-    const spot = el('span', 'mark'), reach = el('span', 'mark'), spotText = el('span'), reachText = el('span');
+    const spot = el('span', 'mark'), spotText = el('span'), kills = el('span', 'mark'), killText = el('span');
+    const helps = el('span', 'mark'), helpText = el('span');
     spot.append(image(markUrl('spot')), spotText);
-    reach.append(image(markUrl('reach')), reachText);
-    marks.append(lvl, spot, reach);
+    kills.append(image(markUrl('sword')), killText);
+    helps.append(image(markUrl('shield')), helpText);
+    kills.title = 'убийства в этой игре';
+    helps.title = 'помощь в этой игре';
+    marks.append(lvl, spot, kills, helps);
     top.append(this._starName(member.name, member.star, member.color, 'nick'), coins);
     const face = image(heroUrl(member.cls, 64));
     node.append(face, top, marks, body, gear);
-    const state = { body: '', gear: null };
+    const state = { body: '', gear: null, power: '', powerBox: null };
     return {
       node,
       update: (m, game, note) => {
@@ -1188,9 +1240,9 @@ export class View {
         const rider = Boolean(tower && tower.rider), seat = rider ? tower.host : tower;
         spot.hidden = !seat;
         spotText.textContent = seat ? cellName(Math.floor(seat.x), Math.floor(seat.y)) : '';
-        const range = tower && tower.cocoon ? 0 : reachOf(m);
-        reach.hidden = !range;
-        reachText.textContent = num(range);
+        kills.hidden = helps.hidden = !tower;
+        killText.textContent = tower ? String(tower.run.kills) : '';
+        helpText.textContent = tower ? String(tower.run.assists) : '';
         const level = levelOf(m.xp);
         lvl.textContent = '';
         if (m.paragon) lvl.append(paragonTag(m.paragon));
@@ -1208,7 +1260,9 @@ export class View {
           kind.append(clsName, statIcon(cls.primary, 'role-icon'));
           if (!brief) kind.append(' ', ...marked(info.main, cls));
           body.textContent = '';
-          body.append(kind, statsLine(cls, stats));
+          state.power = '';
+          state.powerBox = el('div', 'power-box');
+          body.append(kind, statsLine(cls, stats), state.powerBox);
           if (!brief) for (const perk of info.perks) {
             const line = el('div', 'perk' + (perk.open ? '' : ' locked'));
             line.append(el('i', '', perk.open ? '★' : perk.at + ' ур.'), ' ', el('b', '', perk.name), ': ',
@@ -1216,6 +1270,14 @@ export class View {
             body.append(line);
           }
           for (const id of runes) body.append(runeLine(id));
+        }
+        const power = powerOfMember(m, stats), cls = CLASS_BY_ID.get(m.cls);
+        const powerKey = JSON.stringify([power.damage, power.interval, power.crit, power.critMul, power.range,
+          power.skill, power.haste].map(num).concat(Boolean(tower && tower.rider)));
+        if (state.power !== powerKey) {
+          state.power = powerKey;
+          state.powerBox.textContent = '';
+          state.powerBox.append(powerLine(cls, power, Boolean(tower && tower.rider)));
         }
         const gearKey = m.weapon ? JSON.stringify([m.weapon.rarity, m.weapon.stats, m.weapon.ups, m.weapon.plus]) : '';
         if (state.gear !== gearKey) {

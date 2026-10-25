@@ -3,8 +3,8 @@ import { PLAIN, makeGame, memoryStorage, runFor, seeded, until } from './fixture
 import { ASCEND_TIME, CARD_MIN, CARD_ROOM, CARD_TIME, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPEED_MAX,
   SPIN_LIMIT, SUMMIT_EVERY, SUMMIT_TIME, nextReset } from '../../site/js/engine.js';
 import { FAMILY_BY_ID, LEVEL_MAX, TICK, xpForLevel } from '../../site/js/balance.js';
-import { ASCEND_AT, PRICE, RARITIES, SHOW_FAST, SHOW_TIME, SPIN_TIME, ascend, makeWeapon, weaponName, weaponStats }
-  from '../../site/js/gacha.js';
+import { ASCEND_AT, EXTRA_SLOTS, PRICE, QUEUE_CAP, RARITIES, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, ascend,
+  makeWeapon, weaponName, weaponStats } from '../../site/js/gacha.js';
 import { CLASSES, CLASS_BY_ID } from '../../site/js/classes.js';
 import { ODDS, effectOf, rollEvent } from '../../site/js/events.js';
 import { cellName } from '../../site/js/field.js';
@@ -275,6 +275,49 @@ test('гача: один игрок занимает все свободные �
   member.coins = PRICE * 100;
   eq(say(game, 'Ося', 'гача 9'), 'queued');
   eq(game.queue.map((entry) => entry.count), [SPIN_LIMIT]);
+});
+
+test('гача: в очереди у игрока не больше пяти круток, монеты за лишние не списываются; длинная очередь крутится быстрее', () => {
+  const { game } = makeGame();
+  game.open();
+  for (let i = 0; i < 6; i++) say(game, 'Игрок' + i, 'привет');
+  toWave(game);
+  const members = Array.from(game.members.values());
+  for (const member of members) member.coins = PRICE * 50;
+  const first = members[0];
+  game.slots = game.slots.map(() => ({ id: 0, login: 'занято', outcome: { kind: 'void' }, phase: 'show', left: 1e9 }));
+  eq(say(game, first.name, 'гача 3'), 'queued');
+  eq(say(game, first.name, 'гача 5'), 'queued', 'ещё две до пяти');
+  eq(game.queue.reduce((sum, entry) => sum + entry.count, 0), QUEUE_CAP);
+  const coins = first.coins;
+  eq(say(game, first.name, 'гача'), 'full', 'шестую не берёт');
+  eq(first.coins, coins, 'монеты целы');
+  ok(game.notes.some((note) => note.kind === 'queue'));
+  for (const member of members.slice(1)) say(game, member.name, 'гача 5');
+  ok(game.pending >= RUSH.queue);
+  game.slots = game.slots.map(() => null);
+  game.step(TICK);
+  ok(game.slots.every((slot) => slot && slot.left <= RUSH.spin), 'крутится быстрее');
+});
+
+test('гача: при очереди больше 30 круток — четвёртое окошко, больше 100 — пятое; очередь спала — лишние уходят', () => {
+  const { game } = makeGame();
+  game.open();
+  for (let i = 0; i < 25; i++) say(game, 'Игрок' + i, 'привет');
+  toWave(game);
+  const members = Array.from(game.members.values());
+  for (const member of members) member.coins = PRICE * 10;
+  eq(game.slots.length, SLOTS);
+  for (const member of members.slice(0, 7)) say(game, member.name, 'гача 5');
+  game.step(TICK);
+  eq(game.slots.length, SLOTS + 1, 'больше 30 — четыре окошка');
+  for (const member of members.slice(7)) say(game, member.name, 'гача 5');
+  game.step(TICK);
+  ok(game.pending > EXTRA_SLOTS[1]);
+  eq(game.slots.length, SLOTS + 2, 'больше 100 — пять');
+  ok(game.slots.every(Boolean), 'все крутят');
+  game.queue = [];
+  ok(until(game, () => game.slots.length === SLOTS, 60), 'очередь кончилась — снова три');
 });
 
 test('гача: та же редкость или выше — меняется само, ниже — остаётся своё; без оружия надевается любое', () => {
@@ -633,10 +676,14 @@ test('число и «все» в команде: «гача 3», «гача в�
   eq(say(game, 'Гена', 'гача 5'), 'queued', 'сколько хватило');
   eq(queue(), [3, 2], 'новой записью, а не к старой');
   gena.coins = PRICE * 7;
+  eq(say(game, 'Гена', 'гача все'), 'full', 'в очереди уже пять');
+  eq(gena.coins, PRICE * 7, 'монеты целы');
+  game.queue = [];
   eq(say(game, 'Гена', 'гача все'), 'queued');
-  eq([queue(), gena.coins], [[3, 2, 5], PRICE * 2]);
+  eq([queue(), gena.coins], [[5], PRICE * 2]);
+  game.queue = [];
   eq(say(game, 'Гена', '!гача всё'), 'queued');
-  eq([queue(), gena.coins], [[3, 2, 5, 2], 0]);
+  eq([queue(), gena.coins], [[2], 0]);
   gena.weapon = makeWeapon(seeded(3), gena.cls, RARITIES[2]);
   gena.coins = 550;
   eq(say(game, 'Гена', 'улучшить 5'), 'upgraded');

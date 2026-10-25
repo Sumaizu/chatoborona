@@ -9,16 +9,19 @@ export const SLOTS = 3;
 export const SPIN_TIME = 2;
 export const SHOW_TIME = 7;
 export const SHOW_FAST = 4;
+export const RUSH = { queue: 12, spin: 0.8, show: 1.2 };
+export const QUEUE_CAP = 5;
+export const EXTRA_SLOTS = [30, 100];
 export const ASCEND_AT = 30;
 export const DIVINE_SHARE = 0.05;
 
 export const OUTCOMES = [
-  { id: 'void', name: 'Пустота', color: '#6b7280', chance: 0.14 },
+  { id: 'void', name: 'Пустота', color: '#6b7280', chance: 0.133 },
   { id: 'handful', name: 'Горстка монет', color: '#facc15', chance: 0.075, coins: [1, 50] },
   { id: 'bag', name: 'Мешок монет', color: '#e8a33d', chance: 0.0675, coins: [51, 150] },
   { id: 'chest', name: 'Сундук монет', color: '#ffb020', chance: 0.0075, coins: [151, 500] },
   { id: 'particle', name: 'Частица бога', color: '#ff2e4d', chance: 0.002 },
-  { id: 'rune', name: 'Руна способности', color: '#ff2e4d', chance: 0.008 },
+  { id: 'rune', name: 'Руна способности', color: '#ff2e4d', chance: 0.015 },
 ];
 
 export const RARITIES = [
@@ -120,7 +123,6 @@ export function spin(random, cls, { particle = false, runes = 0 } = {}) {
 }
 
 export const amountText = (id, value) => num(Math.abs(value));
-
 
 export const rarityOf = (id) => (id === DIVINE.id ? DIVINE : RARITIES.find((rarity) => rarity.id === id)
   || RARITIES[0]);

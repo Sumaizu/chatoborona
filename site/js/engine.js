@@ -2,8 +2,8 @@ import { Battle } from './battle.js';
 import { makeMap, parseCell, parseMove } from './field.js';
 import { CLASSES, CLASS_BY_ID } from './classes.js';
 import { LEVEL_MAX, TICK, levelOf, waveReward } from './balance.js';
-import { DIVINE, PRICE, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, UPGRADE_PRICE, rankOf, spin, upgrade,
-  weaponStats } from './gacha.js';
+import { DIVINE, EXTRA_SLOTS, PRICE, QUEUE_CAP, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, UPGRADE_PRICE, rankOf,
+  spin, upgrade, weaponStats } from './gacha.js';
 import { LASTING, effectOf, rollEvent } from './events.js';
 
 export const COMMANDS = new Map([
@@ -445,9 +445,18 @@ export class Game {
     return 'later';
   }
 
+  get pending() {
+    return this.queue.reduce((sum, entry) => sum + entry.count, 0);
+  }
+
   order(member, count = 1) {
     if (!member || !this.battle) return null;
-    const spins = Math.min(count, Math.floor(member.coins / PRICE));
+    const waiting = this.queue.reduce((sum, entry) => sum + (entry.login === member.login ? entry.count : 0), 0);
+    if (waiting >= QUEUE_CAP) {
+      this._note('queue', member, NOTE_TIME, { waiting });
+      return 'full';
+    }
+    const spins = Math.min(count, QUEUE_CAP - waiting, Math.floor(member.coins / PRICE));
     if (spins < 1) {
       this._note('poor', member, NOTE_TIME, { price: PRICE });
       return 'poor';
@@ -736,6 +745,9 @@ export class Game {
   }
 
   _gacha(dt) {
+    const wanted = SLOTS + EXTRA_SLOTS.filter((size) => this.pending > size).length;
+    while (this.slots.length < wanted) this.slots.push(null);
+    while (this.slots.length > wanted && !this.slots[this.slots.length - 1]) this.slots.pop();
     this.slots.forEach((slot, i) => {
       if (!slot) return;
       slot.left -= dt;
@@ -753,8 +765,9 @@ export class Game {
       entry.count -= 1;
       if (entry.count <= 0) this.queue.splice(next, 1);
       if (!member) continue;
+      const left = this.pending >= RUSH.queue ? RUSH.spin : SPIN_TIME;
       this.slots[i] = { id: ++this._spinNo, login: member.login, outcome: spin(this.random, member.cls,
-        { particle: member.particle, runes: member.runes.length }), phase: 'spin', left: SPIN_TIME };
+        { particle: member.particle, runes: member.runes.length }), phase: 'spin', left, span: left };
       this._emit('spin', { login: member.login });
     }
   }
@@ -769,7 +782,7 @@ export class Game {
   _apply(slot) {
     const member = this.members.get(slot.login), outcome = slot.outcome, weapon = outcome.weapon;
     slot.phase = 'show';
-    slot.left = this.queue.length ? SHOW_FAST : SHOW_TIME;
+    slot.left = this.pending >= RUSH.queue ? RUSH.show : this.queue.length ? SHOW_FAST : SHOW_TIME;
     if (!member) return;
     if (outcome.kind === 'void') {
       slot.took = false;

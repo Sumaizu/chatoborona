@@ -377,6 +377,7 @@ body {
   display: flex; flex-direction: column; gap: 2px;
 }
 .slot:not(.busy) { height: 30px; }
+.slot[hidden] { display: none; }
 .slot .idle { margin: auto; font-size: 13px; color: var(--muted); }
 .slot .idle b { color: var(--ink); }
 .slot .who {
@@ -454,6 +455,11 @@ body {
   grid-auto-rows: 22px; column-gap: 10px; align-content: start;
 }
 .players ol.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.players ol.paged { display: block; }
+.players .page-window { overflow: hidden; }
+.players .pages { will-change: transform; }
+.players .page { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 22px;
+  column-gap: 10px; align-content: start; overflow: hidden; }
 .players ol li.empty { grid-column: 1 / -1; }
 .players li .face { flex: none; width: 20px; height: 20px; image-rendering: pixelated; }
 .players li .lvl {

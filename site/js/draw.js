@@ -1,8 +1,9 @@
 import { LETTERS, SIZE } from './field.js';
 import { CELL, EDGE, paintGround, paintPeaks, paintRoof } from './terrain.js';
 import { HERO_SIZE, bubbleSprite, bulletSprite, clodSprite, cocoonSprite, coinSprite, flaskSprite, heartSprite,
-  heroSprite, hookSprite, linkSprite, meteorSprite, mineSprite, mobSprite, moundSprite, nukeSprite, pixelsOf,
-  reticleSprite, rocketSprite, shellSprite, starSprite, tintSprite, trapSprite, wallSprite } from './sprites.js';
+  gooColor, heroSprite, hookSprite, linkSprite, meltSprite, meteorSprite, mineSprite, mobSprite, moundSprite,
+  nukeSprite, pixelsOf, reticleSprite, rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, trapSprite,
+  wallSprite } from './sprites.js';
 import { SOILS } from './props.js';
 import { gearColor } from './gacha.js';
 
@@ -79,6 +80,11 @@ const PUDDLES = {
 const FLAME_HOLD = 0.3;
 const FLAME_BITS = 34;
 const BADGE_HALF = 16;
+const OUTLINE = [[-2, 0], [2, 0], [0, -2], [0, 2]];
+const SPLIT_LIFE = 0.35;
+const SPLIT_APART = 9;
+const MELT_LIFE = 0.45;
+const GOO_LIFE = 5;
 const RESOLUTION_MAX = 2.5;
 const HERO_TURN_STEPS = 16;
 const LABELS_MAX = 400;
@@ -153,6 +159,66 @@ function puddleShape(radius, seed, look = 'poison') {
   ctx.fillStyle = shine[1];
   ctx.fillRect(Math.round(c + size * 0.25), Math.round(c - size * 0.1), 1, 1);
   puddleShapes.set(key, canvas);
+  return canvas;
+}
+
+const gooShapes = new Map();
+
+function tone(hex, target, t) {
+  const v = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return 'rgb(' + v.map((c, i) => Math.round(c + (target[i] - c) * t)).join(',') + ')';
+}
+
+function gooShape(radius, seed, color) {
+  const size = Math.max(3, Math.round(radius)), key = size + ':' + seed + ':' + color;
+  if (gooShapes.has(key)) return gooShapes.get(key);
+  const dark = [10, 8, 20], light = [255, 255, 255];
+  const tones = [tone(color, dark, 0.55), tone(color, dark, 0.3), tone(color, dark, 0.1), color,
+    tone(color, light, 0.35), tone(color, light, 0.7)];
+  const canvas = document.createElement('canvas'), side = size * 2 + 10;
+  canvas.width = canvas.height = side;
+  const ctx = canvas.getContext('2d'), c = side / 2, put = (x, y, fill) => {
+    ctx.fillStyle = fill;
+    ctx.fillRect(x, y, 1, 1);
+  };
+  const lobes = [0, 1, 2, 3, 4].map((i) => {
+    const a = noise(i, seed) * Math.PI * 2, d = size * (0.72 + 0.12 * noise(i + 20, seed));
+    return [Math.cos(a) * d, Math.sin(a) * d, size * (0.22 + 0.14 * noise(i + 10, seed))];
+  });
+  const depth = (dx, dy) => {
+    const a = Math.atan2(dy, dx), d = Math.hypot(dx, dy);
+    const edge = size * (0.74 + 0.07 * Math.sin(2 * a + seed) + 0.05 * Math.sin(5 * a + seed * 1.7)
+      + 0.035 * Math.sin(9 * a + seed * 2.3));
+    if (d <= edge) return d / edge;
+    for (const [lx, ly, lr] of lobes) {
+      const q = Math.hypot(dx - lx, dy - ly);
+      if (q <= lr) return 0.75 + 0.2 * q / lr;
+    }
+    return null;
+  };
+  for (let y = 0; y < side; y++) {
+    for (let x = 0; x < side; x++) {
+      const dx = x + 0.5 - c, dy = (y + 0.5 - c) * 1.45, k = depth(dx, dy);
+      if (k === null) continue;
+      const ripple = Math.sin(Math.hypot(dx, dy) * 1.3 - Math.atan2(dy, dx) * 2 + seed) > 0.6;
+      put(x, y, k > 0.88 ? tones[0] : k > 0.72 ? tones[1] : ripple && k > 0.3 ? tones[2] : tones[3]);
+    }
+  }
+  for (let i = 0; i < 5; i++) {
+    const a = seed * 1.3 + i * 1.37, d = size * (1.05 + 0.18 * Math.sin(i * 3 + seed));
+    const x = Math.round(c + Math.cos(a) * d), y = Math.round(c + Math.sin(a) * d / 1.45), big = i % 2 === 0;
+    put(x, y, tones[1]);
+    if (big) {
+      put(x + 1, y, tones[3]);
+      put(x, y + 1, tones[0]);
+      put(x + 1, y + 1, tones[1]);
+    }
+  }
+  for (let i = 0; i < 3; i++) put(Math.round(c - size * 0.42) + i, Math.round(c - size * 0.22), tones[5]);
+  put(Math.round(c - size * 0.46), Math.round(c - size * 0.22) + 1, tones[4]);
+  put(Math.round(c + size * 0.2), Math.round(c + size * 0.02), tones[4]);
+  put(Math.round(c + size * 0.24), Math.round(c + size * 0.02), tones[5]);
+  gooShapes.set(key, canvas);
   return canvas;
 }
 
@@ -662,6 +728,19 @@ export class Scene {
         square(ctx, x + 1, y - 1, Math.max(1, d.size - 2), '#c4b8a6');
       } else if (d.kind === 'scorch') {
         glow(ctx, x, y, d.r * CELL, 'rgba(20, 10, 6, .9)', 0.55 * fade);
+      } else if (d.kind === 'goo') {
+        const grow = Math.min(1, d.t / 0.4), dry = Math.max(0, (d.t - d.life + 1.5) / 1.5);
+        const shape = gooShape(d.r * CELL / ZOOM, d.seed, d.color), scale = ZOOM * grow * (1 - 0.25 * dry);
+        const w = shape.width * scale, h = shape.height * scale;
+        ctx.globalAlpha = 0.95 * (1 - dry);
+        ctx.drawImage(shape, Math.round(x - w / 2), Math.round(y - h / 2 + 3), Math.round(w), Math.round(h));
+        if (d.t < d.life - 2) {
+          const pop = (d.t * 0.9 + d.seed * 0.13) % 1, bubble = bubbleSprite();
+          const bx = x + Math.cos(d.seed * 2 + Math.floor(d.t * 0.9)) * d.r * CELL * 0.35, by = y + 3;
+          const side = Math.round(bubble.width * (0.4 + pop * 0.6));
+          ctx.globalAlpha = pop < 0.85 ? 0.85 : 0.3;
+          ctx.drawImage(bubble, Math.round(bx - side / 2), Math.round(by - side / 2), side, side);
+        }
       } else if (d.kind === 'crater') {
         glow(ctx, x, y, d.r * CELL * 1.6, 'rgba(14, 8, 6, .95)', 0.8 * fade);
         glow(ctx, x, y, d.r * CELL * 0.7, 'rgba(255, 106, 31, .9)', 0.5 * fade * fade);
@@ -917,7 +996,7 @@ export class Scene {
       }
       const frame = mob.flying ? Math.floor(this.clock * FLAP + mob.id) % 2 : Math.floor(spot.walk / Math.PI) % 2;
       const look = mob.hook && HOOKLESS[mob.look] ? HOOKLESS[mob.look] : mob.look;
-      const image = mobSprite(look, held ? 0 : frame), size = image.width * ZOOM / (image.fine || 1);
+      const image = mobSprite(look, held ? 0 : frame), size = (image.span || image.width) * ZOOM / (image.fine || 1);
       let x = at(spot.x), y = at(spot.y);
       let angle = Math.atan2(spot.dx, -spot.dy) + (held || mob.flying ? 0 : Math.sin(spot.walk) * 0.08);
       if (mob.biting) {
@@ -974,6 +1053,11 @@ export class Scene {
       else if (mob.phase) ctx.globalAlpha = mob.phaseUntil > now ? 0.3 : 0.8;
       if (mob.wild || mob.power && mob.power.steady && mob.powerUntil > now) {
         glow(ctx, x, y - lift, size * 0.9, 'rgba(239, 68, 68, .95)', 0.55);
+      }
+      const rim = mob.info.boss ? '#ef4444' : mob.kind ? '#facc15' : mob.silver ? '#e2e8f0' : null;
+      if (rim) {
+        const ring = tintSprite(image, rim);
+        for (const [ox, oy] of OUTLINE) sprite(ctx, ring, x + ox, y - lift + oy, angle);
       }
       sprite(ctx, image, x, y - lift, angle);
       ctx.globalAlpha = 1;
@@ -1530,13 +1614,16 @@ export class Scene {
   _mobTops(ctx, battle) {
     for (const mob of battle.mobs) {
       const spot = this.shown.get(mob.id);
-      if (mob.dead || !mob.kind || !spot || spot.top === undefined || battle.covered(mob.x, mob.y)) continue;
+      if (mob.dead || !mob.kind && !mob.silver || !spot || spot.top === undefined || battle.covered(mob.x, mob.y)) {
+        continue;
+      }
       const x = spot.screenX, top = spot.top, w = Math.max(16, spot.size * 0.9), share = Math.max(0, mob.hp / mob.max);
       ctx.fillStyle = '#15111d';
       ctx.fillRect(Math.round(x - w / 2) - 1, Math.round(top) - 1, Math.round(w) + 2, 5);
       ctx.fillStyle = share > 0.6 ? '#4ade80' : share > 0.3 ? '#facc15' : '#f87171';
       ctx.fillRect(Math.round(x - w / 2), Math.round(top), Math.round(w * share), 3);
-      const name = mob.kind.name, font = '800 9px "Segoe UI", system-ui, sans-serif';
+      const name = mob.kind ? mob.kind.name : mob.silver.name, font = '800 9px "Segoe UI", system-ui, sans-serif';
+      const color = mob.kind ? mob.kind.glow : '#e2e8f0';
       if (!this.labels.has('mob:' + name)) this.ctx.font = font;
       const width = this.labels.has('mob:' + name) ? 0 : this.ctx.measureText(name).width + 8;
       const image = this._label('mob:' + name, width, 14, (g) => {
@@ -1546,7 +1633,7 @@ export class Scene {
         g.lineWidth = 3;
         g.strokeStyle = 'rgba(0, 0, 0, .85)';
         g.strokeText(name, width / 2, 7);
-        g.fillStyle = mob.kind.glow;
+        g.fillStyle = color;
         g.fillText(name, width / 2, 7);
       });
       this._stamp(ctx, image, x - image.width / this.k / 2, top - 14);
@@ -1685,9 +1772,23 @@ export class Scene {
       add({ kind: 'ring', life: 0.5, x, y, r: event.radius || 1, color: '#facc15', width: 3 });
       this._sparks(x, y, ['#fef9c3', '#facc15', '#ffffff'], 14, 3.2, 0.4);
     } else if (event.kind === 'kill') {
-      this._corpse(event.mob);
-      const spot = this.shown.get(event.mob.id) || event.mob;
-      this._sparks(spot.x, spot.y, ['#7a1f1f', '#3b2f2f'], event.mob.kind ? 8 : 3, 1.4, 0.35, 2);
+      const mob = event.mob, spot = this.shown.get(mob.id) || mob, goo = gooColor(mob.look);
+      if (!goo || mob.fake) {
+        this._corpse(mob);
+        this._sparks(spot.x, spot.y, ['#7a1f1f', '#3b2f2f'], mob.kind ? 8 : 3, 1.4, 0.35, 2);
+      } else if (!(mob.slime > 1 || mob.power && mob.power.id === 'split')) {
+        add({ kind: 'melt', life: MELT_LIFE, x: spot.x, y: spot.y, id: mob.look, lift: spot.lift || 0 });
+        const size = spot.image ? (spot.image.span || spot.image.width) / (spot.image.fine || 1) / CELL * ZOOM : 0.5;
+        this.decals.push({ kind: 'goo', t: 0, life: GOO_LIFE, x: spot.x, y: spot.y + 0.05,
+          r: Math.max(0.25, size * 0.55), color: goo, seed: mob.id % 7 });
+        this._sparks(spot.x, spot.y, [goo, tone(goo, [255, 255, 255], 0.5)], 6, 1.6, 0.4, 2);
+      }
+    } else if (event.kind === 'split') {
+      const spot = this.shown.get(event.mob.id) || event.mob, [[ax, ay], [bx, by]] = event.spots;
+      const goo = gooColor(event.mob.look) || '#4ade80';
+      add({ kind: 'split', life: SPLIT_LIFE, x: (ax + bx) / 2, y: (ay + by) / 2, id: event.mob.look,
+        angle: Math.atan2(bx - ax, -(by - ay)) });
+      this._sparks(spot.x, spot.y, [goo, tone(goo, [255, 255, 255], 0.5)], 10, 2, 0.45, 2);
     } else if (event.kind === 'hold') {
       const ice = event.by === 'frost';
       this._sparks(event.mob.x, event.mob.y, ice ? ['#e0fbff', '#67e8f9'] : ['#ffe14d', '#ffffff'], 6, 1.8, 0.35);
@@ -2139,6 +2240,13 @@ export class Scene {
           ctx.fill();
         }
         ctx.globalAlpha = 1;
+      } else if (e.kind === 'melt') {
+        const stage = Math.min(3, 1 + Math.floor(share * 3));
+        ctx.globalAlpha = stage === 3 ? Math.min(1, fade * 3) : 1;
+        sprite(ctx, meltSprite(e.id, stage), at(e.x), at(e.y) - e.lift * fade, 0);
+        ctx.globalAlpha = 1;
+      } else if (e.kind === 'split') {
+        sprite(ctx, splitSprite(e.id, Math.min(3, 1 + Math.floor(share * 3)), SPLIT_APART), at(e.x), at(e.y), e.angle);
       } else if (e.kind === 'pulse') {
         const x = at(e.x), y = at(e.y), r = Math.max(4, e.r * CELL * (0.2 + 0.8 * (1 - fade * fade)));
         glow(ctx, x, y, r * 1.1, e.color, 0.3 * fade);

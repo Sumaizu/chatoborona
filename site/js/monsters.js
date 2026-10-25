@@ -92,11 +92,45 @@ function beast(m, f, o) {
 }
 
 function wings(m, f, o) {
-  const c = m.w / 2, s = o.s || 1, y = c + (o.dy || 0), lift = f ? -2.5 : 1.5;
+  const c = m.w / 2, s = o.s || 1, y = c + (o.dy || 0), up = f ? -2.5 : 1.5;
   [-1, 1].forEach((side) => {
-    m.egg(c + side * 7.5 * s, y + lift * s, 3 * s, 7 * s, 4 * s, 0.8 * s, o.wing);
-    m.egg(c + side * 11 * s, y + (lift + 2) * s, 3.4 * s, 3.4 * s, 2.6 * s, 0.6 * s, o.tip || o.wing);
-    if (o.bones) m.limb(c + side * 3 * s, y, 4 * s, c + side * 13 * s, y + (lift - 1.5) * s, 4 * s, 0.6 * s, o.bones);
+    const sx = c + side * 3 * s, sy = y, ex = c + side * 7.5 * s, ey = y + (up - 1.6) * s;
+    const hx = c + side * 11.5 * s, hy = y + (up - 1) * s;
+    if (o.feather) {
+      for (let i = 0; i < 7; i++) {
+        const t = i / 6, bx = hx + (sx - hx) * t * 0.9, by = hy + (sy - hy) * t * 0.9;
+        const a = 0.15 + t * 1.25, len = (7.2 - t * 3.2) * s;
+        m.limb(bx, by, 2.4 + t, bx + side * Math.cos(a) * len, by + Math.sin(a) * len, 2, 1.45 * s,
+          i % 2 ? o.wing : o.tip || o.wing, 0, 0.3 * s);
+      }
+      m.limb(sx, sy, 4.4, ex, ey, 4.6, 1.6 * s, o.wing);
+      m.limb(ex, ey, 4.6, hx, hy, 4.2, 1.3 * s, o.wing, 0, 0.7 * s);
+      for (let i = 0; i < 5; i++) {
+        const t = (i + 0.5) / 5, x = sx + (hx - sx) * t, yy = sy + (hy - sy) * t + 1.2 * s;
+        m.egg(x, yy, 4.8, 1.3 * s, 1.6 * s, 0.6 * s, o.light || o.tip || o.wing);
+      }
+      return;
+    }
+    const tips = [[hx + side * 4.5 * s, hy - 2.2 * s], [hx + side * 3.4 * s, hy + 4.2 * s],
+      [hx + side * 0.2 * s, hy + 7.4 * s], [sx + side * 0.6 * s, sy + 5 * s]];
+    for (let k = 0; k < tips.length - 1; k++) {
+      const [px, py] = tips[k], [qx, qy] = tips[k + 1];
+      for (let j = 0; j <= 6; j++) {
+        const u = j / 6, pull = 0.3 * Math.sin(Math.PI * u), x = px + (qx - px) * u, yy = py + (qy - py) * u;
+        m.limb(hx, hy, 2.6, x + (hx - x) * pull, yy + (hy - yy) * pull, 2.4, 1.1 * s, k % 2 ? o.wing : o.tip || o.wing,
+          0, 0.7 * s);
+      }
+    }
+    for (let j = 0; j <= 4; j++) {
+      const u = j / 4, x = sx + (hx - sx) * u, yy = sy + (hy - sy) * u;
+      m.limb(x, yy, 2.6, tips[3][0] + (tips[2][0] - tips[3][0]) * u, tips[3][1] + (tips[2][1] - tips[3][1]) * u, 2.4,
+        1.1 * s, o.wing, 0, 0.8 * s);
+    }
+    const bone = o.bones || o.tip || o.wing;
+    m.limb(sx, sy, 4, ex, ey, 4.4, 0.9 * s, bone);
+    m.limb(ex, ey, 4.4, hx, hy, 4.2, 0.8 * s, bone);
+    for (const [tx, ty] of tips.slice(0, 3)) m.limb(hx, hy, 4.2, tx, ty, 3.4, 0.55 * s, bone, 0, 0.25 * s);
+    m.ball(hx, hy, 4.6, 0.9 * s, o.claw || '#e7e2cf');
   });
 }
 
@@ -137,26 +171,52 @@ function spider(m, f, o) {
   for (const dx of [-1.6, -0.6, 0.6, 1.6]) m.dot(c + dx * s - 0.5, c - 5.4 * s, o.eye || '#f87171', 60);
 }
 
+const GOOS = {
+  slime1: { r: 6.2, color: '#4ade80' },
+  slime2: { r: 9, color: '#34c76e' },
+  slime3: { r: 11.6, color: '#22a95c' },
+  hopper: { r: 7.6, color: '#a3e635', shine: '#f7fee7' },
+  wingslime: { r: 6.8, color: '#2dd4bf', shine: '#ccfbf1' },
+  magmaslime: { r: 10.4, color: '#ea580c', shine: '#fed7aa' },
+  frostslime: { r: 8.6, color: '#7dd3fc', shine: '#f0f9ff' },
+  stormslime: { r: 7.8, color: '#facc15', shine: '#fef9c3' },
+  sludge: { r: 9.6, color: '#65a30d', shine: '#d9f99d' },
+  slimeking: { r: 13, color: '#22c55e' },
+  slimemother: { r: 18.5, color: '#15803d', shine: '#dcfce7' },
+  slimegiant: { r: 19.5, color: '#0f766e', shine: '#ccfbf1' },
+};
+
 const MOBS = {
   zombie: [30, (m, f) => walker(m, f, {
     legs: '#3c4250', body: '#6b4f8a', skin: '#8fb35e', handColor: '#7aa04c', shoulderColor: '#5d4378', reach: 11,
     spread: 6, chest: (c, y) => {
       m.ball(c - 3.8, y + 5.3, 7, 1.9, '#8fb35e');
+      for (let i = 0; i < 3; i++) {
+        m.limb(c - 5.4, y + 4 + i * 1.3, 8.6, c - 2.6, y + 4.3 + i * 1.3, 8.6, 0.4, '#e7e2cf');
+      }
       m.ball(c + 3.8, y + 1.2, 7.4, 1.6, '#8fb35e');
-      m.dot(c - 2, y + 6, '#9b2226', 30);
-      m.dot(c + 3, y + 4, '#9b2226', 30);
+      for (const [x0, y0, x1, y1] of [[c + 1, y + 7, c + 5, y + 6], [c - 1, y - 0.5, c + 1.5, y + 1]]) {
+        m.limb(x0, y0, 8.4, x1, y1, 8.4, 0.35, '#3b2a4a');
+      }
+      for (const [dx, dy] of [[-2, 6], [3, 4], [0, 2], [5, 7]]) m.dot(c + dx, y + dy, '#9b2226', 30);
+      m.dot(c + 2, y + 8, '#4c3566', 40);
+      m.dot(c - 4, y + 8.6, '#4c3566', 40);
     },
     held: (hands) => {
       for (const [x, y] of hands) {
         m.dot(x - 1, y - 2.6, '#e7e2cf', 40);
         m.dot(x + 1, y - 2.6, '#e7e2cf', 40);
+        m.dot(x, y + 1.6, '#5d7a3c', 40);
       }
     },
     face: (c, y) => {
       m.ball(c - 1.4, y - 0.2, 13.6, 2.1, '#3a2b20');
       m.ball(c + 1.8, y + 0.6, 13.4, 1.7, '#3a2b20');
+      m.limb(c + 2.2, y - 6.6, 14.6, c + 3.4, y - 3.4, 14.6, 0.3, '#3b2a20');
+      for (const k of [0, 1, 2]) m.dot(c + 2.3 + k * 0.5, y - 5.8 + k * 1.1, '#e7e2cf', 60);
       m.dot(c - 2, y - 6, '#f8f6a0', 40);
       m.dot(c + 2, y - 6, '#f8f6a0', 40);
+      m.dot(c - 0.6, y - 3.4, '#5d7a3c', 40);
     },
   })],
   skeleton: [30, (m, f) => walker(m, f, {
@@ -177,7 +237,7 @@ const MOBS = {
     },
   })],
   imp: [30, (m, f) => {
-    wings(m, f, { wing: '#6b1414', tip: '#4c0e0e', s: 0.65, dy: 1, bones: '#3b0a0a' });
+    wings(m, f, { wing: '#6b1414', tip: '#4c0e0e', s: 0.85, dy: 1, bones: '#3b0a0a' });
     walker(m, f, {
       s: 0.82, dy: 1, legs: '#5b1414', body: '#c8352a', skin: '#c8352a', reach: 7, head: 4.6,
       back: (c, y, s, step) => {
@@ -209,7 +269,7 @@ const MOBS = {
     },
   })],
   crow: [30, (m, f) => {
-    wings(m, f, { wing: '#25212b', tip: '#16131b', s: 0.9, bones: '#3a3442' });
+    wings(m, f, { wing: '#25212b', tip: '#16131b', light: '#3a3442', s: 0.9, feather: true });
     const c = 15;
     m.limb(c, c + 4, 4, c, c + 11, 3, 2.2, '#1f1b24', 0, 0.8);
     m.egg(c, c + 1, 6, 3.6, 6, 3.6, '#2b2633');
@@ -244,12 +304,21 @@ const MOBS = {
     },
   })],
   demon: [30, (m, f) => {
-    wings(m, f, { wing: '#6b1414', tip: '#4c0e0e', s: 0.9, bones: '#3b0a0a' });
+    wings(m, f, { wing: '#6b1414', tip: '#4c0e0e', s: 1.15, bones: '#3b0a0a' });
     walker(m, f, {
       legs: '#5b1414', body: '#c8352a', skin: '#c8352a', reach: 8, head: 4.3, sway: 0.6,
-      back: (c, y) => {
-        m.limb(c, y + 8, 3, c, y + 14, 2, 1, '#7f1d1d', 0, 0.6);
-        m.dot(c, y + 14, '#ff7a1f', 30);
+      back: (c, y, s, step) => {
+        m.limb(c, y + 8, 3, c + step, y + 13.4, 2, 1, '#7f1d1d', 0, 0.5);
+        m.limb(c + step - 1.2, y + 13.4, 2.4, c + step + 1.2, y + 13.4, 2.4, 0.7, '#450a0a');
+        m.limb(c + step, y + 13, 2.4, c + step, y + 15.4, 2.4, 0.8, '#450a0a', 0, 0.2);
+      },
+      chest: (c, y) => {
+        m.egg(c - 2.6, y + 1.4, 8.8, 2.4, 1.8, 0.7, '#d9473a');
+        m.egg(c + 2.6, y + 1.4, 8.8, 2.4, 1.8, 0.7, '#d9473a');
+        for (const dy of [4, 5.8, 7.6]) {
+          for (const dx of [-1.1, 1.1]) m.egg(c + dx, y + dy, 8.6, 0.9, 0.7, 0.4, '#b02a20');
+        }
+        m.dot(c, y + 2.6, '#ffb020', 70);
       },
       held: (hands) => {
         for (const [x, y] of hands) {
@@ -258,16 +327,19 @@ const MOBS = {
         }
       },
       face: (c, y) => {
-        m.limb(c - 3, y - 3.5, 12, c - 5, y - 7.5, 13, 1.1, '#f1e4c8', 0, 0.4);
-        m.limb(c + 3, y - 3.5, 12, c + 5, y - 7.5, 13, 1.1, '#f1e4c8', 0, 0.4);
+        for (const side of [-1, 1]) {
+          m.limb(c + side * 3, y - 3.5, 12, c + side * 5, y - 7.5, 13, 1.1, '#f1e4c8', 0, 0.4);
+          m.limb(c + side * 3.6, y - 4.6, 12.3, c + side * 4, y - 5.4, 12.4, 0.5, '#8a6a3c');
+        }
+        m.egg(c, y - 5.6, 14.2, 2.2, 0.5, 0.3, '#7f1d1d');
         m.dot(c - 2, y - 5, '#ffd84a', 40);
         m.dot(c + 2, y - 5, '#ffd84a', 40);
       },
     });
   }],
-  slime1: [30, (m, f) => blob(m, f, { r: 6.2, color: '#4ade80' })],
-  slime2: [30, (m, f) => blob(m, f, { r: 9, color: '#34c76e' })],
-  slime3: [30, (m, f) => blob(m, f, { r: 11.6, color: '#22a95c' })],
+  slime1: [30, (m, f) => blob(m, f, GOOS.slime1)],
+  slime2: [30, (m, f) => blob(m, f, GOOS.slime2)],
+  slime3: [30, (m, f) => blob(m, f, GOOS.slime3)],
   ember: [30, (m, f) => {
     const sway = f ? 1.4 : -1.4;
     m.limb(15, 14, 3, 15 + sway, 26.5, 2, 6.6, '#e8341a', 0.5, 0.5);
@@ -301,7 +373,7 @@ const MOBS = {
     m.dot(17, 14, '#fef08a', 60);
   }],
   sludge: [30, (m, f) => blob(m, f, {
-    r: 9.6, color: '#65a30d', shine: '#d9f99d',
+    ...GOOS.sludge,
     top: (c, s) => {
       for (const [dx, dy, r] of [[-5, 4, 1.6], [4, 5, 1.2], [5, -4, 1]]) m.ball(c + dx, c + dy, 10, r, '#a855f7', 0.8);
     },
@@ -377,7 +449,7 @@ const MOBS = {
     },
   })],
   harpy: [30, (m, f) => {
-    wings(m, f, { wing: '#a16207', tip: '#78350f', bones: '#5b3412' });
+    wings(m, f, { wing: '#a16207', tip: '#78350f', light: '#ca8a04', feather: true });
     const c = 15;
     m.limb(c - 2, c + 6, 4, c - 2, c + 10, 4, 0.9, '#fde047');
     m.limb(c + 2, c + 6, 4, c + 2, c + 10, 4, 0.9, '#fde047');
@@ -433,6 +505,77 @@ const MOBS = {
           foot - 1.6, 2, 0.35, '#f5f0e1', 0, 0.2);
       }
       m.ball(c, y - 13.6 * s, 12 * s, 1.1 * s, '#1c1917', 0.8);
+    },
+  })],
+  orc: [30, (m, f) => walker(m, f, {
+    s: 1, legs: '#3f2d1d', body: '#5c4a32', skin: '#6f9a4a', shoulderColor: '#3f3324', head: 4.4, reach: 8,
+    chest: (c, y) => m.limb(c - 6, y + 2, 8, c + 6, y + 7, 8, 0.9, '#3f3324'),
+    held: (hands) => {
+      const [x, y] = hands[1];
+      m.limb(x, y + 2, 9, x, y - 6, 9.5, 0.7, WOOD);
+      m.egg(x + 1.8, y - 5.4, 10, 2.2, 1.6, 0.8, METAL, 0.7);
+    },
+    face: (c, y) => {
+      for (const side of [-1, 1]) {
+        m.limb(c + side * 1.4, y - 2.2, 12, c + side * 1.9, y - 4, 12.5, 0.5, '#f1e4c8', 0, 0.2);
+      }
+      m.dot(c - 1.6, y - 5, '#ef4444', 60);
+      m.dot(c + 1.6, y - 5, '#ef4444', 60);
+    },
+  })],
+  wolfrider: [30, (m, f) => beast(m, f, {
+    s: 0.95, fur: '#6b7280', dark: '#374151', belly: '#9ca3af', snout: '#9ca3af', tail: 1.2, tailColor: '#4b5563',
+    eye: '#fde047', ear: '#374151',
+    back: (c, y) => {
+      m.egg(c, y + 1, 10, 2.8, 3.2, 2, '#78350f');
+      m.ball(c, y - 2.6, 12.5, 2.4, '#7cc242');
+      m.egg(c - 2.6, y - 2.8, 12.5, 1.4, 0.6, 0.6, '#7cc242');
+      m.egg(c + 2.6, y - 2.8, 12.5, 1.4, 0.6, 0.6, '#7cc242');
+      m.limb(c + 2.4, y + 2, 12, c + 2.8, y - 9, 12, 0.4, WOOD);
+      m.limb(c + 2.8, y - 9, 12.2, c + 2.8, y - 10.6, 12.2, 0.5, METAL, 0.6, 0.1);
+    },
+  })],
+  troll: [30, (m, f) => walker(m, f, {
+    s: 1.12, legs: '#334e4a', body: '#4f7a73', skin: '#6a9a92', shoulderColor: '#3f6560', arm: 2.7, wrist: 2.4,
+    hand: 3, shoulder: 3.4, head: 3.8, reach: 9.5, spread: 8, wide: 8.4,
+    chest: (c, y, s) => {
+      for (const [dx, dy] of [[-3, 2], [3, 5], [0, 7]]) m.ball(c + dx * s, y + dy * s, 9, 1.3, '#65a30d');
+    },
+    held: (hands) => {
+      const [x, y] = hands[0];
+      m.limb(x, y + 3, 9, x - 1, y - 4.5, 10, 1.2, '#5b4636', 0, 1.7);
+    },
+    face: (c, y) => {
+      m.egg(c, y - 6.4, 12, 1.6, 1.2, 1, '#7aa8a0');
+      m.dot(c - 1.5, y - 4.6, '#fde047', 60);
+      m.dot(c + 1.5, y - 4.6, '#fde047', 60);
+    },
+  })],
+  wingslime: [30, (m, f) => {
+    wings(m, f, { wing: '#99f6e4', tip: '#5eead4', light: '#ccfbf1', s: 0.9, dy: -2, feather: true });
+    blob(m, f, GOOS.wingslime);
+  }],
+  magmaslime: [30, (m, f) => blob(m, f, {
+    ...GOOS.magmaslime,
+    top: (c) => {
+      for (const [dx, dy, r] of [[-4, 4, 2.2], [4, 3, 1.8], [1, -5, 1.6], [-5, -2, 1.2]]) {
+        m.ball(c + dx, c + dy, 11, r, '#431407', 0.2);
+      }
+      for (const [dx, dy] of [[-2, 2], [3, 0], [0, 6], [-4, -5]]) m.dot(c + dx, c + dy, '#fde047', 90);
+    },
+  })],
+  frostslime: [30, (m, f) => blob(m, f, {
+    ...GOOS.frostslime,
+    top: (c) => spikes(m, c, c - 2, 11, 4.4, 5, '#e0f2fe', 2.6, f ? 0.3 : 0),
+  })],
+  stormslime: [30, (m, f) => blob(m, f, {
+    ...GOOS.stormslime,
+    top: (c) => {
+      const bolt = f ? [[c - 3, c - 4], [c, c - 1], [c - 2, c + 1], [c + 2, c + 5]]
+        : [[c + 3, c - 4], [c, c - 1], [c + 2, c + 1], [c - 2, c + 5]];
+      bolt.forEach(([x, y], i) => {
+        if (i) m.limb(bolt[i - 1][0], bolt[i - 1][1], 11, x, y, 11, 0.55, '#a16207');
+      });
     },
   })],
   hand: [30, (m, f) => {
@@ -566,7 +709,7 @@ const MOBS = {
     },
   })],
   blazer: [38, (m, f) => {
-    wings(m, f, { s: 1.1, wing: '#ff7a1f', tip: '#ffd84a', bones: '#b8320f' });
+    wings(m, f, { s: 1.1, wing: '#ff7a1f', tip: '#ffd84a', bones: '#b8320f', claw: '#fff7c2' });
     walker(m, f, {
       s: 1.05, legs: '#7c2d12', body: '#ea580c', skin: '#f97316', shoulderColor: '#c2410c', headColor: '#fb923c',
       reach: 8,
@@ -578,7 +721,7 @@ const MOBS = {
     });
   }],
   slimeking: [38, (m, f) => blob(m, f, {
-    r: 13, color: '#22c55e',
+    ...GOOS.slimeking,
     top: (c) => {
       for (const dx of [-3.6, 0, 3.6]) m.limb(c + dx, c - 8, 24, c + dx, c - 12, 25, 1, GOLD, 1, 0.5);
       m.egg(c, c - 8, 23, 5, 1.6, 1, GOLD, 1);
@@ -798,17 +941,39 @@ const MOBS = {
     },
   })],
   archdemon: [50, (m, f) => {
-    wings(m, f, { s: 1.45, wing: '#7f1d1d', tip: '#450a0a', bones: '#2b0505' });
+    wings(m, f, { s: 1.8, wing: '#7f1d1d', tip: '#450a0a', bones: '#2b0505' });
     walker(m, f, {
       s: 1.45, legs: '#450a0a', body: '#b91c1c', skin: '#dc2626', shoulderColor: '#991b1b', headColor: '#dc2626',
       reach: 8, spread: 7,
-      back: (c, y, s) => {
-        m.limb(c, y + 9 * s, 4, c, y + 17 * s, 3, 1.4, '#7f1d1d', 0, 0.6);
-        m.dot(c, y + 17 * s, '#ff7a1f', 40);
+      back: (c, y, s, step) => {
+        m.limb(c, y + 9 * s, 4, c + step, y + 17 * s, 3, 1.4, '#7f1d1d', 0, 0.6);
+        m.limb(c + step - 2, y + 17 * s, 3.4, c + step + 2, y + 17 * s, 3.4, 1, '#450a0a');
+        m.limb(c + step, y + 16.6 * s, 3.4, c + step, y + 20 * s, 3.4, 1.2, '#450a0a', 0, 0.2);
+      },
+      chest: (c, y, s) => {
+        m.egg(c - 3.6 * s, y + 1.6 * s, 13, 3.4, 2.6, 1, '#e23a2f');
+        m.egg(c + 3.6 * s, y + 1.6 * s, 13, 3.4, 2.6, 1, '#e23a2f');
+        for (const dy of [4.4, 6.4, 8.4]) {
+          for (const dx of [-1.6, 1.6]) m.egg(c + dx * s, y + dy * s, 12.6, 1.4, 1, 0.6, '#a11d1d');
+        }
+        m.ball(c, y + 2.4 * s, 14.4, 1.6, '#ff7a1f', 1);
+        m.ball(c, y + 2.4 * s, 15.4, 0.8, '#fff3b0', 1);
+      },
+      hands: (hands, c, y, s) => {
+        for (const side of [-1, 1]) {
+          for (const k of [0, 1, 2]) m.limb(c + side * (7 + k) * s, y - 1 * s, 14, c + side * (8 + k) * s, y - 3.6 * s,
+            15, 0.6, '#f1e4c8', 0, 0.2);
+        }
       },
       face: (c, y, s) => {
-        for (const side of [-1, 1]) m.limb(c + side * 3 * s, y - 4 * s, 16, c + side * 6 * s, y - 10 * s, 17, 1.4, GOLD,
-          1, 0.4);
+        for (const side of [-1, 1]) {
+          m.limb(c + side * 3 * s, y - 4 * s, 16, c + side * 6 * s, y - 10 * s, 17, 1.4, GOLD, 1, 0.4);
+          for (const k of [0.35, 0.65]) {
+            const x = c + side * (3 + 3 * k) * s, yy = y - (4 + 6 * k) * s;
+            m.limb(x - 0.8, yy, 16.6, x + 0.8, yy, 16.6, 0.5, '#8a5a12');
+          }
+        }
+        m.egg(c, y - 6.4 * s, 18.2, 2.8, 0.7, 0.4, '#7f1d1d');
         m.dot(c - 2.6, y - 7, '#ffd84a', 80);
         m.dot(c + 2.6, y - 7, '#ffd84a', 80);
       },
@@ -847,19 +1012,42 @@ const MOBS = {
   dragon: [50, (m, f) => {
     wings(m, f, { s: 1.6, wing: '#991b1b', tip: '#7f1d1d', bones: '#450a0a' });
     const c = 25, sway = f ? 1.5 : -1.5;
+    for (const [side, ly] of [[-1, -1], [1, -1], [-1, 7], [1, 7]]) {
+      m.limb(c + side * 4, c + ly, 6, c + side * 8, c + ly + 2, 4, 1.4, '#991b1b', 0, 1);
+      for (const k of [-0.8, 0, 0.8]) m.dot(c + side * 8.6 + k, c + ly + 3, '#fef3c7', 60);
+    }
     m.limb(c, c + 8, 5, c + sway, c + 20, 3, 2.4, '#b91c1c', 0, 0.8);
+    m.limb(c + sway - 2.4, c + 20, 3.6, c + sway + 2.4, c + 20, 3.6, 0.9, '#7f1d1d');
+    m.limb(c + sway, c + 19.4, 3.6, c + sway, c + 23, 3.6, 1.1, '#7f1d1d', 0, 0.2);
     m.egg(c, c + 2, 8, 6.4, 9, 5.4, '#dc2626', 0.4);
-    m.egg(c, c + 3, 13, 2.6, 6.4, 1, '#fca5a5');
+    for (let row = 0; row < 7; row++) {
+      const dy = -6 + row * 2.2, half = 6.4 * Math.sqrt(Math.max(0, 1 - (dy / 9) ** 2));
+      for (let dx = -half + 1.2 + (row % 2) * 1.1; dx <= half - 1.2; dx += 2.2) {
+        if (Math.abs(dx) < 2.2) continue;
+        const z = 8 + 5.4 * Math.sqrt(Math.max(0, 1 - (dx / 6.4) ** 2 - (dy / 9) ** 2));
+        m.egg(c + dx, c + 2 + dy, z - 0.3, 1.1, 0.9, 0.5, row % 2 ? '#b91c1c' : '#ef4444', 0.4);
+      }
+    }
+    for (let i = 0; i < 7; i++) {
+      const y = c - 5.5 + i * 2.3;
+      m.limb(c, y, 14.2 - Math.abs(i - 2.5) * 0.25, c, y + 2, 13.4, 1.25, '#7f1d1d', 0, 0.12);
+      m.dot(c, y, '#f87171', 70);
+    }
     m.limb(c, c - 5, 10, c, c - 12, 11, 2.6, '#dc2626');
+    for (const dy of [-6.5, -9, -11.5]) m.limb(c, c + dy, 13.3, c, c + dy - 0.8, 14.4, 0.6, '#7f1d1d', 0, 0.15);
     m.egg(c, c - 14, 12, 3.6, 4.4, 3, '#dc2626', 0.4);
-    m.limb(c - 2.6, c - 15, 14, c - 4, c - 19, 14, 0.8, '#fef3c7', 0, 0.3);
-    m.limb(c + 2.6, c - 15, 14, c + 4, c - 19, 14, 0.8, '#fef3c7', 0, 0.3);
+    for (const side of [-1, 1]) {
+      m.limb(c + side * 2.6, c - 15, 14, c + side * 4, c - 19, 14, 0.8, '#fef3c7', 0, 0.3);
+      m.limb(c + side * 3, c - 13, 13.6, c + side * 4.6, c - 15.6, 13.6, 0.5, '#fde68a', 0, 0.2);
+      m.dot(c + side * 0.8, c - 17.8, '#450a0a', 80);
+    }
     m.dot(c - 1.6, c - 15, '#fde047', 90);
     m.dot(c + 1.6, c - 15, '#fde047', 90);
   }],
   slimemother: [50, (m, f) => {
-    const c = 25, r = 18.5, top = (dx, dy) => 4 + r * 0.8 * Math.sqrt(Math.max(0, 1 - (dx * dx + dy * dy) / (r * r)));
-    blob(m, f, { r, color: '#15803d', shine: '#dcfce7' });
+    const c = 25, r = GOOS.slimemother.r;
+    const top = (dx, dy) => 4 + r * 0.8 * Math.sqrt(Math.max(0, 1 - (dx * dx + dy * dy) / (r * r)));
+    blob(m, f, GOOS.slimemother);
     for (const [dx, dy, size, color] of [[-8, 7, 3.4, '#4ade80'], [7.5, 8, 2.8, '#86efac'], [0, 13, 2.2, '#4ade80'],
       [10, -6, 2.4, '#86efac']]) {
       const z = top(dx, dy - 2) + size * 0.4, bob = f ? -0.5 : 0.5;
@@ -870,6 +1058,91 @@ const MOBS = {
     for (const [dx, dy] of [[-11, -2], [-4, 4], [4, -11], [12, 3]]) m.ball(c + dx, c + dy, top(dx, dy - 2) + 0.6, 0.9,
       '#bbf7d0', 1);
   }],
+  slimegiant: [50, (m, f) => blob(m, f, {
+    ...GOOS.slimegiant,
+    top: (c) => {
+      m.egg(c, c + 7, 20, 7, 2.6, 1, '#042f2e');
+      for (const dx of [-4.5, -1.5, 1.5, 4.5]) m.limb(c + dx, c + 5.6, 21, c + dx, c + 7.6, 21, 0.7, '#f0fdfa', 0, 0.2);
+      for (const side of [-1, 1]) m.limb(c + side * 3, c - 3.6, 26, c + side * 8, c - 1.6, 26, 0.9, '#042f2e');
+      for (const [dx, dy] of [[-12, 2], [10, 6], [6, -10], [-7, -11]]) m.ball(c + dx, c + dy, 16, 1.2, '#99f6e4', 1);
+    },
+  })],
+  gatekeeper: [50, (m, f) => {
+    const c = 25, spin = f ? 0.4 : 0;
+    for (let i = 0; i < 10; i++) {
+      const a = spin + i * Math.PI / 5;
+      m.ball(c + Math.cos(a) * 13, c + 6 + Math.sin(a) * 9, 3, 2, i % 2 ? '#f97316' : '#7c2d12', 0.6);
+    }
+    m.egg(c, c + 6, 2, 10, 7, 1, '#1c0a05');
+    walker(m, f, {
+      s: 1.4, legs: '#3b0a0a', body: '#7f1d1d', skin: '#991b1b', shoulderColor: '#450a0a', headColor: '#991b1b',
+      reach: 7.5, spread: 7,
+      held: (hands) => {
+        const [x, y] = hands[1];
+        m.limb(x, y + 2, 15, x + 1, y - 9, 15, 0.9, '#a16207', 0.6);
+        m.ball(x + 1, y - 10.5, 16, 2, GOLD, 1);
+      },
+      face: (c2, y, s) => {
+        for (const side of [-1, 1]) m.limb(c2 + side * 3 * s, y - 4 * s, 16, c2 + side * 7 * s, y - 9 * s, 17, 1.3,
+          '#1c1917', 0, 0.4);
+        m.dot(c2 - 2.4, y - 7, '#fb923c', 90);
+        m.dot(c2 + 2.4, y - 7, '#fb923c', 90);
+      },
+    });
+  }],
+  elemlord: [50, (m, f) => {
+    const c = 25, turn = f ? Math.PI / 4 : 0;
+    m.ball(c, c, 8, 8.5, '#e0f2fe', 0.9);
+    m.ball(c, c - 1, 12, 5.4, '#ffffff', 1);
+    m.dot(c - 2.2, c - 2, '#1e3a8a', 90);
+    m.dot(c + 2.2, c - 2, '#1e3a8a', 90);
+    [['#f97316', '#fde047'], ['#38bdf8', '#e0f2fe'], ['#facc15', '#fffbeb'], ['#65a30d', '#d9f99d']]
+      .forEach(([tone, light], i) => {
+        const a = turn + i * Math.PI / 2, x = c + Math.cos(a) * 15, y = c + Math.sin(a) * 15;
+        m.limb(c + Math.cos(a) * 8, c + Math.sin(a) * 8, 8, x, y, 9, 0.6, tone, 1, 0.3);
+        m.ball(x, y, 10, 4.2, tone, 0.9);
+        m.ball(x - 1, y - 1, 13, 1.6, light, 1);
+      });
+  }],
+  banshee: [50, (m, f) => {
+    const c = 25, wave = f ? 1.4 : -1.4;
+    for (let i = 0; i < 7; i++) m.ball(c - 9 + i * 3, c + 15 + (i % 2 ? wave : -wave), 4, 3, '#a5b4fc', 0.4);
+    m.egg(c, c + 6, 6, 11, 12, 6, '#c7d2fe', 0.5);
+    for (const side of [-1, 1]) {
+      m.limb(c + side * 9, c + 1, 9, c + side * 15, c - 7 + side * wave, 9, 2.2, '#e0e7ff', 0, 1);
+    }
+    m.egg(c, c - 4, 12, 7, 8, 5, '#eef2ff', 0.6);
+    for (const dx of [-5, -2.5, 0, 2.5, 5]) m.limb(c + dx, c - 9, 15, c + dx * 1.4, c + 4, 13, 1, '#ddd6fe', 0, 0.6);
+    m.egg(c, c - 4, 17.5, 2.4, 3.2, 1, '#1e1b4b');
+    m.dot(c - 2.6, c - 7.6, '#a78bfa', 90);
+    m.dot(c + 2.6, c - 7.6, '#a78bfa', 90);
+  }],
+  shatun: [50, (m, f) => beast(m, f, {
+    s: 1.6, fur: '#4a2f1b', dark: '#2b1a0e', belly: '#6b4423', snout: '#8a6a4a', head: 5.2, wide: 7.4, leg: 2.4,
+    ears: false, eye: '#ef4444',
+    face: (c, y, s) => {
+      for (const side of [-1, 1]) m.ball(c + side * 4 * s, y - 6.4 * s, 13 * s, 1.6 * s, '#2b1a0e');
+      for (const [dx, dy] of [[-3, -2], [2, 1], [-1, 4]]) m.limb(c + dx * s, y + dy * s, 11 * s, c + (dx + 2) * s,
+        y + (dy + 2) * s, 11 * s, 0.5, '#d6b48a');
+    },
+  })],
+  warlord: [50, (m, f) => walker(m, f, {
+    s: 1.55, legs: '#3f2d1d', body: '#7f1d1d', skin: '#65a30d', shoulderColor: '#57534e', headColor: '#65a30d',
+    arm: 2.5, wrist: 2.3, hand: 2.7, shoulder: 3.4, reach: 8, spread: 7.6, wide: 8.4,
+    back: (c, y, s, step) => m.egg(c + step * 0.6, y + 7 * s, 3, 9 * s, 7 * s, 1.6, '#991b1b'),
+    held: (hands) => {
+      const [rx, ry] = hands[1];
+      m.limb(rx, ry + 3, 14, rx, ry - 9, 15, 1.2, WOOD);
+      m.egg(rx + 2.4, ry - 8, 16, 3.2, 2.2, 1, METAL, 0.8);
+      m.egg(rx - 2.4, ry - 8, 16, 3.2, 2.2, 1, METAL, 0.8);
+    },
+    face: (c, y, s) => {
+      for (const side of [-1, 1]) m.limb(c + side * 3 * s, y - 6 * s, 18, c + side * 6.5 * s, y - 11 * s, 19, 1.2,
+        '#f1e4c8', 0, 0.4);
+      m.dot(c - 2.6, y - 7, '#fde047', 90);
+      m.dot(c + 2.6, y - 7, '#fde047', 90);
+    },
+  })],
   spiderqueen: [50, (m, f) => {
     spider(m, f, { s: 1.6, leg: '#3b0764', body: '#6b21a8', head: '#7e22ce', mark: '#c084fc' });
     const c = 25;
@@ -879,10 +1152,65 @@ const MOBS = {
 };
 
 export const MOB_IDS = Object.keys(MOBS);
+export const gooColor = (id) => (GOOS[id] ? GOOS[id].color : null);
+const scaleOf = (size) => (size >= 50 ? 1.22 : size >= 38 ? 1.14 : 1.1);
 
 export function drawMob(id, frame = 0) {
-  const [size, draw] = MOBS[id], m = new Model(size, size >= 50 ? 1.22 : size >= 38 ? 1.14 : 1.1);
+  const [size, draw] = MOBS[id], m = new Model(size, scaleOf(size));
   draw(m, frame);
+  return m.paint();
+}
+
+export function drawMelt(id, stage) {
+  const o = GOOS[id], size = MOBS[id][0], m = new Model(size, scaleOf(size)), c = size / 2, t = stage / 3, r = o.r;
+  const y = c + 2 + t, dome = r * (1 - 0.42 * t), height = r * 0.8 * (1 - 0.62 * t), shine = o.shine || '#ffffff';
+  for (let i = 0; i < 8; i++) {
+    const a = i * Math.PI / 4 + 0.35 * Math.sin(i * 1.7), wobble = 0.8 + 0.25 * Math.sin(i * 2.3 + 1);
+    const reach = r * (0.55 + 0.7 * t) * wobble, lobe = r * (0.24 + 0.16 * t) * (0.75 + 0.3 * Math.cos(i * 1.3));
+    const lx = c + Math.cos(a) * reach, ly = y + Math.sin(a) * reach * 0.8;
+    m.limb(c + Math.cos(a) * dome * 0.7, y + Math.sin(a) * dome * 0.56, 1.6 + height * 0.5, lx, ly, 1.2, lobe * 0.7,
+      o.color, 0.5, lobe * 0.5);
+    m.egg(lx, ly, 1, lobe * 1.25, lobe, lobe * 0.35, o.color, 0.4);
+    if (stage > 1 && i % 2 === 0) {
+      const far = reach + lobe * (1.6 + t);
+      m.ball(c + Math.cos(a + 0.3) * far, y + Math.sin(a + 0.3) * far * 0.8, 0.8, lobe * 0.38, o.color, 0.6);
+    }
+  }
+  m.egg(c, y, 2.6 - t, dome * 1.06, dome, height, o.color, 0.8);
+  m.egg(c - dome * 0.38, y - dome * 0.34, 2.6 + height * 0.95, dome * 0.24, dome * 0.13, dome * 0.08, shine, 1);
+  m.dot(c + dome * 0.3, y + dome * 0.12, shine, 40);
+  if (stage === 1) {
+    for (const side of [-1, 1]) {
+      m.limb(c + side * dome * 0.32 - dome * 0.13, y, 3 + height, c + side * dome * 0.32 + dome * 0.13, y + dome * 0.04,
+        3 + height, dome * 0.06, '#1c1917');
+    }
+  } else if (stage === 2) {
+    for (const side of [-1, 1]) m.dot(c + side * dome * 0.3, y + dome * 0.1, '#1c1917', 40);
+  }
+  return m.paint();
+}
+
+export function drawSplit(id, stage, apart) {
+  const o = GOOS[id], size = MOBS[id][0], k = scaleOf(size), m = new Model(size, k), c = size / 2, t = stage / 3;
+  const off = apart / k * t, lobe = o.r * (1 - 0.24 * t), neck = lobe * (0.8 - 0.62 * t), y = c + 2;
+  if (neck > 0.5) {
+    for (let i = -2; i <= 2; i++) {
+      const thin = neck * (1 - 0.25 * Math.abs(i) / 2);
+      m.egg(c, y + i * off / 2.4, 3, thin, Math.max(thin, off / 2.2), thin * 0.6, o.color, 0.6);
+    }
+  }
+  for (const side of [-1, 1]) {
+    const ly = y + side * off;
+    m.egg(c, ly, 4, lobe * (1 - 0.08 * t), lobe * (1 + 0.12 * t), lobe * 0.8, o.color, 0.8);
+    m.egg(c - lobe * 0.4, ly - lobe * 0.4, 4 + lobe * 0.66, lobe * 0.22, lobe * 0.14, lobe * 0.1, o.shine || '#ffffff',
+      1);
+    if (stage >= 2) {
+      for (const eye of [-1, 1]) {
+        m.egg(c + eye * lobe * 0.3, ly - lobe * 0.05, 4 + lobe * 0.78, lobe * 0.15, lobe * 0.2, lobe * 0.08, '#1c1917',
+          0.4);
+      }
+    }
+  }
   return m.paint();
 }
 

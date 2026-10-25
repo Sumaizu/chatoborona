@@ -1,7 +1,8 @@
 import { test, eq, ok, no } from './harness.js';
 import { seeded } from './fixtures.js';
 import { BIOMES, SIZE, cellName, coverage, makeMap, parseCell } from '../../site/js/field.js';
-import { LEVEL_MAX, MOBS, STAT, crowdFactor, eliteCount, levelOf, waveHp, waveReward, waveSpawns, xpForLevel }
+import { LEVEL_MAX, MOBS, STAT, WAVE, crowdFactor, eliteCount, levelOf, waveHp, waveReward, waveSpawns,
+  xpForLevel }
   from '../../site/js/balance.js';
 import { CLASSES, CLASS_BY_ID, MARKS, PERKS, PRIMARY, describe, gradeOf, masteryOf, plainText, scaled }
   from '../../site/js/classes.js';
@@ -139,6 +140,9 @@ test('волны: босс на десятой, мобов больше со в�
 test('здоровье мобов растёт с волной и с числом игроков', () => {
   for (let wave = 2; wave < 80; wave++) ok(waveHp(wave, 'normal', 10) > waveHp(wave - 1, 'normal', 10));
   for (let players = 2; players < 200; players++) ok(crowdFactor(players) > crowdFactor(players - 1));
+  const step = (wave) => waveHp(wave + 1, 'normal', 10) / waveHp(wave, 'normal', 10);
+  ok(step(85) > step(55) * 1.15, 'после 60-й волны мобы крепчают заметно быстрее — дальше не прорваться');
+  ok(Math.abs(step(30) - WAVE.growth * Math.exp(WAVE.accel * 59)) < 1e-9, 'до стены — как раньше');
   ok(waveHp(10, 'boss', 1) > waveHp(10, 'elite', 1));
 });
 
@@ -280,9 +284,9 @@ test('гача: частица бога — 0,2%, у кого она есть, �
   eq(seen, 2000);
 });
 
-test('гача: руна способности — 0,8%, у кого обе руны класса, тому не выпадает', () => {
+test('гача: руна способности — 1,5%, у кого обе руны класса, тому не выпадает', () => {
   const rune = OUTCOMES.find((outcome) => outcome.id === 'rune');
-  eq(rune.chance, 0.008);
+  eq(rune.chance, 0.015);
   const total = OUTCOMES.concat(RARITIES).reduce((sum, item) => sum + item.chance, 0);
   const before = OUTCOMES.slice(0, OUTCOMES.indexOf(rune)).reduce((sum, item) => sum + item.chance, 0);
   for (let i = 0; i < 500; i++) {

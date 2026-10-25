@@ -8,6 +8,7 @@ const METAL = '#9aa3ad';
 const STEEL = '#5d6670';
 const WOOD = '#8a5a2e';
 const GOLD = '#e0b43a';
+const PAD = 0.3;
 
 const unit = (v) => {
   const l = Math.hypot(v[0], v[1], v[2]) || 1;
@@ -31,22 +32,25 @@ class Model {
     this.w = size;
     this.h = size;
     this.k = k;
-    this.c = new Array(size * size).fill(null);
-    this.z = new Float32Array(size * size).fill(-1e9);
-    this.n = new Array(size * size).fill(null);
-    this.flat = new Uint8Array(size * size);
-    this.gloss = new Float32Array(size * size);
+    this.pad = Math.ceil(size * PAD);
+    this.side = size + this.pad * 2;
+    const cells = this.side * this.side;
+    this.c = new Array(cells).fill(null);
+    this.z = new Float32Array(cells).fill(-1e9);
+    this.n = new Array(cells).fill(null);
+    this.flat = new Uint8Array(cells);
+    this.gloss = new Float32Array(cells);
   }
 
   place(x, y) {
-    return [this.w / 2 + (x - this.w / 2) * this.k, this.h / 2 + (y - this.h / 2) * this.k];
+    return [this.pad + this.w / 2 + (x - this.w / 2) * this.k, this.pad + this.h / 2 + (y - this.h / 2) * this.k];
   }
 
   plot(x, y, z, color, n, flat, gloss) {
     x = Math.floor(x);
     y = Math.floor(y);
-    if (x < 0 || y < 0 || x >= this.w || y >= this.h) return;
-    const i = y * this.w + x;
+    if (x < 0 || y < 0 || x >= this.side || y >= this.side) return;
+    const i = y * this.side + x;
     if (z <= this.z[i]) return;
     this.z[i] = z;
     this.c[i] = color;
@@ -103,10 +107,11 @@ class Model {
   }
 
   paint() {
-    const w = this.w, h = this.h, canvas = document.createElement('canvas');
+    const w = this.side, h = this.side, canvas = document.createElement('canvas');
     canvas.width = w;
     canvas.height = h;
     canvas.fine = 2;
+    canvas.span = this.w;
     const g = canvas.getContext('2d'), image = g.createImageData(w, h), data = image.data;
     const put = (x, y, rgb) => {
       const i = (y * w + x) * 4;

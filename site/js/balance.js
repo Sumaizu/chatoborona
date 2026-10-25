@@ -8,7 +8,7 @@ export const RESIST = { every: 10, keep: 0.93 };
 export const resistOf = (wave) => 1 - Math.pow(RESIST.keep, Math.floor(Math.max(0, wave) / RESIST.every));
 
 export const STAT = { grades: { low: 6, mid: 12, high: 18 }, mastery: 3, paragon: 0.05, damage: 0.02, skill: 0.02,
-  critBase: 1.5, critPower: 0.015, critChance: 0.005, critMax: 0.5, speed: 0.02, reach: 0.03,
+  critBase: 1.5, critPower: 0.015, critChance: 0.005, critMax: 0.5, speed: 0.02, reach: 0.02,
   element: 0.02, masteryMax: 0.6, masteryHalf: 20, luckHalf: 20 };
 
 export const MOBS = {
@@ -22,7 +22,8 @@ export const MOBS = {
 
 export const TERRAIN = { weak: 0.75, more: 0.25, hill: 0.8, watch: 2.5, grave: 0.2,
   bodiless: ['ember', 'frostling', 'stormling', 'sludge', 'slime1', 'slime2', 'slime3', 'ghost', 'mirage', 'golem',
-    'mimic', 'shade', 'slimeking', 'hopper', 'spark', 'slimemother'] };
+    'mimic', 'shade', 'slimeking', 'hopper', 'spark', 'slimemother', 'wingslime', 'magmaslime', 'frostslime',
+    'stormslime', 'slimegiant', 'elemlord', 'banshee'] };
 
 const share = (value) => Math.round(Math.abs(1 - value) * 100) + '%';
 
@@ -87,9 +88,49 @@ export const POWERS = {
     + 'при смерти выпускает восемь паучат', every: 7, range: 3, time: 5, slow: 2, brood: 8, hp: 0.5 },
   treasure: { id: 'treasure', name: 'Сокровище', text: 'за убийство — золото всем, кто бил, и двойные монеты '
     + 'в следующей волне; дойдя до сердца, зарывается в землю' },
-  ooze: { id: 'ooze', name: 'Слизь', text: 'раз в 6 секунд выпускает двух слизней, а при смерти распадается на двух '
-    + 'больших', every: 6, count: 2, hp: 0.7, summon: 'normal', look: 'slime2' },
+  ooze: { id: 'ooze', name: 'Слизь', text: 'раз в 7 секунд выпускает двух слизнят, а при смерти распадается на двух '
+    + 'слизней', every: 7, count: 2, hp: 0.7, summon: 'swarm', look: 'slime1' },
+  drums: { id: 'drums', name: 'Боевые барабаны', text: 'раз в 8 секунд созывает четырёх гоблинов', every: 8, count: 4,
+    hp: 0.6, summon: 'normal', look: 'goblin' },
+  portal: { id: 'portal', name: 'Врата ада', text: 'раз в 9 секунд открывает врата: выбегают две адские гончие',
+    every: 9, count: 2, hp: 0.7, summon: 'fast', look: 'hellhound' },
+  wail: { id: 'wail', name: 'Вопль', text: 'раз в 8 секунд кричит: защитники на 3 клетки вокруг оглушены на секунду',
+    every: 8, range: 3, hold: 1 },
+  roar: { id: 'roar', name: 'Рёв', text: 'раз в 8 секунд ревёт: звери на 3 клетки вокруг 3 секунды бегут на 40% '
+    + 'быстрее', every: 8, range: 3, time: 3, boost: 0.4 },
+  shift: { id: 'shift', name: 'Смена стихии', text: 'раз в 6 секунд меняет стихию — огонь, лёд, молния, яд — и не '
+    + 'боится той, что сейчас', every: 6, cycle: ['fire', 'ice', 'storm', 'poison'] },
 };
+
+export const SILVER = { from: 4, chance: 0.04, step: 0.002, max: 0.15, hp: 2.5, xp: 3, coins: 2, burst: 1.5,
+  daze: 1.5, split: 0.3 };
+
+export const AFFIXES = [
+  { id: 'swift', name: 'Быстрый', text: 'бегает на 40% быстрее', speed: 0.4 },
+  { id: 'sturdy', name: 'Живучий', text: 'вдвое крепче', hp: 2 },
+  { id: 'armored', name: 'Бронированный', text: 'получает на 30% меньше урона', armor: 0.3 },
+  { id: 'fireproof', name: 'Огнеупорный', text: 'огонь его не берёт', element: 'fire' },
+  { id: 'frostproof', name: 'Морозостойкий', text: 'лёд его не берёт: не мёрзнет и не замедляется', element: 'ice' },
+  { id: 'grounded', name: 'Заземлённый', text: 'молнии его не берут', element: 'storm' },
+  { id: 'antidote', name: 'Ядоустойчивый', text: 'яд его не берёт', element: 'poison' },
+  { id: 'regen', name: 'Живой', power: 'regen' },
+  { id: 'steadfast', name: 'Неудержимый', power: 'steadfast' },
+  { id: 'rage', name: 'Яростный', power: 'rage' },
+  { id: 'leech', name: 'Кровосос', power: 'leech' },
+  { id: 'blink', name: 'Прыгучий', power: 'blink' },
+  { id: 'shield', name: 'Щитоносный', power: 'shield' },
+  { id: 'veil', name: 'Невидимка', power: 'veil' },
+  { id: 'dash', name: 'Рывок', power: 'dash' },
+  { id: 'ward', name: 'Оберегающий', power: 'ward' },
+  { id: 'burst', name: 'Взрывной', text: 'умирая, взрывается и оглушает защитников рядом на 1,5 секунды',
+    burst: true },
+  { id: 'split', name: 'Делящийся', text: 'умирая, распадается на двух обычных', split: true },
+];
+
+export const silverChance = (wave) => (wave < SILVER.from ? 0 : Math.min(SILVER.max, SILVER.chance + SILVER.step
+  * (wave - SILVER.from)));
+
+export const affixText = (affix) => affix.text || POWERS[affix.power].text;
 
 export const MIMIC = { id: 'mimic', name: 'Мимик', power: 'treasure', glow: '#facc15', treasure: true, hp: 1.6,
   chance: 0.05, from: 3, coins: 20, coinsStep: 1 };
@@ -128,7 +169,13 @@ export const BOSSES = [
   { id: 'worm', name: 'Червь-пожиратель', power: 'tunnel', glow: '#c2410c', from: 40, leak: 10 },
   { id: 'dragon', name: 'Дракон', power: 'breath', glow: '#f97316', from: 50, flying: true, fireproof: 0.5 },
   { id: 'spiderqueen', name: 'Матка пауков', power: 'web', glow: '#a855f7', from: 60 },
-  { id: 'slimemother', name: 'Праматерь слизи', power: 'ooze', glow: '#4ade80', slime: 4 },
+  { id: 'slimemother', name: 'Праматерь слизи', power: 'ooze', glow: '#4ade80', slime: 3 },
+  { id: 'slimegiant', name: 'Слизень-исполин', power: 'leech', glow: '#22c55e', slime: 4, from: 30 },
+  { id: 'gatekeeper', name: 'Привратник ада', power: 'portal', glow: '#f97316' },
+  { id: 'elemlord', name: 'Владыка стихий', power: 'shift', glow: '#38bdf8', element: 'fire' },
+  { id: 'banshee', name: 'Банши', power: 'wail', glow: '#c4b5fd', from: 20, flying: true },
+  { id: 'shatun', name: 'Медведь-шатун', power: 'roar', glow: '#b45309', from: 20 },
+  { id: 'warlord', name: 'Вождь орды', power: 'drums', glow: '#84cc16', from: 30 },
 ];
 
 export const LOOKS = {
@@ -147,7 +194,12 @@ export const LOOKS = {
     { id: 'harpy', name: 'Гарпия', from: 19, flying: true, power: 'swoop',
       text: 'летает и раз в 8 секунд оглушает ближайшего защитника на секунду' },
     { id: 'goblin', name: 'Гоблин' },
-    { id: 'boar', name: 'Кабан' }],
+    { id: 'boar', name: 'Кабан' },
+    { id: 'orc', name: 'Орк', from: 10, hp: 1.3 },
+    { id: 'wingslime', name: 'Крылатый слизень', from: 12, flying: true,
+      text: 'летает: стены, мины и лужи его не держат' },
+    { id: 'frostslime', name: 'Ледяной слизень', from: 24, element: 'ice',
+      text: 'лёд его не берёт: не мёрзнет и не замедляется' }],
   fast: [{ id: 'dog', name: 'Пёс' }, { id: 'crow', name: 'Ворон', from: 4, flying: true },
     { id: 'hellhound', name: 'Адская гончая', from: 12 },
     { id: 'bonehound', name: 'Костяной пёс', from: 9, undead: true, revive: 1, hp: 0.6,
@@ -157,7 +209,9 @@ export const LOOKS = {
       text: 'крадёт по 3 монеты у тех, мимо кого бежит; кто его добьёт — заберёт всё украденное' },
     { id: 'mirage', name: 'Мираж', from: 24, mirage: true,
       text: 'от первого удара распадается на трёх — настоящий один' },
-    { id: 'hopper', name: 'Попрыгунчик', from: 5 }],
+    { id: 'hopper', name: 'Попрыгунчик', from: 5 },
+    { id: 'wolfrider', name: 'Волчий всадник', from: 12, hp: 1.3 },
+    { id: 'stormslime', name: 'Грозовой слизень', from: 28, element: 'storm', text: 'молнии его не берут' }],
   tough: [{ id: 'brute', name: 'Громила' }, { id: 'demon', name: 'Демон', from: 14 },
     { id: 'skelwarrior', name: 'Скелет-латник', from: 11, undead: true, revive: 1, armor: 0.25, hp: 0.6,
       text: 'в броне: на 25% крепче к урону, и встаёт после смерти' },
@@ -165,7 +219,9 @@ export const LOOKS = {
     { id: 'sludge', name: 'Ядовитый элементаль', from: 25, element: 'poison', text: 'яд его не берёт' },
     { id: 'shieldbearer', name: 'Щитоносец', from: 15, front: 0.6,
       text: 'щит спереди: кто стоит впереди него по дороге, бьёт на 60% слабее — бейте сбоку и сзади' },
-    { id: 'bear', name: 'Медведь' }],
+    { id: 'bear', name: 'Медведь' },
+    { id: 'troll', name: 'Тролль', from: 20, power: 'regen', text: 'постоянно восстанавливает здоровье' },
+    { id: 'magmaslime', name: 'Магмовый слизень', from: 20, element: 'fire', text: 'огонь его не берёт' }],
   swarm: [{ id: 'rat', name: 'Крыса' }, { id: 'bat', name: 'Летучая мышь', from: 6, flying: true },
     { id: 'slime1', name: 'Слизнёнок', from: 5, slime: 1 }, { id: 'spiderling', name: 'Паучонок', only: true },
     { id: 'hand', name: 'Рука мертвеца', undead: true }, { id: 'goblinkid', name: 'Гоблинёнок' },
@@ -174,22 +230,24 @@ export const LOOKS = {
 };
 
 export const FAMILIES = [
-  { id: 'undead', name: 'нежить', of: 'нежити', hp: 0.8,
+  { id: 'undead', name: 'нежить', of: 'нежити', hp: 0.78,
     looks: ['zombie', 'skeleton', 'ghost', 'bonehound', 'skelwarrior', 'hand', 'bat'],
-    elites: ['plague', 'knight', 'shade', 'necro', 'vampire'], bosses: ['warden', 'lich'] },
-  { id: 'beasts', name: 'звери', of: 'зверей', hp: 1.06,
+    elites: ['plague', 'knight', 'shade', 'necro', 'vampire'], bosses: ['warden', 'banshee', 'lich'] },
+  { id: 'beasts', name: 'звери', of: 'зверей', hp: 1.08,
     looks: ['boar', 'mole', 'harpy', 'dog', 'crow', 'bear', 'rat', 'bat'],
-    elites: ['leader', 'ratking', 'armadillo'], bosses: ['mother', 'worm', 'spiderqueen'] },
-  { id: 'horde', name: 'орда', of: 'орды', hp: 1.05,
-    looks: ['goblin', 'thief', 'brute', 'shieldbearer', 'goblinkid'],
-    elites: ['witch', 'goblinshaman', 'berserk', 'ogre'], bosses: ['crusher', 'butcher'] },
-  { id: 'slimes', name: 'слизни', of: 'слизней', from: 5, hp: 0.58,
-    looks: ['slime2', 'hopper', 'slime3', 'slime1'], elites: ['slimeking'], bosses: ['slimemother'] },
-  { id: 'demons', name: 'демоны', of: 'демонов', from: 8, hp: 1.2,
-    looks: ['imp', 'hellhound', 'demon', 'devilkin'], elites: ['blazer', 'mirrorknight'], bosses: ['archdemon'] },
-  { id: 'elements', name: 'стихии', of: 'стихий', from: 16, hp: 1.1,
+    elites: ['leader', 'ratking', 'armadillo'], bosses: ['mother', 'shatun', 'worm', 'spiderqueen'] },
+  { id: 'horde', name: 'орда', of: 'орды', hp: 0.95, count: 1.6,
+    looks: ['goblin', 'orc', 'thief', 'wolfrider', 'brute', 'shieldbearer', 'troll', 'goblinkid'],
+    elites: ['witch', 'goblinshaman', 'berserk', 'ogre'], bosses: ['crusher', 'butcher', 'warlord'] },
+  { id: 'slimes', name: 'слизни', of: 'слизней', from: 5, hp: 0.78,
+    looks: ['slime2', 'wingslime', 'frostslime', 'hopper', 'stormslime', 'slime3', 'magmaslime', 'slime1'],
+    elites: ['slimeking'], bosses: ['slimemother', 'slimegiant'] },
+  { id: 'demons', name: 'демоны', of: 'демонов', from: 8, hp: 1.3,
+    looks: ['imp', 'hellhound', 'demon', 'devilkin'], elites: ['blazer', 'mirrorknight'],
+    bosses: ['gatekeeper', 'archdemon'] },
+  { id: 'elements', name: 'стихии', of: 'стихий', from: 16, hp: 1.05,
     looks: ['ember', 'frostling', 'stormling', 'mirage', 'sludge', 'spark'], elites: ['golem', 'blinker'],
-    bosses: ['dragon'] },
+    bosses: ['elemlord', 'dragon'] },
 ];
 
 export const FAMILY_BY_ID = new Map(FAMILIES.map((family) => [family.id, family]));
@@ -221,6 +279,8 @@ export const WAVE = {
   players: 0.75,
   crowd: 0.85,
   pivot: 10,
+  wall: 60,
+  wallGrowth: 0.003,
   solo: 0.6,
   speed: 1.4,
   count: 8,
@@ -275,7 +335,9 @@ export const xpForLevel = (level) => totals()[Math.max(1, Math.min(LEVEL_MAX, le
 
 export function waveHp(wave, type, players) {
   const n = wave - 1;
-  return WAVE.hp * MOBS[type].hp * Math.pow(WAVE.growth, n) * Math.exp(WAVE.accel * n * n)
+  const late = Math.max(0, n - WAVE.wall);
+  return WAVE.hp * MOBS[type].hp * Math.pow(WAVE.growth, n)
+    * Math.exp(WAVE.accel * n * n + WAVE.wallGrowth * late * late)
     * crowdFactor(players);
 }
 
@@ -285,15 +347,16 @@ export function crowdFactor(players) {
   return Math.pow(WAVE.pivot, WAVE.players) * Math.pow(p / WAVE.pivot, WAVE.crowd) * few;
 }
 
-export function waveSpawns(wave) {
+export function waveSpawns(wave, crowd = 1) {
   const plan = PATTERN[(wave - 1) % PATTERN.length];
-  const count = Math.round(Math.min(WAVE.countMax, WAVE.count + WAVE.countStep * (wave - 1)) * (plan.size || 1));
+  const count = Math.round(Math.min(WAVE.countMax, WAVE.count + WAVE.countStep * (wave - 1)) * (plan.size || 1)
+    * crowd);
   const spawns = [];
   let delay = 0;
   for (let i = 0; i < count; i++) {
     const type = plan.cycle[i % plan.cycle.length];
     spawns.push({ type, delay });
-    delay += type === 'swarm' ? WAVE.swarmGap : WAVE.gap;
+    delay += (type === 'swarm' ? WAVE.swarmGap : WAVE.gap) / crowd;
   }
   const big = (type, amount) => {
     for (let i = 0; i < amount; i++) {
