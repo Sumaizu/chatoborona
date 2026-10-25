@@ -8,8 +8,12 @@ const BUDGET = 4000;
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const FORK = { min: 3, good: 5, max: 9 };
 const RIVER = { chance: 0.65, bridge: 6, length: 10, bridges: 3 };
-const TERRAIN = { tunnel: 0.6, patches: [['mountain', [1, 2], 4, 7], ['lake', [1, 2], 3, 6]], hills: [2, 3, 2, 4],
-  watches: [1, 3], watchGap: 3, spots: 120 };
+const TERRAIN = { tunnel: 0.6, patches: [['mountain', [0, 3], 3, 8], ['lake', [1, 2], 3, 6]], hills: [2, 5, 2, 5],
+  ridge: { chance: 0.45, length: [6, 10], turn: 0.3, wide: 0.35 }, foothills: { chance: 0.7, count: [2, 5] },
+  chasm: { chance: 0.5, length: [5, 9], turn: 0.25 }, ruins: { chance: 0.35, size: [2, 4] },
+  craters: { chance: 0.4, count: [1, 3] }, relic: 0.35, watches: [1, 3], watchGap: 3, spots: 120 };
+const RELICS = { grass: 'stones', snow: 'stones', swamp: 'stones', desert: 'bones', volcano: 'bones',
+  graveyard: 'crypt' };
 export const BIOMES = ['grass', 'volcano', 'swamp', 'snow', 'desert', 'graveyard'];
 const LOOKALIKE = new Map([['a', 'а'], ['b', 'в'], ['e', 'е'], ['k', 'к'], ['m', 'м'], ['h', 'н'], ['o', 'о'],
   ['p', 'р'], ['c', 'с'], ['t', 'т'], ['y', 'у']]);
@@ -249,7 +253,53 @@ function riverOf(tiles, road, axis, calm, random) {
   return { cells, bridges };
 }
 
-function terrain(path, branch, merge, random) {
+function ridgeOf(tiles, start, open, random) {
+  const { length, turn, wide } = TERRAIN.ridge, size = length[0] + Math.floor(random() * (length[1] - length[0] + 1));
+  let at = start, [dx, dy] = DIRS[Math.floor(random() * 4)];
+  tiles[at] = 'mountain';
+  for (let n = 1; n < size; n++) {
+    if (random() < turn) [dx, dy] = random() < 0.5 ? [dy, -dx] : [-dy, dx];
+    const x = at % SIZE + dx, y = Math.floor(at / SIZE) + dy, next = y * SIZE + x;
+    if (!inside(x, y) || !open(next)) break;
+    tiles[next] = 'mountain';
+    at = next;
+    if (random() < wide) {
+      const sx = x + dy, sy = y + dx, side = sy * SIZE + sx;
+      if (inside(sx, sy) && open(side)) tiles[side] = 'mountain';
+    }
+  }
+}
+
+function chasmOf(tiles, road, axis, open, random) {
+  const { length, turn } = TERRAIN.chasm, size = length[0] + Math.floor(random() * (length[1] - length[0] + 1));
+  const starts = [];
+  for (let at = 0; at < SIZE * SIZE; at++) if (open(at)) starts.push(at);
+  if (!starts.length) return;
+  let at = starts[Math.floor(random() * starts.length)], [dx, dy] = DIRS[Math.floor(random() * 4)];
+  const cells = [at], bridges = [];
+  while (cells.length < size) {
+    if (random() < turn) [dx, dy] = random() < 0.5 ? [dy, -dx] : [-dy, dx];
+    let x = at % SIZE + dx, y = Math.floor(at / SIZE) + dy;
+    if (!inside(x, y)) break;
+    if (road.has(y * SIZE + x)) {
+      const cross = y * SIZE + x;
+      if (bridges.length || axis.get(cross) !== (dx ? 'y' : 'x') || tiles[cross]) break;
+      x += dx;
+      y += dy;
+      if (!inside(x, y) || !open(y * SIZE + x)) break;
+      bridges.push(cross);
+    }
+    const next = y * SIZE + x;
+    if (!open(next)) break;
+    cells.push(next);
+    at = next;
+  }
+  if (cells.length < 4) return;
+  for (const cell of cells) tiles[cell] = 'chasm';
+  for (const cell of bridges) tiles[cell] = 'bridge';
+}
+
+function terrain(path, branch, merge, random, biome) {
   const tiles = new Array(SIZE * SIZE).fill(''), road = new Set(path.concat(branch).map(([x, y]) => y * SIZE + x));
   const heart = path[path.length - 1], near = new Set();
   road.forEach((at) => around(at, (next) => near.add(next)));
@@ -285,6 +335,21 @@ function terrain(path, branch, merge, random) {
       if (cells.length) grow(tiles, pick(cells), low + Math.floor(random() * (high - low + 1)), kind, open, random);
     }
   }
+  if (random() < TERRAIN.ridge.chance) {
+    const cells = free();
+    if (cells.length) ridgeOf(tiles, pick(cells), open, random);
+  }
+  if (random() < TERRAIN.foothills.chance) {
+    const [few, many] = TERRAIN.foothills.count, slopes = [];
+    const rocky = (x, y) => inside(x, y) && tiles[y * SIZE + x] === 'mountain';
+    for (let at = 0; at < SIZE * SIZE; at++) {
+      const x = at % SIZE, y = Math.floor(at / SIZE);
+      if (open(at) && DIRS.some(([dx, dy]) => rocky(x + dx, y + dy))) slopes.push(at);
+    }
+    for (let n = few + Math.floor(random() * (many - few + 1)); n > 0 && slopes.length; n--) {
+      tiles[slopes.splice(Math.floor(random() * slopes.length), 1)[0]] = 'hill';
+    }
+  }
   const rivers = [];
   if (random() < RIVER.chance) {
     const river = riverOf(tiles, road, axes(path, branch), calm, random);
@@ -293,6 +358,22 @@ function terrain(path, branch, merge, random) {
       for (const at of river.bridges) tiles[at] = 'bridge';
       rivers.push(river.cells.map((at) => [at % SIZE, Math.floor(at / SIZE)]));
     }
+  }
+  if (random() < TERRAIN.chasm.chance) chasmOf(tiles, road, axes(path, branch), open, random);
+  if (random() < TERRAIN.ruins.chance) {
+    const cells = free(), [small, big] = TERRAIN.ruins.size;
+    if (cells.length) grow(tiles, pick(cells), small + Math.floor(random() * (big - small + 1)), 'ruin', open, random);
+  }
+  if (random() < TERRAIN.craters.chance) {
+    const [few, many] = TERRAIN.craters.count;
+    for (let n = few + Math.floor(random() * (many - few + 1)); n > 0; n--) {
+      const cells = free();
+      if (cells.length) tiles[pick(cells)] = 'crater';
+    }
+  }
+  if (random() < TERRAIN.relic) {
+    const cells = free();
+    if (cells.length) tiles[pick(cells)] = RELICS[biome] || 'stones';
   }
   const [fewest, most, low, high] = TERRAIN.hills, count = fewest + Math.floor(random() * (most - fewest + 1));
   for (let n = 0; n < count; n++) {
@@ -319,14 +400,17 @@ export function makeMap(random = Math.random) {
     if (!fork) continue;
     const path = expand(nodes), mergeCell = [nodes[fork.at][0] * 2 + 1, nodes[fork.at][1] * 2 + 1];
     const merge = path.findIndex(([x, y]) => x === mergeCell[0] && y === mergeCell[1]);
-    const branch = forkCells(fork, nodes[fork.at]), { tiles, rivers } = terrain(path, branch, merge, random);
+    const biome = BIOMES[Math.floor(random() * BIOMES.length)];
+    const branch = forkCells(fork, nodes[fork.at]), { tiles, rivers } = terrain(path, branch, merge, random, biome);
     const spots = new Set();
     const road = new Set(path.concat(branch).map(([x, y]) => y * SIZE + x));
+    const stand = (tile) => !tile || tile === 'hill' || tile === 'watch' || biome === 'snow'
+      && (tile === 'lake' || tile === 'river');
     road.forEach((at) => around(at, (next) => {
-      if (!road.has(next) && (!tiles[next] || tiles[next] === 'hill' || tiles[next] === 'watch')) spots.add(next);
+      if (!road.has(next) && stand(tiles[next])) spots.add(next);
     }));
     if (spots.size < TERRAIN.spots) continue;
-    const turn = turner(random), biome = BIOMES[Math.floor(random() * BIOMES.length)];
+    const turn = turner(random);
     const flat = turn(Array.from({ length: SIZE * SIZE }, (_, at) => [at % SIZE, Math.floor(at / SIZE)]));
     const turned = new Array(SIZE * SIZE).fill('');
     flat.forEach(([x, y], at) => {

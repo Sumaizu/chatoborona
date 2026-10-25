@@ -92,6 +92,10 @@ const piles = new WeakMap();
 const glows = new Map();
 
 const at = (v) => EDGE + v * CELL;
+const AMBIENT = { grass: 'butterflies', swamp: 'fireflies', snow: 'snow', desert: 'dust', volcano: 'embers',
+  graveyard: 'wisps' };
+const GLINTS = { grass: { color: '#cfeaff' }, swamp: { color: '#9fbf5a', bubble: true }, snow: { color: '#ffffff' },
+  desert: { color: '#d6fff6' }, volcano: { color: '#ffe08a', bubble: true }, graveyard: { color: '#8b5cf6' } };
 const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
 const ease = (from, to, rate, dt) => from + (to - from) * (1 - Math.exp(-rate * dt));
 const noise = (i, seed) => {
@@ -413,6 +417,7 @@ export class Scene {
     this._mines(ctx, battle);
     this._traps(ctx, battle);
     this._layer(ctx, this.peaks);
+    this._glints(ctx, battle);
     if (ranges && ranges.size) this._ranges(ctx, battle, ranges);
     this._walls(ctx, battle, still);
     this._base(ctx, battle);
@@ -426,9 +431,122 @@ export class Scene {
     this._charges(ctx, battle);
     this._hooks(ctx, battle);
     this._effects(ctx, step);
+    this._ambient(ctx, battle);
     if (names) this._names(ctx, battle, names, highlight);
     this._mobTops(ctx, battle);
     return fresh;
+  }
+
+  _glints(ctx, battle) {
+    if (!battle.tiles) return;
+    const look = GLINTS[battle.biome] || GLINTS.grass;
+    battle.tiles.forEach((tile, cell) => {
+      if (tile !== 'lake' && tile !== 'river') return;
+      for (let k = 0; k < 2; k++) {
+        const t = (this.clock * 0.3 + noise(cell, k + 20)) % 1;
+        if (t > 0.2) continue;
+        const x = at(cell % SIZE) + 6 + noise(cell, k + 22) * 18;
+        const y = at(Math.floor(cell / SIZE)) + 6 + noise(cell, k + 24) * 18;
+        const share = t / 0.2;
+        ctx.fillStyle = look.color;
+        if (look.bubble) {
+          const r = 1 + share * 3;
+          ctx.globalAlpha = 0.85 * (1 - share);
+          for (let a = 0; a < 8; a++) ctx.fillRect(Math.round(x + Math.cos(a * Math.PI / 4) * r), Math.round(y
+            + Math.sin(a * Math.PI / 4) * r * 0.7), 1, 1);
+        } else {
+          ctx.globalAlpha = Math.sin(share * Math.PI) * 0.85;
+          ctx.fillRect(Math.round(x) - 2, Math.round(y), 5, 1);
+          ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+        }
+      }
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  _ambient(ctx, battle) {
+    const kind = AMBIENT[battle.biome], c = this.clock;
+    if (!kind) return;
+    if (kind === 'snow') {
+      ctx.fillStyle = '#ffffff';
+      ctx.globalAlpha = 0.7;
+      for (let i = 0; i < 46; i++) {
+        const x = (noise(i, 40) * BOARD + c * (6 + noise(i, 41) * 8) + Math.sin(c * 1.3 + i) * 5) % BOARD;
+        const y = (noise(i, 42) * BOARD + c * (16 + noise(i, 43) * 14)) % BOARD, size = noise(i, 44) < 0.3 ? 2 : 1;
+        ctx.fillRect(Math.round(x), Math.round(y), size, size);
+      }
+    } else if (kind === 'dust') {
+      const gust = 0.5 + 0.5 * Math.sin(c * 0.4);
+      ctx.fillStyle = '#ead39e';
+      ctx.globalAlpha = 0.18 + 0.3 * gust;
+      for (let i = 0; i < 18; i++) {
+        const x = (noise(i, 50) * BOARD + c * (40 + noise(i, 51) * 50)) % BOARD;
+        const y = noise(i, 52) * BOARD + Math.sin(c * 2 + i) * 3;
+        ctx.fillRect(Math.round(x), Math.round(y), 3 + Math.round(gust * 2), 1);
+      }
+    } else if (kind === 'embers') {
+      const fires = this._fires(battle);
+      for (let i = 0; i < 22 && fires.length; i++) {
+        const t = (c * 0.32 + noise(i, 60)) % 1, from = fires[Math.floor(noise(i, 61) * fires.length)];
+        const x = from[0] + (noise(i, 62) - 0.5) * 24 + Math.sin(c * 2 + i) * 3 * t, y = from[1] - t * 46;
+        ctx.globalAlpha = 0.9 * (1 - t);
+        ctx.fillStyle = t < 0.4 ? '#ffd84a' : '#ff6a1f';
+        ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+      }
+    } else {
+      const count = { butterflies: 3, fireflies: 10, wisps: 5 }[kind];
+      for (let i = 0; i < count; i++) {
+        const slow = kind === 'wisps' ? 0.5 : 1, phase = noise(i, 70) * 6.28;
+        const spot = (time) => [EDGE + (0.5 + 0.42 * Math.sin(time * 0.05 * slow + phase)) * (BOARD - EDGE * 2)
+          + Math.sin(time * 0.7 * slow + i) * 12, EDGE + (0.5 + 0.42 * Math.cos(time * 0.037 * slow + phase * 1.7))
+          * (BOARD - EDGE * 2) + Math.sin(time * 1.1 * slow + i * 2) * 8];
+        const [x, y] = spot(c);
+        if (kind === 'butterflies') {
+          const color = ['#f4f4f4', '#f7e08a', '#9fd4ff'][i % 3], open = Math.sin(c * 16 + i) > 0;
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = color;
+          if (open) {
+            ctx.fillRect(Math.round(x) - 2, Math.round(y) - 1, 2, 2);
+            ctx.fillRect(Math.round(x) + 1, Math.round(y) - 1, 2, 2);
+          } else {
+            ctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, 1, 2);
+            ctx.fillRect(Math.round(x) + 1, Math.round(y) - 1, 1, 2);
+          }
+          ctx.fillStyle = '#2a2018';
+          ctx.fillRect(Math.round(x), Math.round(y) - 1, 1, 2);
+          continue;
+        }
+        const blink = kind === 'wisps' ? 0.6 + 0.4 * Math.sin(c * 1.5 + phase) : Math.max(0, Math.sin(c * 1.8 + phase));
+        if (blink <= 0.02) continue;
+        const color = kind === 'wisps' ? '#b4a0ff' : '#d2ff78', size = kind === 'wisps' ? 7 : 4;
+        if (kind === 'wisps') {
+          for (let k = 1; k <= 3; k++) {
+            const [tx, ty] = spot(c - k * 0.35);
+            ctx.globalAlpha = blink * (0.4 - k * 0.1);
+            ctx.fillStyle = '#d8d0ff';
+            ctx.fillRect(Math.round(tx), Math.round(ty), 1, 1);
+          }
+        }
+        glow(ctx, x, y, size, color, blink * 0.8);
+        ctx.globalAlpha = blink;
+        ctx.fillStyle = kind === 'wisps' ? '#f1edff' : '#f2ffb8';
+        ctx.fillRect(Math.round(x), Math.round(y), kind === 'wisps' ? 2 : 1, kind === 'wisps' ? 2 : 1);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  _fires(battle) {
+    if (this.fireKey !== battle) {
+      this.fireKey = battle;
+      this.fireSpots = [];
+      (battle.tiles || []).forEach((tile, cell) => {
+        if (tile === 'lake' || tile === 'river' || tile === 'chasm' || tile === 'crater') {
+          this.fireSpots.push([at(cell % SIZE + 0.5), at(Math.floor(cell / SIZE) + 0.5)]);
+        }
+      });
+    }
+    return this.fireSpots;
   }
 
   _layer(ctx, image) {
@@ -729,8 +847,8 @@ export class Scene {
       } else if (d.kind === 'scorch') {
         glow(ctx, x, y, d.r * CELL, 'rgba(20, 10, 6, .9)', 0.55 * fade);
       } else if (d.kind === 'goo') {
-        const grow = Math.min(1, d.t / 0.4), dry = Math.max(0, (d.t - d.life + 1.5) / 1.5);
-        const shape = gooShape(d.r * CELL / ZOOM, d.seed, d.color), scale = ZOOM * grow * (1 - 0.25 * dry);
+        const grow = Math.min(1, d.t / 0.4), dry = Math.max(0, (d.t - d.life + 2.5) / 2.5);
+        const shape = gooShape(d.r * CELL / ZOOM, d.seed, d.color), scale = ZOOM * grow;
         const w = shape.width * scale, h = shape.height * scale;
         ctx.globalAlpha = 0.95 * (1 - dry);
         ctx.drawImage(shape, Math.round(x - w / 2), Math.round(y - h / 2 + 3), Math.round(w), Math.round(h));

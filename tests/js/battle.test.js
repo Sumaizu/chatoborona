@@ -2089,6 +2089,57 @@ test('карта: гора закрывает выстрел, в тоннеле 
   eq(battle._target(close), null, 'в тоннеле не видно');
 });
 
+test('карта: с вышки видно поверх гор, но моба в тоннеле не достать ничем — ни выстрелом, ни взрывом рядом', () => {
+  const battle = mapWith({ watch: [[2, 4]], tunnel: [[0, 5], [1, 5]] });
+  const tower = battle.place(player(), 'gunner', 2, 4);
+  ok(battle.onWatch(tower));
+  const deep = walker(battle, 1.6, 1e6), outside = walker(battle, 3.5, 1e6);
+  still(deep, outside);
+  ok(battle._target(tower) === outside, 'бьёт того, кто снаружи');
+  put(battle, outside, 30);
+  eq(battle._target(tower), null, 'в тоннеле не видно и с вышки');
+  battle._hurt(deep, 500, tower);
+  eq(hit(deep), 0, 'взрыв рядом не задевает моба в тоннеле');
+});
+
+test('бой: неуязвимого к своей стихии бьют в последнюю очередь', () => {
+  const battle = makeBattle(), pyro = battle.place(player(), 'pyro', 10, 4);
+  const ember = creature(battle, 'ember', 11.2), zombie = creature(battle, 'zombie', 10.4);
+  still(ember, zombie);
+  ok(battle._target(pyro) === zombie, 'огонь не берёт элементаля — бьёт зомби, хоть элементаль и впереди');
+  zombie.dead = true;
+  ok(battle._target(pyro) === ember, 'других нет — бьёт кого есть');
+});
+
+test('карта: в снегах на льду озёр и рек стоять можно; в расщелину, кратер, руины и древности не встать нигде', () => {
+  const marks = { lake: [[7, 4]], river: [[8, 4]], chasm: [[3, 4], [3, 3]], crater: [[5, 6]], ruin: [[12, 4]],
+    stones: [[14, 6]], crypt: [[16, 4]], bones: [[18, 6]] };
+  const grass = mapWith(marks), snow = mapWith(marks, 'snow');
+  for (const [x, y] of [[7, 4], [8, 4]]) {
+    no(grass.free(x, y), 'в воду не встать');
+    ok(snow.free(x, y), 'на лёд можно');
+  }
+  for (const [x, y] of [[3, 4], [5, 6], [12, 4], [14, 6], [16, 4], [18, 6]]) {
+    no(grass.free(x, y), 'занято: ' + x + ',' + y);
+    no(snow.free(x, y), 'и в снегах: ' + x + ',' + y);
+  }
+});
+
+test('карта: руины, круг камней и склеп закрывают выстрел, как гора; расщелина, кратер и кости — нет', () => {
+  for (const [tile, hides] of [['ruin', true], ['stones', true], ['crypt', true], ['chasm', false], ['crater', false],
+    ['bones', false]]) {
+    const battle = mapWith({ [tile]: [[3, 4]] }), gun = battle.place(player(), 'gunner', 3, 3);
+    gun.range = 4;
+    const mob = walker(battle, 4, 1e6);
+    still(mob);
+    eq(battle._target(gun) === mob, !hides, tile);
+  }
+  const battle = mapWith({ ruin: [[3, 4]], watch: [[3, 3]] }), tower = battle.place(player(), 'gunner', 3, 3);
+  const mob = walker(battle, 4, 1e6);
+  still(mob);
+  ok(battle._target(tower) === mob, 'с вышки видно и поверх руин');
+});
+
 test('карта: с холма бьют дальше', () => {
   const battle = mapWith({ hill: [[6, 4]] });
   const flat = battle.place(player(), 'gunner', 2, 4), high = battle.place(player(), 'gunner', 6, 4);

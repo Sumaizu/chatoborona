@@ -82,11 +82,33 @@ test('карта: мобы выходят из гор — первые клет�
       if (tile === 'hill') hills.push(at);
       if (tile === 'tunnel') ok(road.has(at), 'тоннель — только на дороге');
     });
-    ok(hills.length >= 3 && hills.length <= 12, 'холмы — группами: ' + hills.length);
+    ok(hills.length >= 3 && hills.length <= 32, 'холмы — группами: ' + hills.length);
     ok(hills.some((at) => path.concat(branch).some(([x, y]) => Math.abs(x - at % SIZE) <= 1
       && Math.abs(y - Math.floor(at / SIZE)) <= 1)), 'холм у дороги');
     ok(tiles.includes('lake') && tiles.includes('mountain'));
   }
+});
+
+test('карта: расщелины, руины, кратеры и древности — изредка, не на дороге; мост через расщелину — поперёк дороги', () => {
+  const seen = new Map(), relics = { desert: 'bones', volcano: 'bones', graveyard: 'crypt' };
+  for (let seed = 1; seed <= 120; seed++) {
+    const { path, branch, tiles, biome } = makeMap(seeded(seed)), road = new Set(path.concat(branch).map(key));
+    const tile = (x, y) => (x >= 0 && y >= 0 && x < SIZE && y < SIZE ? tiles[y * SIZE + x] : '');
+    tiles.forEach((kind, at) => {
+      if (!kind) return;
+      seen.set(kind, (seen.get(kind) || 0) + 1);
+      const x = at % SIZE, y = Math.floor(at / SIZE);
+      if (['chasm', 'ruin', 'crater', 'stones', 'bones', 'crypt'].includes(kind)) no(road.has(at), kind + ' на дороге');
+      if (['stones', 'bones', 'crypt'].includes(kind)) eq(kind, relics[biome] || 'stones', 'древность своего края');
+      if (kind !== 'bridge') return;
+      ok(road.has(at), 'мост — только на дороге');
+      const gap = ['chasm', 'river', 'lake'];
+      ok(gap.includes(tile(x - 1, y)) && gap.includes(tile(x + 1, y)) || gap.includes(tile(x, y - 1))
+        && gap.includes(tile(x, y + 1)), 'мост перекрывает расщелину или реку с обеих сторон');
+    });
+  }
+  for (const kind of ['chasm', 'ruin', 'crater']) ok(seen.get(kind) > 0, 'встречается: ' + kind);
+  ok(seen.get('stones') + (seen.get('bones') || 0) + (seen.get('crypt') || 0) > 0, 'встречаются древности');
 });
 
 test('карта: одна и та же при одном зерне, биомы встречаются все', () => {

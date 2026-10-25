@@ -263,3 +263,133 @@ export function drawWall(stage) {
   else for (const [x, y] of [[8, 13], [9, 13], [28, 18], [17, 20.5]]) m.dot(x, y, '#6f8a3e', 30);
   return m.paint();
 }
+
+const RUINS = {
+  grass: { stone: '#9a9284', light: '#b3ab9c', dark: '#6f685d', floor: '#7d766a', moss: '#5f8f3a' },
+  swamp: { stone: '#7f8473', light: '#959a87', dark: '#5a5f50', floor: '#666b5a', moss: '#7fa03a' },
+  snow: { stone: '#8592a3', light: '#a3afbf', dark: '#5f6b7b', floor: '#9aa7b8', moss: '#f4f8ff' },
+  desert: { stone: '#d1a86c', light: '#e2bd84', dark: '#a37b46', floor: '#c49a5e', moss: '#f0dcab' },
+  volcano: { stone: '#4f4648', light: '#665b5d', dark: '#342d2f', floor: '#3e3537', moss: '#ff7a1f', glow: true },
+  graveyard: { stone: '#8a8495', light: '#a29cad', dark: '#5f5a69', floor: '#6f6979', moss: '#a78bfa', glow: true },
+};
+
+const roll = (seed, k) => {
+  const v = Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453;
+  return v - Math.floor(v);
+};
+
+const SIDES = [[1, true, 7.5], [4, true, 26], [8, false, 4], [2, false, 26]];
+
+function rubble(m, x, y, look, seed, spread) {
+  for (let k = 0; k < 4; k++) {
+    const size = 1.5 - k * 0.25;
+    m.ball(x + (roll(seed, k) - 0.5) * spread, y + (roll(seed, k + 4) - 0.5) * spread, size * 0.6, size,
+      k % 2 ? look.dark : look.stone, 0.1);
+  }
+}
+
+export function drawRuin(biome, mask, seed) {
+  const look = RUINS[biome] || RUINS.grass, m = new Model(30, 1), r = (k) => roll(seed, k);
+  SIDES.forEach(([bit, across, base], s) => {
+    if (!(mask & bit)) return;
+    let high = 2 + Math.floor(r(60 + s) * 3);
+    for (let c = 0; c < 5; c++) {
+      if (!across && ((c === 0 && mask & 1) || (c === 4 && mask & 4))) continue;
+      const along = 4.2 + c * 5.4, x = across ? along : base, y = across ? base : along;
+      const corner = across && ((c === 0 && mask & 8) || (c === 4 && mask & 2));
+      high = corner ? 3 + Math.floor(r(61 + s * 5 + c) * 2)
+        : Math.max(0, Math.min(4, high + Math.floor(r(62 + s * 5 + c) * 4) - 2));
+      if (bit === 1) high = Math.min(high, 4);
+      if (!high) {
+        rubble(m, x, y + (across ? (bit === 1 ? 2 : -2) : 0), look, seed * 7 + s * 5 + c, 4);
+        continue;
+      }
+      const wide = corner ? 3.3 : across ? 2.8 : 2, deep = corner ? 3.1 : across ? 1.9 : 2.8;
+      for (let level = 0; level < high; level++) {
+        const top = level === high - 1;
+        const color = top ? look.light : r(80 + s * 20 + c * 4 + level) < 0.4 ? look.dark : look.stone;
+        m.egg(x, y - level * 2.4, 1.8 + level * 3, wide, deep, 1.7, color, 0.1);
+      }
+      if (r(70 + s * 5 + c) < 0.6) m.dot(x - 1 + r(75 + s * 5 + c) * 2, y - (high - 1) * 2.4 - 1, look.moss, 30);
+      if (!corner && high <= 1 && r(78 + s * 5 + c) < 0.5) rubble(m, x + 1, y + 2, look, seed * 3 + c, 3);
+    }
+  });
+  const cx = 15 + (r(90) - 0.5) * 7, cy = 16 + (r(91) - 0.5) * 6;
+  if (r(92) < 0.45) {
+    const tall = 6 + r(93) * 6;
+    m.limb(cx, cy, 0.5, cx, cy - tall * 0.8, tall + 1, 1.9, look.stone, 0.2, 1.7);
+    m.egg(cx, cy - tall * 0.8, tall + 1.6, 2.3, 1.5, 1, look.light, 0.2);
+    rubble(m, cx + 2.5, cy + 2, look, seed * 11, 3);
+  } else if (r(92) < 0.8) {
+    m.limb(cx - 5, cy + 1, 1.6, cx + 4, cy - 1, 1.6, 1.6, look.stone, 0.2);
+    m.egg(cx + 6.5, cy - 1.5, 1.6, 1.8, 1.5, 1.5, look.light, 0.2);
+  } else rubble(m, cx, cy, look, seed * 13, 6);
+  return m.paint();
+}
+
+const RELICS = {
+  stones(m, look) {
+    m.egg(15, 17, 0, 6.5, 4.6, 0.6, look.floor, 0.1);
+    m.egg(15, 16.6, 1.2, 4, 2.4, 1.2, look.light, 0.2);
+    around(6, -Math.PI / 2, 15, 17, 10.4, 8, (x, y, a, i) => {
+      const high = 2 + (i % 3 ? 1 : 0);
+      for (let level = 0; level < high; level++) {
+        const size = 1 - level * 0.16, top = level === high - 1;
+        m.egg(x, y + 2 - level * 2.3, 2 + level * 3, 2.5 * size, 2.1 * size, 1.9, top ? look.light : look.stone, 0.15);
+      }
+      m.dot(x - 1, y + 2 - (high - 1) * 2.3, look.moss, 30);
+      if (i % 2) m.dot(x + 1, y + 2, look.moss, 30);
+    });
+  },
+  bones(m, look) {
+    const ivory = '#eee3c6', worn = '#c9bc9c', socket = '#2a2018';
+    m.egg(15, 18, 0, 12.5, 6.5, 0.6, look.floor, 0.05);
+    const spine = (t) => [4 + t * 19, 20 - t * 7 + Math.sin(t * 3.2) * 1.5];
+    for (let k = 0; k <= 12; k++) {
+      const [x, y] = spine(k / 12);
+      m.ball(x, y, 1.5, 1.2, k % 2 ? ivory : worn, 0.3);
+    }
+    for (let k = 1; k <= 4; k++) {
+      const [x, y] = spine(0.2 + k * 0.13);
+      m.limb(x, y, 2, x - 2, y - 5, 6, 0.75, ivory, 0.3);
+      m.limb(x - 2, y - 5, 6, x - 0.5, y - 8, 3.5, 0.65, ivory, 0.3);
+      m.limb(x, y, 2, x + 2.5, y + 4.5, 5, 0.75, ivory, 0.3);
+      m.limb(x + 2.5, y + 4.5, 5, x + 4, y + 6.5, 2.5, 0.65, worn, 0.3);
+    }
+    m.egg(24.5, 12.5, 3, 3.6, 3, 2.8, ivory, 0.4);
+    m.egg(27.2, 11.6, 2.6, 2, 1.6, 1.8, worn, 0.3);
+    m.dot(23.5, 11.5, socket, 30);
+    m.dot(25.5, 12.5, socket, 30);
+    m.limb(23.6, 10, 5, 21, 5.5, 7.5, 0.8, worn, 0.4, 0.3);
+    m.limb(26, 9.8, 5, 27.5, 5.5, 7.5, 0.8, worn, 0.4, 0.3);
+    m.dot(9, 22, look.moss, 30);
+  },
+  crypt(m, look) {
+    m.egg(15, 21.5, 0, 12.5, 5.5, 1, look.dark, 0.1);
+    for (let row = 0; row < 3; row++) {
+      for (let x = 7; x <= 23; x += 4) {
+        const color = (x + row) % 3 ? look.stone : look.light;
+        m.egg(x + (row % 2) * 2 - 1, 24 - row * 2.6, 2 + row * 3.2, 2.2, 1.4, 1.6, color, 0.1);
+      }
+    }
+    for (let y = 18; y >= 6; y -= 1.5) {
+      const z = y >= 12 ? 10 + (18 - y) * 0.83 : 15 - (12 - y) * 0.67;
+      m.limb(5.5, y, z, 24.5, y, z, 1.1, Math.round(y / 1.5) % 2 ? look.dark : look.stone, 0.15);
+    }
+    m.limb(5, 12, 15.6, 25, 12, 15.6, 0.9, look.light, 0.3);
+    m.egg(15, 22.4, 11, 2.4, 2.8, 0.4, '#141019');
+    m.limb(15, 12, 16, 15, 5.5, 22, 0.6, METAL, 0.6);
+    m.limb(12.6, 7.8, 20, 17.4, 7.8, 20, 0.55, METAL, 0.6);
+    for (const x of [9.5, 20.5]) {
+      m.limb(x, 26.5, 0.5, x, 25, 2.5, 0.6, '#e8dcc8');
+      m.dot(x, 24.5, look.moss, 30);
+    }
+    for (const [x, y] of [[8, 16], [21, 9], [18, 15], [10, 10]]) m.dot(x, y, '#4d5a45', 30);
+  },
+};
+
+export function drawRelic(kind, biome) {
+  const look = RUINS[biome] || RUINS.grass, m = new Model(30, 1);
+  RELICS[kind](m, look);
+  return m.paint();
+}

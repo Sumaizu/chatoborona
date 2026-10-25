@@ -16,9 +16,9 @@ export const COMMANDS = new Map([
   ['!чатоборона-замедлить', 'slower'],
 ]);
 export const SPEED_WORDS = new Map([['ускорить', 'faster'], ['замедлить', 'slower']]);
-export const STAT_WORDS = new Map([['сила', 'str'], ['силу', 'str'], ['силы', 'str'], ['ловкость', 'agi'],
-  ['ловкости', 'agi'], ['ловк', 'agi'], ['интеллект', 'int'], ['интеллекта', 'int'], ['инт', 'int'],
-  ['мастерство', 'mas'], ['мастерства', 'mas'], ['маст', 'mas']]);
+export const STAT_WORDS = new Map([['сила', 'str'], ['силу', 'str'], ['силы', 'str'], ['с', 'str'], ['ловкость', 'agi'],
+  ['ловкости', 'agi'], ['ловк', 'agi'], ['л', 'agi'], ['интеллект', 'int'], ['интеллекта', 'int'], ['инт', 'int'],
+  ['и', 'int'], ['мастерство', 'mas'], ['мастерства', 'mas'], ['маст', 'mas'], ['м', 'mas']]);
 export const SPEED_MAX = 3;
 export const SUMMIT_EVERY = 100;
 export const SUMMIT_TIME = 60;
@@ -42,7 +42,6 @@ export const BOTS = [
   'pokemoncommunitygame', 'songlistbot', 'pretzelrocks', 'restreambot', 'commanderroot', 'frostytoolsdotcom',
 ];
 export const OVER_TIME = 15;
-export const CARD_TIME = 24;
 export const CARD_MIN = 10;
 export const CARD_ROOM = 2;
 export const SPIN_LIMIT = 5;
@@ -516,7 +515,7 @@ export class Game {
   _card(member, brief) {
     const shown = this._shownCards(), own = shown.find((note) => note.login === member.login);
     const waiting = this.cards.find((card) => card.login === member.login);
-    if (own) Object.assign(own, { left: CARD_TIME, since: 0, detail: { brief } });
+    if (own) Object.assign(own, { since: 0, detail: { brief } });
     else if (waiting) waiting.brief = brief;
     else if (shown.length >= this.cardRoom) this.cards.push({ login: member.login, brief });
     else this._showCard(member.login, brief);
@@ -525,7 +524,7 @@ export class Game {
   }
 
   _showCard(login, brief) {
-    const note = { kind: 'card', login, left: CARD_TIME, since: 0, detail: { brief }, id: ++this._noteNo };
+    const note = { kind: 'card', login, left: Infinity, since: 0, detail: { brief }, id: ++this._noteNo };
     this.notes.push(note);
     return note;
   }
@@ -724,7 +723,7 @@ export class Game {
             note.left = 0;
           });
       }
-      this.notes = this.notes.filter((note) => note.left > 0);
+      this.notes = this.notes.filter((note) => note.left > 0 && this.members.has(note.login));
     }
     this._turnCards();
     if (this.battle && this.state !== 'over' && this.state !== 'ascend') this.battle.step(dt);

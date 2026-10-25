@@ -32,7 +32,8 @@ export const BIOME_RULES = {
   volcano: { name: 'Вулкан', text: 'ледяные приёмы на ' + share(TERRAIN.weak) + ' слабее', weak: 'ice' },
   swamp: { name: 'Болото', text: 'ходячие мобы на ' + share(0.8) + ' медленнее, но их на ' + share(1 + TERRAIN.more)
     + ' больше', ground: 0.8, more: 'ground' },
-  snow: { name: 'Снега', text: 'огненные приёмы на ' + share(TERRAIN.weak) + ' слабее', weak: 'fire' },
+  snow: { name: 'Снега', text: 'огненные приёмы на ' + share(TERRAIN.weak) + ' слабее, на льду озёр и рек можно '
+    + 'стоять', weak: 'fire', ice: true },
   desert: { name: 'Пустыня', text: 'летучие мобы на ' + share(1.25) + ' быстрее, и их на ' + share(1 + TERRAIN.more)
     + ' больше', air: 1.25, more: 'air' },
   graveyard: { name: 'Кладбище', text: 'павшие мобы с телом встают скелетами', rise: true },

@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { PLAIN, makeGame, memoryStorage, runFor, seeded, until } from './fixtures.js';
-import { ASCEND_TIME, CARD_MIN, CARD_ROOM, CARD_TIME, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPEED_MAX,
+import { ASCEND_TIME, CARD_MIN, CARD_ROOM, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPEED_MAX,
   SPIN_LIMIT, SUMMIT_EVERY, SUMMIT_TIME, nextReset } from '../../site/js/engine.js';
 import { FAMILY_BY_ID, LEVEL_MAX, TICK, xpForLevel } from '../../site/js/balance.js';
 import { ASCEND_AT, EXTRA_SLOTS, PRICE, QUEUE_CAP, RARITIES, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, ascend,
@@ -566,7 +566,7 @@ test('улучшить сила / ловкость / интеллект / мас
   ok(member.weapon.ups.str > 0, '«силу» тоже понимает');
 });
 
-test('улучшить стат с числом или «все» — этот стат нужное число раз или на все монеты', () => {
+test('улучшить стат с числом или «все» — этот стат нужное число раз или на все монеты; стат можно одной буквой', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Лиза', 'привет');
@@ -577,7 +577,8 @@ test('улучшить стат с числом или «все» — этот �
   const plus = () => member.weapon.plus || 0;
   const tries = [['улучшить ловкость все', 750, 'agi', 7, 50], ['улучшить все интеллект', 420, 'int', 4, 20],
     ['!улучшить мастерство 2', 1000, 'mas', 2, 800], ['улучшить 3 силу', 1000, 'str', 3, 700],
-    ['улучшить силу всё', 330, 'str', 3, 30]];
+    ['улучшить силу всё', 330, 'str', 3, 30], ['улучшить с все', 260, 'str', 2, 60], ['улучшить л', 150, 'agi', 1, 50],
+    ['улучшить и 2', 500, 'int', 2, 300], ['!улучшить м всё', 310, 'mas', 3, 10]];
   for (const [text, coins, stat, times, left] of tries) {
     member.coins = coins;
     const ups = Object.assign({}, member.weapon.ups), before = plus();
@@ -697,7 +698,7 @@ test('число и «все» в команде: «гача 3», «гача в�
   eq(say(game, 'Гена', 'улучшить 3'), 'poor');
 });
 
-test('профиль: две карточки сразу, третья ждёт десять секунд старшей; нет места — одна; «проф» — короткая', () => {
+test('профиль: две карточки сразу, третья ждёт десять секунд старшей; без очереди висит сколько угодно; «проф» — короткая', () => {
   const { game } = makeGame();
   game.open();
   for (const name of ['Аня', 'Боря', 'Вика', 'Гоша']) say(game, name, 'привет');
@@ -720,8 +721,8 @@ test('профиль: две карточки сразу, третья ждёт 
   eq(shown(), [['вика', false]], 'Боря своё отвисел — сразу следующая');
   runFor(game, CARD_MIN + 0.2);
   eq(shown(), [['гоша', true]]);
-  runFor(game, CARD_TIME);
-  eq(shown(), [], 'очередь пуста — карточка уходит в своё время');
+  runFor(game, 600);
+  eq(shown(), [['гоша', true]], 'очередь пуста — карточка висит, пока её не сменят');
 });
 
 test('реролл: один раз за игру и только до первой волны, на поле — новый класс на той же клетке', () => {

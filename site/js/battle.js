@@ -93,8 +93,9 @@ const BODILESS = new Set(TERRAIN.bodiless);
 const GATE_SHIFT = 0.6;
 const BEND = 0.9;
 const JOIN_FADE = 6;
-const SOLID = new Set(['mountain', 'tunnel']);
-const UNSAFE = new Set(['mountain', 'tunnel', 'lake', 'river']);
+const SOLID = new Set(['mountain', 'tunnel', 'ruin', 'stones', 'crypt']);
+const UNSAFE = new Set(['mountain', 'tunnel', 'lake', 'river', 'chasm', 'ruin', 'crater', 'stones', 'bones', 'crypt']);
+const FROZEN = new Set(['lake', 'river']);
 
 function lineClear(solid, x0, y0, x1, y1) {
   const steps = Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 4), own = Math.floor(y0) * SIZE + Math.floor(x0);
@@ -152,7 +153,7 @@ export class Battle {
       this.sight = new Uint8Array(SIZE * SIZE * SIZE * SIZE);
       this.tiles.forEach((tile, at) => {
         if (SOLID.has(tile)) this.solid[at] = 1;
-        if (UNSAFE.has(tile)) this.blocked.add(at);
+        if (UNSAFE.has(tile) && !(this.rules.ice && FROZEN.has(tile))) this.blocked.add(at);
       });
     }
     this.starts = this.routes.map((route) => {
@@ -309,6 +310,7 @@ export class Battle {
   }
 
   sees(t, mob) {
+    if (this.covered(mob.x, mob.y)) return false;
     if (!this.solid || this.onWatch(t)) return true;
     const x = Math.floor(mob.x), y = Math.floor(mob.y);
     if (!inside(x, y)) return false;
@@ -1632,6 +1634,7 @@ export class Battle {
       if (mode === 'strongest') score = mob.hp + (t.cls.base.skyFirst && mob.flying ? 1e12 : 0);
       else if (mode === 'bigFirst' && big(mob)) score += 1e6;
       else if (mode === 'small' && big(mob)) score -= 1e6;
+      if (immune(mob, t.cls.element)) score -= 1e15;
       if (score > bestScore) {
         bestScore = score;
         best = mob;
@@ -1668,6 +1671,7 @@ export class Battle {
 
   _hurt(mob, amount, t, element = t.cls.element || null, dot = false, pierce = 0) {
     if (mob.dead || amount <= 0 || underground(mob, this.time)) return;
+    if (!dot && !t.rider && this.covered(mob.x, mob.y)) return;
     const now = this.time;
     if (element === 'poison') {
       if (mob.undead && !t.runes.has('plague')) return;

@@ -29,9 +29,10 @@ const FLASHES = [[2.4, 1], [2.9, 0.7], [3.3, 0.85]];
 const BOARD_SIZE = 640;
 const BIOME_GLOW = { grass: '#4ade80', volcano: '#fb923c', swamp: '#a3e635', snow: '#bae6fd', desert: '#fbbf24',
   graveyard: '#c4b5fd' };
-const MAP_TIPS = 'Мобы выходят из двух тоннелей. Горы закрывают выстрел, с холмов бьют дальше, с вышки — ещё '
-  + 'дальше и поверх гор; на горы и в воду не встать'
+const MAP_TIPS = 'Мобы выходят из двух тоннелей. Горы и руины закрывают выстрел, с холмов бьют дальше, с вышки — '
+  + 'ещё дальше и поверх них; на горы, руины, в воду и расщелины не встать'
 const LOW_LIVES = 5;
+const STAT_LETTERS = { str: 'с', agi: 'л', int: 'и', mas: 'м' };
 const BOSS_EVERY = 10;
 const FINAL_SECONDS = 3;
 const ROWS = { over: 5, roster: 30, pause: 10, pauseShort: 8, queue: 3, cards: 4, player: 22 };
@@ -81,7 +82,7 @@ const RULES = [
   ['К7', '— встать на клетку'],
   ['гача', '— оружие, монеты или руна за ' + PRICE + ' монет'],
   ['профиль', '— твоя карточка, проф — короткая'],
-  ['улучшить', '— +20% к случайному стату оружия за ' + UPGRADE_PRICE + ' монет, «улучшить сила» — к силе'],
+  ['улучшить', '— +20% к случайному стату оружия за ' + UPGRADE_PRICE + ' монет, «улучшить с» — к силе'],
   ['реролл', '— другой класс, один раз до первой волны'],
 ];
 
@@ -331,8 +332,7 @@ export class View {
     RULES.slice(1).forEach(([command], i) => line.append(i ? ' · ' : '', el('b', '', command)));
     const upgrade = el('span', 'group wrap');
     upgrade.append(el('b', '', 'улучшить'));
-    STAT_IDS.forEach((id, i) => upgrade.append(i ? ' / ' : ' ', statIcon(id), id === 'mas' ? 'мастерство'
-      : PRIMARY[id]));
+    STAT_IDS.forEach((id, i) => upgrade.append(i ? ' / ' : ' ', statIcon(id), el('b', '', STAT_LETTERS[id])));
     upgrade.append(' + ', el('b', '', '5'), ' или ', el('b', '', 'все'));
     hint.append(line, upgrade);
     this._keys = {};
@@ -1009,6 +1009,7 @@ export class View {
           : slot.took ? ' надевает' : ' оставляет своё');
       view.who.append(name, verb);
       view.result.textContent = '';
+      view.result.classList.toggle('kept', kind === 'weapon' && !slot.took && Boolean(member && member.weapon));
       view.box.classList.toggle('shown', slot.phase !== 'spin');
       if (slot.phase === 'spin') return;
       view.result.append(prizeCell(prizeOf(slot.outcome)));
