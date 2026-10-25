@@ -241,6 +241,8 @@ export class View {
     this._slots = [];
     this._cards = new Map();
     this._cardTall = 0;
+    this._briefTall = 0;
+    this._squeezed = null;
     $('rules-board-title').textContent = RULES_TITLE;
     renderRules($('rules-text'));
     $('emblem-left').src = shieldUrl(64);
@@ -1095,7 +1097,8 @@ export class View {
   _paintCards(game, still) {
     const notes = game.notes.filter((note) => NOTE_KINDS.has(note.kind)).slice(-ROWS.cards);
     const box = document.body.classList.contains('noside') ? $('board-cards') : $('cards');
-    const wanted = new Set();
+    const wanted = new Set(), profiles = notes.filter((note) => note.kind === 'card');
+    this._squeezed = profiles.length > 1 ? profiles[0].login : null;
     for (const note of notes) {
       const member = game.members.get(note.login);
       if (!member) continue;
@@ -1124,15 +1127,19 @@ export class View {
   }
 
   _fitCards(game, box) {
-    const shown = Array.from(box.querySelectorAll('.profile')), last = box.lastElementChild;
-    for (const card of shown) this._cardTall = Math.max(this._cardTall, card.offsetHeight);
+    const notes = Array.from(box.children);
+    for (const card of notes.filter((node) => node.classList.contains('profile'))) {
+      if (card.classList.contains('brief')) this._briefTall = Math.max(this._briefTall, card.offsetHeight);
+      else this._cardTall = Math.max(this._cardTall, card.offsetHeight);
+    }
     if (box.id !== 'cards' || !box.clientHeight) {
       game.cardRoom = 1;
       return;
     }
-    const used = last ? last.offsetTop + last.offsetHeight - box.offsetTop : 0;
-    if (used > box.clientHeight + 1) game.cardRoom = Math.max(1, shown.length - 1);
-    else if (shown.length < 2) game.cardRoom = box.clientHeight - used - CARD_GAP >= this._cardTall ? 2 : 1;
+    const others = notes.filter((node) => !node.classList.contains('profile'))
+      .reduce((sum, node) => sum + node.offsetHeight + CARD_GAP, 0);
+    const pair = this._cardTall + (this._briefTall || this._cardTall / 2) + CARD_GAP;
+    game.cardRoom = box.clientHeight - others >= pair ? 2 : 1;
   }
 
   _shortCard(member, note) {
@@ -1192,7 +1199,9 @@ export class View {
     return {
       node,
       update: (m, game, note) => {
-        const brief = Boolean(note && note.detail && note.detail.brief), tower = m.tower;
+        const brief = Boolean(note && note.detail && note.detail.brief) || this._squeezed === m.login;
+        const tower = m.tower;
+        node.classList.toggle('brief', brief);
         const rider = Boolean(tower && tower.rider), seat = rider ? tower.host : tower;
         spot.hidden = !seat;
         spotText.textContent = seat ? cellName(Math.floor(seat.x), Math.floor(seat.y)) : '';

@@ -1742,8 +1742,8 @@ export class Scene {
     for (const t of battle.towers.slice().sort((a, b) => first(a) - first(b))) {
       const pose = this._pose(t);
       if (t.rider && battle.covered(pose.x, pose.y)) continue;
-      const marked = Boolean(highlight && highlight.has(t.player.login)), on = Math.floor(this.clock * 4) % 2 === 0;
-      const image = this._nameLabel(t, marked ? (on ? 'on' : 'off') : '');
+      const marked = Boolean(highlight && highlight.has(t.player.login));
+      const image = this._nameLabel(t, marked ? 'lit' : '');
       const w = image.width / this.k, h = image.height / this.k;
       const riding = t.rider && t.host && !t.host.dead;
       const x = Math.max(1, Math.min(BOARD - w - 1, at(pose.x) - w / 2));
@@ -1752,7 +1752,7 @@ export class Scene {
       const box = [x - 1, y - h / 2, x + w + 1, y + h / 2];
       if (taken.some((o) => box[0] < o[2] && o[0] < box[2] && box[1] < o[3] && o[1] < box[3])) continue;
       taken.push(box);
-      if (marked) glow(ctx, at(pose.x), y, w * 0.75, 'rgba(255, 40, 40, 1)', on ? 0.75 : 0.3);
+      if (marked) glow(ctx, at(pose.x), y, w * 0.7, 'rgba(255, 110, 110, 1)', 0.3 + 0.12 * Math.sin(this.clock * 2.4));
       this._stamp(ctx, image, x, y - h / 2);
     }
   }
@@ -1770,19 +1770,21 @@ export class Scene {
       g.font = font;
       g.textAlign = 'left';
       g.textBaseline = 'middle';
-      g.fillStyle = mark === 'on' ? '#e11d2a' : 'rgba(16, 14, 31, .9)';
-      roundRect(g, 0, 0, w, h, h / 2 - 0.5);
-      g.fill();
       if (mark) {
-        g.lineWidth = 1.5;
-        g.strokeStyle = mark === 'on' ? '#ffd0d0' : '#ff3b3b';
-        roundRect(g, 0.75, 0.75, w - 1.5, h - 1.5, h / 2 - 1.25);
-        g.stroke();
+        g.lineWidth = 3;
+        g.lineJoin = 'round';
+        g.strokeStyle = 'rgba(40, 8, 12, .85)';
+        g.strokeText(text, 4.5, h / 2 + 0.5);
+        g.strokeText(coins, 10 + coin + nameWidth, h / 2 + 0.5);
+      } else {
+        g.fillStyle = 'rgba(16, 14, 31, .9)';
+        roundRect(g, 0, 0, w, h, h / 2 - 0.5);
+        g.fill();
       }
-      g.fillStyle = mark === 'on' ? '#fff' : mark ? '#ff4545' : INK;
+      g.fillStyle = mark ? '#ffd2d2' : INK;
       g.fillText(text, 4.5, h / 2 + 0.5);
       g.drawImage(coinSprite(), Math.round(8 + nameWidth), Math.round((h - coin) / 2), coin, coin);
-      g.fillStyle = mark === 'on' ? '#fff3b0' : '#ffd86b';
+      g.fillStyle = mark ? '#ffe9a8' : '#ffd86b';
       g.fillText(coins, 10 + coin + nameWidth, h / 2 + 0.5);
     });
   }
