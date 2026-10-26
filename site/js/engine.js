@@ -1,7 +1,7 @@
 import { Battle } from './battle.js';
 import { makeMap, parseCell, parseMove } from './field.js';
 import { CLASSES, CLASS_BY_ID } from './classes.js';
-import { FINALE, LEVEL_MAX, TICK, levelOf, waveReward } from './balance.js';
+import { FINALE, LEVEL_MAX, TICK, levelOf, rollTempo, waveReward } from './balance.js';
 import { DIVINE, EXTRA_SLOTS, PRICE, QUEUE_CAP, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, UPGRADE_PRICE, boonOf,
   rankOf, spin, upgrade } from './gacha.js';
 import { LASTING, effectOf, rollEvent } from './events.js';
@@ -617,7 +617,8 @@ export class Game {
   }
 
   _placing() {
-    this.battle = new Battle(makeMap(this.random), { random: this.random, quiet: this.quiet });
+    this.battle = new Battle(makeMap(this.random), { random: this.random, quiet: this.quiet,
+      tempo: rollTempo(this.random) });
     this.battle.foe = this.run.foe;
     this._shiftLives(this.run.lives);
     for (const member of this.members.values()) this._place(member);

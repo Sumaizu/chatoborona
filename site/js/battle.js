@@ -131,7 +131,7 @@ const grounded = (mob, now) => !mob.flying && !underground(mob, now) && !ghostly
 const open = (t, i) => t.level >= PERKS[i];
 
 export class Battle {
-  constructor(map, { random = Math.random, lives = LIVES, quiet = false } = {}) {
+  constructor(map, { random = Math.random, lives = LIVES, quiet = false, tempo = 1 } = {}) {
     const plan = Array.isArray(map) ? { path: map } : map;
     this.path = plan.path;
     this.branch = plan.branch || [];
@@ -171,6 +171,7 @@ export class Battle {
     });
     this.gate = Math.max(0, Math.ceil(this.starts[0]) - 1);
     this.random = random;
+    this.tempo = tempo;
     this.quiet = quiet;
     this.lives = lives;
     this.maxLives = lives;
@@ -396,6 +397,10 @@ export class Battle {
     this._flags();
   }
 
+  _waveHp(type, players = this.players || 1, wave = Math.max(1, this.wave)) {
+    return waveHp(wave, type, players, this.tempo);
+  }
+
   get kin() {
     return this.family ? this.family.hp : 1;
   }
@@ -431,8 +436,7 @@ export class Battle {
     }
     this.wild = false;
     this.spawns = plan.map((s) => {
-      const spawn = { type: s.type, at: start + s.delay, hp: waveHp(wave, s.type, players) * toughness, kind: null,
-        r: 0 };
+      const spawn = { type: s.type, at: start + s.delay, hp: this._waveHp(s.type) * toughness, kind: null, r: 0 };
       if (s.kind) {
         spawn.kind = s.kind;
         spawn.hp *= s.kind.hp || 1;
@@ -721,8 +725,7 @@ export class Battle {
 
   _summon(mob, type, id, share, i) {
     const look = LOOKS[type].find((item) => item.id === id);
-    const child = this._spawn({ type, look, hp: waveHp(Math.max(1, this.wave), type, this.players || 1) * share
-      * this.kin },
+    const child = this._spawn({ type, look, hp: this._waveHp(type) * share * this.kin },
       Math.max(0, mob.d - 0.3 - i * 0.25), mob.r);
     child.summoned = true;
     return child;
@@ -829,7 +832,7 @@ export class Battle {
     const total = mob.power.cargo;
     while (mob.cargo > 0 && (all || mob.hp / mob.max < mob.cargo / (total + 1))) {
       mob.cargo -= 1;
-      const hp = waveHp(Math.max(1, this.wave), 'normal', this.players || 1) * mob.power.hp;
+      const hp = this._waveHp('normal') * mob.power.hp;
       const spawn = { type: 'normal', look: lookOf('goblin'), hp };
       this.births.push({ spawn, d: Math.max(0, mob.d - 0.3 - mob.cargo * 0.25), r: mob.r, at: this.time });
       this._event({ kind: 'drop', mob });
@@ -1587,7 +1590,7 @@ export class Battle {
   }
 
   _wallUnit() {
-    return waveHp(Math.max(1, this.wave), 'normal', this.players || this.towers.length || 1);
+    return this._waveHp('normal', this.players || this.towers.length || 1);
   }
 
   _wallMax(t) {
@@ -1842,7 +1845,7 @@ export class Battle {
       }
     }
     if (mob.power && mob.power.brood) {
-      const hp = waveHp(Math.max(1, this.wave), 'swarm', this.players || 1) * mob.power.hp;
+      const hp = this._waveHp('swarm') * mob.power.hp;
       for (let i = 0; i < mob.power.brood; i++) {
         this.births.push({ spawn: { type: 'swarm', look: lookOf('spiderling'), hp }, d: Math.max(0, mob.d - i * 0.2),
           r: mob.r, at: this.time });
@@ -1854,8 +1857,7 @@ export class Battle {
         raise: mob.power && mob.power.raise || 0 });
     } else if (this.rules.rise && !mob.risen && !mob.fake && !BODILESS.has(mob.look)) {
       const type = mob.type === 'tough' || big(mob) ? 'tough' : 'normal';
-      const hp = waveHp(Math.max(1, this.wave), type, this.players || 1) * TERRAIN.grave * Math.max(FLOOR,
-        1 + this.foe.hp);
+      const hp = this._waveHp(type) * TERRAIN.grave * Math.max(FLOOR, 1 + this.foe.hp);
       const look = lookOf(type === 'tough' ? 'skelwarrior' : 'skeleton');
       this.births.push({ spawn: { type, look, hp }, d: mob.d, r: mob.r, at: this.time + REVIVE_TIME, risen: true });
     }
@@ -1879,8 +1881,8 @@ export class Battle {
     if (pieces) {
       const type = SLIMES[pieces - 1], look = LOOKS[type].find((item) => item.slime === pieces), spots = [];
       for (const shift of [-SPLIT_GAP, SPLIT_GAP]) {
-        const hp = waveHp(Math.max(1, this.wave), type, this.players || 1) * Math.max(FLOOR, 1 + this.foe.hp)
-          * this.kin, d = Math.max(0, mob.d + shift), spot = { d, r: mob.r, sx: 0, sy: 0, placed: false };
+        const hp = this._waveHp(type) * Math.max(FLOOR, 1 + this.foe.hp) * this.kin, d = Math.max(0, mob.d + shift);
+        const spot = { d, r: mob.r, sx: 0, sy: 0, placed: false };
         this._locate(spot);
         spots.push([spot.x, spot.y]);
         this.births.push({ spawn: { type, look, hp }, d, r: mob.r, at: this.time + SPLIT_TIME });

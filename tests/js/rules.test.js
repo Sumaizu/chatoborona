@@ -1,9 +1,8 @@
 import { test, eq, ok, no } from './harness.js';
 import { seeded } from './fixtures.js';
 import { BIOMES, SIZE, cellName, coverage, makeMap, parseCell } from '../../site/js/field.js';
-import { LEVEL_MAX, MIGHT, MOBS, STAT, WAVE, crowdFactor, eliteCount, levelOf, waveHp, waveReward, waveSpawns,
-  xpForLevel }
-  from '../../site/js/balance.js';
+import { LEVEL_MAX, MIGHT, MOBS, STAT, TEMPO, WAVE, crowdFactor, eliteCount, levelOf, rollTempo, waveHp, waveReward,
+  waveSpawns, xpForLevel } from '../../site/js/balance.js';
 import { CLASSES, CLASS_BY_ID, PERKS, describe, mastery, mightOf, scaled } from '../../site/js/classes.js';
 import { ASCEND_AT, BOONS, DIVINE, OUTCOMES, RARITIES, boonOf, makeWeapon, rankOf, spin, upgrade, weaponPower,
   weaponTitle } from '../../site/js/gacha.js';
@@ -165,6 +164,19 @@ test('здоровье мобов растёт с волной и с число�
   ok(step(85) > step(55) * 1.15, 'после 60-й волны мобы крепчают заметно быстрее — дальше не прорваться');
   ok(Math.abs(step(30) - WAVE.growth * Math.exp(WAVE.accel * 59)) < 1e-9, 'до стены — как раньше');
   ok(waveHp(10, 'boss', 1) > waveHp(10, 'elite', 1));
+});
+
+test('крутизна волн у каждой игры своя: обычный отряд кончается где-то между 30-й и 70-й, стена у 100-й — общая', () => {
+  const near = (a, b, note = '') => ok(Math.abs(a - b) < 1e-9 * Math.max(1, Math.abs(b)), note + ' ' + a + ' ≈ ' + b);
+  eq([TEMPO.low, TEMPO.mid, TEMPO.high, TEMPO.from], [30, 50, 70, 10]);
+  const gentle = rollTempo(() => 1), steep = rollTempo(() => 0);
+  near(gentle, 40 / 60);
+  near(steep, 2);
+  near(waveHp(41, 'normal', 10, gentle), waveHp(31, 'normal', 10), 'пологая: 41-я — как обычная 31-я');
+  near(waveHp(31, 'normal', 10, steep), waveHp(51, 'normal', 10), 'крутая: 31-я — как обычная 51-я');
+  for (const wave of [1, 5, 11]) near(waveHp(wave, 'normal', 10, steep), waveHp(wave, 'normal', 10), 'начало общее');
+  near(waveHp(40, 'normal', 10, 1), waveHp(40, 'normal', 10));
+  ok(waveHp(95, 'normal', 10, gentle) > waveHp(68, 'normal', 10) * 20, 'стена у 100-й не пологеет');
 });
 
 test('классы: пятнадцать, у каждого оружие, свой склад, три способности на 10, 30 и 50 уровне и две руны', () => {

@@ -3,7 +3,7 @@ import { PLAIN, makeGame, memoryStorage, runFor, seeded, until } from './fixture
 import { ASCEND_TIME, CARD_MIN, CARD_ROOM, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPEED_MAX,
   SPIN_LIMIT, SUMMIT_EVERY, SUMMIT_TIME, SUPPORTS, SUPPORT_EVERY, TIP_LEVEL, TIP_TIME, nextReset }
   from '../../site/js/engine.js';
-import { FAMILY_BY_ID, LEVEL_MAX, MIGHT, REWARD, TICK, waveReward, xpForLevel } from '../../site/js/balance.js';
+import { FAMILY_BY_ID, LEVEL_MAX, MIGHT, REWARD, TEMPO, TICK, waveReward, xpForLevel } from '../../site/js/balance.js';
 import { ASCEND_AT, EXTRA_SLOTS, PRICE, QUEUE_CAP, RARITIES, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, ascend,
   makeWeapon, weaponName } from '../../site/js/gacha.js';
 import { CLASSES, CLASS_BY_ID } from '../../site/js/classes.js';
@@ -695,6 +695,20 @@ test('подсказки новичкам: при входе, на 50 монет
   eq(tips(), [['аня', 'upgrade']], 'с оружием и сотней монет — «улучшить»');
   runFor(game, TIP_TIME * 2);
   eq(tips(), [], 'каждая — один раз за игру');
+});
+
+test('у каждой игры своя крутизна волн', () => {
+  const tempos = [1, 2, 3, 4, 5, 6].map((seed) => {
+    const { game } = makeGame({ seed });
+    game.open();
+    say(game, 'Тёма', 'привет');
+    game.next();
+    game.step(0.1);
+    return game.battle.tempo;
+  });
+  const range = (end) => (TEMPO.mid - TEMPO.from) / (end - TEMPO.from);
+  ok(tempos.every((t) => t >= range(TEMPO.high) - 1e-9 && t <= range(TEMPO.low) + 1e-9), String(tempos));
+  ok(new Set(tempos).size > 3, 'разная: ' + tempos.map((t) => t.toFixed(2)).join(' '));
 });
 
 test('за волну — только награда волны, дохода от своих монет нет', () => {

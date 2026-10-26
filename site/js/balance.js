@@ -344,11 +344,16 @@ export function levelOf(xp) {
 
 export const xpForLevel = (level) => totals()[Math.max(1, Math.min(LEVEL_MAX, level))];
 
-export function waveHp(wave, type, players) {
-  const n = wave - 1;
+export const TEMPO = { low: 30, high: 70, mid: 50, from: 10 };
+
+export const rollTempo = (random) => (TEMPO.mid - TEMPO.from)
+  / (TEMPO.low + random() * (TEMPO.high - TEMPO.low) - TEMPO.from);
+
+export function waveHp(wave, type, players, tempo = 1) {
+  const n = wave - 1, paced = Math.min(n, TEMPO.from) + Math.max(0, n - TEMPO.from) * tempo;
   const late = Math.max(0, n - WAVE.wall);
-  return WAVE.hp * MOBS[type].hp * Math.pow(WAVE.growth, n)
-    * Math.exp(WAVE.accel * n * n + WAVE.wallGrowth * late * late)
+  return WAVE.hp * MOBS[type].hp * Math.pow(WAVE.growth, paced)
+    * Math.exp(WAVE.accel * paced * paced + WAVE.wallGrowth * late * late)
     * crowdFactor(players);
 }
 
