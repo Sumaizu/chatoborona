@@ -10,7 +10,7 @@ export const SPIN_TIME = 2;
 export const SHOW_TIME = 7;
 export const SHOW_FAST = 4;
 export const RUSH = { queue: 12, spin: 0.8, show: 1.2 };
-export const QUEUE_CAP = 5;
+export const QUEUE_CAP = 10;
 export const EXTRA_SLOTS = [30, 100];
 export const ASCEND_AT = 30;
 

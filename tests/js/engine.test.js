@@ -278,7 +278,7 @@ test('гача: без монет нельзя, крутят трое сразу
   eq(game.slots.map((slot) => slot && slot.login), ['ева', 'ия', 'ева'], 'освободились места — крутят ждавшие');
 });
 
-test('гача: один игрок занимает все свободные места, за раз — не больше пяти круток', () => {
+test('гача: один игрок занимает все свободные места, за раз — не больше десяти круток', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Ося', 'привет');
@@ -291,11 +291,12 @@ test('гача: один игрок занимает все свободные �
   eq(game.slots.map((slot) => slot && slot.login), ['ося', 'ося', 'ося']);
   eq(game.queue.length, 0);
   member.coins = PRICE * 100;
-  eq(say(game, 'Ося', 'гача 9'), 'queued');
+  eq(say(game, 'Ося', 'гача 15'), 'queued');
   eq(game.queue.map((entry) => entry.count), [SPIN_LIMIT]);
+  eq(SPIN_LIMIT, 10);
 });
 
-test('гача: в очереди у игрока не больше пяти круток, монеты за лишние не списываются; длинная очередь крутится быстрее', () => {
+test('гача: в очереди у игрока не больше десяти круток, монеты за лишние не списываются; длинная очередь крутится быстрее', () => {
   const { game } = makeGame();
   game.open();
   for (let i = 0; i < 6; i++) say(game, 'Игрок' + i, 'привет');
@@ -305,10 +306,10 @@ test('гача: в очереди у игрока не больше пяти к�
   const first = members[0];
   game.slots = game.slots.map(() => ({ id: 0, login: 'занято', outcome: { kind: 'void' }, phase: 'show', left: 1e9 }));
   eq(say(game, first.name, 'гача 3'), 'queued');
-  eq(say(game, first.name, 'гача 5'), 'queued', 'ещё две до пяти');
+  eq(say(game, first.name, 'гача 9'), 'queued', 'ещё семь до десяти');
   eq(game.queue.reduce((sum, entry) => sum + entry.count, 0), QUEUE_CAP);
   const coins = first.coins;
-  eq(say(game, first.name, 'гача'), 'full', 'шестую не берёт');
+  eq(say(game, first.name, 'гача'), 'full', 'одиннадцатую не берёт');
   eq(first.coins, coins, 'монеты целы');
   ok(game.notes.some((note) => note.kind === 'queue'));
   for (const member of members.slice(1)) say(game, member.name, 'гача 5');
@@ -745,7 +746,7 @@ test('за пройденную волну всем — монеты и опыт
   }
 });
 
-test('число и «все» в команде: «гача 3», «гача все» — до пяти, «улучшить 5», «улучшить всё» — на все монеты', () => {
+test('число и «все» в команде: «гача 3», «гача все» — до десяти, «улучшить 5», «улучшить всё» — на все монеты', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Гена', 'привет');
@@ -757,12 +758,15 @@ test('число и «все» в команде: «гача 3», «гача в�
   gena.coins = PRICE * 2;
   eq(say(game, 'Гена', 'гача 5'), 'queued', 'сколько хватило');
   eq(queue(), [3, 2], 'новой записью, а не к старой');
+  gena.coins = PRICE * 5;
+  eq(say(game, 'Гена', 'гача 5'), 'queued');
   gena.coins = PRICE * 7;
-  eq(say(game, 'Гена', 'гача все'), 'full', 'в очереди уже пять');
+  eq(say(game, 'Гена', 'гача все'), 'full', 'в очереди уже десять');
   eq(gena.coins, PRICE * 7, 'монеты целы');
   game.queue = [];
+  gena.coins = PRICE * 12;
   eq(say(game, 'Гена', 'гача все'), 'queued');
-  eq([queue(), gena.coins], [[5], PRICE * 2]);
+  eq([queue(), gena.coins], [[10], PRICE * 2]);
   game.queue = [];
   eq(say(game, 'Гена', '!гача всё'), 'queued');
   eq([queue(), gena.coins], [[2], 0]);

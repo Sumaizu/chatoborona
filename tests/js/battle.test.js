@@ -2192,6 +2192,33 @@ test('карта: руины, круг камней и склеп закрыва
   ok(battle._target(tower) === mob, 'с вышки видно и поверх руин');
 });
 
+test('карта: буря ледяного мага бьёт сквозь горы и мобов в тоннеле, обычный выстрел — нет', () => {
+  const battle = mapWith({ mountain: [[14, 4]], tunnel: [[13, 5]] }), frost = battle.place(player(), 'frost', 14, 3);
+  const gun = battle.place(player(), 'gunner', 15, 3);
+  gun.range = 4;
+  battle.random = () => 0.99;
+  const hidden = walker(battle, 14, 1e6), behind = walker(battle, 15, 1e6);
+  still(hidden, behind);
+  eq([Math.floor(hidden.x), Math.floor(behind.x)], [13, 14]);
+  ok(battle.covered(hidden.x, hidden.y), 'один в тоннеле');
+  no(battle.sees(gun, hidden), 'обычный выстрел в тоннель не достаёт');
+  battle._fire(frost);
+  ok(hidden.hp < hidden.max, 'в тоннеле задет');
+  ok(behind.hp < behind.max, 'за горой задет');
+});
+
+test('карта: с холма бьют поверх руин, круга камней и склепа, но не поверх гор', () => {
+  for (const [tile, hides] of [['ruin', false], ['stones', false], ['crypt', false], ['mountain', true]]) {
+    const battle = mapWith({ [tile]: [[3, 4]], hill: [[3, 3]] }), gun = battle.place(player(), 'gunner', 3, 3);
+    gun.range = 4;
+    const mob = walker(battle, 4, 1e6);
+    still(mob);
+    eq(battle._target(gun) === mob, !hides, tile);
+    const cell = battle.road.findIndex(([x, y]) => x === Math.floor(mob.x) && y === Math.floor(mob.y));
+    eq(battle._reach(gun.range)[3 * SIZE + 3].includes(cell), !hides, 'и при выборе клетки: ' + tile);
+  }
+});
+
 test('серебряные — тоже элитные: охотник бьёт их первым (после золотых и боссов), «Добыча» и «Наповал» их видят', () => {
   const battle = makeBattle(), hunter = battle.place(level(50), 'hunter', 10, 4);
   const plain = walker(battle, 12, 1e9), silver = walker(battle, 9, 1e9);

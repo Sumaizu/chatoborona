@@ -304,6 +304,7 @@ export const CLASSES = [
     name: 'Ледяной маг',
     color: '#67e8f9',
     element: 'ice',
+    through: true,
     primary: 'int',
     earn: { xp: 0.82, coins: 0.96 },
     weapon: 'жезл',
@@ -311,7 +312,7 @@ export const CLASSES = [
     base: { damage: 0.55, interval: 1, range: 2.7 },
     summary: 'Ледяная буря вокруг: бьёт льдом, замедляет, замораживает',
     main: (b) => 'Вокруг него ледяная буря на ' + cells(b.range) + ': раз в секунду бьёт '
-      + 'льдом всех в ней, урон ×' + num(b.damage),
+      + 'льдом всех в ней, даже за горами и в тоннелях, урон ×' + num(b.damage),
     skills: [
       { name: 'Стужа', v: { slow: 0.35, time: 3 }, scale: { slow: 'power', time: 'time' },
         text: (v) => 'в буре мобы медленнее на ' + pct(Math.min(0.8, v.slow)) + ', а вышедшие ещё ' + sec(v.time)

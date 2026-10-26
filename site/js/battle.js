@@ -97,6 +97,7 @@ const JOIN_FADE = 6;
 const SOLID = new Set(['mountain', 'tunnel', 'ruin', 'stones', 'crypt']);
 const UNSAFE = new Set(['mountain', 'tunnel', 'lake', 'river', 'chasm', 'ruin', 'crater', 'stones', 'bones', 'crypt']);
 const FROZEN = new Set(['lake', 'river']);
+const TALL = new Set(['mountain', 'tunnel']);
 
 function lineClear(solid, x0, y0, x1, y1) {
   const steps = Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 4), own = Math.floor(y0) * SIZE + Math.floor(x0);
@@ -149,12 +150,17 @@ export class Battle {
     this.bends = this.routes.map((route, r) => bendsOf(r ? route.slice(0, -1) : route));
     this.blocked = pathCells(this.road);
     this.solid = null;
+    this.tall = null;
     this.sight = null;
+    this.highSight = null;
     if (this.tiles) {
       this.solid = new Uint8Array(SIZE * SIZE);
+      this.tall = new Uint8Array(SIZE * SIZE);
       this.sight = new Uint8Array(SIZE * SIZE * SIZE * SIZE);
+      this.highSight = new Uint8Array(SIZE * SIZE * SIZE * SIZE);
       this.tiles.forEach((tile, at) => {
         if (SOLID.has(tile)) this.solid[at] = 1;
+        if (TALL.has(tile)) this.tall[at] = 1;
         if (UNSAFE.has(tile) && !(this.rules.ice && FROZEN.has(tile))) this.blocked.add(at);
       });
     }
@@ -246,8 +252,9 @@ export class Battle {
       const lists = reach(this.road, Number(key));
       if (this.solid) {
         lists.forEach((list, at) => {
-          const x = at % SIZE + 0.5, y = Math.floor(at / SIZE) + 0.5;
-          lists[at] = list.filter((i) => lineClear(this.solid, x, y, this.road[i][0] + 0.5, this.road[i][1] + 0.5));
+          const x = at % SIZE + 0.5, y = Math.floor(at / SIZE) + 0.5, screen = this.tiles[at] === 'hill' ? this.tall
+            : this.solid;
+          lists[at] = list.filter((i) => lineClear(screen, x, y, this.road[i][0] + 0.5, this.road[i][1] + 0.5));
         });
       }
       this._scores.set(key, lists);
@@ -312,14 +319,22 @@ export class Battle {
     return Boolean(this.tiles && !tower.rider && this.tiles[tower.y * SIZE + tower.x] === 'watch');
   }
 
+  screen(t) {
+    if (!this.solid || t.cls.through || this.onWatch(t)) return null;
+    return this.onHill(t) ? this.tall : this.solid;
+  }
+
   sees(t, mob) {
+    if (t.cls.through) return true;
     if (this.covered(mob.x, mob.y)) return false;
-    if (!this.solid || this.onWatch(t)) return true;
+    const screen = this.screen(t);
+    if (!screen) return true;
     const x = Math.floor(mob.x), y = Math.floor(mob.y);
     if (!inside(x, y)) return false;
-    const key = (t.y * SIZE + t.x) * SIZE * SIZE + y * SIZE + x;
-    if (!this.sight[key]) this.sight[key] = lineClear(this.solid, t.cx, t.cy, x + 0.5, y + 0.5) ? 1 : 2;
-    return this.sight[key] === 1;
+    const key = (t.y * SIZE + t.x) * SIZE * SIZE + y * SIZE + x, known = screen === this.tall ? this.highSight
+      : this.sight;
+    if (!known[key]) known[key] = lineClear(screen, t.cx, t.cy, x + 0.5, y + 0.5) ? 1 : 2;
+    return known[key] === 1;
   }
 
   ahead(mob) {
@@ -1682,7 +1697,7 @@ export class Battle {
 
   _hurt(mob, amount, t, element = t.cls.element || null, dot = false, pierce = 0) {
     if (mob.dead || amount <= 0 || underground(mob, this.time)) return;
-    if (!dot && !t.rider && this.covered(mob.x, mob.y)) return;
+    if (!dot && !t.rider && !t.cls.through && this.covered(mob.x, mob.y)) return;
     const now = this.time;
     if (element === 'poison') {
       if (mob.undead && !t.runes.has('plague')) return;
