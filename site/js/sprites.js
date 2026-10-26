@@ -1,7 +1,7 @@
 import { HERO_IDS, drawHero } from './models.js';
 import { MOB_IDS, drawMelt, drawMob, drawSplit, gooColor } from './monsters.js';
-import { drawClod, drawCocoon, drawMeteor, drawMine, drawMound, drawNuke, drawRocket, drawTrap, drawWall }
-  from './props.js';
+import { drawClod, drawCocoon, drawCoinIcon, drawEmblem, drawHeartIcon, drawMeteor, drawMine, drawMound, drawNuke,
+  drawRocket, drawTrap, drawWall } from './props.js';
 
 const OUTLINE = '#15111d';
 
@@ -130,6 +130,12 @@ function own(image, key, make) {
 }
 
 export const heroSprite = (id) => remember('hero:' + id, () => drawHero(id));
+
+export const emblemUrl = (size = 96) => remember('emblemUrl:' + size, () => fitted(drawEmblem(), size).toDataURL());
+export const coinIconUrl = (size = 80) => remember('coinIconUrl:' + size,
+  () => fitted(drawCoinIcon(), size).toDataURL());
+export const heartIconUrl = (size = 80) => remember('heartIconUrl:' + size,
+  () => fitted(drawHeartIcon(), size).toDataURL());
 
 export const mobSprite = (id, frame = 0) => remember('mob:' + id + ':' + frame, () => drawMob(id, frame ? 1 : 0));
 
@@ -334,43 +340,6 @@ export const bulletSprite = () => remember('bullet', () => mapSprite([
   'BBb',
   'bBb',
 ], { C: '#f0a060', c: '#b8602a', B: '#e8c050', b: '#a07a20' }));
-
-const COMMAND_ICONS = {
-  move(p) {
-    p.rect(1, 4, 5, 2, '#ffe08a');
-    for (let i = 0; i < 4; i++) p.rect(5 + i, 1 + i, 1, 8 - i * 2, '#ffe08a');
-  },
-  upgrade(p) {
-    for (let i = 0; i < 4; i++) p.rect(4 - i, 1 + i, 2 + i * 2, 1, '#86efac');
-    p.rect(4, 5, 2, 4, '#86efac');
-  },
-  reroll(p) {
-    p.box(1, 1, 8, 8, '#f8fafc');
-    for (const [x, y] of [[2, 2], [7, 2], [4, 4], [5, 5], [2, 7], [7, 7]]) p.px(x, y, '#7c3aed');
-  },
-  card(p) {
-    p.ball(5, 3, 1.8, '#c4b5fd', '#8b7fd0');
-    p.oval(5, 8, 3.4, 1.6, '#c4b5fd', '#8b7fd0');
-  },
-  control(p) {
-    const teeth = [[4, 0], [0, 4], [8, 4], [4, 8], [1, 1], [7, 1], [1, 7], [7, 7]];
-    for (const [x, y] of teeth) p.rect(x, y, 2, 2, '#cbd5e1');
-    p.ball(5, 5, 3, '#cbd5e1', '#94a3b8');
-    p.disc(5, 5, 1.2, '#15111d');
-  },
-};
-
-export const commandUrl = (kind) => remember('command:' + kind, () => {
-  if (kind === 'spin') return coinUrl();
-  const p = new Pix(10, 10);
-  COMMAND_ICONS[kind](p);
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 20;
-  const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(p.outline().canvas(), 0, 0, 20, 20);
-  return canvas.toDataURL();
-});
 
 const SPARK = { core: '#ffffff', glow: '#ffd1dc', hot: '#ff5c7c', body: '#e0103a', ring: '#ffd38a',
   ringDark: '#c9853a' };
@@ -690,20 +659,6 @@ export const heartSprite = () => remember('heart', () => {
   return p.outline('#2a0710').canvas();
 });
 
-export const heartUrl = () => remember('heartUrl', () => heartSprite().toDataURL());
-
-export const shieldSprite = () => remember('shield', () => {
-  const p = new Pix(16, 18);
-  shape(p, (x, y) => {
-    const half = y < 9 ? 6.6 : 6.6 * (1 - (y - 9) / 8.4);
-    if (Math.abs(x - 8) > half || y < 1 || y > 17) return false;
-    if (Math.abs(x - 8) < 0.6) return 'dark';
-    return x < 8 ? 'light' : 'base';
-  }, '#1d4fd6', '#0b1530', '#4f9cf9');
-  p.rect(3, 2, 1, 6, '#bfe2ff');
-  p.px(4, 2, '#bfe2ff');
-  return p.outline('#0b1530').canvas();
-});
 
 const KIND_COLORS = { buff: '#4ade80', debuff: '#f87171', blessing: '#fbbf24', curse: '#c084fc', biome: '#7dd3fc',
   resist: '#94a3b8' };
@@ -878,16 +833,6 @@ export function effectIcon(kind, id, size = 40) {
 
 export const effectUrl = (kind, id, size = 40) => remember('effectUrl:' + kind + ':' + id + ':' + size,
   () => effectIcon(kind, id, size).toDataURL());
-
-export const shieldUrl = (size = 64) => remember('shieldUrl:' + size, () => {
-  const canvas = document.createElement('canvas'), image = shieldSprite();
-  canvas.width = size;
-  canvas.height = Math.round(size * image.height / image.width);
-  const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL();
-});
 
 const SWORD = [
   '.........W',

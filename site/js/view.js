@@ -1,8 +1,8 @@
 import { Scene } from './draw.js';
 import { CLASSES, CLASS_BY_ID, describe, mightOf, runeOf }
   from './classes.js';
-import { coinUrl, effectUrl, flagCanvas, flagUrl, heroUrl, markUrl, particleSprite, particleUrl, prizeUrl,
-  mightUrl, shieldUrl } from './sprites.js';
+import { coinUrl, effectUrl, emblemUrl, flagCanvas, flagUrl, heroUrl, markUrl, mightUrl, particleSprite, particleUrl,
+  prizeUrl } from './sprites.js';
 import { ASCEND_AT, EXTRA_SLOTS, OUTCOMES, PRICE, RARITIES, SLOTS, SPIN_TIME, UPGRADE_PRICE, boonOf, gearColor,
   outcomeOf, rarityOf, weaponName, weaponTitle } from './gacha.js';
 import { ASCEND_TIME } from './engine.js';
@@ -34,7 +34,7 @@ const MAP_TIPS = 'Мобы выходят из двух тоннелей. Гор
 const LOW_LIVES = 5;
 const BOSS_EVERY = 10;
 const FINAL_SECONDS = 3;
-const ROWS = { over: 5, roster: 30, pause: 10, pauseShort: 8, queue: 3, cards: 4, player: 22 };
+const ROWS = { over: 5, pause: 10, pauseShort: 8, queue: 3, cards: 4, player: 22 };
 const CARD_GAP = 6;
 const REEL = { cells: 26, result: 21, width: 34 };
 const BIG_PRIZES = new Set(['epic', 'legendary']);
@@ -77,12 +77,11 @@ const EFFECT_SLIDE = 0.6;
 const PLAYERS_HOLD = 5;
 const PLAYERS_SLIDE = 0.6;
 const RULES = [
-  ['Напиши что угодно', '— и ты в отряде'],
-  ['К7', '— встать на клетку'],
-  ['гача', '— оружие, монеты или руна за ' + PRICE + ' монет'],
-  ['профиль', '— твоя карточка, проф — короткая'],
-  ['улучшить', '— +' + MIGHT.upgrade + ' мощи оружию за ' + UPGRADE_PRICE + ' монет, «улучшить все» — на все монеты'],
-  ['реролл', '— другой класс, один раз до первой волны'],
+  ['К7', '— клетка'],
+  ['гача', '— оружие'],
+  ['улучшить', '— сильнее'],
+  ['профиль', '— карточка'],
+  ['реролл', '— другой класс'],
 ];
 
 const $ = (id) => document.getElementById(id);
@@ -229,7 +228,6 @@ export class View {
     this._ranges = new Map();
     this._lives = null;
     this._tickAt = null;
-    this._rosterSeen = new Set();
     this._sfx = [];
     this._sfxAt = new Map();
     this._herald = null;
@@ -245,8 +243,8 @@ export class View {
     this._squeezed = null;
     $('rules-board-title').textContent = RULES_TITLE;
     renderRules($('rules-text'));
-    $('emblem-left').src = shieldUrl(64);
-    $('emblem-right').src = shieldUrl(64);
+    $('emblem-left').src = emblemUrl();
+    $('emblem-right').src = emblemUrl();
     window.addEventListener('resize', () => this._fitStage());
     document.addEventListener('animationstart', keepInStep);
     this._fitStage();
@@ -269,7 +267,7 @@ export class View {
     const hint = $('hint');
     hint.textContent = 'Пиши в чат — и ты в игре:';
     const line = el('span', 'group');
-    RULES.slice(1).forEach(([command], i) => line.append(i ? ' · ' : '', el('b', '', command)));
+    RULES.forEach(([command], i) => line.append(i ? ' · ' : '', el('b', '', command)));
     const upgrade = el('span', 'group wrap');
     upgrade.append(el('b', '', 'улучшить'), ' + ', el('b', '', '5'), ' или ', el('b', '', 'все'), ' — мощь оружия ',
       mightIcon());
@@ -284,7 +282,6 @@ export class View {
       this._lives = null;
       this._names.clear();
       this._ranges.clear();
-      this._rosterSeen = new Set();
       this._slots = [];
       this._cards.forEach((card) => card.node.remove());
       this._cards.clear();
@@ -759,22 +756,6 @@ export class View {
     $('lobby-clock').textContent = clockText(game.left);
     this._paintGuide(game, still);
     const members = Array.from(game.members.values());
-    const rosterKey = JSON.stringify(members.map((m) => [m.login, m.cls, levelOf(m.xp), m.paragon]));
-    this._once('roster', rosterKey, () => {
-      const box = $('roster');
-      box.textContent = '';
-      if (!members.length) box.append(el('div', 'none', 'Пока никого — напиши что-нибудь в чат!'));
-      for (const m of members.slice(0, ROWS.roster)) {
-        const item = el('div', 'who' + (!still && !this._rosterSeen.has(m.login) ? ' pop' : ''));
-        item.append(image(heroUrl(m.cls)), this._starName(m.name, m.star));
-        if (m.paragon) item.append(paragonTag(m.paragon));
-        item.append(el('span', 'lvl', 'ур. ' + levelOf(m.xp)));
-        box.append(item);
-        this._rosterSeen.add(m.login);
-      }
-      const more = members.length - ROWS.roster;
-      if (more > 0) box.append(el('div', 'more', 'и ещё ' + more + ' ' + plural(more, 'игрок', 'игрока', 'игроков')));
-    });
     const present = new Set(members.map((m) => m.cls));
     const shown = CLASSES.filter((c) => !present.size || present.has(c.id));
     this._once('legend', shown.map((c) => c.id).join(), () => {
@@ -784,7 +765,7 @@ export class View {
         const item = el('div', 'cls'), text = el('div'), name = el('b', '', cls.name);
         name.style.color = cls.color;
         text.append(name, cls.summary);
-        item.append(image(heroUrl(cls.id)), text);
+        item.append(image(heroUrl(cls.id, 88)), text);
         box.append(item);
       }
     });
@@ -803,7 +784,6 @@ export class View {
     });
     const fill = $('lobby-tabs').querySelector('i');
     if (fill) fill.style.width = (part * 100).toFixed(1) + '%';
-    $('lobby-squad').hidden = page.id !== 'squad';
     $('lobby-classes').hidden = page.id !== 'classes';
     $('lobby-guide').hidden = !page.points;
     if (!page.points) return;

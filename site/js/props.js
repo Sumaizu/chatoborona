@@ -393,3 +393,53 @@ export function drawRelic(kind, biome) {
   RELICS[kind](m, look);
   return m.paint();
 }
+
+function crest(m, top, width, height, z, depth, color, gloss) {
+  for (let y = top; y <= top + height; y += 0.5) {
+    const t = (y - top) / height, half = t < 0.42 ? width : width * Math.pow(Math.max(0, 1 - (t - 0.42) / 0.58), 0.8);
+    for (let x = 24 - half; x <= 24 + half; x += 0.5) {
+      const nx = (x - 24) / (width * 1.15), ny = (y - top - height * 0.4) / (height * 0.95);
+      const nz = Math.sqrt(Math.max(0.08, 1 - nx * nx - ny * ny)), [px, py] = m.place(x, y);
+      m.plot(px, py, (z + depth * nz) * m.k, color, [nx, ny, nz], 0, gloss);
+    }
+  }
+}
+
+export function drawEmblem() {
+  const m = new Model(48, 1);
+  crest(m, 4, 19, 40, 0, 3, '#1e3a8a', 0.2);
+  crest(m, 6.5, 16.5, 35, 2, 3, '#2563eb', 0.4);
+  crest(m, 8.5, 12, 14, 4, 1.5, '#60a5fa', 0.6);
+  const sword = (tx, ty, hx, hy) => {
+    const len = Math.hypot(hx - tx, hy - ty), gx = tx + (hx - tx) * 0.72, gy = ty + (hy - ty) * 0.72;
+    const px = -(hy - ty) / len * 5, py = (hx - tx) / len * 5;
+    m.limb(tx, ty, 10, gx, gy, 10, 1.2, '#f1f5f9', 0.9, 2);
+    m.limb(gx - px, gy - py, 11, gx + px, gy + py, 11, 1.4, '#facc15', 0.8);
+    m.limb(gx, gy, 10.5, hx, hy, 10.5, 1.4, '#7c2d12', 0.3);
+    m.ball(hx, hy, 11, 2, '#facc15', 0.8);
+  };
+  sword(7, 3, 36, 40);
+  sword(41, 3, 12, 40);
+  m.ball(24, 22, 12, 3.6, '#facc15', 0.9);
+  m.ball(23, 21, 15, 1.3, '#fff7c2', 1);
+  return m.paint();
+}
+
+export function drawCoinIcon() {
+  const m = new Model(32, 1);
+  m.egg(16, 16, 0, 14, 14, 3.5, '#b7791f', 0.3);
+  m.egg(16, 16, 2.5, 12, 12, 2.5, '#f2b632', 0.5);
+  m.egg(16, 16, 4.5, 7.5, 7.5, 1.5, '#fbd25a', 0.6);
+  around(14, 0, 16, 16, 12.6, 12.6, (x, y) => m.ball(x, y, 3.6, 0.9, '#d69e2e', 0.4));
+  m.ball(12.5, 12, 6.5, 1.7, '#fff4c2', 1);
+  return m.paint();
+}
+
+export function drawHeartIcon() {
+  const m = new Model(32, 1);
+  m.ball(10.5, 11.5, 2, 7.2, '#e11d48', 0.5);
+  m.ball(21.5, 11.5, 2, 7.2, '#e11d48', 0.5);
+  m.limb(16, 16.5, 1.5, 16, 29, 0.5, 8.4, '#e11d48', 0.5, 0.8);
+  m.ball(9.5, 9, 7, 2.2, '#fda4af', 0.9);
+  return m.paint();
+}

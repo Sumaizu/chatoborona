@@ -16,8 +16,8 @@
 <div class="row" id="icons"></div>
 <div class="row" id="effects"></div>
 <script type="module">
-  import { HEROES, MOB_KINDS, bulletSprite, cocoonSprite, coinSprite, commandUrl, effectIcon, heartSprite,
-    heroSprite, meteorSprite, mineSprite, mobSprite, prizeIcon, rocketSprite, shieldSprite, wallSprite }
+  import { HEROES, MOB_KINDS, bulletSprite, cocoonSprite, coinIconUrl, coinSprite, effectIcon, emblemUrl, heartIconUrl,
+    heartSprite, heroSprite, meteorSprite, mineSprite, mobSprite, prizeIcon, rocketSprite, wallSprite }
     from '../site/js/sprites.js';
   import { OUTCOMES, RARITIES } from '../site/js/gacha.js';
   import { BLESSINGS, BUFFS, CURSES, DEBUFFS } from '../site/js/events.js';
@@ -39,10 +39,10 @@
   }
   for (const stage of [0, 1, 2]) show('effects', wallSprite(stage), 4, 'стена ' + stage);
   for (const kind of ['mine', 'big', 'grenade']) show('effects', mineSprite(kind, true), 6, kind);
-  for (const kind of ['move', 'spin', 'upgrade', 'card', 'control']) {
+  for (const [label, url] of [['emblem', emblemUrl()], ['coin', coinIconUrl()], ['heart', heartIconUrl()]]) {
     const picture = new Image();
-    picture.onload = () => show('effects', picture, 3, kind);
-    picture.src = commandUrl(kind);
+    picture.onload = () => show('icons', picture, 1, label);
+    picture.src = url;
   }
   show('mobs', coinSprite(), 6, 'coin');
   show('icons', prizeIcon('weapon', RARITIES[RARITIES.length - 1].color, 64), 1, 'weapon');
@@ -52,7 +52,6 @@
   show('effects', meteorSprite(), 6, 'метеорит');
   show('effects', bulletSprite(), 8, 'пуля');
   show('mobs', heartSprite(), 6, 'heart');
-  show('mobs', shieldSprite(), 6, 'shield');
   for (const [kind, list] of [['buff', BUFFS], ['debuff', DEBUFFS], ['blessing', BLESSINGS], ['curse', CURSES]]) {
     for (const effect of list) show('effects', effectIcon(kind, effect.id, 56), 1, effect.id);
   }

@@ -74,8 +74,8 @@ test('страницы: оверлей сам открывает набор, ч�
   const w = frame.contentWindow, game = w.chatoborona.game;
   await until(() => game.state === 'lobby', 'набор');
   for (const name of ['Аня', 'Боря', 'Вика']) join(game, name);
-  await until(() => w.document.querySelectorAll('#roster .who').length === 3, 'трое в отряде');
-  ok(text(w, 'roster').includes('Боря'));
+  await until(() => text(w, 'players').includes('Вика'), 'трое в отряде');
+  ok(text(w, 'players').includes('Боря'));
   game.next();
   await until(() => game.state === 'placing', 'расстановка');
   await until(() => element(w, 'lobby').hidden, 'карта на экране');
@@ -341,25 +341,22 @@ test('страницы: !чатоборона в оверлее — правил
   frame.remove();
 });
 
-test('страницы: в наборе сменяются страницы правил, отряда и классов; круг — ровно весь набор', async () => {
-  eq(PAGES.reduce((sum, page) => sum + page.time, 0), DEFAULTS.lobby, 'страницы кончаются вместе с набором');
+test('страницы: в наборе две страницы — как играть и классы; правила и классы проходят ровно за набор', async () => {
+  eq(PAGES.map((page) => page.id), ['how', 'classes']);
+  const cycle = PAGES.reduce((sum, page) => sum + page.time, 0);
+  eq(DEFAULTS.lobby % cycle, 0, 'страницы кончаются вместе с набором');
   fresh();
-  const frame = await overlay('lobby=300');
+  const frame = await overlay('lobby=180');
   const w = frame.contentWindow, game = w.chatoborona.game;
   await until(() => game.state === 'lobby', 'набор');
-  await until(() => w.document.querySelectorAll('#lobby-tabs span').length === PAGES.length, 'вкладки');
+  await until(() => w.document.querySelectorAll('#lobby-tabs span').length === 2, 'две вкладки');
   ok(!element(w, 'lobby-guide').hidden && text(w, 'lobby-guide').includes('что угодно')
     && text(w, 'lobby-guide').includes('гача'), 'сначала — как играть');
-  const start = (id) => PAGES.slice(0, PAGES.findIndex((page) => page.id === id)).reduce((t, page) => t + page.time, 0);
+  no(/%|сундук|руна/.test(text(w, 'lobby-guide')), 'без процентов и подробностей гачи');
   join(game, 'Аня');
-  game.left = game.s.lobby - start('squad') - 1;
-  await until(() => !element(w, 'lobby-squad').hidden && element(w, 'lobby-guide').hidden, 'отряд');
-  ok(text(w, 'roster').includes('Аня'));
-  game.left = game.s.lobby - start('classes') - 1;
-  await until(() => !element(w, 'lobby-classes').hidden && element(w, 'lobby-squad').hidden, 'классы');
-  game.left = game.s.lobby - start('coins') - 1;
-  await until(() => w.document.querySelector('#lobby-tabs .on').textContent === 'Монеты и гача', 'монеты и гача');
-  await until(() => !element(w, 'lobby-guide').hidden && text(w, 'lobby-guide').includes('сундук'), 'текст страницы');
+  game.left = game.s.lobby - PAGES[0].time - 1;
+  await until(() => !element(w, 'lobby-classes').hidden && element(w, 'lobby-guide').hidden, 'классы');
+  ok(text(w, 'legend').includes(CLASSES.find((cls) => cls.id === game.members.get('аня').cls).name), 'класс Ани');
   frame.remove();
 });
 
