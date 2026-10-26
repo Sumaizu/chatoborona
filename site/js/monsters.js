@@ -979,6 +979,53 @@ const MOBS = {
       },
     });
   }],
+  diablo: [60, (m, f) => {
+    const c = 30, sway = f ? 1.8 : -1.8, horn = '#eadfc4', spike = '#e2d6b8';
+    const tail = [[c, 41, 5], [c + sway, 47, 4.4], [c - sway * 0.6, 52, 3.8], [c + sway * 1.4, 56.5, 3.4]];
+    for (let i = 0; i + 1 < tail.length; i++) {
+      const [x0, y0, z0] = tail[i], [x1, y1, z1] = tail[i + 1];
+      m.limb(x0, y0, z0, x1, y1, z1, 2.6 - i * 0.6, '#7f1d1d', 0.2, 2 - i * 0.55);
+      m.limb(x0, y0 + 1, z0 + 2, x0, y0 + 2.6, z0 + 3.4, 0.9, spike, 0.3, 0.15);
+    }
+    const [tx, ty] = tail[tail.length - 1];
+    m.limb(tx, ty, 3.6, tx - sway * 0.6, ty + 3, 3.6, 1.3, spike, 0.4, 0.15);
+    walker(m, f, {
+      s: 1.75, legs: '#5b0f0f', body: '#8f1414', skin: '#b91c1c', shoulderColor: '#7f1d1d', headColor: '#a51d1d',
+      wide: 8.4, reach: 7.4, spread: 8.2, head: 4.2, arm: 2, wrist: 1.6, hand: 2,
+      chest: (cx, y, s) => {
+        for (const side of [-1, 1]) {
+          m.egg(cx + side * 3.4 * s, y + 1.2 * s, 13.6, 3.3, 2.5, 1, '#b42318');
+          m.limb(cx + side * 1.6 * s, y + 0.4 * s, 14.8, cx + side * 4.6 * s, y + 2 * s, 14.8, 0.45, '#ff7a1f', 1);
+          m.limb(cx + side * 3.6 * s, y - 0.2 * s, 14.8, cx + side * 3 * s, y + 2.6 * s, 14.8, 0.4, '#ffb020', 1);
+          m.limb(cx + side * 6.6 * s, y + 0.4 * s, 15, cx + side * 10.4 * s, y + 3.6 * s, 20, 1.8, spike, 0.3, 0.15);
+          m.limb(cx + side * 5 * s, y - 0.4 * s, 15, cx + side * 7.6 * s, y + 3 * s, 18.6, 1.3, spike, 0.3, 0.15);
+        }
+        for (let k = 0; k < 4; k++) {
+          for (const side of [-1, 1]) {
+            const x = cx + side * (1.5 - k * 0.15) * s, y0 = y + (2.6 + 2.2 * k) * s;
+            m.limb(x, y0, 14.6 - k, x + side * 0.5 * s, y0 + 1.1 * s, 17.4 - k, 1.2 - k * 0.12, spike, 0.3, 0.12);
+          }
+        }
+      },
+      hands: (hands) => {
+        for (const [hx, hy] of hands) {
+          for (const k of [-1, 0, 1]) {
+            m.limb(hx + k * 1.4, hy - 1, 16, hx + k * 2, hy - 4.6, 16.4, 0.65, spike, 0.3, 0.15);
+          }
+        }
+      },
+      face: (cx, y, s) => {
+        for (const side of [-1, 1]) {
+          m.limb(cx + side * 2.8 * s, y - 3.4 * s, 23, cx + side * 7.4 * s, y - 4.6 * s, 25, 1.9, horn, 0.6, 1.2);
+          m.limb(cx + side * 7.4 * s, y - 4.6 * s, 25, cx + side * 8.8 * s, y - 9.4 * s, 26, 1.2, horn, 0.6, 0.25);
+          m.limb(cx + side * 1.2 * s, y - 1.4 * s, 19, cx + side * 1.6 * s, y + 1.2 * s, 21, 0.8, spike, 0.3, 0.15);
+          m.dot(cx + side * 2 * s, y - 5 * s, '#fde047', 80);
+        }
+        m.egg(cx, y - 5.4 * s, 17.2, 2.4, 0.8, 0.5, '#450a0a');
+        m.limb(cx - 1.4 * s, y - 6 * s, 17.8, cx + 1.4 * s, y - 6 * s, 17.8, 0.35, spike, 0.3);
+      },
+    });
+  }],
   lich: [50, (m, f) => walker(m, f, {
     s: 1.45, legs: '#2e1065', body: '#6b21a8', skin: '#ebe5d6', handColor: '#ebe5d6', shoulderColor: '#4c1d95',
     headColor: '#ebe5d6', wide: 9, reach: 7.5, arm: 1.6, wrist: 1.3, hand: 1.7,

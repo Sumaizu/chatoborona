@@ -10,7 +10,7 @@ export const resistOf = (wave) => 1 - Math.pow(RESIST.keep, Math.floor(Math.max(
 export const STAT = { grades: { low: 6, mid: 12, high: 18 }, mastery: 12, damage: 0.02, skill: 0.02, critBase: 1.5,
   critPower: 0.015, critChance: 0.005, critMax: 0.5, speed: 0.02, reach: 0.02, element: 0.02, masteryMax: 0.6,
   masteryHalf: 20, luckHalf: 20 };
-export const MIGHT = { base: 100, paragon: 0.05, lift: 0.45, upgrade: 6, divine: 0.03, spread: 0.2,
+export const MIGHT = { base: 100, paragon: 0.05, lift: 0.45, upgrade: 6, divine: 10, spread: 0.2,
   rarity: { common: 4, rare: 8, mythic: 17, epic: 27, legendary: 40 } };
 
 export const MOBS = {
@@ -65,7 +65,9 @@ export const POWERS = {
   frenzy: { id: 'frenzy', name: 'Неистовство', text: 'раз в 8 секунд на 3 секунды несётся почти вдвое быстрее, '
     + 'и его не остановить', every: 8, time: 3, boost: 0.8, steady: true },
   steadfast: { id: 'steadfast', name: 'Каменная кожа', text: 'не замедляется, не оглушается, не отбрасывается '
-    + 'и получает на 20% меньше урона', cut: 0.2, steady: true },
+    + 'и получает на 20% меньше урона', cut: 0.2, firm: true },
+  doom: { id: 'doom', name: 'Владыка ужаса', text: 'огонь его не берёт; не замедляется, не оглушается и не '
+    + 'отбрасывается; дойдёт до сердца — разобьёт его одним ударом', firm: true },
   hex: { id: 'hex', name: 'Сглаз', text: 'раз в 6 секунд оглушает ближайшего защитника на 1,5 секунды', every: 6,
     range: 3, hold: 1.5 },
   leech: { id: 'leech', name: 'Кровосос', text: 'лечится, когда рядом гибнут мобы', range: 2.5, drain: 0.1 },
@@ -140,7 +142,7 @@ export const MIMIC = { id: 'mimic', name: 'Мимик', power: 'treasure', glow:
 
 export const ELITE_ODDS = { from: 3, base: 0.15, step: 0.012, top: 0.7, fall: 0.45, max: 4 };
 
-export const REWARD = { coins: 4, coinsStep: 0.6, xp: 1, xpStep: 0.1, income: 0.1 };
+export const REWARD = { coins: 4, coinsStep: 0.6, xp: 1, xpStep: 0.1 };
 
 export const ELITES = [
   { id: 'leader', name: 'Вожак', power: 'dash', glow: '#facc15' },
@@ -180,6 +182,9 @@ export const BOSSES = [
   { id: 'shatun', name: 'Медведь-шатун', power: 'roar', glow: '#b45309', from: 20 },
   { id: 'warlord', name: 'Вождь орды', power: 'drums', glow: '#84cc16', from: 30 },
 ];
+
+export const DIABLO = { id: 'diablo', name: 'Диабло', title: 'Последний босс', power: 'doom', element: 'fire',
+  glow: '#dc2626', hp: 12, fatal: true };
 
 export const LOOKS = {
   normal: [{ id: 'zombie', name: 'Зомби', undead: true },
@@ -255,6 +260,9 @@ export const FAMILIES = [
 
 export const FAMILY_BY_ID = new Map(FAMILIES.map((family) => [family.id, family]));
 
+export const FINALE = { id: 'finale', name: 'Диабло', of: 'Диабло', every: 100, hp: 1, looks: [], elites: [],
+  bosses: [DIABLO.id] };
+
 const earliest = (list) => list.reduce((best, kind) => ((kind.from || 0) < (best.from || 0) ? kind : best));
 
 export function familyPool(family, list, wave) {
@@ -278,7 +286,7 @@ export const lookOf = (id) => {
 export const WAVE = {
   hp: 21,
   growth: 1.05,
-  accel: 0.0004,
+  accel: 0.0003,
   players: 0.75,
   crowd: 0.85,
   pivot: 10,

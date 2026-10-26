@@ -65,7 +65,7 @@ export function makeWeapon(random, cls, rarity = pick(RARITIES, random)) {
 }
 
 export function upgrade(weapon) {
-  const amount = weapon.rarity === DIVINE.id ? Math.max(1, Math.round(weapon.power * MIGHT.divine)) : MIGHT.upgrade;
+  const amount = weapon.rarity === DIVINE.id ? MIGHT.divine : MIGHT.upgrade;
   weapon.power += amount;
   weapon.plus = (weapon.plus || 0) + 1;
   const ascended = weapon.rarity === 'legendary' && weapon.plus >= ASCEND_AT;

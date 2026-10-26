@@ -697,31 +697,26 @@ test('подсказки новичкам: при входе, на 50 монет
   eq(tips(), [], 'каждая — один раз за игру');
 });
 
-test('доход: после волны — ещё 10% от монет, что были до награды, вниз до целой монеты', () => {
+test('за волну — только награда волны, дохода от своих монет нет', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Тёма', 'привет');
-  say(game, 'Яна', 'привет');
   say(game, 'Паша', 'привет');
-  const tema = game.members.get('тёма'), yana = game.members.get('яна'), pasha = game.members.get('паша');
+  const tema = game.members.get('тёма'), pasha = game.members.get('паша');
   tema.cls = 'sniper';
-  yana.cls = 'gunner';
   pasha.cls = 'parasite';
   toWave(game);
   pasha.coins = 100;
-  tema.coins = 205;
-  yana.coins = 9;
+  tema.coins = 5000;
   const reward = waveReward(game.wave).coins;
   game.events.length = 0;
   game.battle.events.length = 0;
   game._endWave();
-  eq(tema.coins, 205 + reward + 20);
-  eq(yana.coins, 9 + reward, 'меньше 10 монет — дохода нет');
+  eq(tema.coins, 5000 + reward);
   const cocoon = game.battle.events.find((e) => e.kind === 'cocoon' && e.tower === pasha.tower);
   ok(cocoon, 'паразит в коконе получил монеты за волну');
-  eq(pasha.coins, 100 + cocoon.coins + reward + 10, 'доход — с монет до всех начислений за волну');
-  eq(REWARD.income, 0.1);
-  ok(game.events.some((e) => e.kind === 'cleared' && e.income === REWARD.income));
+  eq(pasha.coins, 100 + cocoon.coins + reward);
+  no('income' in REWARD);
 });
 
 test('за пройденную волну всем — монеты и опыт', () => {

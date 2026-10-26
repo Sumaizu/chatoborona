@@ -291,9 +291,12 @@ test('улучшение: легендарное на +30 становится �
   ok(rankOf(weapon) > rankOf({ rarity: 'legendary' }), 'выше легендарного');
   const before = weapon.power, next = upgrade(weapon);
   eq(weapon.plus, 1);
-  eq(next.amount, Math.round(before * MIGHT.divine), 'по ' + MIGHT.divine * 100 + '%: ' + next.amount);
+  eq(next.amount, MIGHT.divine, 'по ' + MIGHT.divine + ' мощи');
+  ok(MIGHT.divine > MIGHT.upgrade, 'больше обычного улучшения');
   eq(weapon.power, before + next.amount);
   eq(weaponTitle(weapon), 'Божественный карабин +1');
+  for (let i = 0; i < 499; i++) upgrade(weapon);
+  eq(weapon.power, before + 500 * MIGHT.divine, 'растёт ровно, а не процентами от набранного');
 });
 
 test('гача: частица бога — 0,2%, у кого она есть, тому не выпадает', () => {

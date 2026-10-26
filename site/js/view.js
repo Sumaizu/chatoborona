@@ -418,9 +418,8 @@ export class View {
       if (event.kind === 'cleared') {
         this._cue('reward');
         const coins = plural(event.coins, 'монета', 'монеты', 'монет');
-        this.scene.say('Волна ' + event.wave + ' пройдена: всем +' + event.coins + ' ' + coins + ', +'
-          + Math.round(event.income * 100) + '% к своим монетам и +' + String(event.xp).replace('.', ',') + ' опыта',
-          '#fde047');
+        this.scene.say('Волна ' + event.wave + ' пройдена: всем +' + event.coins + ' ' + coins + ' и +'
+          + String(event.xp).replace('.', ',') + ' опыта', '#fde047');
       }
       if (event.kind === 'event') this._cue(GOOD_EVENTS.has(event.type) ? 'buff' : 'debuff');
       if (event.kind === 'wave') this._cue(event.wave % BOSS_EVERY === 0 ? 'boss' : 'wave');
@@ -466,8 +465,9 @@ export class View {
       this._sound(event.mob.info.boss ? 'roar' : 'growl');
       const mob = event.mob;
       const skill = mob.skill ? '. ' + mob.skill.name + ': ' + mob.skill.text : '';
-      this._herald = { mob, left: HERALD_TIME, title: mob.info.boss ? 'Босс' : 'Элитный', name: mob.kind.name,
-        text: mob.power.name + ': ' + mob.power.text + skill, glow: mob.kind.glow, boss: mob.info.boss };
+      this._herald = { mob, left: HERALD_TIME, title: mob.kind.title || (mob.info.boss ? 'Босс' : 'Элитный'),
+        name: mob.kind.name, text: mob.power.name + ': ' + mob.power.text + skill, glow: mob.kind.glow,
+        boss: mob.info.boss };
       this._keys.herald = '';
     } else if (kind === 'wild') {
       this._sound('roar');

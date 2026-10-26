@@ -1,7 +1,7 @@
 import { SIZE, inside, pathCells, reach } from './field.js';
-import { AFFIXES, BIOME_RULES, BOSSES, ELITES, FAMILIES, LIVES, LOOKS, MIGHT, MIMIC, MOBS, POWERS, SILVER, SLIMES,
-  STAT, TERRAIN, WAVE, eliteCount, familyPool, levelOf, lookOf, resistOf, silverChance, waveHp, waveSpawns }
-  from './balance.js';
+import { AFFIXES, BIOME_RULES, BOSSES, DIABLO, ELITES, FAMILIES, FINALE, LIVES, LOOKS, MIGHT, MIMIC, MOBS, POWERS,
+  SILVER, SLIMES, STAT, TERRAIN, WAVE, eliteCount, familyPool, levelOf, lookOf, resistOf, silverChance, waveHp,
+  waveSpawns } from './balance.js';
 import { CLASS_BY_ID, PERKS, RUNE_CAPS, baseOf, mastery, mightOf, scaled } from './classes.js';
 import { ASSIST_COINS, KILL_COINS } from './gacha.js';
 
@@ -119,7 +119,7 @@ const MIRAGE_GAP = 0.35;
 const big = (mob) => mob.info.elite || mob.info.boss;
 const prized = (mob) => big(mob) || Boolean(mob.silver);
 const lookOfMob = (mob) => Object.values(LOOKS).flat().find((look) => look.id === mob.look) || null;
-const steady = (mob, now) => mob.wild || Boolean(mob.power) && (mob.power.id === 'steadfast'
+const steady = (mob, now) => mob.wild || Boolean(mob.power) && (Boolean(mob.power.firm)
   || mob.power.steady && mob.powerUntil > now);
 const veiled = (mob, now) => Boolean(mob.power) && mob.power.id === 'veil' && mob.powerUntil > now;
 const underground = (mob, now) => mob.underUntil > now
@@ -401,6 +401,10 @@ export class Battle {
   }
 
   planFamily(wave) {
+    if (wave % FINALE.every === 0) {
+      this.nextFamily = FINALE;
+      return FINALE;
+    }
     const open = FAMILIES.filter((family) => !family.from || family.from <= wave);
     const fresh = open.filter((family) => family !== this.family);
     const pool = fresh.length ? fresh : open;
@@ -415,11 +419,14 @@ export class Battle {
     const family = this.nextFamily || this.planFamily(wave);
     this.family = family;
     this.nextFamily = null;
-    const pick = (list) => list[Math.floor(this.random() * list.length)];
-    const elites = familyPool(family, ELITES, wave), boss = pick(familyPool(family, BOSSES, wave));
-    const plan = waveSpawns(wave, family.count || 1), length = plan.length ? plan[plan.length - 1].delay : 0;
-    for (let i = eliteCount(wave, this.random); i > 0; i--) plan.push({ type: 'elite', delay: this.random() * length });
-    if (wave >= MIMIC.from && this.random() < MIMIC.chance) {
+    const pick = (list) => list[Math.floor(this.random() * list.length)], finale = family === FINALE;
+    const elites = familyPool(family, ELITES, wave), boss = finale ? DIABLO : pick(familyPool(family, BOSSES, wave));
+    const plan = finale ? [{ type: 'boss', delay: 0 }] : waveSpawns(wave, family.count || 1);
+    const length = plan.length ? plan[plan.length - 1].delay : 0;
+    for (let i = finale ? 0 : eliteCount(wave, this.random); i > 0; i--) {
+      plan.push({ type: 'elite', delay: this.random() * length });
+    }
+    if (!finale && wave >= MIMIC.from && this.random() < MIMIC.chance) {
       plan.push({ type: 'elite', delay: this.random() * length, kind: MIMIC });
     }
     this.wild = false;
@@ -432,7 +439,10 @@ export class Battle {
         return spawn;
       }
       spawn.hp *= family.hp;
-      if (s.type === 'boss') spawn.kind = boss;
+      if (s.type === 'boss') {
+        spawn.kind = boss;
+        spawn.hp *= boss.hp || 1;
+      }
       else if (s.type === 'elite') spawn.kind = pick(elites);
       else {
         spawn.look = pick(familyPool(family, LOOKS[s.type], wave));
@@ -563,7 +573,7 @@ export class Battle {
       phaseAt: this.time + 1, underUntil: 0, phaseUntil: 0, thief: shape && shape.thief || 0, stolen: 0,
       robbed: null, mirage: Boolean(shape && shape.mirage), fake: Boolean(spawn.fake), front: shape && shape.front
         || 0, ward: 0, cargo: power && power.cargo || 0, leak: kind && kind.leak || info.leak,
-      fireproof: kind && kind.fireproof || 0, curlReady: 0,
+      fireproof: kind && kind.fireproof || 0, curlReady: 0, fatal: Boolean(kind && kind.fatal),
       element: shape && shape.element || silver && silver.element || null, slime: shape && shape.slime || 0,
       immuneAt: 0, silver, undead: Boolean(shape && shape.undead),
       armor: Math.max(shape && shape.armor || 0, silver && silver.armor || 0),
@@ -1247,15 +1257,16 @@ export class Battle {
       if (mob.biting) {
         if (now - mob.biting < BITE_TIME) continue;
         mob.dead = true;
-        const shield = this._shield(mob);
+        const shield = mob.fatal ? null : this._shield(mob);
         if (shield) {
           this._event({ kind: 'shield', mob, tower: shield });
           continue;
         }
-        this.lives -= mob.leak;
-        this.leaked += mob.leak;
+        const lost = mob.fatal ? Math.max(0, this.lives) : mob.leak;
+        this.lives -= lost;
+        this.leaked += lost;
         this._event({ kind: 'leak', mob });
-        if (this.lives <= 0) this._rescue();
+        if (this.lives <= 0 && !mob.fatal) this._rescue();
         continue;
       }
       mob.wall = null;
@@ -1942,20 +1953,19 @@ export class Battle {
   _heist(t, victim, now) {
     const s = t.s[2], coins = Math.floor(victim.player.coins);
     victim.player.coins -= coins;
-    t.player.coins += coins;
     t.perch = { tower: victim, until: now + s.nap };
     t.busy = Math.max(t.busy, now + s.nap);
     t.napUntil = now + s.nap;
     victim.busy = Math.max(victim.busy, now + s.sleep);
     victim.napUntil = Math.max(victim.napUntil, now + s.sleep);
     this._event({ kind: 'heist', tower: t, victim, coins });
+    return coins;
   }
 
-  _share(t) {
-    const coins = Math.floor(t.player.coins), all = this.towers.slice();
+  _share(t, coins) {
+    const all = this.towers.slice();
     const weights = all.map(() => this.random()), sum = weights.reduce((total, w) => total + w, 0) || 1;
     let left = coins;
-    t.player.coins -= coins;
     const shares = all.map((other, i) => {
       const part = i === all.length - 1 ? left : Math.min(left, Math.floor(coins * weights[i] / sum));
       left -= part;
@@ -2324,8 +2334,13 @@ const SKILLS = {
       const s = t.s[2], rich = b.towers.filter((other) => other !== t && !other.rider && other.player.coins > s.rich);
       if (!rich.length && t.player.coins <= s.rich) return;
       t.nextActive = now + s.every;
-      if (rich.length) b._heist(t, rich[Math.floor(b.random() * rich.length)], now);
-      if (t.player.coins > s.rich) b._share(t);
+      let loot = rich.length ? b._heist(t, rich[Math.floor(b.random() * rich.length)], now) : 0;
+      const spare = Math.floor(t.player.coins) - s.rich;
+      if (spare > 0) {
+        t.player.coins -= spare;
+        loot += spare;
+      }
+      if (loot > 0) b._share(t, loot);
     },
   },
   miner: {

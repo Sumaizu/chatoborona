@@ -3,8 +3,9 @@ import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
 import { BITE_TIME, BURST, Battle, CRIMSON, DISCHARGE, FUSION, HEADWIND, MOVE_PAUSE, NUKE_FLIGHT, OVERTIME, PLAGUE,
   PLANTED, ROT, SECOND, SHELL_FLIGHT, SPLIT_TIME, THORN } from '../../site/js/battle.js';
 import { SIZE } from '../../site/js/field.js';
-import { AFFIXES, BOSSES, ELITES, FAMILIES, FAMILY_BY_ID, LIVES, LOOKS, MIGHT, MIMIC, MOBS, POWERS, SILVER, TERRAIN,
-  TICK, familyPool, resistOf, silverChance, waveSpawns, xpForLevel } from '../../site/js/balance.js';
+import { AFFIXES, BOSSES, DIABLO, ELITES, FAMILIES, FAMILY_BY_ID, FINALE, LIVES, LOOKS, MIGHT, MIMIC, MOBS, POWERS,
+  SILVER, TERRAIN, TICK, familyPool, resistOf, silverChance, waveHp, waveSpawns, xpForLevel }
+  from '../../site/js/balance.js';
 import { ASSIST_COINS, KILL_COINS } from '../../site/js/gacha.js';
 import { CLASSES, CLASS_BY_ID, RUNE_CAPS, baseOf } from '../../site/js/classes.js';
 
@@ -997,29 +998,67 @@ test('паразит: с 30-го, добив моба, иногда пирует
   near(bug.player.xp - xp, MOBS.normal.xp * earn.xp * (1 + bug.s[1].bonus));
 });
 
-test('паразит: с 50-го забирает монеты богатого союзника себе, а набрав больше 1000 — раздаёт всем и себе', () => {
+test('паразит: с 50-го раз в 30 с забирает монеты богатого союзника и раздаёт их всем, свои держит до 1000', () => {
   const battle = makeBattle(), bug = battle.placeRider(level(50), 'parasite');
   const rich = battle.place(player(), 'gunner', 2, 4), poor = battle.place(player(), 'gunner', 2, 6);
+  eq(bug.s[2].every, 30);
+  bug.player.coins = 600;
   rich.player.coins = 2000;
   battle.step(TICK);
   const heist = battle.events.find((e) => e.kind === 'heist'), share = battle.events.find((e) => e.kind === 'share');
-  ok(heist && heist.victim === rich && heist.coins === 2000, 'забрал всё себе');
-  ok(share && share.coins === 2000, 'и раздал, раз стало больше 1000');
+  ok(heist && heist.victim === rich && heist.coins === 2000, 'забрал всё');
+  ok(share && share.coins === 2000, 'раздал только украденное');
   eq(share.shares.map((part) => part.tower).sort(), [bug, rich, poor].sort(), 'всем, себе тоже');
-  near(rich.player.coins + poor.player.coins + bug.player.coins, 2000, 'ни одна монета не пропала');
+  eq(bug.player.coins, 600 + share.shares.find((part) => part.tower === bug).coins, 'свои 600 остались при нём');
+  near(rich.player.coins + poor.player.coins + bug.player.coins, 2600, 'ни одна монета не пропала');
   ok(bug.perch && bug.perch.tower === rich, 'спит у него на голове');
   ok(rich.napUntil >= battle.time + bug.s[2].sleep - 1, 'союзник спит минуту');
   rich.player.coins = 5000;
-  runFor(battle, 30);
-  eq(rich.player.coins, 5000, 'не чаще раза в минуту');
+  runFor(battle, 25);
+  eq(rich.player.coins, 5000, 'раньше 30 секунд не прыгает');
+  runFor(battle, 6);
+  eq(battle.events.filter((e) => e.kind === 'heist').length, 2, 'через 30 секунд — снова');
   const field = makeBattle(), alone = field.placeRider(level(50), 'parasite'), mate = field.place(player(), 'gunner',
     2, 4);
   alone.player.coins = 1500;
   field.step(TICK);
   no(field.events.some((e) => e.kind === 'heist'), 'богатых нет — не прыгает');
-  ok(field.events.some((e) => e.kind === 'share'), 'но свои больше 1000 раздаёт');
+  const spare = field.events.find((e) => e.kind === 'share');
+  ok(spare && spare.coins === 500, 'свои сверх 1000 раздаёт');
   near(alone.player.coins + mate.player.coins, 1500);
+  ok(alone.player.coins >= 1000, 'тысячу оставил себе');
   no(alone.perch);
+});
+
+test('Диабло: на 100-й волне выходит один, без мобов, крепче обычного босса вдвенадцатеро, огонь его не берёт', () => {
+  const battle = makeBattle();
+  eq(battle.planFamily(99) === FINALE, false);
+  eq(battle.planFamily(100), FINALE);
+  battle.startWave(100, 10);
+  eq(battle.spawns.length, 1, 'один');
+  const spawn = battle.spawns[0];
+  eq([spawn.type, spawn.kind], ['boss', DIABLO]);
+  near(spawn.hp, waveHp(100, 'boss', 10) * DIABLO.hp);
+  ok(BOSSES.every((boss) => boss.id !== DIABLO.id), 'в обычные волны не попадает');
+  const fire = battle.place(level(50), 'pyro', 3, 4), devil = battle._spawn(spawn, 5);
+  still(devil);
+  battle._hurt(devil, 1000, fire, 'fire');
+  eq(devil.hp, devil.max, 'огонь не берёт');
+  battle._hold(devil, 5, fire);
+  ok(!(devil.holdUntil > battle.time), 'не оглушается');
+  battle.planFamily(200);
+  eq(battle.nextFamily, FINALE, 'и на 200-й');
+});
+
+test('Диабло у сердца разбивает его одним ударом: щит и второй шанс лекаря не спасают', () => {
+  const battle = makeBattle(), healer = battle.place(level(50), 'healer', 3, 4);
+  battle.setMods(healer, { runes: ['guardian', 'second'] });
+  battle.random = () => 0;
+  const devil = battle._spawn({ type: 'boss', kind: DIABLO, hp: 1e12 }, battle.length - 2);
+  for (let i = 0; i < 400 && battle.lives > 0; i++) battle.step(TICK);
+  eq(battle.lives, 0, 'сердце разбито');
+  ok(devil.dead);
+  no(battle.events.some((e) => e.kind === 'shield' || e.kind === 'rescue'), 'лекарь не спас');
 });
 
 test('паразит: руна «Бешенство» — кусает втрое чаще, «Смертельный шип» — иногда добивает раненого', () => {
