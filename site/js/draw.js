@@ -1,5 +1,5 @@
 import { LETTERS, SIZE } from './field.js';
-import { CELL, EDGE, paintGround, paintPeaks, paintRoof } from './terrain.js';
+import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintRoof } from './terrain.js';
 import { HERO_SIZE, bubbleSprite, bulletSprite, clodSprite, cocoonSprite, coinSprite, flaskSprite, heartSprite,
   gooColor, heroSprite, hookSprite, linkSprite, meltSprite, meteorSprite, mineSprite, mobSprite, moundSprite,
   nukeSprite, pixelsOf, reticleSprite, rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, trapSprite,
@@ -20,6 +20,7 @@ const TRAVEL = 0.1;
 const WALK = 7;
 const BEAT = 1.1;
 const BEAT_FAST = 0.5;
+const HEART_ROOM = 19;
 const FLAP = 9;
 const LIFT = 7;
 const RISE = 0.3;
@@ -630,11 +631,63 @@ export class Scene {
   }
 
   _gates(ctx, battle) {
-    for (const route of battle.routes) {
-      const [x, y] = route[battle.tiles ? 3 : 1].map((v, i) => (v + route[2][i]) / 2).map(at);
-      glow(ctx, x, y, CELL * 0.75, 'rgba(192, 132, 252, .95)', 0.55 + 0.2 * Math.sin(this.clock * 3));
-      orbit(ctx, x, y, CELL * 0.3, 4, this.clock * 2.4, '#e9d5ff', 1, true);
+    for (const mouth of mouthsOf(battle)) if (mouth.spawn) this._portal(ctx, mouth);
+  }
+
+  _portal(ctx, mouth) {
+    const { across, deep, ring } = MOUTH, clock = this.clock, middle = -deep * 0.45;
+    ctx.save();
+    ctx.translate(mouth.x, mouth.y);
+    ctx.rotate(mouth.angle);
+    ctx.save();
+    mouthPath(ctx);
+    ctx.clip();
+    const core = ctx.createRadialGradient(middle, 0, 0, middle, 0, across * 1.15);
+    core.addColorStop(0, '#fdf4ff');
+    core.addColorStop(0.18, '#e879f9');
+    core.addColorStop(0.5, '#7e22ce');
+    core.addColorStop(1, '#1a0833');
+    ctx.fillStyle = core;
+    ctx.fillRect(-deep - 1, -across - 1, deep + 2, across * 2 + 2);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.save();
+    ctx.translate(middle, 0);
+    ctx.scale(0.8, 1);
+    for (let arm = 0; arm < 3; arm++) {
+      const spin = -clock * 2.6 + arm * Math.PI * 2 / 3, side = [], back = [];
+      for (let k = 0; k <= 16; k++) {
+        const f = k / 16, a = spin + f * 3.4, r = 1 + f * across * 1.05, w = 2.2 * (1 - f) + 0.3;
+        side.push([Math.cos(a) * (r + w), Math.sin(a) * (r + w)]);
+        back.push([Math.cos(a) * (r - w), Math.sin(a) * (r - w)]);
+      }
+      ctx.globalAlpha = arm ? 0.55 : 0.75;
+      ctx.fillStyle = arm ? '#f0abfc' : '#fdf4ff';
+      ctx.beginPath();
+      side.concat(back.reverse()).forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+      ctx.fill();
     }
+    ctx.restore();
+    ctx.globalAlpha = 0.55 + 0.25 * Math.sin(clock * 4);
+    ctx.strokeStyle = '#f5d0fe';
+    ctx.lineWidth = 1.6;
+    mouthPath(ctx, -0.8);
+    ctx.stroke();
+    ctx.restore();
+    ctx.globalCompositeOperation = 'lighter';
+    glow(ctx, 3, 0, across * 1.5, 'rgba(192, 132, 252, .9)', 0.35 + 0.12 * Math.sin(clock * 3));
+    for (let i = 0; i < 10; i++) {
+      const k = (clock * 0.55 + noise(i, 41)) % 1, side = (noise(i + 7, 41) - 0.5) * across * 1.5;
+      ctx.globalAlpha = 0.9 * Math.sin(k * Math.PI);
+      square(ctx, middle * (1 - k) + k * 22, side * (1 - k * 0.3) + Math.sin(clock * 3 + i) * 1.5, 2,
+        i % 2 ? '#f5d0fe' : '#c084fc');
+    }
+    for (let i = 0; i < 3; i++) {
+      const a = Math.PI * (0.75 + i * 0.25), x = (deep + ring / 2) * Math.cos(a), y = (across + ring / 2) * Math.sin(a);
+      ctx.globalAlpha = 0.45 + 0.4 * Math.sin(clock * 3 + i * 2);
+      orbit(ctx, x, y, 0, 1, 0, '#e9d5ff', 1, true);
+    }
+    ctx.restore();
   }
 
   _storms(ctx, battle) {
@@ -1819,17 +1872,19 @@ export class Scene {
   }
 
   _base(ctx, battle) {
-    const [bx, by] = battle.path[battle.path.length - 1], x = at(bx + 0.5), y = at(by + 0.5);
+    const [bx, by] = battle.path[battle.path.length - 1], inward = (v) => Math.min(Math.max(at(v + 0.5), EDGE
+      + HEART_ROOM), BOARD - EDGE - HEART_ROOM), x = inward(bx), y = inward(by);
     const low = battle.lives <= battle.maxLives / 4, period = low ? BEAT_FAST : BEAT;
     const phase = (this.clock % period) / period;
     const beat = Math.exp(-phase * 9) + 0.6 * Math.exp(-Math.max(0, phase - 0.22) * 12) * (phase > 0.22 ? 1 : 0);
     const hit = this._hurtAt !== undefined && this.clock - this._hurtAt < 0.35;
     const bitten = battle.mobs.some((mob) => mob.biting && !mob.dead);
     const shake = bitten ? Math.sin(this.clock * 40) * 1.2 : 0;
-    const image = heartSprite(), scale = ZOOM * (1 + 0.1 * beat), w = image.width * scale, h = image.height * scale;
+    const image = heartSprite(), scale = ZOOM / (image.fine || 1) * (1 + 0.08 * beat);
+    const w = image.width * scale, h = image.height * scale;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    glow(ctx, x, y, 26 + 6 * beat, hit ? 'rgba(255, 255, 255, .9)' : 'rgba(255, 70, 100, .9)', 0.35 + 0.25 * beat);
+    glow(ctx, x, y, 32 + 6 * beat, hit ? 'rgba(255, 255, 255, .9)' : 'rgba(255, 70, 100, .9)', 0.35 + 0.25 * beat);
     ctx.restore();
     ctx.drawImage(image, Math.round(x - w / 2 + shake), Math.round(y - h / 2), Math.round(w), Math.round(h));
     if (hit || bitten) {
@@ -1839,15 +1894,15 @@ export class Scene {
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
     }
-    ctx.font = '900 12px "Segoe UI", system-ui, sans-serif';
+    ctx.font = '900 14px "Segoe UI", system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.lineWidth = 3;
     ctx.strokeStyle = '#2a0710';
     const text = String(Math.max(0, battle.lives));
-    ctx.strokeText(text, x + shake, y - 1);
+    ctx.strokeText(text, x + shake, y - 2);
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(text, x + shake, y - 1);
+    ctx.fillText(text, x + shake, y - 2);
   }
 
   _aim(tower, x, y) {

@@ -1,6 +1,6 @@
 import { HERO_IDS, drawHero } from './models.js';
 import { MOB_IDS, drawMelt, drawMob, drawSplit, gooColor } from './monsters.js';
-import { drawClod, drawCocoon, drawCoinIcon, drawEmblem, drawHeartIcon, drawMeteor, drawMine, drawMound, drawNuke,
+import { drawClod, drawCocoon, drawCoinIcon, drawEmblem, drawHeart, drawMeteor, drawMine, drawMound, drawNuke,
   drawRocket, drawTrap, drawWall } from './props.js';
 
 const OUTLINE = '#15111d';
@@ -135,7 +135,7 @@ export const emblemUrl = (size = 96) => remember('emblemUrl:' + size, () => fitt
 export const coinIconUrl = (size = 80) => remember('coinIconUrl:' + size,
   () => fitted(drawCoinIcon(), size).toDataURL());
 export const heartIconUrl = (size = 80) => remember('heartIconUrl:' + size,
-  () => fitted(drawHeartIcon(), size).toDataURL());
+  () => fitted(heartSprite(), size).toDataURL());
 
 export const mobSprite = (id, frame = 0) => remember('mob:' + id + ':' + frame, () => drawMob(id, frame ? 1 : 0));
 
@@ -644,20 +644,7 @@ function shape(p, inside, color, dark, light) {
   }
 }
 
-export const heartSprite = () => remember('heart', () => {
-  const p = new Pix(15, 14);
-  shape(p, (x, y) => {
-    const u = (x - 7.5) / 6.3, v = (7.6 - y) / 6.1;
-    const f = Math.pow(u * u + v * v - 1, 3) - u * u * v * v * v;
-    if (f > 0) return false;
-    if (u - v * 0.5 > 0.45 || v < -0.6) return 'dark';
-    if (u < -0.2 && v > 0.45) return 'light';
-    return 'base';
-  }, '#e8344e', '#9e1730', '#ff8a9a');
-  p.rect(3, 2, 2, 1, '#ffd2d9');
-  p.px(2, 3, '#ffd2d9');
-  return p.outline('#2a0710').canvas();
-});
+export const heartSprite = () => remember('heart', drawHeart);
 
 
 const KIND_COLORS = { buff: '#4ade80', debuff: '#f87171', blessing: '#fbbf24', curse: '#c084fc', biome: '#7dd3fc',

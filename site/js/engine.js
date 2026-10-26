@@ -632,6 +632,7 @@ export class Game {
     const spot = cell || this.battle.randomCell(NEAR_PATH);
     if (!spot) return null;
     member.tower = this.battle.place(member, member.cls, spot.x, spot.y, this.modsOf(member));
+    if (member.tower && member.tower.cocoon && this.state === 'wave') member.tower.late = true;
     return member.tower;
   }
 

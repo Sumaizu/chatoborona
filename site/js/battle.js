@@ -260,8 +260,8 @@ export class Battle {
       player, cls: CLASS_BY_ID.get(classId), x, y, cx: x + 0.5, cy: y + 0.5, level: 0, mods, s: [], runes: new Set(),
       might: MIGHT.base, damage: 0, skill: 0, interval: 1, range: 0, baseRange: 0, critChance: 0,
       critMul: STAT.critBase, reach: 0, cone: 0, power: 1, luck: 1, haste: 1, cooldown: 0, busy: 0, napUntil: 0,
-      stunUntil: 0, webUntil: 0,
-      web: 1, windUntil: 0, wind: 0, windBy: null, rider: false, host: null, leapUntil: 0, cocoon: 0, perch: null,
+      stunUntil: 0, webUntil: 0, perch: null,
+      web: 1, windUntil: 0, wind: 0, windBy: null, rider: false, host: null, leapUntil: 0, cocoon: 0, late: false,
       waveXp: 0, aim: null, ramp: 0, streak: -1e9, lastShot: -1e9, reloadUntil: 0, hot: false, berserk: false,
       charge: null,
       nextActive: 0, nextTrap: 0, nextMine: 0, nextGrenade: 0, nextWall: 0, lastHit: this.time, pull: null,
@@ -477,7 +477,8 @@ export class Battle {
       t.player.coins += coins;
       t.run.coins += coins;
       this._event({ kind: 'cocoon', tower: t, coins });
-      t.cocoon -= 1;
+      if (t.late) t.late = false;
+      else t.cocoon -= 1;
       if (!t.cocoon) this._hatch(t);
     }
   }

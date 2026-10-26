@@ -435,11 +435,35 @@ export function drawCoinIcon() {
   return m.paint();
 }
 
-export function drawHeartIcon() {
-  const m = new Model(32, 1);
-  m.ball(10.5, 11.5, 2, 7.2, '#e11d48', 0.5);
-  m.ball(21.5, 11.5, 2, 7.2, '#e11d48', 0.5);
-  m.limb(16, 16.5, 1.5, 16, 29, 0.5, 8.4, '#e11d48', 0.5, 0.8);
-  m.ball(9.5, 9, 7, 2.2, '#fda4af', 0.9);
+const HEART_GLINTS = new Set(['14,14', '13,14', '15,14', '14,13', '14,15', '14,12', '14,16', '12,14', '16,14',
+  '31,12']);
+
+export function drawHeart() {
+  const m = new Model(48, 1), side = m.side, shift = m.pad - 0.5;
+  const inside = (px, py) => {
+    const u = (px - shift - 24) / 17.5, v = (26 - (py - shift)) / 16.5, q = u * u + v * v - 1;
+    return q * q * q - u * u * v * v * v <= 0;
+  };
+  const cells = [], rim = [];
+  for (let py = 0; py < side; py++) {
+    for (let px = 0; px < side; px++) {
+      if (inside(px, py)) cells.push([px, py]);
+      else if (inside(px + 1, py) || inside(px - 1, py) || inside(px, py + 1) || inside(px, py - 1)) rim.push([px, py]);
+    }
+  }
+  const height = new Map();
+  for (const [px, py] of cells) {
+    const d = Math.min(...rim.map(([x, y]) => Math.hypot(px - x, py - y)));
+    const z = d <= 3.2 ? 3 + 1.8 * Math.sin(Math.PI * d / 3.2) : 2 + 8 * Math.pow((d - 3.2) / 10, 0.7);
+    height.set(py * side + px, [z, d]);
+  }
+  const zAt = (px, py, z) => (height.has(py * side + px) ? height.get(py * side + px)[0] : z - 2);
+  for (const [px, py] of cells) {
+    const [z, d] = height.get(py * side + px), gold = d <= 3.2;
+    const dx = (zAt(px + 1, py, z) - zAt(px - 1, py, z)) / 2, dy = (zAt(px, py + 1, z) - zAt(px, py - 1, z)) / 2;
+    const n = [-dx, -dy, 1], l = Math.hypot(n[0], n[1], n[2]);
+    if (HEART_GLINTS.has((px - m.pad) + ',' + (py - m.pad))) m.plot(px, py, z, '#fff1f2', [0, 0, 1], 1, 0);
+    else m.plot(px, py, z, gold ? GOLD : '#e11d48', [n[0] / l, n[1] / l, n[2] / l], 0, gold ? 0.8 : 0.7);
+  }
   return m.paint();
 }

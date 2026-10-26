@@ -8,6 +8,7 @@ const at = (v) => EDGE + v * CELL;
 const BOARD_SIDE = EDGE * 2 + CELL * SIZE;
 const ROUND = 0.9;
 const SLAB = 10;
+const ROAD_SHORT = 0.25;
 
 const LOOKS = {
   grass: {
@@ -1183,7 +1184,9 @@ function relief(battle, look) {
 }
 
 function roadLines(battle) {
-  return [battle.routes[0]].concat(battle.branch.length ? [battle.routes[1].slice(0, -1)] : []);
+  const main = battle.routes[0].slice(0, -1), [hx, hy] = main[main.length - 1], [px, py] = main[main.length - 2];
+  main[main.length - 1] = [hx + (px - hx) * ROAD_SHORT, hy + (py - hy) * ROAD_SHORT];
+  return [main].concat(battle.branch.length ? [battle.routes[1].slice(0, -1)] : []);
 }
 
 function flow(h, box, cells) {
@@ -1296,41 +1299,137 @@ function paintWatches(ctx, battle) {
 export function paintPeaks(ctx, battle) {
   if (!battle.tiles) return;
   ctx.drawImage(reliefOf(battle).high, EDGE, EDGE);
+  for (const mouth of mouthsOf(battle)) throat(ctx, mouth);
   paintStructures(ctx, battle);
   paintWatches(ctx, battle);
 }
 
-function mouths(battle) {
+export const MOUTH = { across: 14, deep: 13, ring: 5.5, spill: 20 };
+
+export function mouthsOf(battle) {
   const list = [];
+  if (!battle.tiles) return list;
   const tunnel = (cell) => battle.tiles[cell[1] * SIZE + cell[0]] === 'tunnel';
+  const add = (inner, outer, spawn) => list.push({ x: at(inner[0] + 0.5 + (outer[0] - inner[0]) / 2),
+    y: at(inner[1] + 0.5 + (outer[1] - inner[1]) / 2), angle: Math.atan2(outer[1] - inner[1], outer[0] - inner[0]),
+    spawn });
   for (const route of [battle.path, battle.branch]) {
     for (let i = 0; i + 1 < route.length; i++) {
-      if (tunnel(route[i]) && !tunnel(route[i + 1])) list.push([route[i], route[i + 1]]);
-      if (!tunnel(route[i]) && tunnel(route[i + 1])) list.push([route[i + 1], route[i]]);
+      if (tunnel(route[i]) && !tunnel(route[i + 1])) add(route[i], route[i + 1], route.slice(0, i).every(tunnel));
+      if (!tunnel(route[i]) && tunnel(route[i + 1])) add(route[i + 1], route[i], false);
     }
   }
   return list;
 }
 
+export function mouthPath(ctx, grow = 0) {
+  ctx.beginPath();
+  ctx.ellipse(0, 0, MOUTH.deep + grow, MOUTH.across + grow, 0, Math.PI / 2, Math.PI * 1.5);
+  ctx.closePath();
+}
+
+function facing(ctx, mouth, paint) {
+  ctx.save();
+  ctx.translate(mouth.x, mouth.y);
+  ctx.rotate(mouth.angle);
+  paint();
+  ctx.restore();
+}
+
+function spill(ctx, reach, wide, stops) {
+  ctx.save();
+  ctx.scale(1, wide / reach);
+  const fill = ctx.createRadialGradient(0, 0, 0, 0, 0, reach);
+  for (const [stop, alpha] of stops) fill.addColorStop(stop, 'rgba(6, 5, 11, ' + alpha + ')');
+  ctx.fillStyle = fill;
+  ctx.fillRect(0, -reach, reach, reach * 2);
+  ctx.restore();
+}
+
+function throat(ctx, mouth) {
+  facing(ctx, mouth, () => {
+    mouthPath(ctx, 1);
+    ctx.fillStyle = '#06050b';
+    ctx.fill();
+    spill(ctx, MOUTH.spill, MOUTH.across + 3, [[0, 0.85], [0.55, 0.42], [1, 0]]);
+  });
+}
+
+function arch(ctx, mouth, style) {
+  const { across, deep, ring } = MOUTH, from = Math.PI / 2 - 0.24, span = Math.PI + 0.48;
+  const seed = Math.round(mouth.x * 7 + mouth.y * 13), roll = (i, k) => hash(seed, i, k);
+  const light = [-0.6 * Math.cos(mouth.angle) - 0.8 * Math.sin(mouth.angle),
+    0.6 * Math.sin(mouth.angle) - 0.8 * Math.cos(mouth.angle)];
+  const color = style.bands ? style.bands[1] : style.color, count = mouth.spawn ? 7 : 6;
+  const point = (a, grow) => [(deep + grow) * Math.cos(a), (across + grow) * Math.sin(a)];
+  const weights = Array.from({ length: count }, (_, i) => 0.7 + 0.6 * roll(i, 962));
+  const total = weights.reduce((sum, w) => sum + w, 0);
+  let a = from;
+  weights.forEach((weight, i) => {
+    const a0 = a + 0.05, a1 = a + span * weight / total - 0.05, keystone = mouth.spawn && i === (count - 1) / 2;
+    a += span * weight / total;
+    const outer = keystone ? ring + 1.8 : ring * (0.8 + 0.45 * roll(i, 963)), edge = [];
+    for (let k = 0; k <= 4; k++) {
+      edge.push(point(a0 + (a1 - a0) * k / 4, outer + (k % 4 ? (roll(i * 9 + k, 964) - 0.5) * 1.6 : -0.8)));
+    }
+    for (let k = 4; k >= 0; k--) edge.push(point(a0 + (a1 - a0) * k / 4, -0.5 + roll(i * 9 + k, 965) * 0.6));
+    const [cx, cy] = point((a0 + a1) / 2, outer / 2), tone = (roll(i, 966) - 0.5) * 0.18;
+    const fill = ctx.createLinearGradient(cx + light[0] * 4, cy + light[1] * 4, cx - light[0] * 4, cy - light[1] * 4);
+    fill.addColorStop(0, shade(color, 0.45 + tone));
+    fill.addColorStop(0.45, shade(color, 0.05 + tone));
+    fill.addColorStop(1, shade(color, -0.5));
+    ctx.beginPath();
+    edge.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.lineWidth = 0.9;
+    ctx.strokeStyle = 'rgba(14, 10, 20, .9)';
+    ctx.stroke();
+    ctx.fillStyle = shade(color, -0.55);
+    for (let k = 0; k < 3; k++) {
+      const [x, y] = point(a0 + (a1 - a0) * (0.2 + 0.6 * roll(i * 5 + k, 967)), outer * (0.25 + 0.5 * roll(i * 5 + k,
+        968)));
+      ctx.fillRect(x - 0.5, y - 0.5, 1, 1);
+    }
+    const crown = style.cap || style.foot;
+    if (crown && roll(i, 969) < (style.cap ? 0.8 : 0.5)) {
+      const [x, y] = point((a0 + a1) / 2 + (roll(i, 970) - 0.5) * 0.2, outer * 0.75);
+      ctx.fillStyle = style.cap ? 'rgba(242, 246, 252, .9)' : crown;
+      ctx.beginPath();
+      for (let k = 0; k < 6; k++) {
+        const t = k * Math.PI / 3, r = (style.cap ? 2.2 : 1.7) * (0.7 + 0.5 * roll(i * 7 + k, 971));
+        ctx.lineTo(x + light[0] * 1.2 + Math.cos(t) * r, y + light[1] * 1.2 + Math.sin(t) * r * 0.7);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+  });
+}
+
 export function paintRoof(ctx, battle) {
   if (!battle.tiles) return;
-  const image = reliefOf(battle).high;
+  const image = reliefOf(battle).high, style = lookOf(battle.biome).rock;
   ctx.save();
   ctx.beginPath();
   for (const [x, y] of cellsOf(battle, ['tunnel'])) ctx.rect(at(x) - 3, at(y) - 3, CELL + 6, CELL + 6);
   ctx.clip();
   ctx.drawImage(image, EDGE, EDGE);
   ctx.restore();
-  for (const [[x, y], [nx, ny]] of mouths(battle)) {
-    const cx = at(x + 0.5 + (nx - x) * 0.42), cy = at(y + 0.5 + (ny - y) * 0.42), across = nx !== x;
-    const w = across ? CELL * 0.34 : CELL * 0.86, h = across ? CELL * 0.86 : CELL * 0.34;
-    const fill = ctx.createRadialGradient(cx, cy, 1, cx, cy, CELL * 0.5);
-    fill.addColorStop(0, '#05040a');
-    fill.addColorStop(0.7, '#0b0912');
-    fill.addColorStop(1, 'rgba(11, 9, 18, 0)');
-    ctx.fillStyle = fill;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, w / 2 + 3, h / 2 + 3, 0, 0, Math.PI * 2);
-    ctx.fill();
+  for (const mouth of mouthsOf(battle)) {
+    facing(ctx, mouth, () => {
+      ctx.globalCompositeOperation = 'destination-out';
+      mouthPath(ctx);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      const dark = ctx.createLinearGradient(0, 0, -MOUTH.deep, 0);
+      dark.addColorStop(0, 'rgba(6, 5, 11, .5)');
+      dark.addColorStop(0.55, 'rgba(6, 5, 11, .92)');
+      dark.addColorStop(1, '#06050b');
+      ctx.fillStyle = dark;
+      ctx.fill();
+      spill(ctx, MOUTH.spill * 0.5, MOUTH.across + 1, [[0, 0.5], [1, 0]]);
+      arch(ctx, mouth, style);
+    });
   }
 }

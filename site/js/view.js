@@ -769,6 +769,15 @@ export class View {
         box.append(item);
       }
     });
+    const legend = $('legend');
+    this._once('legendFit', shown.length + ':' + $('lobby-classes').hidden, () => {
+      let fit = 1;
+      legend.style.setProperty('--fit', '1');
+      while (legend.clientHeight && legend.scrollHeight > legend.clientHeight && fit > 0.7) {
+        fit -= 0.04;
+        legend.style.setProperty('--fit', fit.toFixed(2));
+      }
+    });
   }
 
   _paintGuide(game, still) {

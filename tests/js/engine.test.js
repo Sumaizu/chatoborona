@@ -150,6 +150,23 @@ test('игра: в лобби клетка ничего не двигает, н�
   ok(game.members.has('гоша'));
 });
 
+test('игра: паразит, пришедший посреди волны, зреет ещё 10 полных волн', () => {
+  const { game } = makeGame();
+  game.open();
+  say(game, 'Тёма', 'привет');
+  toWave(game);
+  game._randomClass = () => 'parasite';
+  say(game, 'Жук', 'привет');
+  const bug = game.members.get('жук').tower;
+  ok(bug && bug.cocoon > 0, 'встал коконом посреди волны');
+  game.battle.endWave();
+  for (let wave = 1; wave <= 10; wave++) {
+    no(bug.rider, 'ещё в коконе перед ' + wave + '-й полной волной');
+    game.battle.endWave();
+  }
+  ok(bug.rider, 'вылупился после десятой полной волны');
+});
+
 test('игра: паразит встаёт коконом на случайную клетку у дороги, переставить его нельзя', () => {
   const { game } = makeGame();
   game.open();
