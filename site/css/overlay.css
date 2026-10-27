@@ -32,14 +32,14 @@ body {
 }
 
 .card {
-  position: absolute; inset: 0; z-index: 0; padding: 16px 16px 16px 30px;
-  display: grid; gap: 14px 16px;
-  grid-template: "left main side" minmax(0, 1fr) "cam main side" 222px / 280px 640px minmax(0, 1fr);
+  position: absolute; inset: 0; z-index: 0; padding: 10px 10px 16px 18px;
+  display: grid; gap: 8px 10px;
+  grid-template: "left main side" minmax(0, 1fr) "cam main side" 210px / 280px 640px minmax(0, 1fr);
   overflow: hidden;
 }
 
 .cam {
-  grid-area: cam; position: relative; z-index: -1; margin-bottom: 12px; border-radius: 18px;
+  grid-area: cam; position: relative; z-index: -1; border-radius: 18px;
   box-shadow: 0 0 0 2000px var(--card);
 }
 .cam::after {
@@ -52,12 +52,13 @@ body {
 
 .nochat .cam, .nochat .left { display: none; }
 .nochat .card {
-  left: 310px; padding-left: 16px; grid-template: "main side" minmax(0, 1fr) / 640px minmax(0, 1fr);
+  left: 298px; padding-left: 10px; grid-template: "main side" minmax(0, 1fr) / 640px minmax(0, 1fr);
 }
 
 .noside .side { display: none; }
-.noside .card { right: 298px; grid-template: "left main" minmax(0, 1fr) "cam main" 222px / 280px 640px; }
+.noside .card { right: 322px; grid-template: "left main" minmax(0, 1fr) "cam main" 210px / 280px 640px; }
 .nochat.noside .card { grid-template: "main" minmax(0, 1fr) / 640px; }
+.nochat .card, .noside .card { border-radius: 30px; }
 
 .nobg { --empty: rgba(21, 19, 37, .62); --muted: #cfcbe2; }
 .nobg .card { background: none; }

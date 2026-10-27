@@ -44,6 +44,25 @@ const element = (w, id) => w.document.getElementById(id);
 const text = (w, id) => element(w, id).textContent;
 const overlay = (query = '') => open('overlay.html' + (query ? '?' + query : ''), (w) => w.chatoborona);
 const join = (game, name) => game.feed(name, 'привет', { login: name.toLowerCase() });
+const camAt = (w) => {
+  const stage = w.document.getElementById('stage').getBoundingClientRect();
+  const cam = w.document.querySelector('.cam').getBoundingClientRect();
+  return [cam.left - stage.left, cam.top - stage.top, cam.width, cam.height].map(Math.round);
+};
+
+test('страницы: окошко под вебку — там же, где в других играх; скрыта панель — углы рамки скруглены', async () => {
+  fresh();
+  const full = await overlay('embed=1');
+  await until(() => camAt(full.contentWindow)[2] > 0, 'окошко на экране');
+  eq(camAt(full.contentWindow), [18, 494, 280, 210]);
+  eq(full.contentWindow.getComputedStyle(element(full.contentWindow, 'card')).borderRadius, '0px');
+  full.remove();
+  const right = await overlay('embed=1&side=0');
+  await until(() => camAt(right.contentWindow)[2] > 0, 'окошко на экране');
+  eq(camAt(right.contentWindow), [18, 494, 280, 210]);
+  eq(right.contentWindow.getComputedStyle(element(right.contentWindow, 'card')).borderRadius, '30px');
+  right.remove();
+});
 
 test('страницы: пример в рамке — середина волны, гача, отряд и эффекты слева, чата нет', async () => {
   fresh();
