@@ -403,8 +403,10 @@ test('страницы: главная — без канала просит ка
   const frame = await open('index.html', (w) => w.document.getElementById('game')
     && w.document.getElementById('game').contentWindow.chatoborona);
   const w = frame.contentWindow, inner = element(w, 'game').contentWindow, api = inner.chatoborona;
-  const home = w.document.querySelector('h1 a');
-  eq([home.textContent, home.getAttribute('href'), home.target], ['Чатоборона', 'https://gamesonstream.ru/', '']);
+  const home = w.document.querySelector('.top .logo');
+  eq([home.getAttribute('href'), home.target, home.querySelector('img').alt],
+    ['https://gamesonstream.ru/', '', 'Games on Stream']);
+  ok(home.querySelector('img').naturalWidth > 0, 'логотип загрузился');
   ok(element(w, 'rules').open, 'при открытии — правила для стримера');
   ok(text(w, 'rules').includes('Ссылка для OBS') && text(w, 'rules').includes('!чатоборона-пауза'));
   no(text(w, 'rules').includes('[object'), 'в тексте нет «[object Object]»');
