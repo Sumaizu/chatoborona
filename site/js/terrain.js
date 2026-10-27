@@ -782,20 +782,19 @@ function heights(cells, spread, seed) {
   return { h, box };
 }
 
-function keepRoad(h, box, battle) {
-  const band = 7, near = new Float32Array(SIDE * SIDE).fill(band);
-  for (const [x, y] of battle.road) {
-    if (battle.tiles[y * SIZE + x] === 'tunnel' || battle.tiles[y * SIZE + x] === 'bridge') continue;
-    const left = x * CELL + 3, top = y * CELL + 3, right = left + CELL - 6, bottom = top + CELL - 6;
-    for (let py = Math.max(box[1], top - band); py < Math.min(box[3], bottom + band); py++) {
-      for (let px0 = Math.max(box[0], left - band); px0 < Math.min(box[2], right + band); px0++) {
-        const dx = Math.max(left - px0, 0, px0 - right), dy = Math.max(top - py, 0, py - bottom);
-        const d = Math.hypot(dx, dy), i = py * SIDE + px0;
-        if (d < near[i]) near[i] = d;
-      }
+function cutRoad(h, box, battle) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = SIDE;
+  const g = canvas.getContext('2d');
+  strokes(g, roadLines(battle), (v) => v * CELL, [[CELL * 0.8 + 3, '#000000']]);
+  for (const [x, y] of cellsOf(battle, ['tunnel'])) g.clearRect(x * CELL, y * CELL, CELL, CELL);
+  const road = g.getImageData(0, 0, SIDE, SIDE).data;
+  for (let y = box[1]; y < box[3]; y++) {
+    for (let x = box[0]; x < box[2]; x++) {
+      const i = y * SIDE + x;
+      if (road[i * 4 + 3] > 96) h[i] = 0;
     }
   }
-  for (let i = 0; i < h.length; i++) if (near[i] < band) h[i] *= near[i] / band;
 }
 
 function put(data, i, color, alpha = 255) {
@@ -850,7 +849,7 @@ function paintMountains(data, battle, look) {
       top = Math.max(top, h[i]);
     }
   }
-  keepRoad(h, box, battle);
+  cutRoad(h, box, battle);
   castShadow(data, h, box, edge, 5, 7, 95);
   const shadow = [10, 8, 14], cap = top * 0.66;
   for (let y = Math.max(1, box[1]); y < Math.min(SIDE - 1, box[3]); y++) {
@@ -916,7 +915,6 @@ function paintHills(data, battle, look) {
       if (h[i] > 0.05) h[i] = Math.pow(h[i], 1.4) * (0.75 + 0.5 * smooth(x, y, 9, 605));
     }
   }
-  keepRoad(h, box, battle);
   castShadow(data, h, box, edge + 0.08, 3, 4, 110);
   const tuft = rgb(style.tuft);
   for (let y = Math.max(1, box[1]); y < Math.min(SIDE - 1, box[3]); y++) {
@@ -1180,7 +1178,7 @@ function relief(battle, look) {
   g.drawImage(water, 0, 0);
   g.drawImage(layer([paintMountains], battle, look), 0, 0);
   paintRivers(g, battle);
-  return { low: layer([paintHills, paintCraters, paintRuinFloors], battle, look), high };
+  return { hills: layer([paintHills], battle, look), low: layer([paintCraters, paintRuinFloors], battle, look), high };
 }
 
 function roadLines(battle) {
@@ -1265,6 +1263,7 @@ export function paintGround(ctx, battle) {
   }
   ctx.stroke();
   paintDecor(ctx, battle);
+  if (battle.tiles) ctx.drawImage(reliefOf(battle).hills, EDGE, EDGE);
   paintRoad(ctx, battle, look);
   if (!battle.tiles) return;
   battle.tiles.forEach((tile, cell) => {

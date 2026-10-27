@@ -15,11 +15,11 @@ export const EXTRA_SLOTS = [30, 100];
 export const ASCEND_AT = 30;
 
 export const OUTCOMES = [
-  { id: 'void', name: 'Пустота', color: '#6b7280', chance: 0.133 },
+  { id: 'void', name: 'Пустота', color: '#6b7280', chance: 0.132 },
   { id: 'handful', name: 'Горстка монет', color: '#facc15', chance: 0.075, coins: [1, 50] },
   { id: 'bag', name: 'Мешок монет', color: '#e8a33d', chance: 0.0675, coins: [51, 150] },
   { id: 'chest', name: 'Сундук монет', color: '#ffb020', chance: 0.0075, coins: [151, 500] },
-  { id: 'particle', name: 'Частица бога', color: '#ff2e4d', chance: 0.002 },
+  { id: 'particle', name: 'Частица бога', color: '#ff2e4d', chance: 0.003 },
   { id: 'rune', name: 'Руна способности', color: '#ff2e4d', chance: 0.015 },
 ];
 

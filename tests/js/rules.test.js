@@ -311,9 +311,9 @@ test('улучшение: легендарное на +30 становится �
   eq(weapon.power, before + 500 * MIGHT.divine, 'растёт ровно, а не процентами от набранного');
 });
 
-test('гача: частица бога — 0,2%, у кого она есть, тому не выпадает', () => {
+test('гача: частица бога — 0,3%, у кого она есть, тому не выпадает', () => {
   const particle = OUTCOMES.find((outcome) => outcome.id === 'particle');
-  eq(particle.chance, 0.002);
+  eq(particle.chance, 0.003);
   const total = OUTCOMES.concat(RARITIES).reduce((sum, item) => sum + item.chance, 0);
   let seen = 0;
   for (let i = 0; i < 2000; i++) {
