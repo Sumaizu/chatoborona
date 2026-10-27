@@ -3,7 +3,7 @@ import { CLASSES, CLASS_BY_ID, describe, mightOf, runeOf }
   from './classes.js';
 import { coinUrl, effectUrl, emblemUrl, flagCanvas, flagUrl, heroUrl, markUrl, mightUrl, particleSprite, particleUrl,
   prizeUrl } from './sprites.js';
-import { ASCEND_AT, EXTRA_SLOTS, OUTCOMES, PRICE, RARITIES, SLOTS, SPIN_TIME, UPGRADE_PRICE, boonOf, gearColor,
+import { EXTRA_SLOTS, OUTCOMES, PRICE, RARITIES, SLOTS, SPIN_TIME, UPGRADE_PRICE, boonOf, gearColor,
   outcomeOf, rarityOf, weaponName, weaponTitle } from './gacha.js';
 import { ASCEND_TIME } from './engine.js';
 import { effectOf } from './events.js';
@@ -19,9 +19,7 @@ const NAME_TIME = 6;
 const RANGE_TIME = 30;
 const HERALD_TIME = 10;
 const CHEER_TIME = 7;
-const DIVINE_TIME = 10;
 const CONFETTI = ['#ff6b6b', '#ffd43b', '#69db7c', '#4dabf7', '#da77f2', '#ffa94d', '#ffffff'];
-const EMBERS = ['#ff2e4d', '#ff8fa3', '#ffd38a', '#ffffff', '#ff5c7c'];
 const GOLD = ['#ffcd38', '#fff2a8', '#ffe08a', '#ffffff', '#ff8fa3', '#f5b82e'];
 const ASCEND_CUES = [[0, 'summon'], [0.8, 'charge'], [2.4, 'merge'], [2.9, 'flash'], [3.3, 'flash'], [3.6, 'quake'],
   [4.6, 'flip'], [5.1, 'drop'], [6.4, 'paragon']];
@@ -60,7 +58,7 @@ const BATTLE_SOUNDS = { wall: 'build', crumble: 'crumble', plant: 'plant', mine:
 const GOOD_EVENTS = new Set(['buff', 'blessing']);
 const COIN_FINDS = { handful: ' находит горстку монет', bag: ' находит мешок монет!',
   chest: ' открывает сундук монет!' };
-const NOTE_KINDS = new Set(['card', 'poor', 'bare', 'upgrade', 'queue', 'tip']);
+const NOTE_KINDS = new Set(['card', 'poor', 'bare', 'upgrade', 'queue', 'tip', 'divine']);
 const NEWCOMER_GLOW = { fire: '#f97316', ice: '#67e8f9', storm: '#facc15', poison: '#a3e635' };
 const NICK_COLORS = ['#ff8f85', '#ffb547', '#f2dd6e', '#8fe3ae', '#7fd4ff', '#b7a6ff', '#ff9ad5', '#8fe0d2'];
 const STATUS = {
@@ -404,13 +402,7 @@ export class View {
         this._cue('relic');
         this._names.set(event.login, NAME_TIME);
       }
-      if (event.kind === 'divine') {
-        const member = game.members.get(event.login);
-        if (member && member.weapon) {
-          this._cheers.push({ kind: 'divine', player: member, weapon: JSON.parse(JSON.stringify(member.weapon)) });
-        }
-        this._cue('divine');
-      }
+      if (event.kind === 'divine') this._cue('divine');
       if (event.kind === 'upgraded') {
         this._cue('upgrade');
         this._names.set(event.login, NAME_TIME);
@@ -441,7 +433,7 @@ export class View {
     if (kind === 'level') {
       this._cue(event.level >= LEVEL_MAX ? 'win' : 'level');
       this._names.set(event.tower.player.login, NAME_TIME);
-      if (event.level >= LEVEL_MAX) this._cheers.push({ kind: 'top', player: event.tower.player });
+      if (event.level >= LEVEL_MAX) this._cheers.push(event.tower.player);
     } else if (kind === 'leak') {
       this._cue('leak');
     } else if (kind === 'shot') {
@@ -533,24 +525,16 @@ export class View {
 
   _paintCheer(dt, game) {
     if (!this._cheer && this._cheers.length && game.state !== 'ascend') {
-      const show = this._cheers.shift(), player = show.player, card = $('cheer-box'), divine = show.kind === 'divine';
-      this._cheer = { left: divine ? DIVINE_TIME : CHEER_TIME };
+      const player = this._cheers.shift(), card = $('cheer-box');
+      this._cheer = { left: CHEER_TIME };
       card.textContent = '';
-      card.className = 'cheer-box' + (divine ? ' divine' : '');
-      if (divine) {
-        card.append(image(particleUrl(56), 'relic-big'), image(heroUrl(player.cls, 96), 'face'),
-          el('h2', '', 'Божественное оружие!'), this._starName(player.name, player.star, player.color, 'who'),
-          el('span', 'wish', 'улучшает оружие до +' + ASCEND_AT + ' — оно становится божественным'),
-          gearLine(show.weapon));
-      } else {
-        card.append(image(heroUrl(player.cls, 96), 'face'),
-          el('h2', '', '100 уровень!'), this._starName(player.name, player.star, player.color, 'who'),
-          el('span', 'wish', 'Поздравляем! Это самый высокий уровень в игре'));
-      }
+      card.append(image(heroUrl(player.cls, 96), 'face'),
+        el('h2', '', '100 уровень!'), this._starName(player.name, player.star, player.color, 'who'),
+        el('span', 'wish', 'Поздравляем! Это самый высокий уровень в игре'));
       card.style.animation = 'none';
       void card.offsetWidth;
       card.style.animation = '';
-      this._burst(divine ? 110 : 160, divine ? EMBERS : CONFETTI, this._cheer.left);
+      this._burst(160, CONFETTI, this._cheer.left);
     }
     const cheer = this._cheer;
     $('cheer-box').hidden = !cheer;
@@ -1156,6 +1140,11 @@ export class View {
         node.append(nick, ': пиши ', el('b', '', 'улучшить'), ' — +' + MIGHT.upgrade + ' мощи оружию за '
           + UPGRADE_PRICE + ' монет');
       }
+    } else if (note.kind === 'divine') {
+      node.className = 'note divine';
+      const text = el('div');
+      text.append(el('b', 'title', 'Божественное оружие!'), nick, gearLine(detail.weapon));
+      node.append(image(heroUrl(member.cls, 64)), text);
     } else {
       node.className = 'note upgrade';
       node.append(nick, ' улучшает оружие' + (detail.times > 1 ? ' ×' + detail.times : '') + ': ',

@@ -169,7 +169,7 @@ test('страницы: ускорение — заметная плашка «�
   frame.remove();
 });
 
-test('страницы: божественное оружие — объявление по центру поля, частица в профиле, снежный ник', async () => {
+test('страницы: божественное оружие — плашка в столбце профилей, не по центру поля; частица в профиле', async () => {
   fresh();
   const frame = await overlay('lobby=10&first_wave=5');
   const w = frame.contentWindow, game = w.chatoborona.game;
@@ -184,9 +184,11 @@ test('страницы: божественное оружие — объявле
   anya.coins = 100;
   anya.particle = true;
   game.feed('Аня', 'улучшить', { login: 'аня' });
-  await until(() => !element(w, 'cheer-box').hidden, 'объявление на экране');
-  ok(element(w, 'cheer-box').classList.contains('divine'));
-  ok(text(w, 'cheer-box').includes('Божественный') && text(w, 'cheer-box').includes('Аня'));
+  await until(() => w.document.querySelector('#cards .note.divine'), 'плашка справа');
+  const note = w.document.querySelector('#cards .note.divine');
+  ok(note.textContent.includes('Божественное оружие') && note.textContent.includes('Аня'), note.textContent);
+  ok(note.textContent.includes('Божественный'), 'и само оружие');
+  ok(element(w, 'cheer-box').hidden, 'посреди поля ничего');
   game.feed('Аня', 'профиль', { login: 'аня' });
   await until(() => w.document.querySelector('#cards .profile'), 'профиль');
   await until(() => !w.document.querySelector('#cards .profile .relic').hidden, 'частица слева от монет');

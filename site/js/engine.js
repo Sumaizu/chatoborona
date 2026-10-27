@@ -45,6 +45,7 @@ export const SUPPORT_EVERY = 10;
 export const CARD_ROOM = 2;
 export const SPIN_LIMIT = QUEUE_CAP;
 export const NOTE_TIME = 4;
+export const DIVINE_TIME = 10;
 export const TIP_LEVEL = 5;
 export const TIP_TIME = 7;
 const TIP_QUEUE = 3;
@@ -421,7 +422,8 @@ export class Game {
       amount += up.amount;
     }
     this._refresh(member);
-    this._note('upgrade', member, NOTE_TIME, { amount, times: done });
+    if (ascended) this._note('divine', member, DIVINE_TIME, { weapon: Object.assign({}, member.weapon) });
+    else this._note('upgrade', member, NOTE_TIME, { amount, times: done });
     this._emit('upgraded', { login: member.login, amount });
     if (ascended) this._emit('divine', { login: member.login });
     return ascended ? 'divine' : 'upgraded';

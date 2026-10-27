@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { PLAIN, makeGame, memoryStorage, runFor, seeded, until } from './fixtures.js';
-import { ASCEND_TIME, CARD_MIN, CARD_ROOM, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPEED_MAX,
+import { ASCEND_TIME, CARD_MIN, CARD_ROOM, DIVINE_TIME, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPEED_MAX,
   SPIN_LIMIT, SUMMIT_EVERY, SUMMIT_TIME, SUPPORTS, SUPPORT_EVERY, TIP_LEVEL, TIP_TIME, nextReset }
   from '../../site/js/engine.js';
 import { FAMILY_BY_ID, LEVEL_MAX, MIGHT, REWARD, TEMPO, TICK, waveReward, xpForLevel } from '../../site/js/balance.js';
@@ -858,6 +858,9 @@ test('улучшение до божественного: событие, сво
   eq(member.weapon.rarity, 'divine');
   ok(game.events.some((e) => e.kind === 'divine' && e.login === 'рая'));
   eq(member.tower.mods.power, member.weapon.power, 'мощь божественного дошла до бойца');
+  const note = game.notes.find((n) => n.login === 'рая' && n.kind === 'divine');
+  ok(note && note.left === DIVINE_TIME && note.detail.weapon.rarity === 'divine', 'плашка на 10 секунд');
+  eq(DIVINE_TIME, 10);
 });
 
 test('частица бога: выпадает в гаче, хранится между играми и при перезагрузке', () => {
