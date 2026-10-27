@@ -403,6 +403,8 @@ test('страницы: главная — без канала просит ка
   const frame = await open('index.html', (w) => w.document.getElementById('game')
     && w.document.getElementById('game').contentWindow.chatoborona);
   const w = frame.contentWindow, inner = element(w, 'game').contentWindow, api = inner.chatoborona;
+  const home = w.document.querySelector('h1 a');
+  eq([home.textContent, home.getAttribute('href'), home.target], ['Чатоборона', 'https://gamesonstream.ru/', '']);
   ok(element(w, 'rules').open, 'при открытии — правила для стримера');
   ok(text(w, 'rules').includes('Ссылка для OBS') && text(w, 'rules').includes('!чатоборона-пауза'));
   no(text(w, 'rules').includes('[object'), 'в тексте нет «[object Object]»');
