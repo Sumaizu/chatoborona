@@ -50,18 +50,20 @@ const camAt = (w) => {
   return [cam.left - stage.left, cam.top - stage.top, cam.width, cam.height].map(Math.round);
 };
 
-test('страницы: окошко под вебку — там же, где в других играх; скрыта панель — углы рамки скруглены', async () => {
+test('страницы: окошко под вебку и окошко витубера — там же, где в других играх', async () => {
   fresh();
   const full = await overlay('embed=1');
   await until(() => camAt(full.contentWindow)[2] > 0, 'окошко на экране');
   eq(camAt(full.contentWindow), [18, 494, 280, 210]);
   eq(full.contentWindow.getComputedStyle(element(full.contentWindow, 'card')).borderRadius, '0px');
   full.remove();
-  const right = await overlay('embed=1&side=0');
-  await until(() => camAt(right.contentWindow)[2] > 0, 'окошко на экране');
-  eq(camAt(right.contentWindow), [18, 494, 280, 210]);
-  eq(right.contentWindow.getComputedStyle(element(right.contentWindow, 'card')).borderRadius, '30px');
-  right.remove();
+  const vtuber = await overlay('embed=1&webcam=vtuber');
+  await until(() => camAt(vtuber.contentWindow)[2] > 0, 'окошко витубера на экране');
+  eq(camAt(vtuber.contentWindow), [18, 344, 280, 360]);
+  const at = (id) => element(vtuber.contentWindow, id).getBoundingClientRect();
+  ok(at('effects').left > at('main').right && at('effects').bottom <= at('side').top + 1, 'эффекты — над гачей');
+  ok(at('players').height > 60 && at('players').bottom < 344, 'отряд — над окошком');
+  vtuber.remove();
 });
 
 test('страницы: пример в рамке — середина волны, гача, отряд и эффекты слева, чата нет', async () => {

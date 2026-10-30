@@ -351,8 +351,8 @@ test('настройки: по умолчанию, границы, адрес т
   eq(clean({ first_wave: 9999 }).first_wave, 600);
   eq(clean({ wave_pause: 'abc' }).wave_pause, 20);
   eq(clean({ channel: 'https://www.twitch.tv/Some_One/' }).channel, 'some_one');
-  const s = clean({ channel: 'someone', lobby: 60, chat: false });
-  eq(toQuery(s), 'channel=someone&lobby=60&chat=0');
+  const s = clean({ channel: 'someone', lobby: 60, webcam: 'vtuber', chat: false });
+  eq(toQuery(s), 'channel=someone&lobby=60&webcam=vtuber');
   eq(fromQuery('?' + toQuery(s)), s);
 });
 

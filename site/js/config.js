@@ -4,18 +4,11 @@ export const DEFAULTS = {
   first_wave: 60,
   wave_pause: 20,
   chat_commands: true,
-  reset_mode: 'never',
-  reset_hour: 6,
-  reset_hours: 12,
   sound: true,
   volume: 100,
-  webcam: true,
-  chat: true,
-  side: true,
-  bg: true,
+  webcam: 'cam',
 };
 
-const RESET_MODES = ['never', 'day', 'week', 'month', 'timer'];
 const LOGIN_RE = /^[a-z0-9_]{1,25}$/;
 
 function int(value, fallback, min, max) {
@@ -23,10 +16,19 @@ function int(value, fallback, min, max) {
   return Number.isFinite(n) ? Math.max(min, Math.min(max, Math.trunc(n))) : fallback;
 }
 
+const CAMERAS = ['none', 'cam', 'vtuber'];
+
 function flag(value, fallback) {
   if (value === undefined) return fallback;
   if (typeof value === 'string') return !['', '0', 'false', 'no', 'off'].includes(value.trim().toLowerCase());
   return Boolean(value);
+}
+
+function camera(value, fallback) {
+  if (value === undefined) return fallback;
+  const name = String(value).trim().toLowerCase();
+  if (CAMERAS.includes(name)) return name;
+  return flag(value, true) ? 'cam' : 'none';
 }
 
 function channel(value) {
@@ -44,15 +46,9 @@ export function clean(raw) {
   s.first_wave = int(raw.first_wave, d.first_wave, 5, 600);
   s.wave_pause = int(raw.wave_pause, d.wave_pause, 3, 300);
   s.chat_commands = flag(raw.chat_commands, d.chat_commands);
-  s.reset_mode = RESET_MODES.includes(raw.reset_mode) ? raw.reset_mode : d.reset_mode;
-  s.reset_hour = int(raw.reset_hour, d.reset_hour, 0, 23);
-  s.reset_hours = int(raw.reset_hours, d.reset_hours, 1, 720);
   s.sound = flag(raw.sound, d.sound);
   s.volume = int(raw.volume, d.volume, 0, 100);
-  s.webcam = flag(raw.webcam, d.webcam);
-  s.chat = flag(raw.chat, d.chat);
-  s.side = flag(raw.side, d.side);
-  s.bg = flag(raw.bg, d.bg);
+  s.webcam = camera(raw.webcam, d.webcam);
   return s;
 }
 

@@ -70,34 +70,12 @@ function addMods(total, mods) {
   return total;
 }
 
-export function nextReset(since, mode, hour = 0, hours = 12) {
-  if (mode === 'timer') return since + Math.max(1, hours) * 3600;
-  if (mode !== 'day' && mode !== 'week' && mode !== 'month') return null;
-  const from = new Date(since * 1000);
-  if (isNaN(from.getTime())) return null;
-  const year = from.getFullYear(), month = from.getMonth(), day = from.getDate();
-  let due;
-  if (mode === 'day') {
-    due = new Date(year, month, day, hour);
-    if (due <= from) due = new Date(year, month, day + 1, hour);
-  } else if (mode === 'week') {
-    const monday = day - (from.getDay() + 6) % 7;
-    due = new Date(year, month, monday, hour);
-    if (due <= from) due = new Date(year, month, monday + 7, hour);
-  } else {
-    due = new Date(year, month, 1, hour);
-    if (due <= from) due = new Date(year, month + 1, 1, hour);
-  }
-  return due.getTime() / 1000;
-}
-
 export class Profiles {
   constructor(storage = null, key = 'chatoborona.players') {
     this.storage = storage;
     this.key = key;
     this.data = new Map();
     this.best = { waves: 0, at: null, players: 0 };
-    this.since = null;
     if (!storage) return;
     try {
       const saved = JSON.parse(storage.getItem(key) || '{}');
@@ -115,12 +93,9 @@ export class Profiles {
       const best = saved.best || {};
       this.best = { waves: Math.max(0, Math.trunc(Number(best.waves) || 0)), at: Number(best.at) || null,
         players: Math.max(0, Math.trunc(Number(best.players) || 0)) };
-      const since = Number(storage.getItem(key + '.since'));
-      this.since = Number.isFinite(since) && since > 0 ? since : null;
     } catch (error) {
       this.data = new Map();
       this.best = { waves: 0, at: null, players: 0 };
-      this.since = null;
     }
   }
 
@@ -143,15 +118,9 @@ export class Profiles {
     return true;
   }
 
-  reset(now) {
+  reset() {
     this.data = new Map();
     this.best = { waves: 0, at: null, players: 0 };
-    if (now !== undefined && now !== null) this.since = now;
-    this.save();
-  }
-
-  mark(now) {
-    this.since = now;
     this.save();
   }
 
@@ -173,8 +142,6 @@ export class Profiles {
         if (entry.particle) players[login].particle = true;
       }
       this.storage.setItem(this.key, JSON.stringify({ players, best: this.best }));
-      if (this.since === null) this.storage.removeItem(this.key + '.since');
-      else this.storage.setItem(this.key + '.since', String(this.since));
     } catch (error) {
       this.storage = null;
     }
@@ -212,8 +179,6 @@ export class Game {
     this._noteNo = 0;
     this._spinNo = 0;
     this._carry = 0;
-    this._resetDue = null;
-    this._planReset();
   }
 
   open() {
@@ -288,8 +253,8 @@ export class Game {
     return true;
   }
 
-  resetScores(now = this.clock()) {
-    this.profiles.reset(now);
+  resetScores() {
+    this.profiles.reset();
     for (const member of this.members.values()) {
       member.xp = 0;
       member.kills = 0;
@@ -298,22 +263,14 @@ export class Game {
       member.particle = false;
       if (member.tower && this.battle) this.battle.refresh(member.tower);
     }
-    this._planReset();
     this._emit('reset');
   }
 
   configure(settings) {
-    const before = this.s;
     this.s = Object.assign({}, settings);
-    const changed = (...keys) => keys.some((key) => before[key] !== this.s[key]);
-    if (changed('reset_mode', 'reset_hour', 'reset_hours') && this.profiles.since !== null) {
-      this.profiles.mark(this.clock());
-    }
-    this._planReset();
   }
 
   step(dt) {
-    if (this._resetDue !== null && this.clock() >= this._resetDue) this.resetScores();
     if (this.state === 'stopped' || this.paused) return;
     this._carry += Math.min(Math.max(0, dt), STEP_MAX) * this.speed;
     while (this._carry >= TICK) {
@@ -580,20 +537,6 @@ export class Game {
       const next = this.cards.shift();
       if (this.members.has(next.login)) shown.push(this._showCard(next.login, next.brief));
     }
-  }
-
-  _planReset() {
-    const since = this.profiles.since;
-    if (this.s.reset_mode === 'never' || !this.s.reset_mode) {
-      this._resetDue = null;
-      return;
-    }
-    if (since === null) {
-      this.profiles.mark(this.clock());
-      this._resetDue = nextReset(this.profiles.since, this.s.reset_mode, this.s.reset_hour, this.s.reset_hours);
-      return;
-    }
-    this._resetDue = nextReset(since, this.s.reset_mode, this.s.reset_hour, this.s.reset_hours);
   }
 
   _saveAll() {

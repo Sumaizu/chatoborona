@@ -251,10 +251,8 @@ export class View {
   use(settings) {
     this.settings = settings;
     const body = document.body;
-    body.classList.toggle('nocam', !settings.webcam);
-    body.classList.toggle('nochat', !settings.chat);
-    body.classList.toggle('noside', !settings.side);
-    body.classList.toggle('nobg', !settings.bg);
+    body.classList.toggle('nocam', settings.webcam === 'none');
+    body.classList.toggle('vtuber', settings.webcam === 'vtuber');
     const rules = $('lobby-rules');
     rules.textContent = '';
     for (const [command, text] of RULES) {
@@ -1069,7 +1067,7 @@ export class View {
 
   _paintCards(game, still) {
     const notes = game.notes.filter((note) => NOTE_KINDS.has(note.kind)).slice(-ROWS.cards);
-    const box = document.body.classList.contains('noside') ? $('board-cards') : $('cards');
+    const box = $('cards');
     const wanted = new Set(), profiles = notes.filter((note) => note.kind === 'card');
     this._squeezed = profiles.length > 1 ? profiles[0].login : null;
     for (const note of notes) {

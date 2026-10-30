@@ -48,23 +48,13 @@ body {
 
 .nocam .cam { display: none; }
 .nocam .left { grid-row: 1 / 3; }
-.nocam .card, .nochat .card { background: var(--card); }
-
-.nochat .cam, .nochat .left { display: none; }
-.nochat .card {
-  left: 298px; padding-left: 10px; grid-template: "main side" minmax(0, 1fr) / 640px minmax(0, 1fr);
+.vtuber .card {
+  grid-template: "left main fx" auto "left main side" minmax(0, 1fr) "cam main side" 360px / 280px 640px minmax(0, 1fr);
 }
-
-.noside .side { display: none; }
-.noside .card { right: 322px; grid-template: "left main" minmax(0, 1fr) "cam main" 210px / 280px 640px; }
-.nochat.noside .card { grid-template: "main" minmax(0, 1fr) / 640px; }
-.nochat .card, .noside .card { border-radius: 30px; }
-
-.nobg { --empty: rgba(21, 19, 37, .62); --muted: #cfcbe2; }
-.nobg .card { background: none; }
-.nobg .cam { box-shadow: none; }
-.nobg .head { text-shadow: 0 1px 2px rgba(0, 0, 0, .95), 0 0 8px rgba(0, 0, 0, .7); }
-.nobg .list, .nobg .board { background: rgba(21, 19, 37, .82); }
+.vtuber .left { display: contents; }
+.vtuber .effects { grid-area: fx; }
+.vtuber .players { grid-area: left; }
+.nocam .card { background: var(--card); }
 
 .main { grid-area: main; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 
@@ -176,7 +166,6 @@ body {
   flex-direction: column; padding: 14px 22px 16px; border-radius: 18px; background: #15131f;
   box-shadow: 0 0 0 2px var(--accent), 0 18px 50px rgba(0, 0, 0, .6);
 }
-.nochat .rules-board { left: 16px; }
 .rules-resume {
   align-self: center; margin: 0 0 8px; padding: 5px 16px; border-radius: 999px; background: var(--accent);
   color: #04121c; font-size: 15px; font-weight: 700;
@@ -468,8 +457,6 @@ body {
 
 .cards { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; display: flex; flex-direction: column; gap: 6px;
   pointer-events: none; }
-.board-cards { left: 26px; right: auto; bottom: 10px; width: 300px; display: none; }
-.noside .board-cards { display: flex; }
 .note {
   padding: 8px 11px 9px; border-radius: 14px; background: #13111f; font-size: 13px; line-height: 17px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, .5), inset 0 0 0 1.5px rgba(56, 189, 248, .55);

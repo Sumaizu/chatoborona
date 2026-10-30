@@ -1,7 +1,7 @@
 import { test, eq, ok, no } from './harness.js';
 import { PLAIN, makeGame, memoryStorage, runFor, seeded, until } from './fixtures.js';
 import { ASCEND_TIME, CARD_MIN, CARD_ROOM, DIVINE_TIME, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPEED_MAX,
-  SPIN_LIMIT, SUMMIT_EVERY, SUMMIT_TIME, SUPPORTS, SUPPORT_EVERY, TIP_LEVEL, TIP_TIME, nextReset }
+  SPIN_LIMIT, SUMMIT_EVERY, SUMMIT_TIME, SUPPORTS, SUPPORT_EVERY, TIP_LEVEL, TIP_TIME }
   from '../../site/js/engine.js';
 import { FAMILY_BY_ID, LEVEL_MAX, MIGHT, REWARD, TEMPO, TICK, waveReward, xpForLevel } from '../../site/js/balance.js';
 import { ASCEND_AT, EXTRA_SLOTS, PRICE, QUEUE_CAP, RARITIES, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, ascend,
@@ -506,24 +506,6 @@ test('профиль показывает карточку игрока секу
   runFor(game, 10);
   ok(game.notes.some((n) => n.kind === 'card'), 'через 10 секунд ещё видна');
   eq(say(game, 'Федя', 'Профиль'), 'card', 'новичок вступает и сразу видит карточку');
-});
-
-test('сброс по расписанию: раз в день в заданный час', () => {
-  const base = new Date(2026, 9, 14, 12, 0, 0).getTime() / 1000;
-  eq(nextReset(base, 'day', 6), new Date(2026, 9, 15, 6).getTime() / 1000);
-  eq(nextReset(base, 'week', 6), new Date(2026, 9, 19, 6).getTime() / 1000);
-  eq(nextReset(base, 'month', 6), new Date(2026, 10, 1, 6).getTime() / 1000);
-  eq(nextReset(base, 'timer', 0, 5), base + 5 * 3600);
-  eq(nextReset(base, 'never'), null);
-  const { game, clock, profiles } = makeGame({ settings: { reset_mode: 'timer', reset_hours: 1 }, at: base });
-  game.open();
-  say(game, 'Яна', 'привет');
-  game.members.get('яна').xp = 50;
-  game._saveAll();
-  clock.t = base + 3601;
-  game.step(TICK);
-  eq(game.members.get('яна').xp, 0);
-  eq(profiles.since, base + 3601);
 });
 
 test('гача: пустота ничего не даёт, мешок — монеты', () => {
