@@ -69,9 +69,7 @@ const STATUS = {
   ascend: 'Парагон!',
   summit: 'Победа!',
 };
-const EFFECTS_SHOWN = 3;
-const EFFECT_HOLD = 4;
-const EFFECT_SLIDE = 0.6;
+const EFFECTS_ROLL = { speed: 18, wait: 2.5 };
 const PLAYERS_HOLD = 5;
 const PLAYERS_SLIDE = 0.6;
 const RULES = [
@@ -982,7 +980,6 @@ export class View {
     this._once('effects', JSON.stringify(rows.map(([when, e]) => when + e.kind + e.id + e.text)), () => {
       const box = $('effects'), track = el('div', 'track');
       box.textContent = '';
-      box.style.height = '';
       for (const [when, effect] of rows) {
         const row = el('div', 'effect ' + effect.kind), text = el('span'), name = el('b', '', effect.name);
         if (effect.kind === 'biome') name.style.color = BIOME_GLOW[effect.id];
@@ -991,34 +988,32 @@ export class View {
         track.append(row);
       }
       box.append(track);
-      this._effectsTurn = { at: this.clock, sliding: false };
+      this._effectsRoll = null;
       if (!rows.length) box.append(el('div', 'empty', 'Пока нет. Перед волной может выпасть бафф или дебафф на всех.'));
     });
-    this._turnEffects();
+    this._scrollEffects();
   }
 
-  _turnEffects() {
-    const box = $('effects'), track = box.querySelector('.track'), turn = this._effectsTurn;
-    if (!track || !turn) return;
-    const rows = Array.from(track.children);
-    if (rows.length <= EFFECTS_SHOWN) {
-      box.style.height = '';
-      return;
+  _scrollEffects() {
+    const box = $('effects'), track = box.querySelector('.track');
+    if (!track) return;
+    const over = Math.max(0, track.offsetHeight - box.clientHeight);
+    const roll = this._effectsRoll || (this._effectsRoll = { y: 0, dir: 1, wait: EFFECTS_ROLL.wait, at: this.clock });
+    const dt = Math.max(0, Math.min(0.25, this.clock - roll.at));
+    roll.at = this.clock;
+    if (over <= 0) {
+      Object.assign(roll, { y: 0, dir: 1, wait: EFFECTS_ROLL.wait });
+    } else if (roll.wait > 0) {
+      roll.wait -= dt;
+    } else {
+      roll.y += roll.dir * EFFECTS_ROLL.speed * dt;
+      if (roll.y >= over || roll.y <= 0) {
+        roll.y = Math.max(0, Math.min(over, roll.y));
+        roll.dir = -roll.dir;
+        roll.wait = EFFECTS_ROLL.wait;
+      }
     }
-    if (turn.sliding && this.clock - turn.at >= EFFECT_SLIDE) {
-      track.style.transition = 'none';
-      track.append(rows[0]);
-      track.style.transform = '';
-      turn.sliding = false;
-      turn.at = this.clock;
-    } else if (!turn.sliding && this.clock - turn.at >= EFFECT_HOLD) {
-      track.style.transition = 'transform ' + EFFECT_SLIDE + 's ease';
-      track.style.transform = 'translateY(' + -track.children[0].offsetHeight + 'px)';
-      turn.sliding = true;
-      turn.at = this.clock;
-    }
-    const first = turn.sliding ? 1 : 0, shown = Array.from(track.children).slice(first, first + EFFECTS_SHOWN);
-    box.style.height = shown.reduce((sum, row) => sum + row.offsetHeight, 0) + 'px';
+    track.style.transform = 'translateY(' + -Math.round(Math.min(roll.y, over)) + 'px)';
   }
 
   _paintPlayers(game) {

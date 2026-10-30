@@ -61,7 +61,7 @@ test('страницы: окошко под вебку и окошко виту�
   await until(() => camAt(vtuber.contentWindow)[2] > 0, 'окошко витубера на экране');
   eq(camAt(vtuber.contentWindow), [18, 344, 280, 360]);
   const at = (id) => element(vtuber.contentWindow, id).getBoundingClientRect();
-  ok(at('effects').left > at('main').right && at('effects').bottom <= at('side').top + 1, 'эффекты — над гачей');
+  ok(at('effects').left > at('main').right && at('effects').top >= at('slot-2').bottom, 'эффекты — под гачей');
   ok(at('players').height > 60 && at('players').bottom < 344, 'отряд — над окошком');
   vtuber.remove();
 });
@@ -80,10 +80,10 @@ test('страницы: пример в рамке — середина волн
   eq(w.document.querySelectorAll('#slot-1 .cell').length, 26, 'вторая карусель крутится');
   eq(w.document.querySelectorAll('.side .slot:not([hidden])').length, 3, 'три окна гачи');
   ok(w.document.querySelectorAll('#left #players li').length >= 5, 'отряд слева');
-  ok(w.document.querySelectorAll('#left #effects .effect').length >= 3, 'эффекты слева');
-  const effects = element(w, 'effects').getBoundingClientRect();
-  const players = element(w, 'players').getBoundingClientRect();
-  ok(effects.bottom <= players.top, 'эффекты над отрядом');
+  ok(w.document.querySelectorAll('#side #effects .effect').length >= 3, 'эффекты справа');
+  const effects = element(w, 'effects').getBoundingClientRect(), gacha = element(w, 'queue').getBoundingClientRect();
+  const cards = element(w, 'cards').getBoundingClientRect();
+  ok(effects.top >= gacha.bottom && cards.top <= effects.top, 'эффекты под гачей, профили поверх них');
   ok(w.document.querySelector('#cards .profile'), 'карточка игрока справа');
   no(w.chatoborona.live);
   frame.remove();
