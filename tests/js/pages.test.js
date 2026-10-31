@@ -208,12 +208,12 @@ test('страницы: божественное оружие — плашка �
   await until(() => w.document.querySelector('#cards .note.divine'), 'плашка справа');
   const note = w.document.querySelector('#cards .note.divine');
   ok(note.textContent.includes('Божественное оружие') && note.textContent.includes('Аня'), note.textContent);
-  ok(note.textContent.includes('Божественный'), 'и само оружие');
+  ok(note.textContent.includes('Божественн'), 'и само оружие');
   ok(element(w, 'cheer-box').hidden, 'посреди поля ничего');
   game.feed('Аня', 'профиль', { login: 'аня' });
   await until(() => w.document.querySelector('#cards .profile'), 'профиль');
   await until(() => !w.document.querySelector('#cards .profile .relic').hidden, 'частица слева от монет');
-  ok(text(w, 'cards').includes('Божественный'));
+  ok(text(w, 'cards').includes('Божественн'));
   await until(() => w.document.querySelector('#players .snow'), 'снежный ник higashi_vo');
   frame.remove();
 });

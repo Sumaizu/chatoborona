@@ -1,4 +1,5 @@
 import { test, eq, ok, no } from './harness.js';
+import { playNote, reportPlay } from '../../site/js/stats.js';
 import { seeded } from './fixtures.js';
 import { BIOMES, SIZE, cellName, coverage, makeMap, parseCell } from '../../site/js/field.js';
 import { LEVEL_MAX, MIGHT, MOBS, STAT, TEMPO, WAVE, crowdFactor, eliteCount, levelOf, rollTempo, waveHp, waveReward,
@@ -400,4 +401,13 @@ test('карта: река течёт от края до края, дорогу 
     });
   }
   ok(seen >= 15, 'реки бывают часто: ' + seen);
+});
+
+test('статистика: отметка о запуске — только с каналом и только с сайта gamesonstream.ru', () => {
+  eq(playNote('chatoborona', { channel: '', webcam: 'cam' }, false), null);
+  eq(playNote('chatoborona', { channel: 'some_one', webcam: 'vtuber' }, true),
+    { game: 'chatoborona', channel: 'some_one', mode: 'vtuber', place: 'browser' });
+  eq(playNote('chatoborona', { channel: 'some_one', webcam: 'none' }, false).place, 'obs');
+  eq([reportPlay({ game: 'x' }, '127.0.0.1'), reportPlay({ game: 'x' }, 'sumaizu.github.io'), reportPlay(null, 'gamesonstream.ru')],
+    [false, false, false]);
 });
