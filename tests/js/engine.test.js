@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { PLAIN, makeGame, memoryStorage, runFor, seeded, until } from './fixtures.js';
-import { ASCEND_TIME, CARD_MIN, CARD_ROOM, DIVINE_TIME, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPEED_MAX,
+import { ASCEND_TIME, CARD_MIN, CARD_ROOM, CARD_TIME, DIVINE_TIME, OVER_TIME, Profiles, QUICK_PAUSE, QUICK_WAVE, SPEED_MAX,
   SPIN_LIMIT, SUMMIT_EVERY, SUMMIT_TIME, SUPPORTS, SUPPORT_EVERY, TIP_LEVEL, TIP_TIME }
   from '../../site/js/engine.js';
 import { FAMILY_BY_ID, LEVEL_MAX, MIGHT, REWARD, TEMPO, TICK, waveReward, xpForLevel } from '../../site/js/balance.js';
@@ -495,7 +495,7 @@ test('чат: боты не играют, обычное сообщение — 
   ok(game.members.has('тоня'), 'но в отряд вступила');
 });
 
-test('профиль показывает карточку игрока секунд десять', () => {
+test('профиль показывает карточку игрока 20 секунд, повторный — ещё 20', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Уля', 'привет');
@@ -503,8 +503,14 @@ test('профиль показывает карточку игрока секу
   eq(say(game, 'Уля', 'профиль'), 'card');
   ok(game.notes.some((n) => n.kind === 'card' && n.login === 'уля'));
   ok(game.events.some((e) => e.kind === 'card' && e.login === 'уля'));
+  eq(CARD_TIME, 20);
   runFor(game, 10);
   ok(game.notes.some((n) => n.kind === 'card'), 'через 10 секунд ещё видна');
+  say(game, 'Уля', 'профиль');
+  runFor(game, CARD_TIME - 1);
+  ok(game.notes.some((n) => n.kind === 'card'), 'повторный профиль продлил показ');
+  runFor(game, 1.2);
+  no(game.notes.some((n) => n.kind === 'card'), 'отвисела — убрана, эффекты не загораживает');
   eq(say(game, 'Федя', 'Профиль'), 'card', 'новичок вступает и сразу видит карточку');
 });
 
@@ -774,7 +780,7 @@ test('число и «все» в команде: «гача 3», «гача в�
   eq(say(game, 'Гена', 'улучшить 3'), 'poor');
 });
 
-test('профиль: две карточки сразу, третья ждёт десять секунд старшей; без очереди висит сколько угодно; «проф» — короткая', () => {
+test('профиль: две карточки сразу, третья ждёт десять секунд старшей; без очереди — 20 секунд; «проф» — короткая', () => {
   const { game } = makeGame();
   game.open();
   for (const name of ['Аня', 'Боря', 'Вика', 'Гоша']) say(game, name, 'привет');
@@ -797,8 +803,10 @@ test('профиль: две карточки сразу, третья ждёт 
   eq(shown(), [['вика', false]], 'Боря своё отвисел — сразу следующая');
   runFor(game, CARD_MIN + 0.2);
   eq(shown(), [['гоша', true]]);
-  runFor(game, 600);
-  eq(shown(), [['гоша', true]], 'очередь пуста — карточка висит, пока её не сменят');
+  runFor(game, CARD_TIME - 1.2);
+  eq(shown(), [['гоша', true]], 'очередь пуста — висит до 20 секунд');
+  runFor(game, 1.5);
+  eq(shown(), [], 'и уходит');
 });
 
 test('реролл: один раз за игру и только до первой волны, на поле — новый класс на той же клетке', () => {

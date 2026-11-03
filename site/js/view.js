@@ -51,7 +51,7 @@ const BATTLE_SOUNDS = { wall: 'build', crumble: 'crumble', plant: 'plant', mine:
   hook: 'chain', yank: 'yank', charge: 'charge', reload: 'reload', ricochet: 'ricochet', burst: 'mine',
   rocket: 'launch', flash: 'flash', fogtoss: 'flask', fog: 'splash', ignite: 'ignite', oil: 'splash',
   oilfire: 'flame', net: 'snap', prey: 'prey', bounty: 'treasure', ambush: 'leap', cocoon: 'clink',
-  hatch: 'hatch', heist: 'jackpot', share: 'treasure', feast: 'clink', shatter: 'freeze', snow: 'snow', gust: 'wind',
+  hatch: 'hatch', heist: 'jackpot', share: 'treasure', shatter: 'freeze', snow: 'snow', gust: 'wind',
   wind: 'wind', cheer: 'rally', rally: 'rally', cleanse: 'heal', hallow: 'holy', muse: 'cast', expose: 'hex',
   heal: 'heal', shield: 'block', rescue: 'win',
   thorns: 'rock' };

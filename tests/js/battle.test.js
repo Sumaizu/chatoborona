@@ -987,15 +987,25 @@ test('паразит: с 10-го крит оглушает и отнимает �
   ok(cap < 1e6 * bug.s[0].boss);
 });
 
-test('паразит: с 30-го, добив моба, иногда пирует — больше опыта и монет', () => {
+test('паразит: с 30-го «Заражение» — моб, в которого он вгрызся, получает больше урона от всех', () => {
   const battle = makeBattle(), bug = battle.placeRider(level(30), 'parasite');
-  battle.random = () => 0;
-  const mob = walker(battle, 5, 1);
+  const gun = battle.place(level(30), 'gunner', 2, 4);
+  const weak = walker(battle, 5, 1e6), host = walker(battle, 6, 1e9);
+  still(weak, host);
+  for (let i = 0; i < 100 && !(bug.host === host && battle.time > bug.leapUntil + TICK); i++) battle.step(TICK);
+  ok(bug.host === host, 'сидит на самом крепком');
+  const hit = (mob) => {
+    const before = mob.hp;
+    battle._hurt(mob, 100, gun);
+    return before - mob.hp;
+  };
+  near(hit(host) / hit(weak), 1 + bug.s[1].vuln, 'на ' + Math.round(bug.s[1].vuln * 100) + '% больше');
+  ok(host.helpers.has(bug), 'паразиту засчитывается помощь');
+  const young = makeBattle(), larva = young.placeRider(level(29), 'parasite'), mob = walker(young, 5, 1e9);
   still(mob);
-  const xp = bug.player.xp, earn = bug.cls.earn;
-  ATTACK(battle, bug, mob);
-  ok(mob.dead && battle.events.some((e) => e.kind === 'feast'));
-  near(bug.player.xp - xp, MOBS.normal.xp * earn.xp * (1 + bug.s[1].bonus));
+  for (let i = 0; i < 40; i++) young.step(TICK);
+  ok(larva.host === mob);
+  eq(mob.vuln, 0, 'до 30-го уровня — нет');
 });
 
 test('паразит: с 50-го раз в 30 с забирает монеты богатого союзника и раздаёт их всем, свои держит до 1000', () => {

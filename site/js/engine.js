@@ -40,6 +40,7 @@ export const BOTS = [
 ];
 export const OVER_TIME = 15;
 export const CARD_MIN = 10;
+export const CARD_TIME = 20;
 export const SUPPORTS = new Set(['banner', 'sage']);
 export const SUPPORT_EVERY = 10;
 export const CARD_ROOM = 2;
@@ -508,7 +509,7 @@ export class Game {
   _card(member, brief) {
     const shown = this._shownCards(), own = shown.find((note) => note.login === member.login);
     const waiting = this.cards.find((card) => card.login === member.login);
-    if (own) Object.assign(own, { since: 0, detail: { brief } });
+    if (own) Object.assign(own, { since: 0, left: CARD_TIME, detail: { brief } });
     else if (waiting) waiting.brief = brief;
     else if (shown.length >= this.cardRoom) this.cards.push({ login: member.login, brief });
     else this._showCard(member.login, brief);
@@ -517,7 +518,7 @@ export class Game {
   }
 
   _showCard(login, brief) {
-    const note = { kind: 'card', login, left: Infinity, since: 0, detail: { brief }, id: ++this._noteNo };
+    const note = { kind: 'card', login, left: CARD_TIME, since: 0, detail: { brief }, id: ++this._noteNo };
     this.notes.push(note);
     return note;
   }

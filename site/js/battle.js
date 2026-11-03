@@ -92,6 +92,7 @@ function routeOf(path) {
 
 const BODILESS = new Set(TERRAIN.bodiless);
 const GATE_SHIFT = 0.6;
+const INFECT_HOLD = 0.25;
 const BEND = 0.9;
 const JOIN_FADE = 6;
 const SOLID = new Set(['mountain', 'tunnel', 'ruin', 'stones', 'crypt']);
@@ -1557,6 +1558,10 @@ export class Battle {
       if (now >= t.leapUntil) {
         t.cx = t.host.x;
         t.cy = t.host.y;
+        if (open(t, 1)) {
+          this._vulnerable(t.host, t.s[1].vuln, INFECT_HOLD);
+          t.host.helpers.add(t);
+        }
       }
       return;
     }
@@ -1802,17 +1807,12 @@ export class Battle {
       this._event({ kind: 'kill', mob, by: killer });
       return;
     }
-    let feast = 1;
-    if (killer && killer.cls.id === 'parasite' && open(killer, 1) && this.random() < killer.s[1].chance) {
-      feast = 1 + killer.s[1].bonus;
-      this._event({ kind: 'feast', tower: killer, mob });
-    }
     const insight = mob.weakUntil > this.time && mob.weakBy && open(mob.weakBy, 2) ? mob.weakBy.s[2].xp : 1;
     const prize = mob.silver ? SILVER.xp : 1, purse = mob.silver ? SILVER.coins : 1;
     for (const t of mob.helpers) {
-      const earn = t.cls.earn || NO_EARN, bonus = t === killer ? feast : 1;
-      this._grant(t, mob.info.xp * earn.xp * bonus * insight * prize);
-      const coins = (t === killer ? KILL_COINS : ASSIST_COINS) * mob.info.coins * earn.coins * bonus * purse
+      const earn = t.cls.earn || NO_EARN;
+      this._grant(t, mob.info.xp * earn.xp * insight * prize);
+      const coins = (t === killer ? KILL_COINS : ASSIST_COINS) * mob.info.coins * earn.coins * purse
         * Math.max(0, 1 + (t.mods.coins || 0));
       t.player.coins += coins;
       t.run.coins += coins;

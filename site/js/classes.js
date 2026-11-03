@@ -59,7 +59,7 @@ export const CLASSES = [
     earn: { xp: 1.18, coins: 1.12 },
     weapon: 'пулемёт',
     stats: { str: 'low', agi: 'high', int: 'low' },
-    base: { damage: 0.42, interval: 0.3, range: 3, ramp: 0.08, rampMax: 1, burst: 7, reload: 3 },
+    base: { damage: 0.46, interval: 0.3, range: 3, ramp: 0.08, rampMax: 1, burst: 7, reload: 2 },
     summary: 'Строчит без остановки, разгоняется на одной цели; потом перезарядка',
     main: (b) => 'Очень часто стреляет на ' + cells(b.range) + ' — по всем подряд, боссов не выделяет. Держит одну '
       + 'цель и разгоняется на ней до +' + pct(b.rampMax) + ' скорости; после ' + sec(b.burst) + ' стрельбы — '
@@ -118,7 +118,7 @@ export const CLASSES = [
     earn: { xp: 0.89, coins: 0.77 },
     weapon: 'посох',
     stats: { str: 'low', agi: 'mid', int: 'mid' },
-    base: { damage: 0.9, interval: 1.3, range: 3.5, jumps: 9, jumpRange: 2, falloff: 0.1 },
+    base: { damage: 1.04, interval: 1.3, range: 3.5, jumps: 9, jumpRange: 2, falloff: 0.1 },
     summary: 'Молния перескакивает с моба на моба',
     main: (b) => 'Молния бьёт цель на ' + cells(b.range) + ' и перескакивает назад по дороге ещё до ' + b.jumps
       + ' мобов, каждому следующему на 10% меньше; урон ×' + num(b.damage),
@@ -150,7 +150,7 @@ export const CLASSES = [
     earn: { xp: 1.3, coins: 1.35 },
     weapon: 'флакон',
     stats: { str: 'low', agi: 'mid', int: 'mid' },
-    base: { damage: 2.1, interval: 1.6, range: 3.5, target: 'potion', flight: 0.5 },
+    base: { damage: 1.9, interval: 1.6, range: 3.5, target: 'potion', flight: 0.5 },
     summary: 'Кидает ядовитые зелья, оставляет лужи яда',
     main: (b) => 'Кидает ядовитые зелья на ' + cells(b.range) + ': урон ядом ×' + num(b.damage)
       + '. Летучих не бьёт, нежить яд не берёт',
@@ -242,7 +242,7 @@ export const CLASSES = [
     weapon: 'шип',
     rider: true,
     stats: { str: 'low', agi: 'high', int: 'low' },
-    base: { damage: 0.25, interval: 0.8, leap: 0.6, cocoon: 10, gold: [1, 200] },
+    base: { damage: 0.6, interval: 0.8, leap: 0.6, cocoon: 10, gold: [1, 200] },
     summary: 'Десять волн зреет в коконе, потом грызёт самого крепкого моба',
     main: (b) => 'Первые ' + b.cocoon + ' волн — личинка в коконе на клетке: не бьёт, зато каждую волну получает от '
       + b.gold[0] + ' до ' + b.gold[1] + ' монет. Потом цепляется к самому крепкому мобу и грызёт его, убил — прыгает '
@@ -252,9 +252,8 @@ export const CLASSES = [
         scale: { stun: 'time', cap: 'dmg' },
         text: (v) => 'крит оглушает на ' + sec(v.stun) + ' и отнимает ещё ' + pct(v.share) + ' здоровья (у элитных '
           + pct(v.elite) + ', у боссов ' + pct(v.boss) + '), но не больше урона ×' + num(v.cap) },
-      { name: 'Пир', v: { chance: 0.3, bonus: 1 }, scale: { chance: 'luck', bonus: 'power' },
-        text: (v) => 'добив моба, с шансом ' + pct(v.chance) + ' получает на ' + pct(v.bonus)
-          + ' больше опыта и монет' },
+      { name: 'Заражение', v: { vuln: 0.3 }, scale: { vuln: 'power' },
+        text: (v) => 'моб, в которого он вгрызся, получает на ' + pct(v.vuln) + ' больше урона от всех' },
       { name: 'Налёт', v: { every: 30, rich: 1000, nap: 10, sleep: 60 },
         text: (v) => 'раз в ' + sec(v.every) + ' прыгает на голову союзнику, у которого больше ' + v.rich + ' монет, '
           + 'забирает все его монеты и раздаёт их случайно всем, себе тоже; потом ' + sec(v.nap) + ' спит у него на '
@@ -369,7 +368,7 @@ export const CLASSES = [
     weapon: 'каменная рука',
     her: true,
     stats: { str: 'low', agi: 'low', int: 'high' },
-    base: { damage: 0.95, interval: 1.3, range: 3, target: 'land', spikes: 2, rebuild: 7 },
+    base: { damage: 0.95, interval: 1.3, range: 3, target: 'land', spikes: 2, rebuild: 9 },
     summary: 'Шипы из-под земли, каменная стена, метеорит',
     main: (b) => 'На ' + cells(b.range) + ' бьёт шипами из-под земли — сразу две клетки дороги, урон ×'
       + num(b.damage),

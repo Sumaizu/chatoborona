@@ -2115,10 +2115,9 @@ export class Scene {
         add({ kind: 'text', life: 1.8, x: pose.x, y: pose.y - 0.7, text: '+' + share.coins, color: '#fde047' });
         this._sparks(pose.x, pose.y, ['#facc15', '#fff7c2'], 5, 1.4, 0.5, 2);
       }
-    } else if (event.kind === 'feast' || event.kind === 'execute') {
+    } else if (event.kind === 'execute') {
       const spot = this.shown.get(event.mob.id) || event.mob;
-      this._sparks(spot.x, spot.y, event.kind === 'feast' ? ['#facc15', '#fff7c2', '#d946ef']
-        : ['#ffffff', '#ef4444', '#7a1f1f'], 10, 2, 0.45, 2);
+      this._sparks(spot.x, spot.y, ['#ffffff', '#ef4444', '#7a1f1f'], 10, 2, 0.45, 2);
     } else if (event.kind === 'dig' || event.kind === 'drop' || event.kind === 'swallow') {
       const spot = this.shown.get(event.mob.id) || event.mob;
       add({ kind: 'puff', life: 0.5, x: spot.x, y: spot.y });
