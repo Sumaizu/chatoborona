@@ -195,12 +195,12 @@ test('классы: пятнадцать, у каждого оружие, сво
   eq(new Set(CLASSES.map((c) => c.id)).size, 15);
   eq(PERKS, [10, 30, 50]);
   const runes = CLASSES.flatMap((cls) => cls.runes.map((rune) => rune.id));
-  eq(new Set(runes).size, CLASSES.length * 2, 'руны не повторяются');
+  eq(new Set(runes).size, runes.length, 'руны не повторяются');
   for (const cls of CLASSES) {
     ok(cls.weapon && cls.name && ['str', 'agi', 'int'].includes(cls.primary), cls.id);
     for (const stat of ['str', 'agi', 'int']) ok(STAT.grades[cls.stats[stat]], cls.id + ' ' + stat);
     ok(cls.skills.length >= 3, cls.id);
-    eq(cls.runes.length, 2, cls.id);
+    ok(cls.runes.length >= 2, cls.id);
     ok(cls.earn.xp > 0 && cls.earn.coins > 0, cls.id);
     const pool = poolOf(cls.id);
     ok(pool.every(Boolean), cls.id + ': все навыки набора есть');
@@ -221,6 +221,17 @@ test('классы: пятнадцать, у каждого оружие, сво
   eq(names('hunter'), ['Капканы', 'Сеть', 'Кровопускание', 'Добыча', 'Гроза чудовищ', 'Медвежий капкан']);
   eq(names('bomber'), ['Горящая земля', 'Шрапнель', 'Детонация', 'Кассетный выстрел', 'РПГ', 'Липкая бомба',
     'Ковровая бомбардировка', 'Мегабомба']);
+  eq(names('alchemist'), ['Ядовитая лужа', 'Кислота', 'Отрава', 'Зелье безумия', 'Ядовитый туман', 'Эпидемия',
+    'Философский камень']);
+  eq(names('miner'), ['Граната', 'Оглушающие мины', 'Усиленная мина', 'Ядерка', 'Минное поле', 'Ядерный синтез',
+    'Цепная реакция']);
+  eq(names('parasite'), ['Шок', 'Липкий кокон', 'Заражение', 'Налёт', 'Пожиратель', 'Королева роя', 'Захват разума']);
+  eq(names('banner'), ['Боевой клич', 'Стяг стойкости', 'Натиск', 'Длинное древко', 'Знамя победы', 'Легион',
+    'Знамя героя']);
+  eq(names('healer'), ['Щит', 'Обновление', 'Очищение', 'Благословение', 'Святая земля', 'Свет небес', 'Второй шанс',
+    'Ангел-хранитель']);
+  eq(names('sage'), ['Вдохновение', 'Ясность', 'Озарение', 'Ученик', 'Слабое место', 'Всеведение', 'Петля времени',
+    'Просветление']);
   for (const id of ['banner', 'healer', 'sage']) ok(CLASSES.some((cls) => cls.id === id), 'поддержка вернулась: ' + id);
 });
 

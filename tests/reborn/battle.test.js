@@ -1646,6 +1646,162 @@ test('лекарь: с 10-го щит — дошедший моб не отни�
   ok(again.dead && battle.lives === lives, 'с ангелом-хранителем — держит');
 });
 
+test('алхимик, навыки Реборна: кислота, зелье безумия, эпидемия, философский камень', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'alchemist', 10, 4);
+  battle.setMods(t, { perks: [3, 4] });
+  battle.random = () => 0.01;
+  t.critChance = 0;
+  t.cooldown = 1e9;
+  const mob = walker(battle, 10, 1e9), pace = mob.speed;
+  still(mob);
+  battle._fire(t);
+  runFor(battle, t.cls.base.flight + 0.1);
+  mob.speed = pace;
+  ok(mob.acidUntil > battle.time && mob.acid === t.s[3].cut, 'кислота разъедает броню');
+  ok(mob.madUntil > battle.time, 'и сводит с ума');
+  const back = mob.d, other = walker(battle, back, 1e9);
+  still(other);
+  runFor(battle, 0.5);
+  ok(mob.d < back, 'безумный идёт назад');
+  ok(hit(other) > 0, 'и кусает своих');
+  const bare = walker(battle, 5, 1e9);
+  bare.acid = t.s[3].cut;
+  bare.acidUntil = battle.time + 5;
+  battle._hurt(bare, 100, t);
+  near(hit(bare), 100 * (1 + t.s[3].cut), 'у кого нет брони — урон больше');
+
+  const lab = makeBattle(), a = lab.place(player(), 'alchemist', 10, 4), far = lab.place(player(), 'sniper', 2, 4);
+  lab.random = () => 0.01;
+  lab.setMods(a, { perks: [5], runes: ['epidemic'] });
+  ok(a.runes.has('plague'), 'эпидемия берёт и нежить');
+  const sick = walker(lab, 10, 100), next = walker(lab, 10.5, 1e6);
+  still(sick, next);
+  lab._poison(sick, a, a, 1, 5);
+  lab._hurt(sick, 1e6, a);
+  ok(sick.dead);
+  ok(next.poison && next.poison.has(a), 'заразил соседа');
+  ok(lab.events.some((e) => e.kind === 'gold'), 'рассыпался золотом');
+  eq(far.player.coins, a.s[5].coins, 'монеты — всем в отряде');
+});
+
+test('минёр, навыки Реборна: оглушающие мины, цепная реакция, минное поле', () => {
+  const battle = makeBattle(), m = battle.place(player(), 'miner', 10, 4);
+  battle.setMods(m, { perks: [3, 5] });
+  battle.random = () => 0.99;
+  const mob = walker(battle, 9, 1e9);
+  still(mob);
+  for (const x of [mob.x, mob.x + 1, mob.x + 2.1]) battle.mines.push({ tower: m, i: 0, x, y: mob.y, kind: 'mine' });
+  battle._mines(battle.time);
+  eq(battle.mines.length, 0, 'цепь подорвала все три');
+  eq(battle.events.filter((e) => e.kind === 'mine').length, 3);
+  ok(mob.holdUntil > battle.time, 'мина оглушает');
+
+  const field = makeBattle(), f = field.place(player(), 'miner', 10, 4);
+  field.setMods(f, { perks: [4] });
+  still(walker(field, 0, 1e9));
+  field.step(TICK);
+  ok(field.mines.filter((mine) => mine.tower === f).length >= f.s[4].count, 'минное поле: сразу пять мин');
+});
+
+test('паразит, навыки Реборна: липкий кокон, пожиратель, королева роя, захват разума', () => {
+  const battle = makeBattle(), p = battle.place(player(), 'parasite', 10, 4);
+  battle.setMods(p, { perks: [3] });
+  ok(p.cocoon > 0);
+  const slow = walker(battle, 10, 1e9);
+  still(slow);
+  battle.step(TICK);
+  near(slow.slow, p.s[3].slow, 'кокон липкий');
+
+  const nest = makeBattle(), q = nest.placeRider(player(), 'parasite');
+  nest.setMods(q, { perks: [4, 5, 6] });
+  const weak = walker(nest, 10, 0.01);
+  still(weak);
+  ATTACK(nest, q, weak);
+  ok(weak.dead);
+  near(q.feast, q.s[4].bonus, 'пожиратель: +5% за убийство');
+  nest.startWave(2, 1);
+  eq(q.feast, 0, 'до конца волны');
+  const herd = [1, 2, 3, 4, 5, 6].map((k) => walker(nest, 3 + k, 1e6 * k));
+  still(...herd);
+  q.host = herd[0];
+  nest.step(TICK);
+  ok(herd.slice(1).every((mob) => mob.vuln >= q.s[5].vuln && mob.slow > 0), 'рой облепил пятерых самых крепких');
+  ok(!(herd[0].vulnUntil > nest.time), 'шестой — нет');
+  ok(q.host && q.host.madUntil > nest.time, 'носитель сошёл с ума');
+});
+
+test('знаменосец, навыки Реборна: стяг стойкости, длинное древко, легион, знамя героя', () => {
+  const battle = makeBattle(), flag = battle.place(player(), 'banner', 10, 4);
+  const ally = battle.place(player(), 'sniper', 12, 4), far = battle.place(player(), 'sniper', 1, 4);
+  battle.setMods(flag, { perks: [3, 4] });
+  still(walker(battle, 0, 1e9));
+  battle.step(TICK);
+  no(battle._daze(ally, 2), 'под знаменем не оглушить');
+  near(battle._bannerOf(flag), flag.cls.base.banner + flag.reach + flag.s[4].wide);
+  ok(ally.boost.range >= flag.s[4].range, 'под знаменем бьют дальше');
+  no(far.boostBy.has(flag));
+  battle.setMods(flag, { perks: [5, 6] });
+  ally.run.kills = 5;
+  battle.step(TICK);
+  battle.step(TICK);
+  ok(flag.legionUntil > battle.time && far.boostBy.has(flag), 'легион: всё поле под знаменем');
+  ok(ally.boost.damage >= flag.s[6].bonus, 'знамя героя — лучшему по убийствам');
+});
+
+test('лекарь, навыки Реборна: обновление, благословение, свет небес', () => {
+  const battle = makeBattle(), h = battle.place(player(), 'healer', 10, 4), ally = battle.place(player(), 'sniper', 11, 3);
+  battle.setMods(h, { perks: [3] });
+  battle.lives = 10;
+  battle.endWave();
+  ok(battle.lives >= 10 + h.s[3].lives, 'после волны — ещё две жизни');
+  battle.startWave(2, 2);
+  battle.spawns = [];
+  const biter = walker(battle, battle.length - 2);
+  const lives = battle.lives;
+  for (let i = 0; i < 200 && !biter.dead; i++) battle.step(TICK);
+  eq(battle.lives, lives, 'первый укус волны не отнял жизнь');
+
+  const holy = makeBattle(), k = holy.place(player(), 'healer', 10, 4), friend = holy.place(player(), 'sniper', 11, 3);
+  holy.setMods(k, { perks: [4, 5] });
+  holy.random = () => 0.99;
+  const zombie = walker(holy, 10, 1e9, LOOKS.normal.find((l) => l.id === 'zombie'));
+  still(zombie);
+  holy.step(TICK);
+  ok(friend.blessUntil > holy.time, 'союзник благословлён');
+  holy.step(TICK);
+  ok(friend.boost.damage >= k.s[4].bonus, 'и бьёт сильнее');
+  ok(hit(zombie) >= k.skill * k.s[5].undead, 'свет небес: нежити ×30');
+  ok(zombie.holdUntil > holy.time, 'и оглушение');
+  ok(!ally.blessUntil, 'в первой битве благословлять было некому');
+});
+
+test('мудрец, навыки Реборна: ясность, петля времени, просветление', () => {
+  const battle = makeBattle(), sage = battle.place(player(), 'sage', 10, 4), ally = battle.place(player(), 'sniper', 11, 4);
+  battle.setMods(sage, { perks: [3] });
+  still(walker(battle, 0, 1e9));
+  battle.step(TICK);
+  ally.nextActive = battle.time + 10;
+  const start = ally.nextActive;
+  runFor(battle, 1);
+  near(start - ally.nextActive, sage.s[3].haste, 'ясность: за секунду на 0,3 с ближе');
+
+  const loop = makeBattle(), s = loop.place(player(), 'sage', 2, 4);
+  loop.setMods(s, { perks: [4] });
+  const runner = walker(loop, loop.length - 2);
+  for (let i = 0; i < 100 && !loop.events.some((e) => e.kind === 'rewind'); i++) loop.step(TICK);
+  ok(s.looped, 'петля сработала');
+  ok(runner.d < loop.length - 5 && !runner.biting, 'моб отброшен назад и не грызёт');
+  for (let i = 0; i < 400 && !runner.dead; i++) loop.step(TICK);
+  eq(loop.events.filter((e) => e.kind === 'rewind').length, 1, 'один раз за игру');
+
+  const wise = makeBattle(), w = wise.place(player(), 'sage', 10, 4), friend = wise.place(player(), 'sniper', 11, 4);
+  wise.setMods(w, { perks: [5] });
+  still(walker(wise, 10, 1e9));
+  friend.nextActive = wise.time + 50;
+  wise.step(TICK);
+  ok(friend.nextActive <= wise.time, 'просветление перезарядило способности');
+});
+
 test('лекарь: руна «второй шанс» — раз за игру возвращает сердцу пять жизней и стирает всю волну', () => {
   const battle = makeBattle(), healer = battle.place(player(), 'healer', 2, 6);
   battle.setMods(healer, { runes: ['second'] });

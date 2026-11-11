@@ -458,6 +458,17 @@ export class View {
       this._sound(event.by === 'frost' ? 'freeze' : 'stun');
     } else if (kind === 'execute') {
       this._sound('execute');
+    } else if (kind === 'rewind') {
+      this._cue('relic');
+      this.scene.say('Петля времени: мобы отброшены назад', '#c4b5fd');
+    } else if (kind === 'legion') {
+      this._cue('buff');
+      this.scene.say('Легион: всё поле под знаменем', '#fde047');
+    } else if (kind === 'enlight') {
+      this._cue('buff');
+      this.scene.say('Просветление: способности отряда перезаряжены', '#93c5fd');
+    } else if (kind === 'gold') {
+      this._sound('kill');
     } else if (kind === 'arrive') {
       this._sound(event.mob.info.boss ? 'roar' : 'growl');
       const mob = event.mob;

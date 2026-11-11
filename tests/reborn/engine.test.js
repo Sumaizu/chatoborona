@@ -133,22 +133,20 @@ test('игра: клетка в чате переводит защитника, 
   eq([tower.x, tower.y], [free.x, free.y]);
 });
 
-test('игра: перебежка во время волны ждёт подготовки, в подготовку — сразу', () => {
+test('игра: перебежка сразу — и во время волны, и в подготовку', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Гена', 'я тут');
   toWave(game);
   const tower = game.members.get('гена').tower, spot = game.battle.bestCell(2.5);
-  eq(say(game, 'Гена', cellName(spot.x, spot.y)), 'later');
-  ok(tower.x !== spot.x || tower.y !== spot.y, 'пока волна — стоит');
-  eq(game.members.get('гена').pendingMove, { x: spot.x, y: spot.y });
-  eq(say(game, 'Дина', cellName(spot.x, spot.y)), 'later', 'новичок встаёт сам, а перебежит после волны');
+  eq(say(game, 'Гена', cellName(spot.x, spot.y)), 'move', 'во время волны — сразу');
+  eq([tower.x, tower.y], [spot.x, spot.y]);
+  ok(tower.busy > game.battle.time, 'после перебежки секунду не стреляет');
+  eq(say(game, 'Дина', cellName(spot.x, spot.y)), null, 'занятая клетка');
   ok(game.members.get('дина').tower, 'но в отряд вступила');
   ok(until(game, () => game.state === 'break'));
-  eq([tower.x, tower.y], [spot.x, spot.y], 'после волны перебежал');
-  eq(game.members.get('гена').pendingMove, null);
   const free = game.battle.bestCell(2.5);
-  eq(say(game, 'Гена', cellName(free.x, free.y)), 'move', 'в подготовку можно');
+  eq(say(game, 'Гена', cellName(free.x, free.y)), 'move', 'в подготовку тоже');
 });
 
 test('игра: в лобби клетка ничего не двигает, но в отряд принимает', () => {
@@ -1108,8 +1106,8 @@ test('стример переставляет защитников «А1 Б2»; 
   toWave(game);
   const next = game.battle.bestCell(2.5);
   const late = cellName(tower.x, tower.y) + ' ' + cellName(next.x, next.y);
-  eq(game.feed('Streamer', late, { login: 'streamer' }), 'later');
-  eq(gosha.pendingMove, { x: next.x, y: next.y });
+  eq(game.feed('Streamer', late, { login: 'streamer' }), 'move', 'и во время волны — сразу');
+  eq([tower.x, tower.y], [next.x, next.y]);
 });
 
 test('знаменосцев и мудрецов — не больше одного на каждые 10 игроков, рерол их не добавляет; лекарей — сколько угодно', () => {

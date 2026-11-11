@@ -48,7 +48,14 @@ const WHIRL_REACH = 0.5;
 const PIERCE_REACH = 1.4;
 const PIERCE_WIDTH = 0.4;
 const FAR_REACH = SIZE * 1.5;
+const MAD_BITE = 0.7;
+const STICKY_SLOW = 0.3;
+const EPIDEMIC = 1;
+const COOLDOWNS = ['nextActive', 'nextBear', 'nextBless', 'nextCarpet', 'nextCheer', 'nextCleanse', 'nextFar',
+  'nextField', 'nextGrenade', 'nextLegion', 'nextLight', 'nextMind', 'nextMuse', 'nextSticky', 'nextStorm', 'nextSwarm',
+  'nextTrap', 'nextWall'];
 const TRACE_TIME = 1;
+const WARD_AURA = 0.25;
 const ECHO_DELAY = 0.3;
 const ROCKET_FLIGHT = 0.6;
 export const SHELL_FLIGHT = 0.25;
@@ -423,6 +430,8 @@ export class Battle {
   startWave(wave, players = this.towers.length) {
     this.wave = wave;
     this.players = players;
+    for (const t of this.towers) t.feast = 0;
+    this.spare = this.towers.find((t) => t.cls.id === 'healer' && !t.cocoon && open(t, 3)) || null;
     const start = this.time, toughness = Math.max(FLOOR, 1 + this.foe.hp);
     const family = this.nextFamily || this.planFamily(wave);
     this.family = family;
@@ -499,6 +508,12 @@ export class Battle {
         this.maxLives - this.lives);
       this.lives += heal;
       this._event({ kind: 'heal', tower: healers[0], lives: heal });
+    }
+    const renew = healers.find((t) => open(t, 3));
+    if (renew && this.lives < this.maxLives) {
+      const extra = Math.min(renew.s[3].lives, this.maxLives - this.lives);
+      this.lives += extra;
+      this._event({ kind: 'heal', tower: renew, lives: extra });
     }
     const fighters = this.towers.filter((t) => !t.cocoon);
     const share = fighters.reduce((sum, t) => sum + t.run.xp - t.waveXp, 0) / Math.max(1, fighters.length);
@@ -907,6 +922,7 @@ export class Battle {
     tower.haste = haste;
     tower.s = cls.skills.map((item) => scaled(item, { power: skill.power, luck: skill.luck, haste }));
     tower.runes = new Set(mods.runes || []);
+    if (tower.runes.has('epidemic')) tower.runes.add('plague');
     const boost = Math.max(FLOOR, 1 + (mods.damage || 0)) * tower.might / MIGHT.base;
     tower.damage = base.damage * boost;
     tower.skill = base.skill * boost;
@@ -1132,22 +1148,39 @@ export class Battle {
   }
 
   _mines(now) {
-    const left = [];
-    for (const mine of this.mines) {
-      const victim = this.mobs.find((mob) => !mob.dead && grounded(mob, now) && near(mob, mine.x, mine.y, MINE_TOUCH));
-      if (!victim) {
-        left.push(mine);
-        continue;
-      }
-      const t = mine.tower, big = mine.kind === 'big', base = t.cls.base;
-      const radius = big ? t.s[1].radius : base.touch, crit = this.random() < t.critChance;
-      const damage = (big ? t.skill * t.s[1].bonus : t.damage) * base.mine * (crit ? t.critMul : 1);
-      this._event({ kind: 'mine', tower: t, x: mine.x, y: mine.y, radius, mine: mine.kind });
-      for (const mob of this.mobs) {
-        if (!mob.dead && grounded(mob, now) && near(mob, mine.x, mine.y, radius)) this._hurt(mob, damage, t);
+    const stepped = (mine) => this.mobs.some((mob) => !mob.dead && grounded(mob, now)
+      && near(mob, mine.x, mine.y, MINE_TOUCH));
+    const fired = this.mines.filter(stepped);
+    if (!fired.length) return;
+    const gone = new Set();
+    for (const first of fired) {
+      if (gone.has(first)) continue;
+      const t = first.tower, chain = open(t, 5) ? t.s[5] : null, queue = [first];
+      gone.add(first);
+      for (let k = 0; k < queue.length; k++) {
+        const mine = queue[k];
+        this._blow(mine, now, chain ? 1 + chain.bonus * k : 1);
+        if (!chain) continue;
+        for (const other of this.mines) {
+          if (gone.has(other) || other.tower !== t || !near(other, mine.x, mine.y, chain.radius)) continue;
+          gone.add(other);
+          queue.push(other);
+        }
       }
     }
-    this.mines = left;
+    this.mines = this.mines.filter((mine) => !gone.has(mine));
+  }
+
+  _blow(mine, now, mul) {
+    const t = mine.tower, strong = mine.kind === 'big', base = t.cls.base;
+    const radius = strong ? t.s[1].radius : base.touch, crit = this.random() < t.critChance;
+    const damage = (strong ? t.skill * t.s[1].bonus : t.damage) * base.mine * (crit ? t.critMul : 1) * mul;
+    this._event({ kind: 'mine', tower: t, x: mine.x, y: mine.y, radius, mine: mine.kind });
+    for (const mob of this.mobs.slice()) {
+      if (mob.dead || !grounded(mob, now) || !near(mob, mine.x, mine.y, radius)) continue;
+      this._hurt(mob, damage, t);
+      if (open(t, 3) && !mob.dead) this._hold(mob, t.s[3].stun, t);
+    }
   }
 
   _tosses(now) {
@@ -1265,7 +1298,7 @@ export class Battle {
       if (mob.biting) {
         if (now - mob.biting < BITE_TIME) continue;
         mob.dead = true;
-        const shield = mob.fatal ? null : this._shield(mob);
+        const shield = mob.fatal ? null : this._shield(mob) || this._spared();
         if (shield) {
           this._event({ kind: 'shield', mob, tower: shield });
           continue;
@@ -1279,6 +1312,10 @@ export class Battle {
       }
       mob.wall = null;
       if (mob.holdUntil > now && !steady(mob, now)) continue;
+      if (mob.madUntil > now) {
+        this._rave(mob, dt);
+        continue;
+      }
       let slow = steady(mob, now) ? 0 : Math.max(mob.slowUntil > now ? mob.slow : 0, mob.chill);
       if (mob.info.boss) slow *= BOSS_SLOW;
       let speed = mob.speed * (1 + mob.fury) * (mob.wild ? 1 + OVERTIME_SPEED : 1) * wind
@@ -1316,8 +1353,46 @@ export class Battle {
       } else if (mob.d >= stop) {
         mob.biting = now;
         this._event({ kind: 'bite', mob });
+        this._rewind();
       }
     }
+  }
+
+  _rave(mob, dt) {
+    mob.d = Math.max(0, mob.d - mob.speed * dt);
+    this._locate(mob);
+    for (const other of this.mobs) {
+      if (other !== mob && !other.dead && near(other, mob.x, mob.y, MAD_BITE)) {
+        this._hurt(other, mob.mad.dps * dt, mob.mad.by, null, true);
+      }
+    }
+  }
+
+  _madden(mob, seconds, t, dps) {
+    if (mob.dead || mob.info.boss || mob.fatal) return;
+    mob.madUntil = Math.max(mob.madUntil || 0, this.time + seconds * (1 - mob.resist));
+    mob.mad = { by: t, dps };
+    this._event({ kind: 'mad', mob, tower: t });
+  }
+
+  _spared() {
+    const t = this.spare;
+    if (!t || !this.towers.includes(t)) return null;
+    this.spare = null;
+    return t;
+  }
+
+  _rewind() {
+    const t = this.towers.find((sage) => sage.cls.id === 'sage' && !sage.looped && open(sage, 4));
+    if (!t) return;
+    t.looped = true;
+    for (const mob of this.mobs) {
+      if (mob.dead) continue;
+      mob.biting = 0;
+      mob.d = Math.max(0, mob.d - mob.speed * t.s[4].time);
+      this._locate(mob);
+    }
+    this._event({ kind: 'rewind', tower: t });
   }
 
   _batter(wall, mob, dt, now) {
@@ -1344,7 +1419,7 @@ export class Battle {
   }
 
   _bannerOf(t) {
-    return t.cls.base.banner + t.reach;
+    return t.cls.base.banner + t.reach + (open(t, 4) ? t.s[4].wide : 0);
   }
 
   _circleOf(t) {
@@ -1359,15 +1434,16 @@ export class Battle {
       else if (t.cls.id === 'sage') sages.push(t);
     }
     const close = (a, b, radius) => (a.cx - b.cx) * (a.cx - b.cx) + (a.cy - b.cy) * (a.cy - b.cy) <= radius * radius;
+    const herald = banners.find((flag) => open(flag, 6)), hero = herald ? this._hero() : null;
     for (const t of this.towers) {
       const boost = t.boost, by = t.boostBy;
-      let aura = null, cheer = null, rally = null, crit = 0, wisdom = 0, muse = 0;
+      let aura = null, cheer = null, rally = null, crit = 0, wisdom = 0, muse = 0, clarity = 0;
       by.clear();
       for (const flag of banners) {
         if (flag.rallyUntil > now && (!rally || flag.s[2].haste * flag.lift > rally.s[2].haste * rally.lift)) {
           rally = flag;
         }
-        if (t.rider || !close(flag, t, this._bannerOf(flag))) continue;
+        if (t.rider || !(flag.legionUntil > now) && !close(flag, t, this._bannerOf(flag))) continue;
         if (!aura || flag.lift > aura.lift) aura = flag;
         if (flag.cheerUntil > now && (!cheer || flag.s[0].damage * flag.lift > cheer.s[0].damage * cheer.lift)) {
           cheer = flag;
@@ -1377,6 +1453,7 @@ export class Battle {
       for (const sage of sages) {
         if (!t.rider && close(sage, t, this._circleOf(sage))) {
           wisdom = Math.max(wisdom, sage.cls.base.wisdom * sage.lift);
+          if (open(sage, 3) && sage !== t) clarity = Math.max(clarity, sage.s[3].haste);
         }
         sage.muses = sage.muses.filter((item) => item.until > now);
         for (const item of sage.muses) {
@@ -1390,8 +1467,17 @@ export class Battle {
       boost.range = 0;
       if (aura) {
         boost.rate += aura.cls.base.haste * aura.lift;
-        boost.range = aura.cls.base.reach * aura.lift;
+        boost.range = aura.cls.base.reach * aura.lift + (open(aura, 4) ? aura.s[4].range : 0);
+        if (open(aura, 3)) t.wardUntil = Math.max(t.wardUntil, now + WARD_AURA);
         by.add(aura);
+      }
+      if (t.blessUntil > now) {
+        boost.damage += t.bless.bonus;
+        by.add(t.bless.by);
+      }
+      if (hero === t) {
+        boost.damage += herald.s[6].bonus;
+        by.add(herald);
       }
       if (cheer) {
         boost.damage += cheer.s[0].damage * cheer.lift;
@@ -1404,12 +1490,19 @@ export class Battle {
       }
       boost.crit = crit;
       boost.wisdom = wisdom;
+      boost.clarity = clarity;
       boost.cheer = Boolean(cheer);
       boost.muse = muse > 0;
       by.delete(t);
       const range = t.ownRange * (1 + boost.range);
       if (range !== t.range) t.range = range;
     }
+  }
+
+  _hero() {
+    let best = null;
+    for (const t of this.towers) if (t.run.kills > 0 && (!best || t.run.kills > best.run.kills)) best = t;
+    return best;
   }
 
   _daze(t, seconds) {
@@ -1479,6 +1572,18 @@ export class Battle {
     }
   }
 
+  _bless(t, now) {
+    const s = t.s[4], radius = s.radius + t.reach;
+    const pool = this.towers.filter((ally) => ally !== t && !ally.rider && !ally.cocoon && !(ally.blessUntil > now)
+      && (ally.cx - t.cx) ** 2 + (ally.cy - t.cy) ** 2 <= radius * radius);
+    if (!pool.length) return;
+    t.nextBless = now + s.every;
+    const ally = pool[Math.floor(this.random() * pool.length)];
+    ally.blessUntil = now + s.time;
+    ally.bless = { by: t, bonus: s.bonus * t.lift };
+    this._event({ kind: 'muse', tower: t, ally, flash: false });
+  }
+
   _inspire(t, now) {
     const s = t.s[0], radius = this._circleOf(t);
     t.nextMuse = now + s.every;
@@ -1514,6 +1619,12 @@ export class Battle {
     const alive = this.mobs.some((m) => !m.dead);
     for (const t of this.towers) {
       if (t.rider) this._ride(t, now);
+      if (t.boost.clarity) {
+        for (const key of COOLDOWNS) if (t[key] > now) t[key] -= dt * t.boost.clarity;
+      }
+      if (t.cocoon && t.cls.id === 'parasite' && open(t, 3)) {
+        for (const mob of this._around(t.cx, t.cy, t.s[3].radius)) this._slow(mob, t.s[3].slow, STICKY_SLOW);
+      }
       if (t.cocoon || t.busy > now) continue;
       const skill = SKILLS[t.cls.id];
       if (skill.every) skill.every(this, t, now, alive);
@@ -1638,15 +1749,16 @@ export class Battle {
     return point;
   }
 
-  _plant(t, only = null) {
+  _plant(t, only = null, field = false) {
     const base = t.cls.base, stock = t.runes.has('stock') ? 2 : 1, cap = base.cap * stock;
     const own = this.mines.filter((mine) => mine.tower === t && mine.kind === 'mine');
     const bigs = this.mines.filter((mine) => mine.tower === t && mine.kind === 'big');
-    const strong = open(t, 1) && (own.length >= cap || this.random() < t.s[1].chance);
+    if (field && own.length >= cap * 2) return;
+    const strong = !field && open(t, 1) && (own.length >= cap || this.random() < t.s[1].chance);
     const range = strong ? t.s[1].range : t.range, cells = only || this._reach(range)[t.y * SIZE + t.x];
     if (!cells.length) return;
     if (strong && bigs.length >= t.s[1].cap * stock) this.mines.splice(this.mines.indexOf(bigs[0]), 1);
-    if (!strong && own.length >= cap) this.mines.splice(this.mines.indexOf(own[0]), 1);
+    if (!field && !strong && own.length >= cap) this.mines.splice(this.mines.indexOf(own[0]), 1);
     const count = new Map();
     for (const mine of this.mines) count.set(mine.i, (count.get(mine.i) || 0) + 1);
     const fewest = Math.min(...cells.map((i) => count.get(i) || 0));
@@ -1751,7 +1863,7 @@ export class Battle {
       ? mob.charge.bonus : 0) + (mob.vulnUntil > now ? mob.vuln : 0) + (mob.weakUntil > now ? mob.weak : 0))
       * (1 - mob.resist);
     let dealt = amount * (1 + vulnerable) * (1 + t.boost.damage);
-    const cut = Math.max(power && power.cut || 0, mob.armor);
+    const cut = Math.max(power && power.cut || 0, mob.armor) - (mob.acidUntil > now ? mob.acid : 0);
     if (cut && !pierce) dealt *= 1 - cut;
     if (mob.front && !dot && !t.rider && !pierce && this._facing(mob, t)) dealt *= 1 - mob.front;
     if (ghostly(mob, now) && element !== 'holy') dealt *= GHOST_CUT;
@@ -1811,6 +1923,10 @@ export class Battle {
       this._event({ kind: 'kill', mob, by: killer });
       return;
     }
+    if (killer && killer.cls.id === 'parasite' && open(killer, 4)) {
+      killer.feast = (killer.feast || 0) + killer.s[4].bonus;
+    }
+    if (mob.poison) this._alchemy(mob);
     const insight = mob.weakUntil > this.time && mob.weakBy && open(mob.weakBy, 2) ? mob.weakBy.s[2].xp : 1;
     const prize = mob.silver ? SILVER.xp : 1, purse = mob.silver ? SILVER.coins : 1;
     for (const t of mob.helpers) {
@@ -1895,13 +2011,33 @@ export class Battle {
     }
   }
 
+  _alchemy(mob) {
+    const seen = new Set();
+    for (const dose of mob.poison.values()) {
+      const t = dose.tower;
+      if (seen.has(t) || t.cls.id !== 'alchemist' || !this.towers.includes(t)) continue;
+      seen.add(t);
+      if (open(t, 5) && this.random() < t.s[5].chance) {
+        for (const ally of this.towers) {
+          ally.player.coins += t.s[5].coins;
+          ally.run.coins += t.s[5].coins;
+        }
+        this._event({ kind: 'gold', mob, tower: t, coins: t.s[5].coins });
+      }
+      if (!t.runes.has('epidemic')) continue;
+      for (const other of this._around(mob.x, mob.y, EPIDEMIC, mob)) {
+        this._poison(other, t, t, t.skill * t.s[1].dps, t.s[1].time);
+      }
+    }
+  }
+
   _shield(mob) {
     let best = null;
     for (const t of this.towers) {
       if (t.cls.id !== 'healer' || t.cocoon || !open(t, 0) || mob.info.boss && !t.runes.has('guardian')) continue;
-      if (!best || t.s[0].chance > best.s[0].chance) best = t;
+      if (!best || guard(t) > guard(best)) best = t;
     }
-    return best && this.random() < best.s[0].chance ? best : null;
+    return best && this.random() < guard(best) ? best : null;
   }
 
   _rescue() {
@@ -2021,6 +2157,8 @@ export class Battle {
   }
 }
 
+const guard = (t) => t.s[0].chance * (t.runes.has('guardian') ? 2 : 1);
+
 const monster = (t, mob) => (open(t, 4) && big(mob) ? 1 + t.s[4].bonus : 1);
 
 const rollCrit = (b, t) => b.random() < 1 - (1 - t.critChance) * (1 - t.boost.crit);
@@ -2096,7 +2234,13 @@ function potion(b, t, x, y, crit) {
   for (const mob of b._around(x, y, radius)) {
     if (mob.flying) continue;
     b._hurt(mob, damage, t);
-    if (!mob.dead) b._toxin(t, mob);
+    if (mob.dead) continue;
+    b._toxin(t, mob);
+    if (open(t, 3)) {
+      mob.acid = t.s[3].cut;
+      mob.acidUntil = b.time + t.s[3].time;
+    }
+    if (open(t, 4) && b.random() < t.s[4].chance) b._madden(mob, t.s[4].time, t, t.skill * t.s[4].bite);
   }
   if (open(t, 0)) {
     const s = t.s[0];
@@ -2444,7 +2588,7 @@ const SKILLS = {
         b._execute(target, t, t.skill * RUNE_CAPS.thorn);
         return true;
       }
-      b._hurt(target, t.damage * (crit ? t.critMul : 1), t);
+      b._hurt(target, t.damage * (crit ? t.critMul : 1) * (1 + (t.feast || 0)), t);
       if (crit && open(t, 0) && !target.dead) {
         const s = t.s[0], share = target.info.boss ? s.boss : target.info.elite ? s.elite : s.share;
         b._hold(target, s.stun, t);
@@ -2453,6 +2597,22 @@ const SKILLS = {
       return true;
     },
     every(b, t, now) {
+      if (open(t, 5) && now >= (t.nextSwarm || 0)) {
+        const s = t.s[5], heavy = b.mobs.filter((mob) => !mob.dead && !hidden(mob, now))
+          .sort((a, c) => c.hp - a.hp).slice(0, s.count);
+        if (heavy.length) {
+          t.nextSwarm = now + s.every;
+          for (const mob of heavy) {
+            b._slow(mob, s.slow, s.time);
+            b._vulnerable(mob, s.vuln, s.time);
+          }
+          b._event({ kind: 'swarm', tower: t, mobs: heavy });
+        }
+      }
+      if (open(t, 6) && t.host && !t.host.dead && !t.host.info.boss && now >= (t.nextMind || 0)) {
+        t.nextMind = now + t.s[6].every;
+        b._madden(t.host, t.s[6].time, t, t.skill * t.s[6].bite);
+      }
       if (!open(t, 2) || t.cocoon || t.perch || now < t.nextActive) return;
       const s = t.s[2], rich = b.towers.filter((other) => other !== t && !other.rider && other.player.coins > s.rich);
       if (!rich.length && t.player.coins <= s.rich) return;
@@ -2471,6 +2631,10 @@ const SKILLS = {
       if (now >= t.nextMine) {
         t.nextMine = now + t.interval;
         b._plant(t);
+      }
+      if (open(t, 4) && alive && now >= (t.nextField || 0)) {
+        t.nextField = now + t.s[4].every;
+        for (let k = 0; k < t.s[4].count; k++) b._plant(t, null, true);
       }
       if (open(t, 0) && alive && now >= t.nextGrenade) {
         const living = b.mobs.filter((mob) => !mob.dead && !hidden(mob, now) && !b.covered(mob.x, mob.y));
@@ -2567,6 +2731,11 @@ const SKILLS = {
         t.cheerUntil = now + s.time;
         b._event({ kind: 'cheer', tower: t, radius: b._bannerOf(t), time: s.time });
       }
+      if (open(t, 5) && now >= (t.nextLegion || 0)) {
+        t.nextLegion = now + t.s[5].every;
+        t.legionUntil = now + t.s[5].time;
+        b._event({ kind: 'legion', tower: t, time: t.s[5].time });
+      }
       if (!open(t, 2) || now < t.nextActive) return;
       const s = t.s[2], planted = t.runes.has('planted');
       t.nextActive = now + s.every;
@@ -2592,6 +2761,17 @@ const SKILLS = {
         b._cleanse(t, now);
       }
       if (open(t, 2) && alive && now >= t.nextActive) b._hallow(t, now);
+      if (open(t, 4) && now >= (t.nextBless || 0)) b._bless(t, now);
+      if (open(t, 5) && alive && now >= (t.nextLight || 0)) {
+        const target = b._toughest(t), s = t.s[5];
+        if (target) {
+          t.nextLight = now + s.every;
+          b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit: true, mob: target, holy: true,
+            heavy: 'heavy' });
+          b._hurt(target, t.skill * (target.undead ? s.undead : s.bonus), t, 'holy');
+          if (!target.dead) b._hold(target, s.stun, t);
+        }
+      }
     },
   },
   sage: {
@@ -2611,6 +2791,13 @@ const SKILLS = {
       if (!alive) return;
       if (open(t, 0) && now >= t.nextMuse) b._inspire(t, now);
       if (open(t, 2) && now >= t.nextActive) b._expose(t, now);
+      if (open(t, 5) && now >= (t.nextEnlight || 0)) {
+        t.nextEnlight = now + t.s[5].every;
+        for (const ally of b.towers) {
+          for (const key of COOLDOWNS) if (ally[key] > now) ally[key] = now;
+        }
+        b._event({ kind: 'enlight', tower: t });
+      }
     },
   },
   earth: {

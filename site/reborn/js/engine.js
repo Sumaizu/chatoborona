@@ -308,7 +308,7 @@ export class Game {
       star: STARS.has(login) ? STARS.get(login) : null,
       xp: saved ? saved.xp : 0, kills: saved ? saved.kills : 0, assists: saved ? saved.assists : 0,
       paragon: saved ? saved.paragon : 0, particle: saved ? saved.particle : false, coins: 0,
-      cls: this._randomClass(), weapon: null, skills: [], tower: null, pendingMove: null, tipped: new Set(),
+      cls: this._randomClass(), weapon: null, skills: [], tower: null, tipped: new Set(),
       quiet: 0, asleep: false, seat: null, held: null,
     };
     this.members.set(login, member);
@@ -357,7 +357,7 @@ export class Game {
     } else if (action === 'upgrade') {
       done = this.improve(member, count);
     } else if (cell) {
-      done = this.goTo(member, cell.x, cell.y) ? 'move' : this._later(member, cell);
+      done = this.goTo(member, cell.x, cell.y) ? 'move' : null;
     } else if (move && owner) {
       done = this._shift(move.from, move.to);
     }
@@ -370,7 +370,7 @@ export class Game {
   }
 
   get movable() {
-    return Boolean(this.battle) && (this.state === 'placing' || this.state === 'break');
+    return Boolean(this.battle) && this.state !== 'over' && this.state !== 'ascend';
   }
 
   goTo(member, x, y) {
@@ -408,7 +408,7 @@ export class Game {
   _shift(from, to) {
     const tower = this.battle ? this.battle.towerAt(from.x, from.y) : null;
     if (!tower) return null;
-    return this.goTo(tower.player, to.x, to.y) ? 'move' : this._later(tower.player, to);
+    return this.goTo(tower.player, to.x, to.y) ? 'move' : null;
   }
 
   reroll(member) {
@@ -425,13 +425,6 @@ export class Game {
     }
     this._emit('rerolled', { login: member.login, cls: member.cls });
     return this._card(member, false) && 'reroll';
-  }
-
-  _later(member, cell) {
-    if (!member || !member.tower || this.state !== 'wave' || member.tower.rider) return null;
-    if (!this.battle.free(cell.x, cell.y)) return null;
-    member.pendingMove = { x: cell.x, y: cell.y };
-    return 'later';
   }
 
   get pending() {
@@ -662,11 +655,6 @@ export class Game {
       this.run.next.push(Object.assign({ kind: 'buff', treasure: true }, effectOf('buff', 'gold')));
       this._emit('event', { type: 'buff', id: 'gold' });
     }
-    for (const member of this.members.values()) {
-      if (!member.pendingMove) continue;
-      this.goTo(member, member.pendingMove.x, member.pendingMove.y);
-      member.pendingMove = null;
-    }
     this._emit('cleared', { wave: this.wave, coins: reward.coins, xp: reward.xp });
     if (this.wave % SUMMIT_EVERY === 0) {
       this.state = 'summit';
@@ -693,7 +681,6 @@ export class Game {
     this.queue = [];
     this.slots = Array(SLOTS).fill(null);
     this.choices = [];
-    for (const member of this.members.values()) member.pendingMove = null;
     this._emit('over', { passed, record });
     for (const ascent of this.ascents) this._emit('paragon', { login: ascent.login, paragon: ascent.to });
   }
@@ -877,7 +864,6 @@ export class Game {
     member.seat = tower.rider ? null : { x: tower.x, y: tower.y };
     member.held = tower.run;
     member.asleep = true;
-    member.pendingMove = null;
     member.tower = null;
     this.battle.remove(tower);
     const awake = Array.from(this.members.values()).filter((m) => m.tower);

@@ -2192,6 +2192,10 @@ export class Scene {
         event.radius * 3, 0.5, 2);
     } else if (event.kind === 'trap') {
       add({ kind: 'ring', life: 0.35, x: event.x, y: event.y, r: 0.4, color: '#d6d3d1', width: 1.5 });
+    } else if (event.kind === 'gold') {
+      const spot = this.shown.get(event.mob.id) || event.mob;
+      add({ kind: 'text', life: 1.6, x: spot.x, y: spot.y - 0.6, text: '+' + event.coins + ' всем', color: '#ffd43b' });
+      this._sparks(spot.x, spot.y, ['#ffd43b', '#fff2a8', '#ffffff'], 12, 1.6, 0.6, 2);
     } else if (event.kind === 'snap') {
       add({ kind: 'snapped', life: 0.7, x: event.x, y: event.y });
       this._sparks(event.x, event.y, ['#e5e7eb', '#9ca3af', '#7a1f1f'], 6, 1.6, 0.3, 2);
