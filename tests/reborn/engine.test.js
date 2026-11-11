@@ -204,7 +204,7 @@ test('гача: команда без восклицательного знак�
   for (const cls of CLASSES) {
     ok(weaponName(makeWeapon(() => 0.5, cls.id, RARITIES[3])).endsWith(cls.weapon), cls.id);
   }
-  ok(weaponName(makeWeapon(() => 0.5, 'earth', RARITIES[4])).startsWith('Легендарная'), 'каменная рука — она');
+  ok(weaponName(makeWeapon(() => 0.5, 'earth', RARITIES[4])).startsWith('Легендарный'), 'посох мага — он');
 });
 
 test('гача: «!гача» тоже работает, старых команд больше нет', () => {

@@ -28,7 +28,9 @@ const TRAIL_STEP = 0.2;
 const CORPSE = { fall: 0.45, lie: 1, fade: 1.1, max: 60 };
 const DECALS_MAX = 300;
 const TINTS = { poison: '#4ade80', plague: '#6d28d9', burn: '#ff7a1f', blue: '#4aa3ff', chill: '#8ee6ff',
-  fury: '#ff4d1f' };
+  fury: '#ff4d1f', wet: '#2f7bff' };
+const ZONE_LOOKS = { pool: ['#38bdf8', '#e0f2fe', '#7dd3fc'], sand: ['#c9a66b', '#e7cf9b', '#8a6a3a'],
+  cloud: ['#64748b', '#cbd5e1', '#facc15'] };
 const HIT_FLASH = 0.15;
 const ELEMENT_BITS = {
   fire: ['#ffd84a', '#ff7a1f', '#ff4d1f'], ice: ['#f0fdff', '#a5f3fc', '#67e8f9'],
@@ -64,7 +66,8 @@ const BOLTS = {
   earth: { look: 'lob', color: '#9a8f80', size: 4 },
   alchemist: { look: 'dot', color: '#9be22d', size: 3 },
   hunter: { look: 'bolt', color: '#e8d9b5', width: 2 },
-  frost: { look: 'shard', color: '#9ff3ff', size: 3 },
+  frost: { look: 'dot', color: '#38bdf8', size: 3 },
+  pyro: { look: 'dot', color: '#ff7a1f', size: 4 },
   shaman: { look: 'dot', color: '#5eead4', size: 3 },
   miner: { look: 'dot', color: '#c7d2fe', size: 2 },
   banner: { look: 'dot', color: '#ff5fb0', size: 3 },
@@ -1552,6 +1555,8 @@ export class Scene {
     const blue = mob.burn && Array.from(mob.burn.values()).some((fire) => fire.tower.runes.has('blue'));
     if (mob.poison) layers.push([plague ? 'plague' : 'poison', 0.34 + 0.1 * Math.sin(this.clock * 5 + mob.id)]);
     if (mob.burn) layers.push([blue ? 'blue' : 'burn', 0.3 + 0.12 * Math.sin(this.clock * 17 + mob.id)]);
+    const wet = this.battle.wet(mob);
+    if (wet) layers.push(['wet', 0.26]);
     if (slowed) layers.push(['chill', frozen ? 0.5 : 0.26]);
     if (mob.fury && !mob.kind) layers.push(['fury', 0.22]);
     for (const [kind, strength] of layers) {
@@ -1559,6 +1564,11 @@ export class Scene {
       sprite(ctx, tintSprite(image, TINTS[kind]), x, y, angle);
     }
     ctx.globalAlpha = 1;
+    if (wet) {
+      const fall = (this.clock * 12 + mob.id * 5) % 10;
+      square(ctx, x - 3, y - 6 + fall, 1, '#93c5fd');
+      square(ctx, x + 3, y - 6 + (fall + 5) % 10, 1, '#bfdbfe');
+    }
     if (mob.poison) {
       const rise = (this.clock * 10 + mob.id * 3) % 9;
       square(ctx, x + 4, y - rise, 2, plague ? '#7c3aed' : '#9be22d');
@@ -2192,6 +2202,22 @@ export class Scene {
         event.radius * 3, 0.5, 2);
     } else if (event.kind === 'trap') {
       add({ kind: 'ring', life: 0.35, x: event.x, y: event.y, r: 0.4, color: '#d6d3d1', width: 1.5 });
+    } else if (event.kind === 'react') {
+      const spot = this.shown.get(event.mob.id) || event.mob;
+      add({ kind: 'text', life: 1.2, x: spot.x, y: spot.y - 0.7, text: event.name, color: event.color });
+      this._sparks(spot.x, spot.y, [event.color, '#ffffff'], 8, 1.4, 0.35, 2);
+    } else if (event.kind === 'zone') {
+      const zone = event.zone, look = ZONE_LOOKS[zone.kind];
+      add({ kind: 'ring', life: 0.5, x: zone.x, y: zone.y, r: zone.radius, color: look[0], width: 2 });
+      this._sparks(zone.x, zone.y, look, zone.kind === 'cloud' ? 4 : 7, zone.radius * 2.4, 0.5, 2);
+    } else if (event.kind === 'wave' || event.kind === 'quake') {
+      const color = event.kind === 'wave' ? '#38bdf8' : '#a8794a';
+      add({ kind: 'ring', life: 0.6, x: t.cx, y: t.cy, r: event.radius, color, width: 3 });
+      this._sparks(t.cx, t.cy, event.kind === 'wave' ? ['#e0f2fe', '#7dd3fc'] : ['#c9a66b', '#6b5032'], 12,
+        event.radius * 3, 0.5, 2);
+    } else if (event.kind === 'lift') {
+      const spot = this.shown.get(event.mob.id) || event.mob;
+      this._sparks(spot.x, spot.y, ['#ccfbf1', '#5eead4', '#ffffff'], 6, 1.6, 0.5, 2);
     } else if (event.kind === 'gold') {
       const spot = this.shown.get(event.mob.id) || event.mob;
       add({ kind: 'text', life: 1.6, x: spot.x, y: spot.y - 0.6, text: '+' + event.coins + ' всем', color: '#ffd43b' });

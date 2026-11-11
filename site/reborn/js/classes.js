@@ -18,7 +18,8 @@ export function cells(value) {
   return num(value) + ' ' + cellWord(value, 'клетка', 'клетки', 'клеток');
 }
 
-const around = (value) => 'на ' + num(value) + ' ' + cellWord(value, 'клетку', 'клетки', 'клеток') + ' вокруг';
+const by = (value) => 'на ' + num(value) + ' ' + cellWord(value, 'клетку', 'клетки', 'клеток');
+const around = (value) => by(value) + ' вокруг';
 
 export const CLASSES = [
   {
@@ -148,7 +149,7 @@ export const CLASSES = [
   },
   {
     id: 'thunder',
-    name: 'Громовержец',
+    name: 'Маг молнии',
     color: '#3b82f6',
     element: 'storm',
     primary: 'int',
@@ -156,7 +157,7 @@ export const CLASSES = [
     weapon: 'посох',
     stats: { str: 'low', agi: 'mid', int: 'mid' },
     base: { damage: 1.04, interval: 1.3, range: 3.5, jumps: 9, jumpRange: 2, falloff: 0.1 },
-    summary: 'Молния перескакивает с моба на моба',
+    summary: 'Молния перескакивает с моба на моба, мокрых бьёт вдвое',
     main: (b) => 'Молния бьёт цель на ' + cells(b.range) + ' и перескакивает назад по дороге ещё до ' + b.jumps
       + ' мобов, каждому следующему на 10% меньше; урон ×' + num(b.damage),
     skills: [
@@ -170,9 +171,20 @@ export const CLASSES = [
         scale: { every: 'haste', bonus: 'dmg', stun: 'time' },
         text: (v) => 'раз в ' + sec(v.every) + ' бьёт молнией в первого моба на дороге, где бы он ни был: '
           + 'критический урон ×' + num(v.bonus) + ' ему и всем ' + around(v.radius) + ', оглушение на ' + sec(v.stun) },
+      { name: 'Перегрузка', v: {},
+        text: () => 'электрошок бьёт не только мокрых, но и заряженных: молния по ним вдвое сильнее и оглушает' },
+      { name: 'Грозовая туча', v: { every: 20, time: 8, radius: 1, bonus: 2 },
+        scale: { every: 'haste', time: 'time', bonus: 'dmg' },
+        text: (v) => 'раз в ' + sec(v.every) + ' над дорогой встаёт грозовая туча на ' + sec(v.time) + ': дважды в '
+          + 'секунду бьёт молнией всех под собой, ' + around(v.radius) + ', урон ×' + num(v.bonus) },
+      { name: 'Гроза над полем', v: { every: 60, time: 4, bonus: 1.5 },
+        scale: { every: 'haste', time: 'time', bonus: 'dmg' },
+        text: (v) => 'раз в ' + sec(v.every) + ' на ' + sec(v.time) + ' молнии дважды в секунду бьют по всем мобам на '
+          + 'поле: урон ×' + num(v.bonus) },
     ],
+    pool: ['perk0', 'perk1', 'perk3', 'perk2', 'perk4', 'perk5', 'chain'],
     runes: [
-      { id: 'chain', name: 'Цепная молния', text: 'молния не слабеет, перескакивает ещё на 5 мобов и может идти '
+      { id: 'chain', name: 'Живая цепь', text: 'молния не слабеет, перескакивает ещё на 5 мобов и может идти '
         + 'в обе стороны' },
       { id: 'discharge', name: 'Разрядка', text: 'заряженный, по которому молния не била 5 с, разряжается: огромный '
         + 'урон и оглушение на 5 с' },
@@ -224,20 +236,22 @@ export const CLASSES = [
   },
   {
     id: 'pyro',
-    name: 'Огнемётчик',
+    name: 'Маг огня',
     color: '#ef4444',
     element: 'fire',
     primary: 'int',
     earn: { xp: 1.2, coins: 1.18 },
-    weapon: 'огнемёт',
+    weapon: 'посох',
     stats: { str: 'low', agi: 'mid', int: 'mid' },
-    base: { damage: 0.15, interval: 0.2, range: 2.5, target: 'small', cone: 0.35, undead: 1.5 },
-    summary: 'Жжёт струёй огня, мобы горят',
-    main: (b) => 'Без остановки жжёт узкой струёй огня на ' + cells(b.range) + ', сперва мелочь; нежить горит в '
-      + num(b.undead) + ' раза сильнее',
+    base: { damage: 0.8, interval: 1, range: 3, burn: 0.3, burnTime: 3, undead: 1.5, cone: 0.35, jet: 0.15,
+      jetEvery: 0.2 },
+    summary: 'Огненные шары: цель загорается',
+    main: (b) => 'Бросает огненные шары на ' + cells(b.range) + ': урон ×' + num(b.damage) + ', и цель горит '
+      + sec(b.burnTime) + '; нежить горит в ' + num(b.undead) + ' раза сильнее',
     skills: [
-      { name: 'Горение', v: { time: 3, dps: 12 }, scale: { time: 'time', dps: 'dmg' },
-        text: (v) => 'задетый огнём горит ещё ' + sec(v.time) + ', теряя в секунду ×' + num(v.dps) + ' урона струи' },
+      { name: 'Струя пламени', v: { time: 3, dps: 12 }, scale: { time: 'time', dps: 'dmg' },
+        text: (v) => 'вместо шаров бьёт непрерывной узкой струёй, сперва по мелочи: задетые горят ещё ' + sec(v.time)
+          + ', теряя в секунду ×' + num(v.dps) + ' урона струи' },
       { name: 'Вспыхнуть', v: { chance: 0.1, bonus: 18, radius: 1 },
         scale: { chance: 'luck', bonus: 'dmg', radius: 'power' },
         text: (v) => 'горящий с шансом ' + pct(v.chance) + ' в секунду вспыхивает: урон ×' + num(v.bonus)
@@ -245,8 +259,24 @@ export const CLASSES = [
       { name: 'Нефть', v: { every: 20, radius: 1.5, time: 3, dps: 27, keep: 20 },
         scale: { every: 'haste', time: 'time', dps: 'dmg' },
         text: (v) => 'раз в ' + sec(v.every) + ' разливает нефть на дорогу рядом с собой; от огня она горит '
-          + sec(v.time) + ' и жжёт всех в ней на ×' + num(v.dps) + ' урона струи в секунду' },
+          + sec(v.time) + ' и жжёт всех в ней на ×' + num(v.dps) + ' урона в секунду' },
+      { name: 'Огненный шар', v: { radius: 1 },
+        text: (v) => 'шар взрывается: всем ' + around(v.radius) + ' тот же урон, и все загораются' },
+      { name: 'Стена огня', v: { every: 15, time: 6, radius: 0.9, dps: 20 },
+        scale: { every: 'haste', time: 'time', dps: 'dmg' },
+        text: (v) => 'раз в ' + sec(v.every) + ' перед мобами поперёк дороги встаёт стена огня на ' + sec(v.time)
+          + ': всех в ней жжёт ×' + num(v.dps) + ' урона в секунду' },
+      { name: 'Феникс', v: { every: 30, bonus: 6, step: 0.06 }, scale: { every: 'haste', bonus: 'dmg' },
+        text: (v) => 'раз в ' + sec(v.every) + ' огненный феникс пролетает по всей дороге от сердца к порталам: всем '
+          + 'на пути урон ×' + num(v.bonus) + ', и все загораются' },
+      { name: 'Инферно', v: { every: 60, time: 3, dps: 15 }, scale: { every: 'haste', time: 'time', dps: 'dmg' },
+        text: (v) => 'раз в ' + sec(v.every) + ' всё поле в огне: все мобы горят ' + sec(v.time) + ', теряя ×'
+          + num(v.dps) + ' урона в секунду' },
+      { name: 'Сердце вулкана', v: { radius: 1, bonus: 4 }, scale: { bonus: 'dmg' },
+        text: (v) => 'горящий моб, погибая, взрывается: всем ' + around(v.radius) + ' урон ×' + num(v.bonus)
+          + ', и они загораются' },
     ],
+    pool: ['perk0', 'perk3', 'perk1', 'perk4', 'perk2', 'perk5', 'perk6', 'perk7'],
     runes: [
       { id: 'nozzle', name: 'Широкое сопло', text: 'струя огня вдвое шире' },
       { id: 'blue', name: 'Синее пламя', text: 'огонь синеет: урон и горение вдвое сильнее' },
@@ -378,29 +408,44 @@ export const CLASSES = [
   },
   {
     id: 'frost',
-    name: 'Ледяной маг',
-    color: '#67e8f9',
-    element: 'ice',
+    name: 'Маг воды',
+    color: '#38bdf8',
+    element: 'water',
     through: true,
     primary: 'int',
     earn: { xp: 0.82, coins: 0.96 },
-    weapon: 'жезл',
+    weapon: 'посох',
     stats: { str: 'low', agi: 'low', int: 'high' },
-    base: { damage: 0.55, interval: 1, range: 2.7 },
-    summary: 'Ледяная буря вокруг: бьёт льдом, замедляет, замораживает',
-    main: (b) => 'Вокруг него ледяная буря на ' + cells(b.range) + ': раз в секунду бьёт '
-      + 'льдом всех в ней, даже за горами и в тоннелях, урон ×' + num(b.damage),
+    base: { damage: 0.75, interval: 1, range: 2.7, wet: 5, storm: 0.55 },
+    summary: 'Струя воды: мокрые мобы — для реакций других магов',
+    main: (b) => 'Бьёт струёй воды на ' + cells(b.range) + ', урон ×' + num(b.damage) + ': цель ' + sec(b.wet)
+      + ' мокрая — молния бьёт её вдвое и оглушает, лёд сразу замораживает, огонь превращает воду в пар',
     skills: [
-      { name: 'Стужа', v: { slow: 0.35, time: 3 }, scale: { slow: 'power', time: 'time' },
-        text: (v) => 'в буре мобы медленнее на ' + pct(Math.min(0.8, v.slow)) + ', а вышедшие ещё ' + sec(v.time)
-          + ' идут подмороженными' },
+      { name: 'Ледяная буря', v: { slow: 0.35, time: 3 }, scale: { slow: 'power', time: 'time' },
+        text: (v) => 'вместо струи вокруг него ледяная буря: раз в секунду бьёт льдом всех в ней, даже за горами и в '
+          + 'тоннелях; в буре мобы медленнее на ' + pct(Math.min(0.8, v.slow)) + ', а вышедшие ещё ' + sec(v.time)
+          + ' подморожены' },
       { name: 'Заморозка', v: { chance: 0.08, time: 1.5 }, scale: { chance: 'luck', time: 'time' },
-        text: (v) => 'с шансом ' + pct(v.chance) + ' удар льдом замораживает на ' + sec(v.time) },
+        text: (v) => 'с шансом ' + pct(v.chance) + ' его удар замораживает на ' + sec(v.time)
+          + ', а мокрого — всегда' },
       { name: 'Снегопад', v: { every: 30, time: 3, chance: 0.15, slow: 0.3 },
         scale: { every: 'haste', time: 'time', chance: 'luck' },
         text: (v) => 'раз в ' + sec(v.every) + ' снег на всё поле: все мобы ' + sec(v.time) + ' подморожены, а с '
           + 'шансом ' + pct(v.chance) + ' — заморожены' },
+      { name: 'Волна', v: { every: 6, push: 1 }, scale: { every: 'haste' },
+        text: (v) => 'раз в ' + sec(v.every) + ' пускает волну: все мобы в его радиусе отброшены ' + by(v.push)
+          + ' назад и намокают; боссов не сдвинуть' },
+      { name: 'Водоворот', v: { every: 15, time: 3, radius: 1, dps: 3 },
+        scale: { every: 'haste', time: 'time', dps: 'dmg' },
+        text: (v) => 'раз в ' + sec(v.every) + ' на дороге воронка на ' + sec(v.time) + ': мобы ' + around(v.radius)
+          + ' крутятся на месте и получают урон ×' + num(v.dps) + ' в секунду; боссов не держит' },
+      { name: 'Цунами', v: { every: 40, push: 3 }, scale: { every: 'haste' },
+        text: (v) => 'раз в ' + sec(v.every) + ' волна от сердца к порталам отбрасывает всех, кроме боссов, '
+          + by(v.push) + ' назад, и все намокают' },
+      { name: 'Ливень', v: {},
+        text: () => 'над полем всё время дождь: все мобы мокрые' },
     ],
+    pool: ['perk0', 'perk3', 'perk1', 'perk4', 'perk2', 'perk5', 'permafrost', 'perk6'],
     runes: [
       { id: 'permafrost', name: 'Вечная мерзлота', text: 'подморозка и заморозка вдвое дольше' },
       { id: 'brittle', name: 'Хрупкость', text: 'замороженный моб с шансом 0,5% гибнет от любого удара; слишком '
@@ -409,11 +454,11 @@ export const CLASSES = [
   },
   {
     id: 'shaman',
-    name: 'Шаман ветра',
+    name: 'Маг ветра',
     color: '#14b8a6',
     primary: 'int',
     earn: { xp: 1.18, coins: 1.2 },
-    weapon: 'тотем',
+    weapon: 'посох',
     stats: { str: 'low', agi: 'mid', int: 'mid' },
     base: { damage: 1.85, interval: 2, range: 3, whirlSpeed: 2, whirlTime: 0.6 },
     summary: 'Пускает вихри сквозь броню, отбрасывает, ускоряет союзников',
@@ -424,12 +469,21 @@ export const CLASSES = [
         text: (v) => 'с шансом ' + pct(v.chance) + ' вихрь стягивает обычных мобов ' + around(v.radius)
           + ' и отбрасывает их на клетку назад' },
       { name: 'Отброс', v: { chance: 0.15, push: 1 }, scale: { push: 'power' },
-        text: (v) => 'с шансом ' + pct(v.chance) + ' удар отбрасывает задетых на ' + cells(v.push) },
+        text: (v) => 'с шансом ' + pct(v.chance) + ' удар отбрасывает задетых ' + by(v.push) + ' назад' },
       { name: 'Пронзающий ветер', v: { every: 25, radius: 2.5, haste: 0.4, time: 6 },
         scale: { every: 'haste', radius: 'power', haste: 'power', time: 'time' },
         text: (v) => 'раз в ' + sec(v.every) + ' ветер ' + around(v.radius) + ': союзники ' + sec(v.time)
           + ' бьют на ' + pct(v.haste) + ' быстрее, сам он — на ' + pct(v.haste * 2) },
+      { name: 'Попутный ветер', v: { haste: 0.15, radius: 2.5 },
+        text: (v) => 'союзники ' + around(v.radius) + ' всегда бьют на ' + pct(v.haste) + ' быстрее' },
+      { name: 'Ураган', v: { every: 25, time: 2, vuln: 0.5 }, scale: { every: 'haste', time: 'time' },
+        text: (v) => 'раз в ' + sec(v.every) + ' поднимает в воздух всех лёгких мобов в радиусе — кроме элитных и '
+          + 'боссов: ' + sec(v.time) + ' они не идут и получают на ' + pct(v.vuln) + ' больше урона' },
+      { name: 'Око бури', v: { every: 60, push: 4 }, scale: { every: 'haste' },
+        text: (v) => 'раз в ' + sec(v.every) + ' смерч проходит по всей дороге и отбрасывает всех, кроме боссов, '
+          + by(v.push) + ' назад' },
     ],
+    pool: ['perk0', 'perk3', 'perk1', 'tornado', 'perk2', 'perk4', 'perk5', 'headwind'],
     runes: [
       { id: 'tornado', name: 'Торнадо', text: 'вихри становятся торнадо: впитывают огонь, яд, лёд и молнию по '
         + 'пути — с земли, из бури и с задетых мобов — и бьют всеми стихиями' },
@@ -443,11 +497,10 @@ export const CLASSES = [
     element: 'earth',
     primary: 'int',
     earn: { xp: 0.98, coins: 1.02 },
-    weapon: 'каменная рука',
-    her: true,
+    weapon: 'посох',
     stats: { str: 'low', agi: 'low', int: 'high' },
     base: { damage: 0.95, interval: 1.3, range: 3, target: 'land', spikes: 2, rebuild: 9 },
-    summary: 'Шипы из-под земли, каменная стена, метеорит',
+    summary: 'Шипы из-под земли, каменная стена, землетрясение',
     main: (b) => 'На ' + cells(b.range) + ' бьёт шипами из-под земли — сразу две клетки дороги, урон ×'
       + num(b.damage),
     skills: [
@@ -460,9 +513,21 @@ export const CLASSES = [
         scale: { every: 'haste', radius: 'power', bonus: 'dmg' },
         text: (v) => 'раз в ' + sec(v.every) + ' на дорогу падает метеорит: всем ' + around(v.radius) + ' урон ×'
           + num(v.bonus) + ' землёй и огнём и оглушение на ' + sec(v.stun) },
+      { name: 'Землетрясение', v: { every: 12, stun: 0.8 }, scale: { every: 'haste', stun: 'time' },
+        text: (v) => 'раз в ' + sec(v.every) + ' земля дрожит: все мобы в его радиусе оглушены на ' + sec(v.stun) },
+      { name: 'Разлом', v: { every: 45, count: 6, share: 0.5, elite: 0.2, boss: 0.05, cap: 60 },
+        scale: { every: 'haste' },
+        text: (v) => 'раз в ' + sec(v.every) + ' земля раскалывается вдоль ' + v.count + ' клеток дороги: обычные мобы '
+          + 'теряют ' + pct(v.share) + ' здоровья, элитные ' + pct(v.elite) + ', боссы ' + pct(v.boss)
+          + ', но не больше урона ×' + num(v.cap) },
+      { name: 'Зыбучий песок', v: { every: 10, time: 6, radius: 1, slow: 0.5 }, scale: { every: 'haste', time: 'time' },
+        text: (v) => 'раз в ' + sec(v.every) + ' клетка дороги перед мобами на ' + sec(v.time) + ' становится '
+          + 'трясиной: мобы ' + around(v.radius) + ' медленнее на ' + pct(v.slow) },
     ],
+    pool: ['perk0', 'perk5', 'perk1', 'perk3', 'perk2', 'perk4', 'steel'],
     runes: [
-      { id: 'steel', name: 'Стальная стена', text: 'стена из стали, втрое прочнее' },
+      { id: 'steel', name: 'Стальная крепость', text: 'стена из стали, втрое прочнее, а рухнув, взрывается камнями '
+        + 'и оглушает всех вокруг' },
       { id: 'stone', name: 'Каменные шипы', text: 'шипы бьют сразу на пять клеток' },
     ],
   },
@@ -493,7 +558,7 @@ export const CLASSES = [
       { name: 'Стяг стойкости', v: {},
         text: () => 'под знаменем никого из отряда не оглушить' },
       { name: 'Длинное древко', v: { wide: 1, range: 0.4 },
-        text: (v) => 'знамя на ' + cells(v.wide) + ' шире, а все под ним бьют на ' + pct(v.range) + ' дальше' },
+        text: (v) => 'знамя ' + by(v.wide) + ' шире, а все под ним бьют на ' + pct(v.range) + ' дальше' },
       { name: 'Легион', v: { every: 60, time: 8 }, scale: { every: 'haste', time: 'time' },
         text: (v) => 'раз в ' + sec(v.every) + ' всё поле на ' + sec(v.time) + ' под его знаменем' },
       { name: 'Знамя героя', v: { bonus: 0.5 }, scale: { bonus: 'power' },

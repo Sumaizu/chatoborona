@@ -69,6 +69,13 @@ const STATUS = {
   summit: 'Победа!',
 };
 const EFFECTS_ROLL = { speed: 18, wait: 2.5 };
+const MAGE_SAYS = {
+  tsunami: ['Цунами!', '#7dd3fc'],
+  eye: ['Око бури: мобы отброшены', '#99f6e4'],
+  inferno: ['Инферно: всё поле в огне', '#fb923c'],
+  phoenix: ['Феникс!', '#fdba74'],
+  tempest: ['Гроза над полем', '#fde047'],
+};
 const PLAYERS_HOLD = 5;
 const PLAYERS_SLIDE = 0.6;
 const RULES = [
@@ -495,6 +502,17 @@ export class View {
       this._sound('growl');
     } else if (kind === 'toss' && (event.mine === 'nuke' || event.mine === 'fusion') || kind === 'meteor') {
       this._sound('fall', event.time);
+    } else if (kind === 'quake') {
+      this._sound('quake');
+      const board = $('board');
+      board.classList.remove('shake');
+      void board.offsetWidth;
+      board.classList.add('shake');
+    } else if (kind === 'react') {
+      this._sound('crit');
+    } else if (MAGE_SAYS[kind]) {
+      this._cue('buff');
+      this.scene.say(MAGE_SAYS[kind][0], MAGE_SAYS[kind][1]);
     } else if (kind === 'nuke') {
       this._sound(event.small ? 'mine' : 'nuke');
       const box = $('blackout'), board = $('board');

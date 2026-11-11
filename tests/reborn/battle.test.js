@@ -992,15 +992,16 @@ test('огнемётчик: с 50-го разливает нефть; от ог�
 });
 
 test('огнемётчик: нежить горит сильнее; руна «Широкое сопло» — струя вдвое шире, «Синее пламя» — вдвое сильнее', () => {
-  const battle = makeBattle(), pyro = battle.place(player(), 'pyro', 10, 4);
+  const battle = makeBattle(), pyro = battle.place(player(), 'pyro', 10, 4), base = pyro.cls.base;
+  battle.setMods(pyro, { perks: [0] });
   pyro.critChance = 0;
   battle.random = () => 0.99;
   const zombie = creature(battle, 'zombie', 12, 1e6);
   still(zombie);
   battle._fire(pyro);
-  near(hit(zombie), pyro.damage * pyro.cls.base.undead);
+  near(hit(zombie), pyro.damage * base.jet / base.damage * base.undead);
   const cone = pyro.cone;
-  battle.setMods(pyro, { runes: ['nozzle', 'blue'] });
+  battle.setMods(pyro, { perks: [0], runes: ['nozzle', 'blue'] });
   pyro.critChance = 0;
   near(pyro.cone, cone * 2);
   const before = hit(zombie);
@@ -1363,6 +1364,7 @@ test('минёр: руна «Большой запас» — мин вдвое �
 
 test('ледяной маг: буря вокруг бьёт льдом всех в радиусе', () => {
   const battle = makeBattle(), frost = battle.place(player(), 'frost', 10, 4);
+  battle.setMods(frost, { perks: [0] });
   battle.random = () => 0.99;
   const mobs = [walker(battle, 9, 1e6), walker(battle, 11, 1e6), walker(battle, 12, 1e6)];
   battle._fire(frost);
@@ -1644,6 +1646,174 @@ test('лекарь: с 10-го щит — дошедший моб не отни�
   const lives = battle.lives, again = put(battle, special(battle, 'boss', 'crusher', 1e9), battle.length - 2);
   runFor(battle, 5);
   ok(again.dead && battle.lives === lives, 'с ангелом-хранителем — держит');
+});
+
+test('маг огня: шары поджигают; огненный шар, стена огня, феникс, инферно, сердце вулкана', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'pyro', 10, 4);
+  battle.random = () => 0.99;
+  t.critChance = 0;
+  t.cooldown = 1e9;
+  const target = walker(battle, 10, 1e6), side = walker(battle, 9.2, 1e6);
+  still(target, side);
+  battle._fire(t);
+  runFor(battle, 0.35);
+  ok(hit(target) >= t.damage && hit(target) < t.damage * 1.2, 'шар бьёт цель');
+  ok(target.burn && target.burn.has(t), 'и поджигает');
+  no(side.burn, 'соседа — нет');
+  battle.setMods(t, { perks: [3] });
+  t.cooldown = 1e9;
+  battle._fire(t);
+  runFor(battle, 0.35);
+  ok(side.burn && hit(side) > 0, 'огненный шар взрывается и поджигает соседей');
+
+  const wall = makeBattle(), w = wall.place(player(), 'pyro', 10, 4);
+  wall.setMods(w, { perks: [4, 6] });
+  w.cooldown = 1e9;
+  const crowd = [walker(wall, 9, 1e6), walker(wall, 2, 1e6)];
+  still(...crowd);
+  wall.step(TICK);
+  ok(wall.oils.some((oil) => oil.tower === w && oil.lit && oil.burnUntil > wall.time), 'стена огня');
+  ok(crowd.every((mob) => mob.burn && mob.burn.has(w)), 'инферно: горит всё поле');
+
+  const bird = makeBattle(), p = bird.place(player(), 'pyro', 10, 4);
+  bird.setMods(p, { perks: [5] });
+  p.cooldown = 1e9;
+  const far = walker(bird, 3, 1e6);
+  still(far);
+  bird.step(TICK);
+  ok(bird.events.some((e) => e.kind === 'phoenix'));
+  runFor(bird, bird.road.length * p.s[5].step + 0.2);
+  ok(hit(far) >= p.skill * p.s[5].bonus && far.burn, 'феникс пролетел по всей дороге');
+
+  const heart = makeBattle(), h = heart.place(player(), 'pyro', 10, 4);
+  heart.setMods(h, { perks: [7] });
+  const dying = walker(heart, 10, 10), close = walker(heart, 10.6, 1e6);
+  still(dying, close);
+  heart._ignite(dying, h, 1, 3);
+  heart._hurt(dying, 1e6, h, null);
+  ok(dying.dead && hit(close) >= h.skill * h.s[7].bonus * 0.999 && close.burn, 'сердце вулкана: горящий взорвался');
+});
+
+test('маг воды: струя намачивает; заморозка, волна, водоворот, цунами, ливень', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'frost', 10, 4);
+  battle.random = () => 0.99;
+  t.critChance = 0;
+  const mob = walker(battle, 10, 1e6);
+  still(mob);
+  battle._fire(t);
+  near(hit(mob), t.damage, 'струя бьёт одного');
+  ok(battle.wet(mob), 'и намачивает');
+  battle.setMods(t, { perks: [1] });
+  battle._fire(t);
+  ok(mob.holdUntil > battle.time, 'заморозка: мокрого — всегда');
+
+  const waves = makeBattle(), w = waves.place(player(), 'frost', 10, 4), boss = put(waves,
+    special(waves, 'boss', 'crusher', 1e9), 12);
+  waves.setMods(w, { perks: [3, 4, 5] });
+  w.cooldown = 1e9;
+  const a = walker(waves, 10, 1e6), b = walker(waves, 3, 1e6);
+  still(a, b, boss);
+  const da = a.d, db = b.d, dboss = boss.d;
+  waves.step(TICK);
+  ok(waves.events.some((e) => e.kind === 'wave') && waves.events.some((e) => e.kind === 'tsunami'));
+  ok(a.d <= da - 3.9, 'волна и цунами отбросили');
+  ok(b.d <= db - 2.9 && waves.wet(b), 'цунами — по всему полю, и все мокрые');
+  near(boss.d, dboss, 'босса не сдвинуть');
+  ok(waves.zones.some((zone) => zone.kind === 'pool' && zone.tower === w), 'водоворот');
+
+  const rain = makeBattle(), r = rain.place(player(), 'frost', 10, 4);
+  no(rain.wet(walker(rain, 2, 100)));
+  rain.setMods(r, { perks: [6] });
+  ok(rain.rain && rain.wet(walker(rain, 3, 100)), 'ливень: все мокрые');
+});
+
+test('реакции стихий: электрошок, мгновенная заморозка, пар, взрыв газа, перегрузка', () => {
+  const battle = makeBattle(), storm = battle.place(player(), 'thunder', 10, 4);
+  const ice = battle.place(player(), 'frost', 12, 4), fire = battle.place(player(), 'pyro', 8, 4);
+  const lab = battle.place(player(), 'alchemist', 6, 4);
+  const shocked = walker(battle, 2, 1e6);
+  battle._wet(shocked, 5);
+  battle._hurt(shocked, 100, storm);
+  near(hit(shocked), 200, 'молния по мокрому — вдвое');
+  ok(shocked.holdUntil > battle.time && battle.events.some((e) => e.kind === 'react' && e.name === 'Электрошок'));
+  const frozen = walker(battle, 3, 1e6);
+  battle._wet(frozen, 5);
+  battle._hurt(frozen, 10, ice, 'ice');
+  ok(frozen.holdUntil > battle.time && !battle.wet(frozen), 'лёд по мокрому — заморозка, вода ушла');
+  const steamy = walker(battle, 4, 1e6), nearby = walker(battle, 4.5, 1e6);
+  battle._wet(steamy, 5);
+  battle._hurt(steamy, 10, fire);
+  battle._ignite(steamy, fire, 1, 3);
+  ok(!steamy.burn && nearby.vuln >= 0.25 && nearby.vulnUntil > battle.time, 'пар: огонь гаснет, рядом +25% урона');
+  const gassy = walker(battle, 7, 1e6), neighbour = walker(battle, 7.5, 1e6);
+  battle._poison(gassy, lab, lab, 1, 5);
+  battle._hurt(gassy, 10, fire);
+  ok(hit(neighbour) > 0 && neighbour.poison && neighbour.poison.has(lab), 'взрыв газа разносит яд');
+  const charged = walker(battle, 9, 1e6);
+  charged.charge = { by: storm, bonus: 0, until: battle.time + 5 };
+  battle._hurt(charged, 100, storm);
+  near(hit(charged), 100, 'заряженного без перегрузки — как обычно');
+  battle.setMods(storm, { perks: [3] });
+  battle._hurt(charged, 100, storm);
+  near(hit(charged), 300, 'перегрузка: и заряженного вдвое');
+});
+
+test('маг молнии: грозовая туча и гроза над полем', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'thunder', 10, 4);
+  battle.setMods(t, { perks: [4, 5] });
+  t.cooldown = 1e9;
+  const close = walker(battle, 10, 1e6), far = walker(battle, 2, 1e6);
+  still(close, far);
+  battle.step(TICK);
+  ok(battle.zones.some((zone) => zone.kind === 'cloud'), 'туча над дорогой');
+  ok(battle.events.some((e) => e.kind === 'tempest'));
+  runFor(battle, 0.6);
+  ok(hit(far) >= t.skill * t.s[5].bonus, 'гроза бьёт по всему полю');
+  ok(hit(close) > hit(far), 'под тучей — ещё и туча');
+});
+
+test('маг ветра: попутный ветер, ураган, око бури', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'shaman', 10, 4), ally = battle.place(player(), 'sniper', 11, 4);
+  still(walker(battle, 0, 1e6));
+  battle.step(TICK);
+  const plain = ally.boost.rate;
+  battle.setMods(t, { perks: [3] });
+  battle.step(TICK);
+  near(ally.boost.rate - plain, t.s[3].haste, 'попутный ветер всегда');
+
+  const gale = makeBattle(), g = gale.place(player(), 'shaman', 10, 4);
+  gale.setMods(g, { perks: [4, 5] });
+  g.cooldown = 1e9;
+  const light = walker(gale, 10, 1e6), elite = put(gale, special(gale, 'elite', 'leader', 1e6), 9), far = walker(gale, 6, 1e6);
+  still(light, elite, far);
+  const dfar = far.d;
+  gale.step(TICK);
+  ok(light.holdUntil > gale.time && light.vuln >= g.s[4].vuln, 'ураган поднял лёгкого');
+  ok(!(elite.vulnUntil > gale.time), 'элитного — нет');
+  ok(far.d <= dfar - g.s[5].push + 0.01, 'око бури отбросило всех');
+});
+
+test('маг земли: землетрясение, разлом, зыбучий песок, стальная крепость', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'earth', 10, 4);
+  battle.setMods(t, { perks: [3, 4, 5] });
+  t.cooldown = 1e9;
+  const a = walker(battle, 10, 1000), b = walker(battle, 9.5, 1000);
+  still(a, b);
+  battle.step(TICK);
+  ok(a.holdUntil > battle.time && b.holdUntil > battle.time, 'землетрясение оглушает');
+  ok(a.hp <= 500 + 1e-6 && b.hp <= 500 + 1e-6, 'разлом: половина здоровья');
+  ok(battle.zones.some((zone) => zone.kind === 'sand'), 'зыбучий песок');
+
+  const fort = makeBattle(), f = fort.place(level(10), 'earth', 10, 4);
+  fort.setMods(f, { perks: [0], runes: ['steel'] });
+  fort.step(TICK);
+  const wall = fort.walls[0], mob = walker(fort, 3, 1e6);
+  ok(wall, 'стена стоит');
+  wall.hp = 1e-9;
+  put(fort, mob, wall.d - 0.6);
+  fort._batter(wall, mob, TICK, fort.time);
+  ok(fort.events.some((e) => e.kind === 'boom' && e.tower === f), 'рухнув, взрывается');
+  ok(mob.holdUntil > fort.time, 'и оглушает');
 });
 
 test('алхимик, навыки Реборна: кислота, зелье безумия, эпидемия, философский камень', () => {
@@ -2563,6 +2733,7 @@ test('карта: руины, круг камней и склеп закрыва
 
 test('карта: буря ледяного мага бьёт сквозь горы и мобов в тоннеле, обычный выстрел — нет', () => {
   const battle = mapWith({ mountain: [[14, 4]], tunnel: [[13, 5]] }), frost = battle.place(player(), 'frost', 14, 3);
+  battle.setMods(frost, { perks: [0] });
   const gun = battle.place(player(), 'gunner', 15, 3);
   gun.range = 4;
   battle.random = () => 0.99;
@@ -2618,7 +2789,7 @@ test('карта: с холма бьют дальше', () => {
 test('биомы: в вулкане лёд слабее, в снегах — огонь', () => {
   const blow = (biome, cls) => {
     const battle = mapWith({}, biome), t = battle.place(player(), cls, 3, 4), mob = walker(battle, 4, 1e6);
-    battle._hurt(mob, 100, t);
+    battle._hurt(mob, 100, t, cls === 'frost' ? 'ice' : t.cls.element);
     return hit(mob);
   };
   near(blow('volcano', 'frost'), 100 * TERRAIN.weak);

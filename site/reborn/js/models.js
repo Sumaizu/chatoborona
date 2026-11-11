@@ -180,6 +180,87 @@ function hero(m, o) {
   o.head(m);
 }
 
+function hat(q, color, band, tip) {
+  q.egg(16, 17.2, 12, 5.6, 5.2, 0.8, color);
+  q.egg(16, 17.2, 12.6, 3.6, 3.4, 0.6, band);
+  q.ball(16, 17.4, 13.4, 3, color);
+  q.ball(16.3, 18.3, 15.2, 2.1, color);
+  q.ball(16.7, 19.3, 16.7, 1.3, color);
+  q.ball(17.1, 20.2, 17.8, 0.8, tip);
+}
+
+function mage(m, o) {
+  hero(m, {
+    coat: o.robe, dark: o.dark, sleeve: o.sleeve, boots: o.boots, hands: [12.5, 11.5, 20, 12.5],
+    back: (q) => q.egg(16, 23, 2.6, 8.2, 6, 3, o.dark),
+    chest: (q) => {
+      q.limb(16, 13.5, 9.6, 16, 23.5, 9.6, 0.8, o.trim);
+      q.dot(16, 18, o.glow, 30);
+    },
+    weapon: (q) => {
+      q.limb(12.5, 16.5, 10, 12.5, 4.5, 10.8, 1, o.staff || WOOD);
+      o.tip(q, 12.5, 3);
+    },
+    head: (q) => hat(q, o.hat, o.trim, o.glow),
+  });
+}
+
+const MAGES = {
+  pyro: (m) => mage(m, {
+    robe: '#b91c1c', dark: '#7f1d1d', sleeve: '#c42828', boots: '#3b1a14', hat: '#991b1b', trim: '#f59e0b',
+    glow: '#fde047',
+    tip: (q, x, y) => {
+      q.ball(x, y + 0.4, 12, 2.4, '#ea580c', 1);
+      q.ball(x, y - 0.2, 13.6, 1.8, '#f97316', 1);
+      q.ball(x - 0.2, y - 0.8, 15, 1.1, '#fde047', 1);
+      for (const [dx, dy] of [[-2, -2], [2, -1], [1, -3]]) q.dot(x + dx, y + dy, '#fff1c2', 60);
+    },
+  }),
+  frost: (m) => mage(m, {
+    robe: '#1d4ed8', dark: '#1e3a8a', sleeve: '#2557e0', boots: '#1e2a52', hat: '#1e40af', trim: '#7dd3fc',
+    glow: '#e0f2fe', staff: '#94a3b8',
+    tip: (q, x, y) => {
+      q.ball(x, y, 12.6, 2.6, '#38bdf8', 1);
+      q.ball(x - 0.7, y - 0.7, 14.2, 1, '#e0f2fe', 1);
+      for (const [dx, dy] of [[-2.5, 2.5], [2.6, 1.4], [0.4, -3]]) q.dot(x + dx, y + dy, '#7dd3fc', 50);
+    },
+  }),
+  earth: (m) => mage(m, {
+    robe: '#7c5a3a', dark: '#4a3524', sleeve: '#86613f', boots: '#33251a', hat: '#5c4128', trim: '#65a30d',
+    glow: '#bef264', staff: '#5c3d22',
+    tip: (q, x, y) => {
+      q.egg(x, y, 13.4, 1.8, 1.4, 3.4, '#b45309', 1);
+      q.egg(x - 1.3, y + 0.8, 12.4, 1.1, 0.9, 2.2, '#d97706', 1);
+      q.egg(x + 1.3, y + 0.6, 12.4, 1, 0.9, 2, '#92400e', 1);
+      q.dot(x - 0.4, y - 1, '#fde68a', 60);
+    },
+  }),
+  shaman: (m) => mage(m, {
+    robe: '#0d9488', dark: '#115e59', sleeve: '#14a39a', boots: '#183b37', hat: '#0f766e', trim: '#ccfbf1',
+    glow: '#ecfeff',
+    tip: (q, x, y) => {
+      q.ball(x, y, 12.6, 1.4, '#a7f3d0', 1);
+      for (let k = 0; k < 7; k++) {
+        const a = k * 0.95, b = a + 0.8, r = 2 + k * 0.3, s = r + 0.3;
+        q.limb(x + Math.cos(a) * r, y + Math.sin(a) * r, 12 + k * 0.4, x + Math.cos(b) * s, y + Math.sin(b) * s,
+          12.3 + k * 0.4, 0.45, k % 2 ? '#ffffff' : '#99f6e4');
+      }
+    },
+  }),
+  thunder: (m) => mage(m, {
+    robe: '#1e2a78', dark: '#141b52', sleeve: '#26338e', boots: '#151a3d', hat: '#172066', trim: '#facc15',
+    glow: '#fef08a',
+    tip: (q, x, y) => {
+      q.ball(x, y, 12.6, 2.3, '#fde047', 1);
+      q.ball(x - 0.6, y - 0.6, 14, 0.9, '#ffffff', 1);
+      q.limb(x - 2.6, y - 1.2, 12.4, x - 3.6, y + 0.4, 12.4, 0.35, '#fef9c3');
+      q.limb(x + 2.4, y - 1.6, 12.4, x + 3.4, y - 3, 12.4, 0.35, '#fef9c3');
+      q.limb(x + 1.6, y + 2.4, 12.4, x + 2.8, y + 3.2, 12.4, 0.35, '#fef9c3');
+      for (const [dx, dy] of [[-3, -3], [3, 0], [-1, 3.5]]) q.dot(x + dx, y + dy, '#ffffff', 60);
+    },
+  }),
+};
+
 const HEROES = {
   sniper: (m) => hero(m, {
     coat: '#5f7f3c', dark: '#4a6430', sleeve: '#557235',
@@ -240,23 +321,6 @@ const HEROES = {
       q.dot(16, 14, '#fff3b0', 40);
     },
   }),
-  thunder: (m) => hero(m, {
-    coat: '#1e40af', dark: '#1e3a8a', sleeve: '#2448b8', hands: [12.5, 11, 19, 12.5],
-    chest: (q) => q.limb(11, 22, 9.4, 21, 22, 9.4, 0.8, GOLD),
-    weapon: (q) => {
-      q.limb(12.5, 16, 10, 12.5, 3.5, 10.5, 1, WOOD);
-      q.ball(12.5, 3, 12.5, 2.6, '#facc15', 1);
-      for (const [x, y] of [[10, 1], [15, 2], [11, 6]]) q.dot(x, y, '#fef9c3', 60);
-    },
-    head: (q) => {
-      q.egg(16, 18, 10.4, 7.2, 6.6, 1.2, '#1d3592');
-      q.ball(16, 17.5, 11.2, 4.5, '#2b4fc4');
-      q.ball(16, 17.5, 15, 2.2, '#3b63d6');
-      q.dot(16, 16, '#facc15', 60);
-      q.dot(14, 19, '#fef08a', 60);
-      q.dot(18, 18, '#fef08a', 60);
-    },
-  }),
   alchemist: (m) => hero(m, {
     coat: '#a3acb8', dark: '#6b7280', boots: '#2f2a26', hands: [12, 11.5, 19.5, 13],
     chest: (q) => q.egg(16, 20.5, 9, 5, 4, 0.8, '#7c4a1e'),
@@ -271,28 +335,6 @@ const HEROES = {
       q.limb(11.6, 15.6, 13.5, 20.4, 15.6, 13.5, 0.7, '#3a3d44');
       q.ball(14, 14.8, 14.6, 1.4, '#84cc16', 1);
       q.ball(18, 14.8, 14.6, 1.4, '#84cc16', 1);
-    },
-  }),
-  pyro: (m) => hero(m, {
-    coat: '#8f2b17', dark: '#5e1b0d', sleeve: '#7a2412', boots: '#2c2226', glove: '#3a2a22',
-    hands: [13.5, 11.2, 18.5, 11.6],
-    back: (q) => {
-      q.limb(12, 22, 6, 12, 26, 6, 2.6, '#c0392b', 0.5);
-      q.limb(20, 22, 6, 20, 26, 6, 2.6, '#c0392b', 0.5);
-    },
-    chest: (q) => q.egg(16, 20, 8, 5, 2, 2, '#5b1d10'),
-    weapon: (q) => {
-      q.limb(16, 13, 10.5, 16, 3, 10.5, 1.6, '#6b7280', 0.6);
-      q.limb(16, 4, 10.5, 16, 1.6, 10.5, 1.9, '#3f4450', 0.6);
-      q.dot(16, 1, '#ffd84a');
-      q.dot(15, 1, '#ff7a1f');
-      q.dot(17, 1, '#ff7a1f');
-    },
-    head: (q) => {
-      q.ball(16, 17, 11.5, 4.8, '#3d3f46', 0.6);
-      q.egg(16, 13.6, 14.6, 3.2, 1.4, 1, '#ff9b3d');
-      q.dot(14, 13, '#ffe08a');
-      q.dot(18, 13, '#ffe08a');
     },
   }),
   hunter: (m) => hero(m, {
@@ -312,44 +354,6 @@ const HEROES = {
       q.egg(16, 17.5, 11, 7, 6.4, 1.2, '#5b3a1e');
       q.ball(16, 17.5, 12.4, 3.8, '#6e4524');
       q.limb(19, 15, 14, 22, 12.5, 14, 0.5, '#dc2626');
-    },
-  }),
-  frost: (m) => hero(m, {
-    coat: '#2f6ea8', dark: '#1f4f7a', sleeve: '#2a6198', boots: '#2f3b57', hands: [12, 12, 20.5, 12.5],
-    back: (q) => q.egg(16, 21, 3, 9, 7.5, 3.5, '#1f4f7a'),
-    chest: (q) => q.egg(16, 21.5, 8, 6.5, 1.6, 1.4, '#d6f4ff'),
-    weapon: (q) => {
-      q.limb(12, 14, 10.5, 12, 3, 10.5, 1.1, '#cbeeff', 0.4);
-      q.ball(12, 2.6, 12, 2.4, '#7fe8ff', 1);
-      q.dot(11, 1, '#ffffff');
-      q.ball(20.5, 9.5, 11, 1.3, '#a5f3fc', 1);
-    },
-    head: (q) => {
-      q.ball(16, 16.5, 11.5, 5.2, '#3a86c9');
-      q.ball(16, 16, 15.5, 2.6, '#5aa5e0');
-      for (const [x, y] of [[13, 13], [16, 12], [19, 13]]) q.dot(x, y, '#e0fbff', 60);
-    },
-  }),
-  shaman: (m) => hero(m, {
-    coat: '#0f766e', dark: '#115e59', boots: '#3b2a1e', hands: [12.5, 11.5, 19.5, 13],
-    chest: (q) => {
-      q.limb(10.5, 20, 9.5, 21.5, 20, 9.5, 0.8, '#e6c87a');
-      for (const x of [12, 16, 20]) q.dot(x, 21, '#1fb5a5', 30);
-    },
-    weapon: (q) => {
-      q.limb(12.5, 16, 10, 12.5, 2.5, 10.5, 1.2, WOOD);
-      q.egg(12.5, 3.5, 12, 2, 2.4, 1.6, '#e6c87a');
-      q.dot(11, 2, '#22d3ee', 40);
-      q.dot(14, 2, '#f472b6', 40);
-      q.limb(12.5, 5, 12, 10, 8, 12, 0.5, '#f8fafc');
-    },
-    head: (q) => {
-      for (const [x, y, c] of [[11, 15, '#22d3ee'], [13, 13, '#f472b6'], [16, 12.4, '#facc15'], [19, 13, '#f472b6'],
-        [21, 15, '#22d3ee']]) {
-        q.limb(16, 17, 12, x, y, 12.5, 0.9, c);
-      }
-      q.ball(16, 17, 12, 4.4, '#7c4a2a');
-      q.egg(16, 15, 15, 3, 1.2, 1, '#e6c87a');
     },
   }),
   banner: (m) => hero(m, {
@@ -399,25 +403,6 @@ const HEROES = {
       q.dot(16, 17, '#e9d5ff', 60);
     },
   }),
-  earth: (m) => hero(m, {
-    coat: '#8a6a44', dark: '#5e4a30', sleeve: '#7d603d', boots: '#3b2a1e', hands: [12.5, 12, 20.5, 10.5],
-    chest: (q) => q.limb(10, 20.5, 9.2, 22, 20.5, 9.2, 0.9, '#5b3d22'),
-    weapon: (q) => {
-      q.limb(22.5, 17, 9, 20.5, 11, 10.5, 2.8, '#8a7f70');
-      q.egg(20.5, 8.6, 11.6, 4.2, 3.8, 3.4, '#9a8f80');
-      for (const x of [17.8, 20, 22.2]) q.ball(x, 5.4, 13, 1.5, '#a89c8a');
-      q.ball(24.6, 9.6, 12.4, 1.5, '#8a7f70');
-      q.limb(18.5, 9.5, 14.8, 22.5, 7.5, 14.8, 0.4, '#e08a3a');
-      q.dot(20, 8, '#ffb35c', 40);
-      q.dot(23, 11, '#6b6258', 30);
-    },
-    head: (q) => {
-      q.ball(16, 17, 11.6, 4.9, '#8a7f70');
-      q.ball(14.4, 15.4, 14, 1.6, '#a89c8a');
-      q.ball(18, 18.4, 13.6, 1.4, '#6b6258');
-      q.dot(16, 13, '#c08a4a', 60);
-    },
-  }),
   miner: (m) => hero(m, {
     coat: '#3b4a6b', dark: '#28334d', sleeve: '#33405d', boots: '#2a2620', hands: [13.5, 11.5, 18.5, 11.5],
     glove: '#6b4a2b',
@@ -450,6 +435,7 @@ const HEROES = {
   },
 };
 
+Object.assign(HEROES, MAGES);
 export const HERO_IDS = Object.keys(HEROES);
 
 export function drawHero(id) {
