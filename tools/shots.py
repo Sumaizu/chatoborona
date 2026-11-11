@@ -149,10 +149,16 @@ def main():
                 browser.wait_for("(() => { const f = document.getElementById('game'); "
                                  "return Boolean(f && f.contentWindow && f.contentWindow.chatoborona); })()", 20)
                 time.sleep(1.5)
+                if "news" in wanted:
+                    browser.screenshot(out / "news.png")
+                    print("снято:", out / "news.png")
+                browser.evaluate("document.getElementById('news').close()")
                 if "rules" in wanted:
+                    browser.evaluate("document.getElementById('open-rules').click()")
+                    time.sleep(0.3)
                     browser.screenshot(out / "rules.png")
                     print("снято:", out / "rules.png")
-                browser.evaluate("document.getElementById('rules').close()")
+                    browser.evaluate("document.getElementById('rules').close()")
                 time.sleep(0.3)
                 browser.screenshot(out / "page.png")
                 print("снято:", out / "page.png")

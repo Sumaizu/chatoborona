@@ -2253,7 +2253,14 @@ export class Scene {
       add({ kind: 'pulse', life: 0.7, x, y, r: event.kind === 'rescue' ? 2.4 : 1.2, color: look[0], width: 3 });
       add({ kind: 'text', life: 1.8, x, y: y - 0.9, text: look[1], color: look[0] });
       this._sparks(x, y, [look[0], '#ffffff'], event.kind === 'rescue' ? 30 : 10, 2, 0.6, 2);
-      if (event.kind === 'rescue') this.say('Второй шанс!', '#4ade80');
+      if (event.kind === 'rescue') {
+        this.say('Второй шанс! Волна стёрта', '#4ade80');
+        for (const mob of event.wiped) {
+          const spot = this.shown.get(mob.id) || mob;
+          add({ kind: 'pulse', life: 0.8, x: spot.x, y: spot.y, r: 0.9, color: '#fde68a', width: 2 });
+          this._sparks(spot.x, spot.y, ['#fde68a', '#ffffff', '#4ade80'], 8, 1.6, 0.6, 2);
+        }
+      }
     } else if (event.kind === 'leak') {
       const [bx, by] = this.battle.path[this.battle.path.length - 1];
       const spot = this.shown.get(event.mob.id) || event.mob;

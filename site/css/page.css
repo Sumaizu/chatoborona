@@ -93,6 +93,10 @@ button.armed { border-color: var(--warn); color: var(--warn); }
 .rules-commands dd { margin: 0; color: var(--muted); }
 .rules-foot { display: flex; justify-content: flex-end; padding: 12px 20px 16px; border-top: 1px solid var(--line); }
 .rules-foot button { min-width: 8em; }
+.news { width: min(600px, 94vw); }
+.news-list { margin: 0; padding-left: 22px; display: grid; gap: 12px; font-size: 16px; line-height: 1.45; }
+.news-list b { color: var(--ink); }
+.news-list a { color: var(--accent); font-weight: 700; }
 @media (max-width: 560px) {
   .rules-commands { grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .rules-commands dd { margin-bottom: 6px; }

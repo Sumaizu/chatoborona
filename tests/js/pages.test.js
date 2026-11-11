@@ -428,7 +428,16 @@ test('страницы: главная — без канала просит ка
   eq([home.getAttribute('href'), home.target, home.querySelector('img').alt],
     ['https://gamesonstream.ru/', '', 'Games on Stream']);
   ok(home.querySelector('img').naturalWidth > 0, 'логотип загрузился');
-  ok(element(w, 'rules').open, 'при открытии — правила для стримера');
+  ok(element(w, 'news').open, 'при открытии — новости');
+  no(element(w, 'rules').open, 'правила сами не открываются');
+  ok(text(w, 'news').includes('Чатоборона Реборн') && text(w, 'news').includes('ни один стример'));
+  eq(w.document.querySelector('#news a').getAttribute('href'), 'reborn/', 'ссылка на Реборн');
+  element(w, 'news-close').click();
+  no(element(w, 'news').open, '«Понятно» закрывает новости');
+  w.document.getElementById('news').showModal();
+  element(w, 'news-x').click();
+  no(element(w, 'news').open, 'и крестик тоже');
+  element(w, 'open-rules').click();
   ok(text(w, 'rules').includes('Ссылка для OBS') && text(w, 'rules').includes('!чатоборона-пауза'));
   no(text(w, 'rules').includes('[object'), 'в тексте нет «[object Object]»');
   ok(text(w, 'rules').includes('написать !чатоборона-дальше — ещё сто волн'));

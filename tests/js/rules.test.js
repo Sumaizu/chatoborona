@@ -177,7 +177,16 @@ test('крутизна волн у каждой игры своя: обычны�
   near(waveHp(31, 'normal', 10, steep), waveHp(51, 'normal', 10), 'крутая: 31-я — как обычная 51-я');
   for (const wave of [1, 5, 11]) near(waveHp(wave, 'normal', 10, steep), waveHp(wave, 'normal', 10), 'начало общее');
   near(waveHp(40, 'normal', 10, 1), waveHp(40, 'normal', 10));
-  ok(waveHp(95, 'normal', 10, gentle) > waveHp(68, 'normal', 10) * 20, 'стена у 100-й не пологеет');
+  ok(waveHp(90, 'normal', 10, gentle) > waveHp(68, 'normal', 10) * 5, 'стена до 90-й не пологеет');
+});
+
+test('с 91-й волны мобы крепчают спокойно — на 10% за волну, иначе до Диабло не дойти', () => {
+  eq([WAVE.calm, WAVE.calmGrowth], [90, 1.1]);
+  for (const tempo of [rollTempo(() => 0), 1, rollTempo(() => 1)]) {
+    const step = (wave) => waveHp(wave + 1, 'normal', 10, tempo) / waveHp(wave, 'normal', 10, tempo);
+    ok(step(89) > 1.2, 'до 90-й — круто: ' + step(89));
+    for (let wave = 90; wave < 100; wave++) ok(Math.abs(step(wave) - 1.1) < 1e-9, wave + 1 + '-я: ' + step(wave));
+  }
 });
 
 test('классы: пятнадцать, у каждого оружие, свой склад, три способности на 10, 30 и 50 уровне и две руны', () => {

@@ -1040,7 +1040,7 @@ test('паразит: с 50-го раз в 30 с забирает монеты �
   no(alone.perch);
 });
 
-test('Диабло: на 100-й волне выходит один, без мобов, крепче обычного босса вдвенадцатеро, огонь его не берёт', () => {
+test('Диабло: на 100-й волне выходит один, без мобов, крепче обычного босса вчетверо, огонь его не берёт', () => {
   const battle = makeBattle();
   eq(battle.planFamily(99) === FINALE, false);
   eq(battle.planFamily(100), FINALE);
@@ -1049,6 +1049,12 @@ test('Диабло: на 100-й волне выходит один, без мо�
   const spawn = battle.spawns[0];
   eq([spawn.type, spawn.kind], ['boss', DIABLO]);
   near(spawn.hp, waveHp(100, 'boss', 10) * DIABLO.hp);
+  eq(DIABLO.hp, 4);
+  const before = makeBattle();
+  before.startWave(99, 10);
+  const wave99 = before.spawns.reduce((sum, s) => sum + s.hp, 0);
+  ok(spawn.hp > wave99, 'крепче всей 99-й волны: ' + Math.round(spawn.hp) + ' > ' + Math.round(wave99));
+  ok(spawn.hp < wave99 * 2, 'но не неуязвим');
   ok(BOSSES.every((boss) => boss.id !== DIABLO.id), 'в обычные волны не попадает');
   const fire = battle.place(level(50), 'pyro', 3, 4), devil = battle._spawn(spawn, 5);
   still(devil);
@@ -1488,15 +1494,21 @@ test('лекарь: с 10-го щит — дошедший моб не отни�
   ok(again.dead && battle.lives === lives, 'с ангелом-хранителем — держит');
 });
 
-test('лекарь: руна «второй шанс» — раз за игру возвращает сердцу пять жизней', () => {
+test('лекарь: руна «второй шанс» — раз за игру возвращает сердцу пять жизней и стирает всю волну', () => {
   const battle = makeBattle(), healer = battle.place(player(), 'healer', 2, 6);
   battle.setMods(healer, { runes: ['second'] });
   healer.busy = 1e9;
+  battle.startWave(20, 5);
+  ok(battle.spawns.length > 5, 'волна ещё выходит');
   battle.lives = 1;
+  const others = [walker(battle, 3, 1e9), walker(battle, 8, 1e9)];
   walker(battle, battle.length - 2, 1e9);
   runFor(battle, 5);
   eq(battle.lives, SECOND);
-  ok(battle.events.some((e) => e.kind === 'rescue'));
+  const rescue = battle.events.find((e) => e.kind === 'rescue');
+  ok(rescue && rescue.wiped.length >= 2, 'стёрты все, кто был на поле');
+  ok(others.every((mob) => mob.dead), 'и те, кто ещё далеко');
+  ok(battle.cleared, 'волна кончилась: больше никто не выйдет');
   battle.lives = 1;
   walker(battle, battle.length - 2, 1e9);
   runFor(battle, 5);

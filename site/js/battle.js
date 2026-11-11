@@ -1906,7 +1906,14 @@ export class Battle {
     if (!savior) return;
     this.rescued = true;
     this.lives = SECOND;
-    this._event({ kind: 'rescue', tower: savior, lives: SECOND });
+    const wiped = this.mobs.filter((mob) => !mob.dead);
+    for (const mob of wiped) {
+      mob.dead = true;
+      mob.hp = 0;
+    }
+    this.spawns = [];
+    this.births = [];
+    this._event({ kind: 'rescue', tower: savior, lives: SECOND, wiped });
   }
 
   _bounty() {

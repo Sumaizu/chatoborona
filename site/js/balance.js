@@ -184,7 +184,7 @@ export const BOSSES = [
 ];
 
 export const DIABLO = { id: 'diablo', name: 'Диабло', title: 'Последний босс', power: 'doom', element: 'fire',
-  glow: '#dc2626', hp: 12, fatal: true };
+  glow: '#dc2626', hp: 4, fatal: true };
 
 export const LOOKS = {
   normal: [{ id: 'zombie', name: 'Зомби', undead: true },
@@ -292,6 +292,8 @@ export const WAVE = {
   pivot: 10,
   wall: 60,
   wallGrowth: 0.003,
+  calm: 90,
+  calmGrowth: 1.1,
   solo: 0.6,
   speed: 1.4,
   count: 8,
@@ -350,10 +352,11 @@ export const rollTempo = (random) => (TEMPO.mid - TEMPO.from)
   / (TEMPO.low + random() * (TEMPO.high - TEMPO.low) - TEMPO.from);
 
 export function waveHp(wave, type, players, tempo = 1) {
-  const n = wave - 1, paced = Math.min(n, TEMPO.from) + Math.max(0, n - TEMPO.from) * tempo;
+  const calm = Math.max(0, wave - WAVE.calm), n = wave - 1 - calm;
+  const paced = Math.min(n, TEMPO.from) + Math.max(0, n - TEMPO.from) * tempo;
   const late = Math.max(0, n - WAVE.wall);
   return WAVE.hp * MOBS[type].hp * Math.pow(WAVE.growth, paced)
-    * Math.exp(WAVE.accel * paced * paced + WAVE.wallGrowth * late * late)
+    * Math.exp(WAVE.accel * paced * paced + WAVE.wallGrowth * late * late) * Math.pow(WAVE.calmGrowth, calm)
     * crowdFactor(players);
 }
 
