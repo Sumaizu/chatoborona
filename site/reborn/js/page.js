@@ -240,7 +240,6 @@ fillForm();
 showLink();
 $('rules-title').textContent = RULES_TITLE;
 renderRules($('rules-body'));
-$('rules').showModal();
 frame.src = overlayLink(['embed=1', toQuery(settings)].filter(Boolean).join('&'));
 sync();
 setInterval(sync, SYNC_MS);

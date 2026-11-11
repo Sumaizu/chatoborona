@@ -814,8 +814,8 @@ export class Game {
       return;
     }
     if (outcome.kind === 'stone') {
-      const options = poolOf(member.cls).filter((skill) => !member.skills.includes(skill.id));
-      slot.took = options.length > 0;
+      const options = poolOf(member.cls);
+      slot.took = options.some((skill) => !member.skills.includes(skill.id));
       if (!slot.took) return;
       this.choices.push({ id: ++this._choiceNo, login: member.login, cls: member.cls, options, left: PICK_TIME,
         span: PICK_TIME });

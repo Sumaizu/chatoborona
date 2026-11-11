@@ -1324,6 +1324,10 @@ export class Scene {
       }
       if (mob.charge && mob.charge.until > now) this._chargedOn(ctx, mob, x, y - lift, size);
       if (mob.netUntil > now) this._netOn(ctx, x, y - lift, size);
+      if (mob.sticky && mob.sticky.until > now) {
+        const lit = Math.floor(this.clock * 8) % 2 === 0;
+        sprite(ctx, mineSprite('grenade', lit), x + size * 0.28, y - lift - size * 0.22, 0, 1.4);
+      }
       if (mob.rot) this._rotOn(ctx, mob, x, y - lift, size);
       if (battle.prey && battle.prey.mob === mob && battle.prey.until > now) this._preyOn(ctx, x, y - lift, size, top);
       if (mob.weakUntil > now) this._weakOn(ctx, x, y - lift, size, top);

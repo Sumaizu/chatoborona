@@ -178,10 +178,19 @@ test('крутизна волн у каждой игры своя: обычны�
   near(waveHp(31, 'normal', 10, steep), waveHp(51, 'normal', 10), 'крутая: 31-я — как обычная 51-я');
   for (const wave of [1, 5, 11]) near(waveHp(wave, 'normal', 10, steep), waveHp(wave, 'normal', 10), 'начало общее');
   near(waveHp(40, 'normal', 10, 1), waveHp(40, 'normal', 10));
-  ok(waveHp(95, 'normal', 10, gentle) > waveHp(68, 'normal', 10) * 20, 'стена у 100-й не пологеет');
+  ok(waveHp(90, 'normal', 10, gentle) > waveHp(68, 'normal', 10) * 5, 'стена до 90-й не пологеет');
 });
 
-test('классы: пятнадцать, у каждого оружие, свой склад, три способности на 10, 30 и 50 уровне и две руны', () => {
+test('с 91-й волны мобы крепчают спокойно — на 10% за волну, иначе до Диабло не дойти', () => {
+  eq([WAVE.calm, WAVE.calmGrowth], [90, 1.1]);
+  for (const tempo of [rollTempo(() => 0), 1, rollTempo(() => 1)]) {
+    const step = (wave) => waveHp(wave + 1, 'normal', 10, tempo) / waveHp(wave, 'normal', 10, tempo);
+    ok(step(89) > 1.2, 'до 90-й — круто: ' + step(89));
+    for (let wave = 90; wave < 100; wave++) ok(Math.abs(step(wave) - 1.1) < 1e-9, wave + 1 + '-я: ' + step(wave));
+  }
+});
+
+test('классы: пятнадцать, у каждого оружие, свой склад и набор навыков; у стрелков — по плану Реборна', () => {
   eq(CLASSES.length, 15);
   eq(new Set(CLASSES.map((c) => c.id)).size, 15);
   eq(PERKS, [10, 30, 50]);
@@ -190,17 +199,28 @@ test('классы: пятнадцать, у каждого оружие, сво
   for (const cls of CLASSES) {
     ok(cls.weapon && cls.name && ['str', 'agi', 'int'].includes(cls.primary), cls.id);
     for (const stat of ['str', 'agi', 'int']) ok(STAT.grades[cls.stats[stat]], cls.id + ' ' + stat);
-    eq(cls.skills.length, 3, cls.id);
+    ok(cls.skills.length >= 3, cls.id);
     eq(cls.runes.length, 2, cls.id);
     ok(cls.earn.xp > 0 && cls.earn.coins > 0, cls.id);
     const pool = poolOf(cls.id);
-    eq(pool.map((skill) => skill.id), ['perk0', 'perk1', 'perk2'].concat(cls.runes.map((rune) => rune.id)), cls.id);
-    eq(pool.map((skill) => skill.perk), [0, 1, 2, null, null], cls.id);
-    for (const skill of pool) ok(skill.name && skill.text && !/undefined|NaN/.test(skill.text), cls.id + ' ' + skill.id);
-    const info = describe(cls.id, ['perk2', cls.runes[0].id, 'чужое']);
+    ok(pool.every(Boolean), cls.id + ': все навыки набора есть');
+    eq(new Set(pool.map((skill) => skill.id)).size, pool.length, cls.id + ': без повторов');
+    for (const skill of pool) {
+      ok(skill.name && skill.text && !/undefined|NaN/.test(skill.text), cls.id + ' ' + skill.id);
+      ok(skill.perk === null ? cls.runes.some((rune) => rune.id === skill.id) : skill.id === 'perk' + skill.perk);
+    }
+    if (!cls.pool) eq(pool.length, 5, cls.id);
+    const chosen = [pool[2].id, pool[pool.length - 1].id], info = describe(cls.id, chosen.concat('чужое'));
     ok(info.main && !/undefined|NaN/.test(info.main), cls.id);
-    eq(info.skills.map((skill) => skill.id), ['perk2', cls.runes[0].id], cls.id);
+    eq(info.skills.map((skill) => skill.id), chosen, cls.id);
   }
+  const names = (id) => poolOf(id).map((skill) => skill.name);
+  eq(names('sniper'), ['Сквозная пуля', 'Выстрел в голову', 'Заряженная пуля', 'Двойной выстрел', 'Наповал',
+    'Бронебой', 'Выстрел через карту', 'Последний патрон']);
+  eq(names('gunner'), ['Перегрев', 'Длинная лента', 'Рикошет', 'Подавление', 'Берсерк', 'Шквал свинца', 'Трассеры']);
+  eq(names('hunter'), ['Капканы', 'Сеть', 'Кровопускание', 'Добыча', 'Гроза чудовищ', 'Медвежий капкан']);
+  eq(names('bomber'), ['Горящая земля', 'Шрапнель', 'Детонация', 'Кассетный выстрел', 'РПГ', 'Липкая бомба',
+    'Ковровая бомбардировка', 'Мегабомба']);
   for (const id of ['banner', 'healer', 'sage']) ok(CLASSES.some((cls) => cls.id === id), 'поддержка вернулась: ' + id);
 });
 

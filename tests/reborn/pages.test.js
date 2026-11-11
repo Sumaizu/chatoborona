@@ -497,7 +497,8 @@ test('страницы: главная — без канала просит ка
   eq([home.getAttribute('href'), home.target, home.querySelector('img').alt],
     ['https://gamesonstream.ru/', '', 'Games on Stream']);
   ok(home.querySelector('img').naturalWidth > 0, 'логотип загрузился');
-  ok(element(w, 'rules').open, 'при открытии — правила для стримера');
+  no(element(w, 'rules').open, 'правила сами не открываются');
+  element(w, 'open-rules').click();
   ok(text(w, 'rules').includes('Ссылка для OBS') && text(w, 'rules').includes('!чатоборона-пауза'));
   no(text(w, 'rules').includes('[object'), 'в тексте нет «[object Object]»');
   ok(text(w, 'rules').includes('написать !чатоборона-дальше — ещё сто волн'));

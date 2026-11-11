@@ -487,6 +487,158 @@ test('снайпер: руна «Разрывная пуля» — пуля ин
   near(hit(side), sniper.damage * BURST.share, 'сосед получил четверть');
 });
 
+test('снайпер, навыки Реборна: выстрел в голову, бронебой, выстрел через карту, последний патрон', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'sniper', 10, 4);
+  battle.random = () => 0.99;
+  battle.setMods(t, { perks: [3] });
+  const a = walker(battle, 10, 1e9);
+  still(a);
+  battle._fire(t);
+  battle._fire(t);
+  const two = hit(a);
+  battle._fire(t);
+  near(hit(a) - two, t.damage * t.critMul * t.s[3].bonus, 'третий — в голову');
+  ok(a.holdUntil > battle.time, 'и оглушает');
+  battle.setMods(t, { perks: [4] });
+  const armored = walker(battle, 11, 2e9);
+  still(armored);
+  armored.armor = 0.3;
+  battle._fire(t);
+  near(hit(armored), t.damage, 'бронебой: броня не режет урон');
+  near(armored.armor, 0.2, 'и насовсем снимает 10%');
+
+  const far = makeBattle(), s = far.place(player(), 'sniper', 1, 4);
+  far.random = () => 0.99;
+  far.setMods(s, { perks: [5] });
+  const close = walker(far, 2, 100), distant = walker(far, 18, 1e6);
+  still(close, distant);
+  far.step(TICK);
+  near(hit(distant), s.skill * s.s[5].bonus, 'через всю карту — в самого крепкого');
+  far.step(TICK);
+  near(hit(distant), s.skill * s.s[5].bonus, 'дальше — по перезарядке');
+
+  const last = makeBattle(), l = last.place(player(), 'sniper', 10, 4);
+  last.random = () => 0.99;
+  last.setMods(l, { perks: [6] });
+  const weak = walker(last, 10, 1000);
+  still(weak);
+  weak.hp = 90;
+  last._fire(l);
+  ok(weak.dead, 'меньше 10% — гибнет от любого выстрела');
+  const boss = put(last, special(last, 'boss', 'crusher', 1e9), 10);
+  still(boss);
+  boss.hp = boss.max * 0.05;
+  last._fire(l);
+  ok(!boss.dead && boss.hp > boss.max * 0.04, 'босса — только с 3%');
+});
+
+test('пулемётчик, навыки Реборна: длинная лента, подавление, шквал свинца, трассеры', () => {
+  const battle = makeBattle(), gun = battle.place(player(), 'gunner', 10, 4);
+  battle.random = () => 0.99;
+  battle.setMods(gun, { perks: [3, 4, 6] });
+  const a = walker(battle, 10, 1e9), b = walker(battle, 11, 1e9);
+  still(a, b);
+  for (let i = 0; i < 30; i++) {
+    battle.time += 0.1;
+    battle._fire(gun, battle.time);
+  }
+  near(gun.ramp, gun.s[3].max, 'разгон до +150%');
+  near(gun.aim.slow, gun.s[4].max, 'подавление — до 40%');
+  ok(gun.aim.mark === gun.s[6].mark && gun.aim.markUntil > battle.time, 'цель подсвечена');
+  const first = gun.aim;
+  first.dead = true;
+  battle.time += 0.1;
+  battle._fire(gun, battle.time);
+  ok(gun.aim !== first, 'новая цель');
+  near(gun.ramp, gun.s[3].max, 'разгон не сбросился');
+
+  const storm = makeBattle(), g = storm.place(player(), 'gunner', 10, 4);
+  storm.random = () => 0.99;
+  storm.setMods(g, { perks: [5] });
+  const mobs = [walker(storm, 9, 1e9), walker(storm, 10, 1e9), walker(storm, 11.5, 1e9)];
+  still(...mobs);
+  storm.step(TICK);
+  ok(mobs.every((mob) => hit(mob) > 0), 'веер бьёт всех в радиусе');
+  ok(g.stormUntil > storm.time, 'шквал идёт');
+});
+
+test('охотник, навыки Реборна: кровопускание, гроза чудовищ, медвежий капкан', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'hunter', 10, 4);
+  battle.random = () => 0.99;
+  const boss = put(battle, special(battle, 'boss', 'crusher', 1e9), 10);
+  still(boss);
+  battle._fire(t);
+  const plain = hit(boss);
+  battle.setMods(t, { perks: [4] });
+  battle._fire(t);
+  near(hit(boss) - plain, plain * (1 + t.s[4].bonus), 'по боссу на 60% сильнее');
+  battle.setMods(t, { perks: [3] });
+  battle._fire(t);
+  ok(boss.wound && boss.wound.by === t, 'рана открыта');
+  near(boss.wound.dps, Math.min(boss.max * t.s[3].boss / t.s[3].time, t.skill * t.s[3].cap));
+  const before = hit(boss), dps = boss.wound.dps;
+  battle.remove(t);
+  runFor(battle, 1);
+  ok(Math.abs(hit(boss) - before - dps) < dps * 0.01, 'рана кровит');
+
+  const trap = makeBattle(), h = trap.place(player(), 'hunter', 10, 4);
+  trap.random = () => 0.99;
+  trap.setMods(h, { perks: [5] });
+  const giant = put(trap, special(trap, 'boss', 'crusher', 1e9), 10);
+  still(giant);
+  trap.step(TICK);
+  ok(trap.events.some((e) => e.kind === 'snap'), 'капкан захлопнулся');
+  ok(giant.holdUntil >= trap.time + h.s[5].hold * (1 - giant.resist) - 0.1, 'держит даже босса');
+  ok(hit(giant) >= h.skill * h.s[5].bonus, 'и бьёт ×50');
+});
+
+test('подрывник, навыки Реборна: шрапнель, липкая бомба, ковровая бомбардировка, мегабомба', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'bomber', 10, 4);
+  battle.random = () => 0.99;
+  battle.setMods(t, { perks: [3] });
+  const target = walker(battle, 10, 1e9), side = walker(battle, 11.3, 1e9);
+  still(target, side);
+  side.armor = 0.5;
+  t.cooldown = 1e9;
+  battle._fire(t);
+  runFor(battle, 0.3);
+  near(hit(side), t.damage, 'шрапнель: задело в 1,3 клетки, броня не помогла');
+
+  const sticky = makeBattle(), s = sticky.place(player(), 'bomber', 10, 4);
+  sticky.random = () => 0.99;
+  sticky.setMods(s, { perks: [4] });
+  const big = walker(sticky, 10, 1e9), small = walker(sticky, 10.5, 1e8);
+  still(big, small);
+  sticky.step(TICK);
+  ok(big.sticky && big.sticky.by === s, 'бомба прилипла к самому крепкому');
+  const was = hit(big);
+  runFor(sticky, s.s[4].fuse);
+  ok(hit(big) - was >= s.skill * s.s[4].bonus, 'рванула');
+  ok(!big.sticky);
+
+  const carpet = makeBattle(), c = carpet.place(player(), 'bomber', 10, 4);
+  carpet.random = () => 0.99;
+  carpet.setMods(c, { perks: [5] });
+  const row = [walker(carpet, 9, 1e9), walker(carpet, 7, 1e9), walker(carpet, 5, 1e9)];
+  still(...row);
+  runFor(carpet, c.s[5].gap * c.s[5].count + 0.1);
+  ok(carpet.events.filter((e) => e.kind === 'boom').length >= c.s[5].count, 'серия взрывов');
+  ok(row.every((mob) => hit(mob) > 0), 'по всей дороге за целью');
+
+  const mega = makeBattle(), m = mega.place(player(), 'bomber', 10, 4);
+  mega.random = () => 0.99;
+  mega.setMods(m, { perks: [6] });
+  const one = walker(mega, 10, 1e9), two = walker(mega, 11.8, 1e9);
+  still(one, two);
+  m.cooldown = 1e9;
+  for (let i = 0; i < m.s[6].every; i++) {
+    mega._fire(m);
+    runFor(mega, 0.3);
+  }
+  ok(mega.events.some((e) => e.kind === 'boom' && e.radius === m.s[6].radius), 'восьмой — мегабомба');
+  ok([one, two].every((mob) => hit(mob) > 0 && mob.holdUntil > 0), 'задело в 1,8 клетки и оглушило');
+});
+
 test('пулемётчик: боссов не выделяет и не обходит', () => {
   const battle = makeBattle(), gun = battle.place(player(), 'gunner', 10, 4);
   const plain = walker(battle, 10, 1e9), boss = put(battle, special(battle, 'boss', 'crusher', 1e9), 12);
@@ -1040,7 +1192,7 @@ test('паразит: с 50-го раз в 30 с забирает монеты �
   no(alone.perch);
 });
 
-test('Диабло: на 100-й волне выходит один, без мобов, крепче обычного босса вдвенадцатеро, огонь его не берёт', () => {
+test('Диабло: на 100-й волне выходит один, без мобов, крепче обычного босса вчетверо, огонь его не берёт', () => {
   const battle = makeBattle();
   eq(battle.planFamily(99) === FINALE, false);
   eq(battle.planFamily(100), FINALE);
@@ -1049,6 +1201,12 @@ test('Диабло: на 100-й волне выходит один, без мо�
   const spawn = battle.spawns[0];
   eq([spawn.type, spawn.kind], ['boss', DIABLO]);
   near(spawn.hp, waveHp(100, 'boss', 10) * DIABLO.hp);
+  eq(DIABLO.hp, 4);
+  const before = makeBattle();
+  before.startWave(99, 10);
+  const wave99 = before.spawns.reduce((sum, s) => sum + s.hp, 0);
+  ok(spawn.hp > wave99, 'крепче всей 99-й волны: ' + Math.round(spawn.hp) + ' > ' + Math.round(wave99));
+  ok(spawn.hp < wave99 * 2, 'но не неуязвим');
   ok(BOSSES.every((boss) => boss.id !== DIABLO.id), 'в обычные волны не попадает');
   const fire = battle.place(level(50), 'pyro', 3, 4), devil = battle._spawn(spawn, 5);
   still(devil);

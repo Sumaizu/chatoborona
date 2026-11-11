@@ -1,5 +1,5 @@
 import { Scene } from './draw.js';
-import { CLASSES, CLASS_BY_ID, STONES, describe, mightOf, skillOf } from './classes.js';
+import { CLASSES, CLASS_BY_ID, STONES, describe, mightOf, poolOf, skillOf, stonesAt } from './classes.js';
 import { coinUrl, effectUrl, emblemUrl, flagCanvas, flagUrl, heroUrl, markUrl, mightUrl, particleSprite, particleUrl,
   prizeUrl } from './sprites.js';
 import { EXTRA_SLOTS, OUTCOMES, PRICE, RARITIES, SLOTS, SPIN_TIME, UPGRADE_PRICE, boonOf, gearColor,
@@ -735,8 +735,8 @@ export class View {
 
   _paintPick(game, choice) {
     const member = game.members.get(choice.login), cls = CLASS_BY_ID.get(choice.cls);
-    const name = member ? member.name : choice.login;
-    this._once('pick', String(choice.id), () => {
+    const name = member ? member.name : choice.login, taken = member ? member.skills : [];
+    this._once('pick', choice.id + ':' + taken.join(), () => {
       const who = $('pick-who'), title = el('b', 'cls', cls.name);
       title.style.color = cls.color;
       who.textContent = '';
@@ -747,12 +747,14 @@ export class View {
       list.textContent = '';
       list.classList.toggle('many', choice.options.length > 6);
       choice.options.forEach((skill, i) => {
-        const item = el('li', skill.perk === null ? 'rune' : ''), text = el('div');
+        const item = el('li', (skill.perk === null ? 'rune' : '') + (taken.includes(skill.id) ? ' taken' : ''));
+        const text = el('div');
         text.append(el('b', '', skill.name), ' — ' + skill.text);
         item.append(el('i', 'digit', String(i + 1)), text);
         list.append(item);
       });
     });
+    $('pick-bar').style.width = (Math.max(0, choice.left) / choice.span * 100).toFixed(1) + '%';
     const seconds = Math.max(0, Math.ceil(choice.left));
     this._once('pickClock', choice.id + ':' + seconds, () => {
       const how = $('pick-how'), count = choice.options.length;
@@ -1250,7 +1252,10 @@ export class View {
           state.powerBox = el('div', 'stat-line power');
           body.append(kind, state.powerBox);
           for (const skill of info.skills) body.append(skillLine(skill, brief));
-          if (!brief && !info.skills.length) {
+          const free = Math.max(0, Math.min(stonesAt(level), poolOf(m.cls).length) - info.skills.length);
+          if (!brief && free) {
+            body.append(el('div', 'skill-line none', 'Свободных мест под камни навыка: ' + free));
+          } else if (!brief && !info.skills.length) {
             body.append(el('div', 'skill-line none', 'Навыков пока нет: камень навыка выпадает в гаче с '
               + STONES[0] + ' уровня'));
           }

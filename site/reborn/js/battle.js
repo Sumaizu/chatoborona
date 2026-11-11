@@ -47,6 +47,8 @@ const TRAP_TOUCH = 0.45;
 const WHIRL_REACH = 0.5;
 const PIERCE_REACH = 1.4;
 const PIERCE_WIDTH = 0.4;
+const FAR_REACH = SIZE * 1.5;
+const TRACE_TIME = 1;
 const ECHO_DELAY = 0.3;
 const ROCKET_FLIGHT = 0.6;
 export const SHELL_FLIGHT = 0.25;
@@ -1026,6 +1028,8 @@ export class Battle {
       }
       if (mob.burn && !mob.dead) this._burning(mob, dt, now);
       if (mob.rot && !mob.dead && mob.rot.until <= now) mob.rot = null;
+      if (mob.wound && !mob.dead && mob.wound.until <= now) mob.wound = null;
+      if (mob.wound && !mob.dead) this._hurt(mob, mob.wound.dps * dt, mob.wound.by, null, true, SHIELDS);
       if (mob.rot && !mob.dead) {
         const share = mob.info.boss ? ROT.boss : ROT.share;
         const rot = Math.min(mob.max * share, mob.rot.by.skill * RUNE_CAPS.rot);
@@ -1952,11 +1956,31 @@ export class Battle {
     return best;
   }
 
-  _blast(t, x, y, radius, damage, skip) {
+  _blast(t, x, y, radius, damage, skip, pierce = 0) {
     this._event({ kind: 'boom', tower: t, x, y, radius });
-    for (const mob of this.mobs) {
-      if (mob !== skip && !mob.dead && near(mob, x, y, radius)) this._hurt(mob, damage, t);
+    for (const mob of this.mobs.slice()) {
+      if (mob !== skip && !mob.dead && near(mob, x, y, radius)) this._hurt(mob, damage, t, null, false, pierce);
     }
+  }
+
+  _toughest(t, ground = false) {
+    const now = this.time;
+    let best = null;
+    for (const mob of this.mobs) {
+      if (mob.dead || ground && !grounded(mob, now) || !this._targetable(t, mob)) continue;
+      if (!best || mob.hp > best.hp) best = mob;
+    }
+    return best;
+  }
+
+  _anywhere() {
+    const now = this.time;
+    let best = null;
+    for (const mob of this.mobs) {
+      if (mob.dead || hidden(mob, now) || underground(mob, now) || this.covered(mob.x, mob.y)) continue;
+      if (!best || mob.hp > best.hp) best = mob;
+    }
+    return best;
   }
 
   _heist(t, victim, now) {
@@ -1997,22 +2021,31 @@ export class Battle {
   }
 }
 
+const monster = (t, mob) => (open(t, 4) && big(mob) ? 1 + t.s[4].bonus : 1);
+
 const rollCrit = (b, t) => b.random() < 1 - (1 - t.critChance) * (1 - t.boost.crit);
 
-function snipe(b, t, target, { base = t.damage, mul = 1, crit = false, heavy = '', pierce = true } = {}) {
+function snipe(b, t, target, { base = t.damage, mul = 1, crit = false, heavy = '', pierce = true, far = false } = {}) {
   const head = crit || rollCrit(b, t), damage = base * mul * (head ? t.critMul : 1);
   const dx = target.x - t.cx, dy = target.y - t.cy, length = Math.hypot(dx, dy) || 1;
-  const ux = dx / length, uy = dy / length, through = pierce && open(t, 0);
-  const reach = through ? Math.max(length, t.range * PIERCE_REACH) : length;
+  const ux = dx / length, uy = dy / length, through = far || pierce && open(t, 0);
+  const reach = far ? FAR_REACH : through ? Math.max(length, t.range * PIERCE_REACH) : length;
   const along = (mob) => (mob.x - t.cx) * ux + (mob.y - t.cy) * uy;
   const line = through ? b.mobs.filter((mob) => !mob.dead && mob !== target && !hidden(mob, b.time)
     && along(mob) >= 0.3 && along(mob) <= reach && Math.abs((mob.x - t.cx) * uy - (mob.y - t.cy) * ux) <= PIERCE_WIDTH)
     : [];
   const struck = [target].concat(line), power = damage * (1 + (through ? t.s[0].ramp * (struck.length - 1) : 0));
   b._event({ kind: 'shot', tower: t, x: t.cx + ux * reach, y: t.cy + uy * reach, crit: head, mob: target, heavy });
+  const breaker = open(t, 4), last = open(t, 6) ? t.s[6] : null;
   for (const mob of struck) {
     const x = mob.x, y = mob.y;
-    b._hurt(mob, power, t);
+    if (last && mob.hp < mob.max * (mob.info.boss ? last.boss : last.below)) {
+      b._event({ kind: 'execute', mob, tower: t });
+      b._execute(mob, t, t.skill * last.cap);
+      continue;
+    }
+    b._hurt(mob, power, t, null, false, breaker ? SHIELDS : 0);
+    if (breaker && !mob.dead && mob.armor > 0) mob.armor = Math.max(0, mob.armor - t.s[4].shred);
     if (t.runes.has('burst') && b.random() < BURST.chance) {
       const radius = BURST.radius * t.power;
       b._event({ kind: 'burst', tower: t, x, y, radius });
@@ -2023,8 +2056,8 @@ function snipe(b, t, target, { base = t.damage, mul = 1, crit = false, heavy = '
 }
 
 function explode(b, t, x, y, crit, chance) {
-  const radius = t.cls.base.splash, damage = t.damage * (crit ? t.critMul : 1);
-  b._blast(t, x, y, radius, damage, null);
+  const shrapnel = open(t, 3), radius = shrapnel ? Math.max(t.cls.base.splash, t.s[3].radius) : t.cls.base.splash;
+  b._blast(t, x, y, radius, t.damage * (crit ? t.critMul : 1), null, shrapnel ? ARMOR : 0);
   if (open(t, 0)) {
     const s = t.s[0], wide = t.runes.has('napalm') ? 2 : 1;
     b.patches = b.patches.filter((patch) => patch.tower !== t || !near(patch, x, y, 0.2));
@@ -2095,12 +2128,23 @@ const SKILLS = {
         b._charge(t, now, 'heavy', t.s[1].charge, target);
         return true;
       }
-      snipe(b, t, target);
+      t.volley = (t.volley || 0) + 1;
+      if (open(t, 3) && t.volley % t.s[3].every === 0) {
+        snipe(b, t, target, { crit: true, mul: t.s[3].bonus });
+        if (!target.dead) b._hold(target, t.s[3].stun, t);
+      } else snipe(b, t, target);
       const second = t.runes.has('twin') ? b._target(t, { skip: target }) : null;
       if (second) snipe(b, t, second);
       return true;
     },
     every(b, t, now, alive) {
+      if (open(t, 5) && alive && !t.charge && now >= (t.nextFar || 0)) {
+        const far = b._anywhere();
+        if (far) {
+          t.nextFar = now + t.s[5].every;
+          snipe(b, t, far, { base: t.skill, mul: t.s[5].bonus, heavy: 'heavy', far: true });
+        }
+      }
       if (!open(t, 2) || !alive || t.charge || now < t.nextActive) return;
       const lead = b._target(t, { mode: 'bigFirst' }), target = lead && prized(lead) ? lead : b._target(t);
       if (!target) return;
@@ -2137,9 +2181,10 @@ const SKILLS = {
         t.streak = now;
         t.ramp = 0;
       }
+      const belt = open(t, 3), rampMax = belt ? t.s[3].max : base.rampMax;
       if (target !== t.aim) {
         t.aim = target;
-        t.ramp = 0;
+        if (!belt) t.ramp = 0;
       }
       t.lastShot = now;
       const firing = now - t.streak;
@@ -2155,7 +2200,7 @@ const SKILLS = {
       t.hot = open(t, 0) && firing >= t.s[0].after;
       const cycle = firing % base.burst, s2 = t.s[2];
       t.berserk = open(t, 2) && cycle >= s2.after && cycle < s2.after + s2.time;
-      t.ramp = t.berserk ? base.rampMax : Math.min(base.rampMax, t.ramp + base.ramp);
+      t.ramp = t.berserk ? rampMax : Math.min(rampMax, t.ramp + base.ramp);
       const crit = rollCrit(b, t), critMul = t.critMul + (t.berserk ? s2.crit : 0);
       const damage = t.damage * (t.berserk ? 1 + s2.damage : 1) * (crit ? critMul : 1);
       const fire = t.hot ? t.skill * t.s[0].fire : 0, pierce = t.hot && t.runes.has('plasma') ? SHIELDS : 0;
@@ -2163,6 +2208,23 @@ const SKILLS = {
       const x = target.x, y = target.y;
       b._hurt(target, damage, t, null, false, pierce);
       if (fire) b._hurt(target, fire, t, 'fire', false, pierce);
+      if (open(t, 4) && !target.dead) {
+        const s = t.s[4];
+        target.lead = Math.min(s.max, (target.leadUntil > now ? target.lead : 0) + s.slow);
+        target.leadUntil = now + s.time;
+        b._slow(target, target.lead, s.time);
+      }
+      if (open(t, 6) && !target.dead && (target.markUntil <= now || target.mark <= t.s[6].mark)) {
+        target.mark = t.s[6].mark;
+        target.markUntil = Math.max(target.markUntil, now + TRACE_TIME);
+      }
+      if (t.stormUntil > now) {
+        for (const mob of b.mobs.slice()) {
+          if (mob === target || mob.dead || !b._targetable(t, mob)) continue;
+          b._event({ kind: 'shot', tower: t, x: mob.x, y: mob.y, crit, mob, hot: t.hot });
+          b._hurt(mob, damage * t.s[5].share, t, null, false, pierce);
+        }
+      }
       if (open(t, 1) && b.random() < t.s[1].chance) {
         const around = b._around(x, y, t.s[1].radius, target);
         const next = around.length ? around[Math.floor(b.random() * around.length)] : null;
@@ -2175,12 +2237,27 @@ const SKILLS = {
       }
       return true;
     },
+    every(b, t, now, alive) {
+      if (!open(t, 5) || !alive || now < (t.nextStorm || 0) || !b._target(t)) return;
+      t.nextStorm = now + t.s[5].every;
+      t.stormUntil = now + t.s[5].time;
+    },
   },
   bomber: {
     fire(b, t, now) {
       const target = b._target(t);
       if (!target) return false;
       const second = t.runes.has('cluster') ? b._target(t, { skip: target }) : null;
+      t.shells = (t.shells || 0) + 1;
+      if (open(t, 6) && t.shells % t.s[6].every === 0) {
+        const x = target.x, y = target.y, crit = rollCrit(b, t), s = t.s[6];
+        b._event({ kind: 'shot', tower: t, x, y, mob: target, time: SHELL_FLIGHT });
+        b._later(SHELL_FLIGHT, () => {
+          b._blast(t, x, y, s.radius, t.damage * s.bonus * (crit ? t.critMul : 1), null);
+          for (const mob of b._around(x, y, s.radius)) b._hold(mob, s.stun, t);
+        }, t);
+        return true;
+      }
       for (const mob of second ? [target, second] : [target]) {
         const x = mob.x, y = mob.y, crit = rollCrit(b, t);
         b._event({ kind: 'shot', tower: t, x, y, mob, time: SHELL_FLIGHT });
@@ -2189,6 +2266,29 @@ const SKILLS = {
       return true;
     },
     every(b, t, now, alive) {
+      if (open(t, 4) && alive && now >= (t.nextSticky || 0)) {
+        const target = b._toughest(t), s = t.s[4];
+        if (target) {
+          t.nextSticky = now + s.every;
+          target.sticky = { by: t, until: now + s.fuse };
+          b._later(s.fuse, () => {
+            const x = target.x, y = target.y;
+            target.sticky = null;
+            b._blast(t, x, y, s.radius, t.skill * s.splash, target);
+            if (!target.dead) b._hurt(target, t.skill * s.bonus, t);
+          }, t);
+        }
+      }
+      if (open(t, 5) && alive && now >= (t.nextCarpet || 0)) {
+        const target = b._target(t), s = t.s[5];
+        if (target) {
+          t.nextCarpet = now + s.every;
+          for (let k = 0; k < s.count; k++) {
+            const at = b._roadPoint(target.r, Math.max(0, target.d + 1 - k));
+            b._later(k * s.gap, () => b._blast(t, at.x, at.y, s.radius, t.skill * s.bonus, null), t);
+          }
+        }
+      }
       if (!open(t, 2) || !alive || t.charge || now < t.nextActive) return;
       const target = b._closestBig(t);
       if (!target) return;
@@ -2297,10 +2397,15 @@ const SKILLS = {
     fire(b, t) {
       const target = b._target(t);
       if (!target) return false;
-      const crit = rollCrit(b, t), damage = t.damage * (prized(target) ? t.cls.base.big : 1) * (crit ? t.critMul : 1);
+      const crit = rollCrit(b, t), damage = t.damage * (prized(target) ? t.cls.base.big : 1) * (crit ? t.critMul : 1)
+        * monster(t, target);
       t.lastHit = b.time;
       b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target });
       b._hurt(target, damage, t);
+      if (open(t, 3) && big(target) && !target.dead) {
+        const s = t.s[3], share = target.info.boss ? s.boss : s.share;
+        target.wound = { by: t, until: b.time + s.time, dps: Math.min(target.max * share / s.time, t.skill * s.cap) };
+      }
       if (open(t, 1) && !target.dead && b.random() < t.s[1].chance) b._net(t, target);
       return true;
     },
@@ -2308,6 +2413,15 @@ const SKILLS = {
       if (open(t, 0) && now >= t.nextTrap) {
         t.nextTrap = now + t.s[0].every;
         b._setTrap(t);
+      }
+      if (open(t, 5) && alive && now >= (t.nextBear || 0)) {
+        const target = b._toughest(t, true), s = t.s[5];
+        if (target) {
+          t.nextBear = now + s.every;
+          b._event({ kind: 'snap', tower: t, x: target.x, y: target.y, radius: TRAP_TOUCH });
+          b._hold(target, s.hold, t, true);
+          b._hurt(target, t.skill * s.bonus * monster(t, target), t);
+        }
       }
       if (t.runes.has('ambush') && alive && now - t.lastHit >= AMBUSH) b._ambush(t, now);
       if (!open(t, 2) || !alive || now < t.nextActive) return;

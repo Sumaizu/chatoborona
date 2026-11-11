@@ -45,7 +45,19 @@ export const CLASSES = [
         text: (v) => 'раз в ' + sec(v.every) + ' три секунды целится в одного моба — сперва в босса или элитного — и '
           + 'бьёт: урон ещё ×' + num(v.bonus) + ', всегда крит, не прошивает. Метка висит ' + sec(v.markTime)
           + ': цель получает +' + pct(v.mark) + ' урона от всех' },
+      { name: 'Выстрел в голову', v: { every: 3, bonus: 1.5, stun: 0.5 }, scale: { stun: 'time' },
+        text: (v) => 'каждый ' + v.every + '-й выстрел — в голову: всегда крит, урон ещё ×' + num(v.bonus)
+          + ' и оглушение на ' + sec(v.stun) },
+      { name: 'Бронебой', v: { shred: 0.1 },
+        text: (v) => 'выстрелы пробивают броню и щиты, а каждый насовсем снимает с цели ' + pct(v.shred) + ' брони' },
+      { name: 'Выстрел через карту', v: { every: 40, bonus: 10 }, scale: { every: 'haste' },
+        text: (v) => 'раз в ' + sec(v.every) + ' стреляет в самого крепкого моба на всём поле и прошивает всех на '
+          + 'линии: урон ×' + num(v.bonus) },
+      { name: 'Последний патрон', v: { below: 0.1, boss: 0.03, cap: 40 },
+        text: (v) => 'моб, у которого меньше ' + pct(v.below) + ' здоровья (у босса — ' + pct(v.boss) + '), гибнет '
+          + 'от любого его выстрела; слишком крепкому выстрел наносит урон ×' + num(v.cap) },
     ],
+    pool: ['perk0', 'perk3', 'perk1', 'twin', 'perk2', 'perk4', 'perk5', 'perk6'],
     runes: [
       { id: 'twin', name: 'Двойной выстрел', text: 'обычная атака стреляет сразу в двух мобов' },
       { id: 'burst', name: 'Разрывная пуля', text: 'с шансом 5% пуля разрывается: всем на клетку вокруг 25% её '
@@ -75,7 +87,18 @@ export const CLASSES = [
       { name: 'Берсерк', v: { after: 5, time: 2, damage: 0.7, crit: 0.5 }, scale: { damage: 'power', crit: 'power' },
         text: (v) => 'после ' + sec(v.after) + ' стрельбы на ' + sec(v.time) + ' — предельная скорость, +'
           + pct(v.damage) + ' урона и +' + pct(v.crit) + ' к силе крита' },
+      { name: 'Длинная лента', v: { max: 1.5 },
+        text: (v) => 'разгон не сбрасывается при смене цели и доходит до +' + pct(v.max) + ' скорости' },
+      { name: 'Подавление', v: { slow: 0.04, max: 0.4, time: 1.5 },
+        text: (v) => 'каждая пуля замедляет цель ещё на ' + pct(v.slow) + ', всего до ' + pct(v.max) + '; '
+          + 'замедление держится ' + sec(v.time) },
+      { name: 'Шквал свинца', v: { every: 35, time: 4, share: 0.6 }, scale: { every: 'haste', time: 'time' },
+        text: (v) => 'раз в ' + sec(v.every) + ' на ' + sec(v.time) + ' переходит на веер: каждая очередь бьёт '
+          + 'всех в радиусе, по ' + pct(v.share) + ' урона' },
+      { name: 'Трассеры', v: { mark: 0.15 }, scale: { mark: 'power' },
+        text: (v) => 'его цель подсвечена: весь отряд бьёт её на ' + pct(v.mark) + ' сильнее' },
     ],
+    pool: ['perk0', 'perk3', 'perk1', 'perk4', 'perk2', 'perk5', 'perk6'],
     runes: [
       { id: 'drum', name: 'Бесконечный барабан', text: 'перезарядка не нужна: строчит без остановки' },
       { id: 'plasma', name: 'Плазменные пули', text: 'огненные пули пробивают броню и любые щиты' },
@@ -104,7 +127,20 @@ export const CLASSES = [
         scale: { every: 'haste', bonus: 'dmg', stun: 'time' },
         text: (v) => 'раз в ' + sec(v.every) + ' две секунды заряжает ракету и бьёт в ближайшего босса или элитного: '
           + 'всем ' + around(v.radius) + ' урон ×' + num(v.bonus) + ' и оглушение на ' + sec(v.stun) },
+      { name: 'Шрапнель', v: { radius: 1.5 },
+        text: (v) => 'взрыв шире — ' + around(v.radius) + ', а осколки пробивают броню' },
+      { name: 'Липкая бомба', v: { every: 20, fuse: 2, bonus: 20, splash: 5, radius: 1 }, scale: { every: 'haste' },
+        text: (v) => 'раз в ' + sec(v.every) + ' лепит бомбу на самого крепкого моба в радиусе; через ' + sec(v.fuse)
+          + ' она рвётся: ему урон ×' + num(v.bonus) + ', всем ' + around(v.radius) + ' — ×' + num(v.splash) },
+      { name: 'Ковровая бомбардировка', v: { every: 45, count: 6, gap: 0.2, bonus: 3, radius: 1 },
+        scale: { every: 'haste' },
+        text: (v) => 'раз в ' + sec(v.every) + ' накрывает дорогу серией из ' + v.count + ' взрывов, клетка за '
+          + 'клеткой: урон ×' + num(v.bonus) + ' в каждом' },
+      { name: 'Мегабомба', v: { every: 8, radius: 2, bonus: 6, stun: 1 }, scale: { stun: 'time' },
+        text: (v) => 'каждый ' + v.every + '-й снаряд — мегабомба: взрыв ' + around(v.radius) + ', урон ×'
+          + num(v.bonus) + ' и оглушение на ' + sec(v.stun) },
     ],
+    pool: ['perk0', 'perk3', 'perk1', 'cluster', 'perk2', 'perk4', 'perk5', 'perk6'],
     runes: [
       { id: 'napalm', name: 'Напалм', text: 'огонь растекается дальше: горящая земля вдвое шире' },
       { id: 'cluster', name: 'Кассетный выстрел', text: 'стреляет сразу двумя снарядами в разные цели' },
@@ -228,7 +264,16 @@ export const CLASSES = [
         text: (v) => 'раз в ' + sec(v.every) + ' метит ближайшего босса или элитного на ' + sec(v.time)
           + ': все бьют его первым. Убьют за ' + sec(v.window) + ' — охотнику ' + Math.round(v.bounty)
           + ' монет, остальным вдвое меньше' },
+      { name: 'Кровопускание', v: { share: 0.04, boss: 0.01, time: 5, cap: 0.6 },
+        text: (v) => 'болт по элитному или боссу открывает рану: за ' + sec(v.time) + ' она отнимает ' + pct(v.share)
+          + ' здоровья (у босса ' + pct(v.boss) + '), но не больше урона ×' + num(v.cap) + ' в секунду' },
+      { name: 'Гроза чудовищ', v: { bonus: 0.6 }, scale: { bonus: 'power' },
+        text: (v) => 'по боссам и элитным все его удары на ' + pct(v.bonus) + ' сильнее' },
+      { name: 'Медвежий капкан', v: { every: 40, hold: 4, bonus: 50 }, scale: { every: 'haste', hold: 'time' },
+        text: (v) => 'раз в ' + sec(v.every) + ' кидает медвежий капкан под самого крепкого моба на земле в радиусе: '
+          + 'тот стоит ' + sec(v.hold) + ' — даже босс — и получает урон ×' + num(v.bonus) },
     ],
+    pool: ['perk0', 'perk1', 'perk3', 'perk2', 'perk4', 'perk5'],
     runes: [
       { id: 'ambush', name: 'Засада', text: 'никого не бьёт 10 с — прыгает к первому мобу на дороге' },
       { id: 'master', name: 'Мастер ловушек', text: 'капканов вдвое больше, капканы и сеть действуют вдвое сильнее' },
@@ -523,9 +568,10 @@ export const mightOf = (power = 0, paragon = 0) => Math.round((MIGHT.base + powe
 export function poolOf(id) {
   const cls = CLASS_BY_ID.get(id);
   if (!cls) return [];
-  return cls.skills.map((skill, i) => ({ id: 'perk' + i, perk: i, name: skill.name,
+  const all = cls.skills.map((skill, i) => ({ id: 'perk' + i, perk: i, name: skill.name,
     text: skill.text(scaled(skill, mastery())) }))
     .concat(cls.runes.map((rune) => ({ id: rune.id, perk: null, name: rune.name, text: rune.text })));
+  return cls.pool ? cls.pool.map((key) => all.find((skill) => skill.id === key)) : all;
 }
 
 export const skillOf = (cls, id) => poolOf(cls).find((skill) => skill.id === id) || null;
