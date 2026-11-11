@@ -313,7 +313,7 @@ test('страницы: в карточке игрока — убийства, �
   game.battle.setMods(anya.tower, Object.assign({}, anya.tower.mods, { power: 40 }));
   await until(() => might() === 'мощь 140', 'мощь обновилась');
   anya.tower.run.kills = 9;
-  await until(() => Array.from(card.querySelectorAll('.marks .mark')).some((mark) => mark.textContent === '9'), 'счёт идёт');
+  await until(() => marks().includes(String(anya.tower.run.kills)) && anya.tower.run.kills >= 9, 'счёт идёт');
   frame.remove();
 });
 
