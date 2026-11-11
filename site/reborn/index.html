@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Чатоборона Реборн — альфа-версия защиты базы всем чатом</title>
+<meta name="description" content="Чатоборона Реборн — альфа-версия: новые правила Чатобороны в разработке. Зрители вступают в отряд и вместе защищают базу от волн мобов, выбивают в гаче камни навыков и сами выбирают навыки.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 1.5 29 5.8v9.4c0 8-5.4 13.4-13 15.8C8.4 28.6 3 23.2 3 15.2V5.8z' fill='%231d4fd6'/%3E%3Cpath d='M16 1.5 3 5.8v9.4c0 8 5.4 13.4 13 15.8z' fill='%234f9cf9'/%3E%3Cpath d='M16 1.5V31' stroke='%230b1530' stroke-width='1.8'/%3E%3Cpath d='M7.2 8.6v8' stroke='%23dcefff' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/page.css">
+</head>
+<body>
+<main class="page">
+  <header class="top">
+    <div class="brand-box">
+      <a class="logo" href="https://gamesonstream.ru/" title="Все игры"><img src="images/logo.png" alt="Games on Stream" width="527" height="121"></a>
+      <p class="edition"><b>Реборн</b><span class="alpha">Альфа</span></p>
+    </div>
+    <form class="controls" id="start" autocomplete="off">
+      <input type="text" id="s-channel" placeholder="канал Twitch" spellcheck="false" aria-label="Канал Twitch">
+      <button type="submit" class="primary" id="play" disabled>Начать</button>
+      <button type="button" id="pause" disabled>Пауза</button>
+      <button type="button" id="next" title="Не ждать: сразу карта или следующая волна" disabled>Дальше</button>
+      <button type="button" id="speed" title="Скорость игры: ×1, ×2 или ×3" disabled>×1</button>
+      <button type="button" id="restart" title="Закончить эту игру и собрать отряд заново" disabled>Заново</button>
+      <button type="button" id="reset" title="Обнулить уровни, счёт и рекорд" disabled>Сброс</button>
+      <button type="button" id="toggle-settings" aria-expanded="false" aria-controls="settings">Настройки</button>
+      <button type="button" id="toggle-link" aria-expanded="false" aria-controls="link-panel">Ссылка для OBS</button>
+      <button type="button" id="open-rules">Правила</button>
+    </form>
+    <section class="panel popover" id="link-panel" hidden>
+      <div class="row">
+        <input type="text" id="link" readonly aria-label="Ссылка на оверлей">
+        <button type="button" id="copy">Копировать</button>
+      </div>
+      <p class="status" id="link-status"></p>
+      <p class="hint">Вставь ссылку в источник «Браузер» в OBS, размер 1920×1080. Игра начинается сама, как только источник появился на экране. Пока источник скрыт, игра стоит на паузе. Игра сообщает сайту название канала и время игры — только для статистики автора, кто играет.</p>
+    </section>
+  </header>
+
+  <div class="layout" id="layout">
+    <div class="stage">
+      <div class="screen">
+        <iframe id="game" title="Чатоборона Реборн"></iframe>
+        <p class="note" id="example-note">Пример: игроки и счёт выдуманные</p>
+      </div>
+    </div>
+
+    <form class="panel settings" id="settings" autocomplete="off" hidden>
+      <fieldset>
+        <legend>Игра</legend>
+        <div class="field">
+          <label for="s-lobby">Набор в отряд</label>
+          <div class="row"><input type="number" id="s-lobby" min="10" max="900"><span class="hint">секунд перед каждой игрой</span></div>
+        </div>
+        <div class="field">
+          <label for="s-first_wave">До первой волны</label>
+          <div class="row"><input type="number" id="s-first_wave" min="5" max="600"><span class="hint">секунд подготовки после появления карты</span></div>
+        </div>
+        <div class="field">
+          <label for="s-wave_pause">Подготовка</label>
+          <div class="row"><input type="number" id="s-wave_pause" min="3" max="300"><span class="hint">секунд между волнами</span></div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Чат</legend>
+        <label class="check">
+          <input type="checkbox" id="s-chat_commands">
+          <span>Команды для стримера и модераторов
+            <span class="hint"><code>!чатоборона</code> — правила на экране, игра на паузе</span>
+            <span class="hint"><code>!чатоборона-пауза</code> — пауза, ещё раз — продолжить</span>
+            <span class="hint"><code>!чатоборона-дальше</code> — не ждать: сразу карта или волна</span>
+            <span class="hint"><code>!чатоборона-заново</code> — новая игра</span>
+            <span class="hint"><code>!чатоборона-сброс</code> — обнулить уровни и рекорд</span>
+            <span class="hint"><code>а1 б2</code> — переставить защитника с клетки на клетку (только хозяин канала)</span>
+          </span>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Звук</legend>
+        <label class="check"><input type="checkbox" id="s-sound"><span>Звуки игры</span></label>
+        <div class="field">
+          <label for="s-volume">Громкость</label>
+          <div class="row">
+            <input type="range" id="s-volume" min="0" max="100" step="5">
+            <span class="hint" id="volume-text"></span>
+            <button type="button" id="listen">Послушать</button>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Вид</legend>
+        <div class="field">
+          <span class="label" id="webcam-label">Окошко под вебку</span>
+          <div class="switch" role="group" aria-labelledby="webcam-label">
+            <button type="button" data-webcam="none">Без вебки</button><button type="button" data-webcam="cam">С вебкой</button><button type="button" data-webcam="vtuber">Витубер</button>
+          </div>
+        </div>
+      </fieldset>
+
+      <div class="footer"><button type="button" class="quiet" id="defaults">Рекомендуемые настройки</button></div>
+    </form>
+  </div>
+  <footer class="foot">
+    <p class="alpha-note">Альфа: игра в разработке и ещё сырая — что-то может работать не так. Обычная Чатоборона — <a href="../">здесь</a></p>
+    <p class="tagline" id="status"></p>
+    <p class="author">Создано <a href="https://www.twitch.tv/sumaizu" target="_blank" rel="noopener">Sumaizu</a></p>
+  </footer>
+</main>
+<dialog class="rules" id="rules" aria-labelledby="rules-title">
+  <header class="rules-head">
+    <h2 id="rules-title"></h2>
+    <button type="button" class="rules-x" id="rules-x" aria-label="Закрыть">×</button>
+  </header>
+  <div class="rules-body" id="rules-body"></div>
+  <footer class="rules-foot">
+    <button type="button" class="primary" id="rules-close">Закрыть</button>
+  </footer>
+</dialog>
+<script type="module" src="js/page.js"></script>
+</body>
+</html>

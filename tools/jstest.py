@@ -8,12 +8,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from browser import NO_NETWORK, ROOT, Browser, serve
 
 PAGE = "/tests/js/tests.html"
+REBORN = "/tests/reborn/tests.html"
 FINISHED = "window.__results ? JSON.stringify(window.__results) : (window.__fatal || '')"
 
 
-def run(only="", timeout=180.0):
+def run(only="", timeout=180.0, page=PAGE):
     server = serve(ROOT)
-    url = f"http://127.0.0.1:{server.server_address[1]}{PAGE}" + (f"?only={quote(only)}" if only else "")
+    url = f"http://127.0.0.1:{server.server_address[1]}{page}" + (f"?only={quote(only)}" if only else "")
     try:
         with Browser() as browser:
             browser.run_in_every_page(NO_NETWORK)
@@ -48,4 +49,7 @@ def report(result):
 if __name__ == "__main__":
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(errors="replace")
-    sys.exit(report(run(sys.argv[1] if len(sys.argv) > 1 else "")))
+    args = sys.argv[1:]
+    page = REBORN if "--reborn" in args else PAGE
+    words = [arg for arg in args if arg != "--reborn"]
+    sys.exit(report(run(words[0] if words else "", page=page)))
