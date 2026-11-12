@@ -3026,8 +3026,7 @@ const SKILLS = {
       const target = charge.target && b._targetable(t, charge.target) ? charge.target : closestPrey(b, t);
       if (!target) return;
       t.lastFire = now;
-      b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit: true, mob: target, heavy: 'mega',
-        blue: t.runes.has('blue') });
+      b._event({ kind: 'beam', tower: t, x: target.x, y: target.y, mob: target, blue: t.runes.has('blue') });
       scorch(b, t, target, t.damage * FIRE.beam.mul * t.critMul);
     },
   },

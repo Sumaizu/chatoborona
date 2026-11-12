@@ -453,7 +453,7 @@ export class View {
       if (event.crit) this._sound('crit');
     } else if (kind === 'chain') {
       this._sound('zap');
-    } else if (kind === 'flame') {
+    } else if (kind === 'flame' || kind === 'beam') {
       this._sound('flame');
     } else if (kind === 'boom') {
       this._sound(event.meteor ? 'quake' : 'boom');

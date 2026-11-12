@@ -1670,6 +1670,7 @@ test('маг огня: дракон дышит струёй раз в тик; ш
   ok(e.charge && e.charge.kind === 'beam' && e.charge.target === boss, 'набирает пламя — сперва в босса');
   runFor(beam, FIRE.beam.charge + 0.1);
   ok(hit(boss) >= e.damage * FIRE.beam.mul, 'луч');
+  ok(beam.events.some((ev) => ev.kind === 'beam' && ev.mob === boss), 'луч изо рта');
 });
 
 test('маг огня: возгорание — не стреляет, каждый тик у каждого моба свой шанс вспыхнуть', () => {

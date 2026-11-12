@@ -17,6 +17,8 @@ const TURN_STEPS = 8;
 const KICK = 0.1;
 const FLASH = 0.06;
 const TRAVEL = 0.1;
+const JAWS = 14;
+const LASER = { life: 0.45, layers: [[11, 4, 0.55], [8, 3, 0.9], [5, 2, 1], [2.5, 0, 1]] };
 const WALK = 7;
 const BEAT = 1.1;
 const BEAT_FAST = 0.5;
@@ -906,6 +908,36 @@ export class Scene {
     ctx.globalAlpha = 1;
   }
 
+  _laser(ctx, e, share) {
+    const pose = this._pose(e.tower), a = pose.angle, tones = e.blue ? BLUE_FLAME : FLAME;
+    const x1 = at(pose.x) + Math.sin(a) * JAWS, y1 = at(pose.y) - (pose.lift || 0) - Math.cos(a) * JAWS;
+    const spot = e.mob && !e.mob.dead ? this.shown.get(e.mob.id) || e.mob : null;
+    const x2 = spot ? at(spot.x) : at(e.x2), y2 = spot ? at(spot.y) - (spot.lift || 0) : at(e.y2);
+    const power = Math.min(1, share / 0.15, (1 - share) / 0.4) * (1 + 0.2 * Math.sin(this.clock * 70));
+    const [warm, core] = HEAT[e.blue ? 'blue' : 'warm'];
+    ctx.save();
+    for (const [width, tone, alpha] of LASER.layers) {
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = tones[tone];
+      ctx.lineWidth = width * power;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    glow(ctx, x1, y1, 9 * power, core, 0.9);
+    glow(ctx, x2, y2, 16 * power, warm, 0.9);
+    ctx.globalCompositeOperation = 'source-over';
+    for (let i = 0; i < 10; i++) {
+      const k = (this.clock * 4 + i / 10) % 1, side = Math.sin(i * 2.3 + this.clock * 30) * 4 * power;
+      ctx.globalAlpha = 1 - k * 0.6;
+      square(ctx, x1 + (x2 - x1) * k + Math.cos(a) * side, y1 + (y2 - y1) * k + Math.sin(a) * side, 2,
+        tones[i % 3]);
+    }
+    ctx.restore();
+  }
+
   _blazes(ctx, battle) {
     for (const t of battle.towers) {
       if (t.style !== 'ignite') continue;
@@ -1702,7 +1734,7 @@ export class Scene {
       }
       if (t.hot && firing) this._muzzleFire(ctx, x, y, pose.angle);
       if (t.reloadUntil > now) this._progress(ctx, x, y - 2, 1 - (t.reloadUntil - now) / t.cls.base.reload, '#e5e7eb');
-      if (t.charge) {
+      if (t.charge && t.charge.kind !== 'beam') {
         const share = (now - t.charge.at) / (t.charge.until - t.charge.at);
         this._progress(ctx, x, y - 2, share, CHARGES[t.charge.kind].ring);
       }
@@ -1760,7 +1792,8 @@ export class Scene {
       const look = CHARGES[charge.kind], pose = this._pose(t), x = at(pose.x), y = at(pose.y);
       const target = charge.target && !charge.target.dead ? charge.target : null;
       if (target) pose.aim = Math.atan2(target.x - t.cx, -(target.y - t.cy));
-      const d = HERO_SIZE * ZOOM / 2 + 2, fx = x + Math.sin(pose.angle) * d, fy = y - Math.cos(pose.angle) * d;
+      const d = charge.kind === 'beam' ? JAWS : HERO_SIZE * ZOOM / 2 + 2;
+      const fx = x + Math.sin(pose.angle) * d, fy = y - Math.cos(pose.angle) * d;
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       glow(ctx, fx, fy, 4 + 9 * share, look.glow, 0.45 + 0.45 * share);
@@ -2002,6 +2035,12 @@ export class Scene {
         this._pose(t).flash = FLASH * 3;
         this._sparks(t.cx, t.cy, CHARGES.heavy.sparks, event.heavy === 'mega' ? 14 : 8, 2.4, 0.35);
       }
+    } else if (event.kind === 'beam') {
+      const pose = this._pose(t);
+      this._aim(t, event.x, event.y);
+      pose.angle = pose.aim;
+      add({ kind: 'laser', life: LASER.life, tower: t, mob: event.mob, x2: event.x, y2: event.y, blue: event.blue });
+      this._sparks(event.x, event.y, (event.blue ? BLUE_FLAME : FLAME).slice(0, 3), 18, 3, 0.45, 3);
     } else if (event.kind === 'ricochet') {
       const bolt = event.hot ? { look: 'dot', color: '#ff9a1f', size: 3 } : BOLTS.gunner;
       add({ kind: 'shot', life: TRAVEL, x1: event.x, y1: event.y, x2: event.mob.x, y2: event.mob.y, bolt });
@@ -2383,6 +2422,10 @@ export class Scene {
       }
       next.push(e);
       const share = e.t / e.life, fade = 1 - share;
+      if (e.kind === 'laser') {
+        this._laser(ctx, e, share);
+        continue;
+      }
       if (e.kind === 'shot') {
         const b = e.bolt, x = at(e.x1 + (e.x2 - e.x1) * share), y = at(e.y1 + (e.y2 - e.y1) * share);
         if (b.look === 'tracer') {
