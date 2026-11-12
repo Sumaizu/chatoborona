@@ -181,15 +181,17 @@ function legs(m, cx, y, color, f, spread = 3.4, rx = 2.5, ry = 3.2) {
 }
 
 function hero(m, o) {
-  legs(m, 16, 26.5, o.boots || '#3b2c22', 0);
+  if (o.slim) legs(m, 16, 23.6, o.boots, 0, 2.6, 1.9, 2.2);
+  else legs(m, 16, 26.5, o.boots || '#3b2c22', 0);
   if (o.back) o.back(m);
   m.egg(16, 18.5, 5, 8.6, 6.2, 4.6, o.coat);
   if (o.chest) o.chest(m);
   const [lx, ly, rx, ry] = o.hands || [13, 11, 18.5, 12.3];
   m.limb(9.5, 17, 8, lx, ly + 0.5, 9, 2.3, o.sleeve || o.coat);
   m.limb(22.5, 17, 8, rx, ry + 0.5, 9, 2.3, o.sleeve || o.coat);
-  m.ball(9, 17.5, 8.5, 3.3, o.dark);
-  m.ball(23, 17.5, 8.5, 3.3, o.dark);
+  const shoulder = o.slim ? 2.3 : 3.3, pad = o.slim ? o.coat : o.dark;
+  m.ball(9, 17.5, 8.5, shoulder, pad);
+  m.ball(23, 17.5, 8.5, shoulder, pad);
   if (o.weapon) o.weapon(m);
   m.ball(lx, ly, 10, 2, o.glove || SKIN);
   m.ball(rx, ry, 10, 2, o.glove || SKIN);
@@ -478,7 +480,7 @@ function seated(m, o) {
 
 function recruit(m) {
   hero(m, {
-    coat: '#5b6b3a', dark: '#4a5a2c', sleeve: SKIN, boots: '#4a5a32', hands: [12.5, 14.5, 19.5, 12],
+    coat: '#5b6b3a', dark: '#4a5a2c', sleeve: SKIN, boots: '#3b3326', slim: true, hands: [12.5, 14.5, 19.5, 12],
     chest: (q) => q.dot(16, 14.4, METAL, 30),
     weapon: (q) => {
       q.limb(19.5, 13.4, 10.2, 19.5, 11.8, 10.2, 0.8, '#3f444d');
@@ -532,7 +534,7 @@ const CAMO = ['#2f4a22', '#7a8b4a', '#5b4a2a', '#3d5229'];
 
 function assault(m) {
   hero(m, {
-    coat: '#4f6b35', dark: '#3d5229', sleeve: '#557538', boots: '#3a3326', glove: '#2f3a24',
+    coat: '#4f6b35', dark: '#3d5229', sleeve: '#557538', boots: '#3a3326', glove: '#2f3a24', slim: true,
     hands: [14.5, 13, 17.5, 9.5],
     chest: (q) => {
       const spots = [[11, 16], [13.5, 21], [19, 15.5], [21, 20], [16.5, 23], [10.5, 20.5], [20, 23], [12.5, 17.5]];
