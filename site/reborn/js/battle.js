@@ -86,7 +86,8 @@ const BLUE_REACT = 1.5;
 export const FIRE = { styled: 1.5, giant: 1.5, splash: 1, wide: 1.5, breath: 0.6, cone: 0.35, coneWide: 1.6,
   ignite: 0.06, igniteMul: 1.2, smolder: 0.3, burn: 3, blue: 1.3, blueBurn: 1.5, crit: 0.15, twin: 1,
   rain: { every: 8, count: 6, radius: 3, gap: 0.15 }, vent: { every: 3, reach: 5 }, idle: 3, soar: 7,
-  beam: { every: 10, charge: 1, mul: 8 }, torch: { radius: 1, share: 0.25 }, ring: { radius: 1.5, mul: 0.5 },
+  beam: { every: 10, charge: 1, mul: 8 }, torch: { radius: 1, share: 0.25 },
+  ring: { radius: 2, mul: 0.5, grow: 1, max: 4 },
   wall: { mul: 1.5, reach: 0.7 }, black: { chance: 1, damage: 0.2, max: 5 },
   phoenix: { every: 15, speed: 8, mul: 10, reach: 0.9, step: 0.25 } };
 const TORCH_USERS = new Set(['sniper', 'gunner', 'hunter']);
@@ -979,7 +980,8 @@ export class Battle {
     tower.critMul = base.critMul;
     tower.reach = base.reach;
     tower.cone = tower.style === 'dragon' ? FIRE.cone * (tower.runes.has('wide') ? FIRE.coneWide : 1) : 0;
-    tower.ring = tower.style === 'ignite' && tower.runes.has('flameRing') ? FIRE.ring.radius : 0;
+    tower.ring = tower.style === 'ignite' && tower.runes.has('flameRing') ? Math.min(FIRE.ring.max,
+      FIRE.ring.radius + FIRE.ring.grow * Math.max(0, tower.might / MIGHT.base - 1)) : 0;
     tower.baseRange = Math.max(RANGE_MIN, this._reachOf(tower, b) + (mods.range || 0))
       + (this.onHill(tower) ? TERRAIN.hill : 0) + (this.onWatch(tower) ? TERRAIN.watch : 0);
     tower.ownRange = tower.baseRange + tower.reach;
@@ -2559,7 +2561,7 @@ function fireball(b, t, target, from = null) {
     * (crit ? t.critMul : 1);
   const radius = styled ? FIRE.splash * (giant ? FIRE.wide : 1) : 0, x = target.x, y = target.y;
   const event = { kind: 'shot', tower: t, x, y, crit, mob: target.dead ? null : target, time: FIREBALL_FLIGHT,
-    size: giant ? 8 : styled ? 6 : 4, blue: t.runes.has('blue') };
+    size: giant ? 13 : styled ? 10 : 7, blue: t.runes.has('blue') };
   if (from) Object.assign(event, { sx: from.x, sy: from.y });
   b._event(event);
   b._later(FIREBALL_FLIGHT, () => {

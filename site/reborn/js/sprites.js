@@ -1,7 +1,7 @@
 import { HERO_IDS, drawHero, drawPhoenix } from './models.js';
 import { MOB_IDS, drawMelt, drawMob, drawSplit, gooColor } from './monsters.js';
-import { drawClod, drawCocoon, drawCoinIcon, drawEmblem, drawHeart, drawMeteor, drawMine, drawMound, drawNuke, drawVent,
-  drawRocket, drawTrap, drawWall } from './props.js';
+import { drawClod, drawCocoon, drawCoinIcon, drawEmblem, drawFireball, drawHeart, drawMeteor, drawMine, drawMound,
+  drawNuke, drawVent, drawRocket, drawTrap, drawWall } from './props.js';
 
 const OUTLINE = '#15111d';
 
@@ -330,7 +330,13 @@ export const flaskSprite = () => remember('flask', () => {
 
 export const mineSprite = (kind, lit) => remember('mine:' + kind + ':' + lit, () => drawMine(kind, lit));
 export const ventSprite = (lit) => remember('vent:' + lit, () => drawVent(lit));
-export const phoenixSprite = (blue) => remember('phoenix:' + blue, () => drawPhoenix(blue));
+const FLAPS = [1, 0.74, 0.5, 0.74];
+export const PHOENIX_FRAMES = FLAPS.length;
+export const phoenixSprite = (blue, frame = 0) => remember('phoenix:' + blue + ':' + frame,
+  () => drawPhoenix(blue, FLAPS[frame % FLAPS.length]));
+export const FIREBALL_FRAMES = 3;
+export const fireballSprite = (blue, frame = 0) => remember('fireball:' + blue + ':' + frame,
+  () => drawFireball(blue, frame % FIREBALL_FRAMES));
 export const rocketSprite = () => remember('rocket', () => drawRocket());
 export const meteorSprite = () => remember('meteor', () => drawMeteor());
 export const cocoonSprite = (frame) => remember('cocoon:' + frame, () => drawCocoon(frame));

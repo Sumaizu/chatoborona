@@ -47,6 +47,37 @@ export function drawMine(kind, lit) {
   return m.paint();
 }
 
+const FIREBALL = { width: 16, height: 26, head: 7, radius: 5.5,
+  tones: { warm: ['#fffbe6', '#fde68a', '#fbbf24', '#f97316', '#dc2626', '#7f1d1d'],
+    blue: ['#f0f9ff', '#bae6fd', '#7dd3fc', '#3b82f6', '#1d4ed8', '#1e3a8a'] } };
+
+const grain = (x, y, frame) => {
+  const v = Math.sin(x * 12.9898 + y * 78.233 + frame * 37.719) * 43758.5453;
+  return v - Math.floor(v);
+};
+
+export function drawFireball(blue, frame) {
+  const { width, height, head, radius } = FIREBALL, tones = FIREBALL.tones[blue ? 'blue' : 'warm'];
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const g = canvas.getContext('2d'), tail = height - head;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const dx = x + 0.5 - width / 2, dy = y + 0.5 - head, back = Math.max(0, dy) / tail;
+      const sway = Math.sin(back * 9 + frame * 2.1) * back * 2.2;
+      const span = radius * Math.pow(Math.max(0, 1 - back), 0.75);
+      const ball = 1 - Math.hypot(dx, dy) / radius;
+      const plume = dy > 0 && span > 0 ? (1 - Math.abs(dx - sway) / span) * (1 - back) * 0.9 : 0;
+      const base = Math.max(ball, plume), heat = base + (grain(x, y, frame) - 0.5) * 0.22 * Math.min(1, base * 3);
+      if (base <= 0.06 || heat <= 0.06) continue;
+      g.fillStyle = tones[heat > 0.72 ? 0 : heat > 0.56 ? 1 : heat > 0.42 ? 2 : heat > 0.28 ? 3 : heat > 0.14 ? 4 : 5];
+      g.fillRect(x, y, 1, 1);
+    }
+  }
+  return canvas;
+}
+
 export function drawVent(lit) {
   const m = new Model(24, 1);
   m.egg(12, 12.5, 1.5, 10, 9.5, 3.4, '#57534e');

@@ -1,9 +1,10 @@
 import { LETTERS, SIZE } from './field.js';
 import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintRoof } from './terrain.js';
-import { HERO_SIZE, bubbleSprite, bulletSprite, clodSprite, cocoonSprite, coinSprite, flaskSprite, heartSprite,
-  gooColor, heroSprite, hookSprite, linkSprite, meltSprite, meteorSprite, mineSprite, mobSprite, moundSprite,
-  nukeSprite, phoenixSprite, pixelsOf, reticleSprite, rocketSprite, shellSprite, splitSprite, starSprite, tintSprite,
-  trapSprite, ventSprite, wallSprite } from './sprites.js';
+import { FIRE, flightAt } from './battle.js';
+import { FIREBALL_FRAMES, HERO_SIZE, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite, cocoonSprite,
+  coinSprite, fireballSprite, flaskSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
+  meteorSprite, mineSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf, reticleSprite, rocketSprite,
+  shellSprite, splitSprite, starSprite, tintSprite, trapSprite, ventSprite, wallSprite } from './sprites.js';
 import { SOILS } from './props.js';
 import { gearColor } from './gacha.js';
 
@@ -76,7 +77,7 @@ const BOLTS = {
   alchemist: { look: 'dot', color: '#9be22d', size: 3 },
   hunter: { look: 'bolt', color: '#e8d9b5', width: 2 },
   frost: { look: 'dot', color: '#38bdf8', size: 3 },
-  pyro: { look: 'dot', color: '#ff7a1f', size: 4 },
+  pyro: { look: 'fireball', color: '#ff7a1f', size: 7 },
   shaman: { look: 'dot', color: '#5eead4', size: 3 },
   miner: { look: 'dot', color: '#c7d2fe', size: 2 },
   banner: { look: 'dot', color: '#ff5fb0', size: 3 },
@@ -85,6 +86,7 @@ const BOLTS = {
 };
 const FLAME = ['#fff3b0', '#ffd84a', '#ff9a1f', '#ff5a1f', '#b8320f'];
 const BLUE_FLAME = ['#e0f2ff', '#9bd5ff', '#4aa3ff', '#2563eb', '#1e3a8a'];
+const BOOM = { heat: 'rgba(255, 200, 80, .9)', core: '#ffd84a' };
 const BLACK_FLAME = ['#c084fc', '#7e22ce', '#3b0764', '#1c1917', '#0a0a0a'];
 const HEAT = { warm: ['rgba(255, 110, 30, .9)', 'rgba(255, 220, 120, .9)'],
   blue: ['rgba(74, 163, 255, .9)', 'rgba(224, 242, 255, .9)'] };
@@ -368,6 +370,7 @@ export class Scene {
     this.shown = new Map();
     this.trails = new Map();
     this.poses = new Map();
+    this.flights = new WeakMap();
     this.effects = [];
     this.decals = [];
     this.corpses = [];
@@ -908,6 +911,15 @@ export class Scene {
     ctx.globalAlpha = 1;
   }
 
+  _fireball(ctx, e, share, dt) {
+    const b = e.bolt, zoom = b.size / 8, cx = e.x1 + (e.x2 - e.x1) * share, cy = e.y1 + (e.y2 - e.y1) * share;
+    const x = at(cx), y = at(cy), tones = b.blue ? BLUE_FLAME : FLAME;
+    glow(ctx, x, y, 9 * zoom + 4, HEAT[b.blue ? 'blue' : 'warm'][0], 0.75);
+    sprite(ctx, fireballSprite(Boolean(b.blue), Math.floor(this.clock * 14) % FIREBALL_FRAMES), x, y,
+      Math.atan2(e.x2 - e.x1, -(e.y2 - e.y1)), zoom, 6 * zoom, 64);
+    if (dt > 0 && Math.random() < 0.6) this._sparks(cx, cy, tones.slice(1, 4), 1, 0.5, 0.3, Math.round(1 + zoom * 1.5));
+  }
+
   _laser(ctx, e, share) {
     const pose = this._pose(e.tower), a = pose.angle, tones = e.blue ? BLUE_FLAME : FLAME;
     const x1 = at(pose.x) + Math.sin(a) * JAWS, y1 = at(pose.y) - (pose.lift || 0) - Math.cos(a) * JAWS;
@@ -938,8 +950,44 @@ export class Scene {
     ctx.restore();
   }
 
+  _torch(ctx, t) {
+    const blue = t.runes.has('blue'), tones = blue ? BLUE_FLAME : FLAME, x = at(t.cx), y = at(t.cy);
+    const zone = (FIRE.torch.radius + 0.45) * CELL, seed = (t.x * 7 + t.y * 13) % 9;
+    const [warm, core] = HEAT[blue ? 'blue' : 'warm'];
+    glow(ctx, x, y, zone, warm, 0.3 + 0.05 * Math.sin(this.clock * 3 + seed));
+    glow(ctx, x, y + 4, CELL * 0.75, core, 0.55);
+    for (let i = 0; i < 16; i++) {
+      const a = i / 16 * Math.PI * 2 + this.clock * 0.35, d = zone * (0.78 + 0.18 * noise(i, seed));
+      const rise = (this.clock * 1.3 + noise(i + 5, seed)) % 1;
+      ctx.globalAlpha = 1 - rise;
+      square(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8 - rise * 10, 3,
+        tones[1 + Math.min(3, Math.floor(rise * 4))]);
+    }
+    for (let i = 0; i < 26; i++) {
+      const a = i / 26 * Math.PI * 2, d = CELL * (0.42 + 0.12 * noise(i + 9, seed));
+      const rise = (this.clock * 2.6 + noise(i + 2, seed)) % 1;
+      ctx.globalAlpha = 1 - rise * 0.8;
+      square(ctx, x + Math.cos(a) * d, y + 5 + Math.sin(a) * d * 0.7 - rise * 18, rise < 0.3 ? 4 : 3,
+        tones[Math.min(4, Math.floor(rise * 5))]);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  _torchLit(ctx, t) {
+    const tones = t.torch.runes.has('blue') ? BLUE_FLAME : FLAME, x = at(t.cx), y = at(t.cy);
+    for (let i = 0; i < 7; i++) {
+      const rise = (this.clock * 2 + i / 7) % 1;
+      ctx.globalAlpha = 1 - rise * 0.8;
+      square(ctx, x - 9 + i * 3 + Math.sin(this.clock * 6 + i) * 1.5, y - 4 - rise * 16, rise < 0.4 ? 4 : 3,
+        tones[Math.min(4, Math.floor(rise * 5))]);
+    }
+    ctx.globalAlpha = 1;
+  }
+
   _blazes(ctx, battle) {
     for (const t of battle.towers) {
+      if (t.cls.id === 'pyro' && t.runes.has('torch')) this._torch(ctx, t);
+      if (t.torch && battle.towers.includes(t.torch)) this._torchLit(ctx, t);
       if (t.style !== 'ignite') continue;
       const blue = t.runes.has('blue'), tones = blue ? BLUE_FLAME : FLAME;
       if (t.runes.has('fireWall')) {
@@ -963,10 +1011,16 @@ export class Scene {
 
   _phoenixes(ctx, battle, step) {
     for (const bird of battle.phoenixes) {
-      const x = at(bird.x), y = at(bird.y), tones = bird.blue ? BLUE_FLAME : FLAME;
+      const last = bird.cells.length - 1, was = this.flights.get(bird);
+      const shown = was === undefined ? bird.s : Math.min(last, was + (bird.s - was) * Math.min(1, step * 10));
+      this.flights.set(bird, shown);
+      const spot = flightAt(bird, shown), back = flightAt(bird, Math.max(0, shown - 0.8));
+      const ahead = flightAt(bird, Math.min(last, shown + 0.8)), tones = bird.blue ? BLUE_FLAME : FLAME;
+      const x = at(spot.x), y = at(spot.y) - 4 - Math.sin(this.clock * 9) * 1.5;
       glow(ctx, x, y, CELL * 1.3, HEAT[bird.blue ? 'blue' : 'warm'][0], 0.6);
-      if (step) this._sparks(bird.x, bird.y, tones.slice(0, 3), 3, 0.8, 0.6, 3);
-      sprite(ctx, phoenixSprite(bird.blue), x, y, bird.angle, ZOOM * 1.3, 0, HERO_TURN_STEPS);
+      if (step) this._sparks(spot.x, spot.y, tones.slice(0, 3), 2, 0.7, 0.6, 3);
+      sprite(ctx, phoenixSprite(bird.blue, Math.floor(this.clock * 10) % PHOENIX_FRAMES), x, y,
+        Math.atan2(ahead.x - back.x, -(ahead.y - back.y)), ZOOM * 1.3, 0, 64);
     }
   }
 
@@ -2020,7 +2074,7 @@ export class Scene {
       if (!away) this._aim(t, event.x, event.y);
       let bolt = BOLTS[t.cls.id] || { look: 'dot', color: t.cls.color, size: 2 };
       if (event.size) bolt = Object.assign({}, bolt, { size: event.size });
-      if (event.blue) bolt = Object.assign({}, bolt, { color: '#4aa3ff' });
+      if (event.blue) bolt = Object.assign({}, bolt, { color: '#4aa3ff', blue: true });
       if (event.heavy) {
         bolt = Object.assign({}, bolt, { width: event.heavy === 'mega' ? 5 : 3.5,
           color: event.blue ? '#9bd5ff' : t.cls.id === 'pyro' ? '#ff9a1f' : '#ffffff' });
@@ -2069,9 +2123,11 @@ export class Scene {
     } else if (event.kind === 'boom') {
       const big = event.rocket || event.meteor;
       add({ kind: 'boom', life: big ? 0.6 : 0.35, x: event.x, y: event.y, r: event.radius,
-        ring: event.meteor ? '#c08a4a' : '#ff6a1f' });
+        ring: event.meteor ? '#c08a4a' : event.blue ? '#4aa3ff' : '#ff6a1f', core: event.blue ? '#e0f2ff' : BOOM.core,
+        heat: event.blue ? HEAT.blue[1] : BOOM.heat });
       this._sparks(event.x, event.y, event.meteor ? ['#ffd84a', '#ff8a1f', '#8a7f70', '#4a3a30']
-        : ['#ffd84a', '#ff8a1f', '#ff4d1f'], big ? 26 : 9, event.radius * 4.5, big ? 0.6 : 0.4, 3);
+        : event.blue ? BLUE_FLAME.slice(0, 3) : ['#ffd84a', '#ff8a1f', '#ff4d1f'], big ? 26 : 9, event.radius * 4.5,
+        big ? 0.6 : 0.4, 3);
       if (big) {
         this.decals.push({ kind: 'crater', t: 0, life: 4, x: event.x, y: event.y, r: event.radius * 0.35 });
       }
@@ -2424,7 +2480,9 @@ export class Scene {
       }
       if (e.kind === 'shot') {
         const b = e.bolt, x = at(e.x1 + (e.x2 - e.x1) * share), y = at(e.y1 + (e.y2 - e.y1) * share);
-        if (b.look === 'tracer') {
+        if (b.look === 'fireball') {
+          this._fireball(ctx, e, share, dt);
+        } else if (b.look === 'tracer') {
           if (e.heavy) glow(ctx, x, y, b.width * 3, 'rgba(255, 243, 176, .95)', 0.8);
           ctx.strokeStyle = b.color;
           ctx.lineWidth = b.width * (e.crit && !e.heavy ? 1.5 : 1);
@@ -2562,10 +2620,10 @@ export class Scene {
         ctx.globalAlpha = 1;
       } else if (e.kind === 'boom') {
         const r = e.r * CELL * (0.5 + 0.6 * share);
-        glow(ctx, at(e.x), at(e.y), r * 1.2, 'rgba(255, 200, 80, .9)', fade * 0.8);
+        glow(ctx, at(e.x), at(e.y), r * 1.2, e.heat || BOOM.heat, fade * 0.8);
         ctx.globalAlpha = fade;
         burst(ctx, at(e.x), at(e.y), r, Math.max(8, Math.round(e.r * 10)), e.y * 2 + share, share < 0.5 ? 1 : 0,
-          share < 0.5 ? '#ffd84a' : e.ring);
+          share < 0.5 ? e.core || BOOM.core : e.ring);
         ctx.globalAlpha = 1;
       } else if (e.kind === 'nuke') {
         this._nukeBlast(ctx, e, share);

@@ -434,16 +434,17 @@ function dragonFly(m, c, span) {
   dragonHead(m, c, 6.4, 9.6);
 }
 
-function phoenix(m, deep, plume, flare, core) {
+function phoenix(m, deep, plume, flare, core, span) {
   for (const [x, y, r] of [[10.5, 30, 1.1], [16, 31.5, 1.3], [21.5, 30, 1.1]]) {
     m.limb(16, 20, 5, x, y, 4, 1.9, deep, 0, r);
   }
   for (const [x, y] of [[11.5, 29], [16, 30.5], [20.5, 29]]) m.ball(x, y, 6, 1.1, flare, 1);
+  const out = (dx) => 16 + Math.sign(dx) * (3 + (Math.abs(dx) - 3) * span), drop = (1 - span) * 3;
   for (const side of [-1, 1]) {
-    m.egg(16 + side * 6.5, 15.5, 6, 5.6, 3.8, 1.2, deep);
+    m.egg(out(side * 6.5), 15.5 + drop * 0.5, 6, 5.6 * span, 3.8, 1.2, deep);
     for (const [x, y, r] of [[15, 10.5, 1.1], [15.5, 13.6, 1.2], [14.8, 17, 1.1], [12.6, 20.2, 0.9]]) {
-      m.limb(16 + side * 8.5, 15.5, 6.4, 16 + side * x, y, 6.8, 1.5, plume, 0, r);
-      m.ball(16 + side * x, y, 7.4, r, flare, 1);
+      m.limb(out(side * 8.5), 15.5, 6.4, out(side * x), y + drop, 6.8, 1.5, plume, 0, r);
+      m.ball(out(side * x), y + drop, 7.4, r, flare, 1);
     }
   }
   m.egg(16, 17.5, 7.5, 3.4, 6, 3.4, plume);
@@ -653,10 +654,10 @@ export function drawHero(id) {
   return m.paint();
 }
 
-export function drawPhoenix(blue) {
+export function drawPhoenix(blue, span = 1) {
   const m = new Model(32, 1.08);
-  if (blue) phoenix(m, '#1d4ed8', '#3b82f6', '#9bd5ff', '#e0f2ff');
-  else phoenix(m, '#c2410c', '#f97316', '#fde047', '#fff7ed');
+  if (blue) phoenix(m, '#1d4ed8', '#3b82f6', '#9bd5ff', '#e0f2ff', span);
+  else phoenix(m, '#c2410c', '#f97316', '#fde047', '#fff7ed', span);
   return m.paint();
 }
 

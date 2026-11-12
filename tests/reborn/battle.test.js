@@ -3051,6 +3051,10 @@ test('маг огня, возгорание: кольцо пламени жжё�
   runFor(battle, PULSE * 2 + 0.01);
   ok(hit(close) > 0, 'внутри кольца');
   eq(hit(far), 0, 'снаружи — нет');
+  battle.setMods(t, { runes: ['ignite', 'flameRing'], power: 100 });
+  near(t.ring, Math.min(FIRE.ring.max, FIRE.ring.radius + FIRE.ring.grow), 'радиус растёт с мощью');
+  battle.setMods(t, { runes: ['ignite', 'flameRing'], power: 5000 });
+  near(t.ring, FIRE.ring.max, 'но не больше предела');
   battle.setMods(t, { runes: ['fireball', 'flameRing'] });
   eq(t.ring, 0, 'только у стиля «Возгорание»');
 });
