@@ -488,12 +488,12 @@ function seated(m, o) {
 
 function recruit(m) {
   hero(m, {
-    coat: '#5b6b3a', dark: '#4a5a2c', sleeve: SKIN, boots: '#3b3326', slim: true, hands: [12.5, 14.5, 19.5, 12],
+    coat: '#5b6b3a', dark: '#4a5a2c', sleeve: SKIN, boots: '#3b3326', slim: true, hands: [14.9, 11.6, 17.1, 11.6],
     chest: (q) => q.dot(16, 14.4, METAL, 30),
     weapon: (q) => {
-      q.limb(19.5, 13.4, 10.2, 19.5, 11.8, 10.2, 0.8, '#3f444d');
-      q.limb(19.5, 12.4, 10.8, 19.5, 7.8, 11, 0.85, '#4b5563', 0.7);
-      q.dot(19, 7.6, '#cbd5e1', 40);
+      q.limb(16, 12.6, 10.4, 16, 11, 10.4, 0.8, '#3f444d');
+      q.limb(16, 11.6, 11.2, 16, 7, 11.4, 0.85, '#4b5563', 0.7);
+      q.dot(15.5, 6.8, '#cbd5e1', 40);
     },
     head: (q) => {
       q.ball(16, 17, 11.2, 4.4, SKIN);
