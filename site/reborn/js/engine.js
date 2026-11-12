@@ -412,9 +412,8 @@ export class Game {
   }
 
   reroll(member) {
-    if (!member || member.rerolled || this.state !== 'lobby' && this.state !== 'placing') return null;
+    if (!member || member.skills.length || !['lobby', 'placing', 'wave', 'break'].includes(this.state)) return null;
     member.cls = this._randomClass(member);
-    member.rerolled = true;
     member.skills = [];
     this.choices = this.choices.filter((choice) => choice.login !== member.login);
     if (member.tower) {

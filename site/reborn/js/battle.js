@@ -86,7 +86,9 @@ const BLUE_REACT = 1.5;
 export const FIRE = { styled: 1.5, giant: 1.5, splash: 1, wide: 1.5, breath: 0.6, cone: 0.35, coneWide: 1.6,
   ignite: 0.06, igniteMul: 1.2, smolder: 0.3, burn: 3, blue: 1.3, blueBurn: 1.5, crit: 0.15, twin: 1,
   rain: { every: 8, count: 6, radius: 3, gap: 0.15 }, vent: { every: 3, reach: 5 }, idle: 3,
-  beam: { every: 10, charge: 1, mul: 8 }, torch: { radius: 1, share: 0.25 } };
+  beam: { every: 10, charge: 1, mul: 8 }, torch: { radius: 1, share: 0.25 }, ring: { radius: 1.5, mul: 0.5 },
+  wall: { mul: 1.5, reach: 0.7 }, black: { chance: 1, damage: 0.2, max: 5 },
+  phoenix: { every: 15, speed: 8, mul: 10, reach: 0.9, step: 0.25 } };
 const TORCH_USERS = new Set(['sniper', 'gunner', 'hunter']);
 const STEEL_BLAST = { radius: 1.5, mul: 8, stun: 1 };
 const ECHO_DELAY = 0.3;
@@ -232,6 +234,7 @@ export class Battle {
     this.fogs = [];
     this.zones = [];
     this.vents = [];
+    this.phoenixes = [];
     this.pulseAt = 0;
     this.traps = [];
     this.whirls = [];
@@ -435,7 +438,7 @@ export class Battle {
     this.towers.splice(at, 1);
     if (!tower.rider) this.byCell.delete(tower.y * SIZE + tower.x);
     for (const list of ['walls', 'mines', 'tosses', 'puddles', 'fogs', 'traps', 'whirls', 'patches', 'grounds',
-      'zones']) {
+      'zones', 'phoenixes']) {
       this[list] = this[list].filter((item) => item.tower !== tower);
     }
     if (this.prey && this.prey.by === tower) this.prey = null;
@@ -976,6 +979,7 @@ export class Battle {
     tower.critMul = base.critMul;
     tower.reach = base.reach;
     tower.cone = tower.style === 'dragon' ? FIRE.cone * (tower.runes.has('wide') ? FIRE.coneWide : 1) : 0;
+    tower.ring = tower.style === 'ignite' && tower.runes.has('flameRing') ? FIRE.ring.radius : 0;
     tower.baseRange = Math.max(RANGE_MIN, this._reachOf(tower, b) + (mods.range || 0))
       + (this.onHill(tower) ? TERRAIN.hill : 0) + (this.onWatch(tower) ? TERRAIN.watch : 0);
     tower.ownRange = tower.baseRange + tower.reach;
@@ -1072,6 +1076,7 @@ export class Battle {
         }
       }
     }
+    if (this.phoenixes.length) this._phoenixes(now);
     if (this.zones.length) this._zones(dt, now);
     if (this.fogs.length) this._fogs(dt, now);
     if (this.puddles.length) this._puddles(dt, now);
@@ -1761,6 +1766,52 @@ export class Battle {
     }
   }
 
+  _blazeOf(t) {
+    const key = t.x + ':' + t.y;
+    if (t.blaze && t.blaze.key === key) return t.blaze;
+    const trunk = (i) => i < this.path.length && i >= Math.max(0, this.merge);
+    let best = 0, low = Infinity;
+    this.road.forEach(([x, y], i) => {
+      const far = (x - t.x) ** 2 + (y - t.y) ** 2;
+      const rank = Math.max(Math.abs(x - t.x), Math.abs(y - t.y)) <= 1 ? far + (trunk(i) ? 0 : 10) : 100 + far;
+      if (rank < low) {
+        low = rank;
+        best = i;
+      }
+    });
+    const main = best < this.path.length, line = main ? this.path : this.branch.concat([this.path[this.merge]]);
+    const k = main ? best : best - this.path.length, from = Math.max(0, Math.min(k - 1, line.length - 3));
+    t.blaze = { key, cells: line.slice(from, from + 3).map(([x, y]) => ({ x: x + 0.5, y: y + 0.5 })) };
+    return t.blaze;
+  }
+
+  _sendPhoenix(t) {
+    const exits = [this.path.slice().reverse()];
+    if (this.branch.length) exits.push(this.path.slice(this.merge).reverse().concat(this.branch.slice().reverse()));
+    const cells = exits[Math.floor(this.random() * exits.length)].map(([x, y]) => ({ x: x + 0.5, y: y + 0.5 }));
+    const bird = { tower: t, cells, born: this.time, s: 0, hit: new Set(), blue: t.runes.has('blue') };
+    Object.assign(bird, flightAt(bird, 0));
+    this.phoenixes.push(bird);
+    this._event({ kind: 'phoenix', tower: t, x: bird.x, y: bird.y });
+  }
+
+  _phoenixes(now) {
+    const s = FIRE.phoenix;
+    this.phoenixes = this.phoenixes.filter((bird) => {
+      const end = Math.min((now - bird.born) * s.speed, bird.cells.length - 1);
+      for (let at = bird.s; at < end + s.step; at += s.step) {
+        Object.assign(bird, flightAt(bird, Math.min(at, end)));
+        for (const mob of this._around(bird.x, bird.y, s.reach)) {
+          if (bird.hit.has(mob) || this.covered(mob.x, mob.y)) continue;
+          bird.hit.add(mob);
+          scorch(this, bird.tower, mob, bird.tower.damage * s.mul);
+        }
+      }
+      bird.s = end;
+      return end < bird.cells.length - 1;
+    });
+  }
+
   _openVent(t) {
     const spots = [];
     for (let dy = -1; dy <= 1; dy++) {
@@ -2164,7 +2215,8 @@ export class Battle {
     const vulnerable = ((mob.markUntil > now ? mob.mark : 0) + (mob.charge && mob.charge.until > now
       ? mob.charge.bonus : 0) + (mob.vulnUntil > now ? mob.vuln : 0) + (mob.weakUntil > now ? mob.weak : 0))
       * (1 - mob.resist);
-    let dealt = amount * (1 + vulnerable) * (1 + t.boost.damage) * this._frailty(mob, element);
+    let dealt = amount * (1 + vulnerable) * (1 + t.boost.damage) * this._frailty(mob, element)
+      * (1 + FIRE.black.damage * stacksOf(mob, t));
     const cut = Math.max(power && power.cut || 0, mob.armor) - (mob.acidUntil > now ? mob.acid : 0)
       - (this.state(mob, 'disease') ? REACTIONS.disease.armor : 0);
     if (cut && !pierce) dealt *= 1 - cut;
@@ -2474,6 +2526,23 @@ export class Battle {
 const guard = (t) => t.s[0].chance * (t.runes.has('guardian') ? 2 : 1);
 
 const flame = (t) => (t.runes.has('blue') ? FIRE.blue : 1);
+
+const stacksOf = (mob, t) => (mob.black && mob.black.get(t)) || 0;
+
+export function flightAt(bird, s) {
+  const last = bird.cells.length - 1, i = Math.max(0, Math.min(last - 1, Math.floor(s))), f = Math.min(1, s - i);
+  const a = bird.cells[i], b = bird.cells[i + 1] || a;
+  return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, angle: Math.atan2(b.x - a.x, -(b.y - a.y)) };
+}
+
+function kindle(b, t, mob) {
+  const black = t.runes.has('amaterasu');
+  b._event({ kind: 'ignite', tower: t, x: mob.x, y: mob.y, radius: 0.5, blue: t.runes.has('blue'), black });
+  scorch(b, t, mob, t.damage * FIRE.igniteMul);
+  if (!black || mob.dead) return;
+  if (!mob.black) mob.black = new Map();
+  mob.black.set(t, Math.min(FIRE.black.max, stacksOf(mob, t) + 1));
+}
 
 function scorch(b, t, mob, damage) {
   b._hurt(mob, damage * flame(t), t, 'fire');
@@ -2901,10 +2970,24 @@ const SKILLS = {
       if (t.style === 'ignite' && alive && now >= (t.nextIgnite || 0)) {
         t.nextIgnite = now + PULSE;
         for (const mob of b.mobs.slice()) {
-          if (mob.dead || hidden(mob, now) || b.covered(mob.x, mob.y) || b.random() >= FIRE.ignite) continue;
-          b._event({ kind: 'ignite', tower: t, x: mob.x, y: mob.y, radius: 0.5, blue: t.runes.has('blue') });
-          scorch(b, t, mob, t.damage * FIRE.igniteMul);
+          if (mob.dead || hidden(mob, now) || b.covered(mob.x, mob.y)
+            || b.random() >= FIRE.ignite * (1 + FIRE.black.chance * stacksOf(mob, t))) continue;
+          kindle(b, t, mob);
         }
+        if (t.ring) for (const mob of b._around(t.cx, t.cy, t.ring)) scorch(b, t, mob, t.damage * FIRE.ring.mul);
+        if (t.runes.has('fireWall')) {
+          const cells = b._blazeOf(t).cells;
+          for (const mob of b.mobs.slice()) {
+            if (mob.dead || hidden(mob, now) || !cells.some((cell) => near(mob, cell.x, cell.y, FIRE.wall.reach))) {
+              continue;
+            }
+            scorch(b, t, mob, t.damage * FIRE.wall.mul);
+          }
+        }
+      }
+      if (t.runes.has('phoenix') && alive && now >= (t.nextPhoenix || 0) && b.mobs.some((mob) => !mob.dead)) {
+        t.nextPhoenix = now + FIRE.phoenix.every;
+        b._sendPhoenix(t);
       }
       if (t.runes.has('rain') && alive && now >= (t.nextRain || 0)) {
         const target = b._target(t, { mode: 'any' }), s = FIRE.rain;

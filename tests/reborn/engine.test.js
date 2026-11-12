@@ -817,14 +817,16 @@ test('профиль: две карточки сразу, третья ждёт 
   eq(shown(), [], 'и уходит');
 });
 
-test('реролл: один раз за игру и только до первой волны, на поле — новый класс на той же клетке', () => {
+test('реролл: сколько угодно раз, пока не выбран первый навык; на поле — новый класс на той же клетке', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Рома', 'привет');
-  const member = game.members.get('рома'), first = member.cls;
-  eq(say(game, 'Рома', 'реролл'), 'reroll');
-  ok(member.cls !== first);
-  eq(say(game, 'Рома', 'реролл'), null, 'второй раз нельзя');
+  const member = game.members.get('рома');
+  for (let i = 0; i < 3; i++) {
+    const was = member.cls;
+    eq(say(game, 'Рома', 'реролл'), 'reroll', 'раз ' + (i + 1));
+    ok(member.cls !== was);
+  }
   const other = makeGame().game;
   other.open();
   say(other, 'Лиза', 'привет');
@@ -836,8 +838,10 @@ test('реролл: один раз за игру и только до перв�
   ok(lisa.tower && lisa.tower.cls.id === lisa.cls, 'новый защитник нового класса');
   if (cell && !lisa.tower.rider) eq([lisa.tower.x, lisa.tower.y], cell, 'на той же клетке');
   toWave(other);
-  say(other, 'Ян', 'привет');
-  eq(say(other, 'Ян', 'реролл'), null, 'после начала волн нельзя');
+  eq(say(other, 'Лиза', 'реролл'), 'reroll', 'и во время волн');
+  ok(lisa.tower && lisa.tower.cls.id === lisa.cls);
+  lisa.skills = [poolOf(lisa.cls)[0].id];
+  eq(say(other, 'Лиза', 'реролл'), null, 'после первого навыка — нельзя');
 });
 
 test('улучшение до божественного: событие, свойства бойца, плашка красного цвета', () => {

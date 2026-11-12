@@ -2,8 +2,8 @@ import { LETTERS, SIZE } from './field.js';
 import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintRoof } from './terrain.js';
 import { HERO_SIZE, bubbleSprite, bulletSprite, clodSprite, cocoonSprite, coinSprite, flaskSprite, heartSprite,
   gooColor, heroSprite, hookSprite, linkSprite, meltSprite, meteorSprite, mineSprite, mobSprite, moundSprite,
-  nukeSprite, pixelsOf, reticleSprite, rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, trapSprite,
-  ventSprite, wallSprite } from './sprites.js';
+  nukeSprite, phoenixSprite, pixelsOf, reticleSprite, rocketSprite, shellSprite, splitSprite, starSprite, tintSprite,
+  trapSprite, ventSprite, wallSprite } from './sprites.js';
 import { SOILS } from './props.js';
 import { gearColor } from './gacha.js';
 
@@ -27,7 +27,8 @@ const RISE = 0.3;
 const TRAIL_STEP = 0.2;
 const CORPSE = { fall: 0.45, lie: 1, fade: 1.1, max: 60 };
 const DECALS_MAX = 300;
-const TINTS = { poison: '#4ade80', plague: '#6d28d9', burn: '#ff7a1f', blue: '#4aa3ff', chill: '#8ee6ff',
+const TINTS = { poison: '#4ade80', plague: '#6d28d9', burn: '#ff7a1f', blue: '#4aa3ff', black: '#1c1917',
+  chill: '#8ee6ff',
   fury: '#ff4d1f', steam: '#f1f5f9', mud: '#8a5a2b', corrosion: '#a3e635', disease: '#7c3aed',
   epidemic: '#4c1d95' };
 const STATE_TINTS = ['steam', 'mud', 'corrosion', 'disease', 'epidemic'];
@@ -82,6 +83,9 @@ const BOLTS = {
 };
 const FLAME = ['#fff3b0', '#ffd84a', '#ff9a1f', '#ff5a1f', '#b8320f'];
 const BLUE_FLAME = ['#e0f2ff', '#9bd5ff', '#4aa3ff', '#2563eb', '#1e3a8a'];
+const BLACK_FLAME = ['#c084fc', '#7e22ce', '#3b0764', '#1c1917', '#0a0a0a'];
+const HEAT = { warm: ['rgba(255, 110, 30, .9)', 'rgba(255, 220, 120, .9)'],
+  blue: ['rgba(74, 163, 255, .9)', 'rgba(224, 242, 255, .9)'] };
 const PUDDLES = {
   poison: { tones: ['#2f4f0e', '#3f6212', '#4d7c0f', '#65a30d', '#84cc16'], shine: ['#d9f99d', '#bef264'] },
   plague: { tones: ['#0b0a10', '#17141f', '#231d2e', '#2f2540', '#4c1d95'], shine: ['#a78bfa', '#7c3aed'] },
@@ -432,6 +436,7 @@ export class Scene {
     this._onField(ctx, () => {
       this._storms(ctx, battle);
       this._patches(ctx, battle);
+      this._blazes(ctx, battle);
       this._grounds(ctx, battle);
       this._vents(ctx, battle);
       this._puddles(ctx, battle);
@@ -456,6 +461,7 @@ export class Scene {
       this._whirls(ctx, battle);
     });
     this._towers(ctx, battle, dt, highlight, still);
+    this._onField(ctx, () => this._phoenixes(ctx, battle, step));
     this._charges(ctx, battle);
     this._hooks(ctx, battle);
     this._onField(ctx, () => {
@@ -881,17 +887,54 @@ export class Scene {
       const x = at(patch.x), y = at(patch.y), r = patch.radius * CELL;
       const seed = Math.round(patch.x * 7 + patch.y * 13) % 9;
       const fade = Math.max(0, Math.min(1, (now - patch.born) / 0.25, (patch.until - now) / 0.8));
-      glow(ctx, x, y, r * 1.05, 'rgba(40, 14, 6, .9)', 0.55 * fade);
-      glow(ctx, x, y, r * 1.25, 'rgba(255, 110, 30, .9)', 0.8 * fade);
-      glow(ctx, x, y, r * 0.6, 'rgba(255, 220, 120, .9)', (0.5 + 0.15 * Math.sin(this.clock * 9 + seed)) * fade);
-      for (let i = 0, count = Math.round(20 + r * 0.8); i < count; i++) {
-        const a = i * 2.39 + seed, d = r * 0.85 * Math.sqrt(noise(i, seed + 40));
-        const rise = (this.clock * 2.2 + noise(i + 9, seed + 40)) % 1;
-        ctx.globalAlpha = fade * (1 - rise * 0.7);
-        square(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8 - rise * 14, rise < 0.35 ? 4 : 3,
-          FLAME[Math.min(FLAME.length - 1, Math.floor(rise * FLAME.length))]);
+      this._blaze(ctx, x, y, r, seed, fade, false, 14);
+    }
+  }
+
+  _blaze(ctx, x, y, r, seed, fade, blue, tall) {
+    const tones = blue ? BLUE_FLAME : FLAME, [warm, core] = HEAT[blue ? 'blue' : 'warm'];
+    glow(ctx, x, y, r * 1.05, 'rgba(40, 14, 6, .9)', 0.55 * fade);
+    glow(ctx, x, y, r * 1.25, warm, 0.8 * fade);
+    glow(ctx, x, y, r * 0.6, core, (0.5 + 0.15 * Math.sin(this.clock * 9 + seed)) * fade);
+    for (let i = 0, count = Math.round(20 + r * 0.8); i < count; i++) {
+      const a = i * 2.39 + seed, d = r * 0.85 * Math.sqrt(noise(i, seed + 40));
+      const rise = (this.clock * 2.2 + noise(i + 9, seed + 40)) % 1;
+      ctx.globalAlpha = fade * (1 - rise * 0.7);
+      square(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8 - rise * tall, rise < 0.35 ? 4 : 3,
+        tones[Math.min(tones.length - 1, Math.floor(rise * tones.length))]);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  _blazes(ctx, battle) {
+    for (const t of battle.towers) {
+      if (t.style !== 'ignite') continue;
+      const blue = t.runes.has('blue'), tones = blue ? BLUE_FLAME : FLAME;
+      if (t.runes.has('fireWall')) {
+        for (const cell of battle._blazeOf(t).cells) {
+          this._blaze(ctx, at(cell.x), at(cell.y), CELL * 0.5, Math.round(cell.x * 7 + cell.y * 13) % 9, 1, blue, 22);
+        }
+      }
+      if (!t.ring) continue;
+      const x = at(t.cx), y = at(t.cy), r = t.ring * CELL, seed = (t.x * 7 + t.y * 13) % 9;
+      glow(ctx, x, y, r, HEAT[blue ? 'blue' : 'warm'][0], 0.22);
+      for (let i = 0, count = Math.round(r * 1.1); i < count; i++) {
+        const a = i / count * Math.PI * 2 + this.clock * 0.7, d = r * (0.86 + 0.14 * noise(i + 3, seed));
+        const rise = (this.clock * 2.4 + noise(i, seed)) % 1;
+        ctx.globalAlpha = 1 - rise * 0.7;
+        square(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8 - rise * 12, rise < 0.35 ? 4 : 3,
+          tones[Math.min(tones.length - 1, Math.floor(rise * tones.length))]);
       }
       ctx.globalAlpha = 1;
+    }
+  }
+
+  _phoenixes(ctx, battle, step) {
+    for (const bird of battle.phoenixes) {
+      const x = at(bird.x), y = at(bird.y), tones = bird.blue ? BLUE_FLAME : FLAME;
+      glow(ctx, x, y, CELL * 1.3, HEAT[bird.blue ? 'blue' : 'warm'][0], 0.6);
+      if (step) this._sparks(bird.x, bird.y, tones.slice(0, 3), 3, 0.8, 0.6, 3);
+      sprite(ctx, phoenixSprite(bird.blue), x, y, bird.angle, ZOOM * 1.3, 0, HERO_TURN_STEPS);
     }
   }
 
@@ -1535,7 +1578,10 @@ export class Scene {
     const plague = mob.poison && Array.from(mob.poison.values()).some((dose) => dose.tower.runes.has('plague'));
     const blue = mob.burn && Array.from(mob.burn.values()).some((fire) => fire.tower.runes.has('blue'));
     if (mob.poison) layers.push([plague ? 'plague' : 'poison', 0.34 + 0.1 * Math.sin(this.clock * 5 + mob.id)]);
-    if (mob.burn) layers.push([blue ? 'blue' : 'burn', 0.3 + 0.12 * Math.sin(this.clock * 17 + mob.id)]);
+    const black = Boolean(mob.black && mob.black.size);
+    if (mob.burn || black) {
+      layers.push([black ? 'black' : blue ? 'blue' : 'burn', 0.3 + 0.12 * Math.sin(this.clock * 17 + mob.id)]);
+    }
     if (mob.states) {
       for (const name of STATE_TINTS) if (this.battle.state(mob, name)) layers.push([name, 0.3]);
     }
@@ -1559,8 +1605,8 @@ export class Scene {
       square(ctx, x - 4, y - ((rise + 4) % 9), 2, plague ? '#a78bfa' : '#c7f36b');
       square(ctx, x + 1, y - ((rise + 7) % 9) - 2, 1, plague ? '#ddd6fe' : '#e3ff9e');
     }
-    if (mob.burn) {
-      const tones = blue ? BLUE_FLAME : FLAME;
+    if (mob.burn || black) {
+      const tones = black ? BLACK_FLAME : blue ? BLUE_FLAME : FLAME;
       for (let i = 0; i < 6; i++) {
         const rise = (this.clock * 14 + i * 2.7 + mob.id) % 12, side = Math.sin(i * 2.1 + mob.id) * 7;
         square(ctx, x + side, y - 2 - rise, rise < 4 ? 3 : 2, tones[Math.min(4, Math.floor(rise / 2.6))]);
@@ -2076,9 +2122,11 @@ export class Scene {
       const spot = this.shown.get(event.mob.id) || event.mob;
       this._sparks(spot.x, spot.y, ['#c4b8a6', '#8a7f70', '#7a1f1f'], 6, 1.6, 0.35, 2);
     } else if (event.kind === 'ignite') {
-      const tones = event.blue ? BLUE_FLAME : FLAME;
+      const tones = event.black ? BLACK_FLAME : event.blue ? BLUE_FLAME : FLAME;
       add({ kind: 'ring', life: 0.45, x: event.x, y: event.y, r: event.radius, color: tones[2], width: 3 });
       this._sparks(event.x, event.y, tones.slice(0, 3), 14, event.radius * 4, 0.45, 3);
+    } else if (event.kind === 'phoenix') {
+      this._sparks(event.x, event.y, (event.tower.runes.has('blue') ? BLUE_FLAME : FLAME).slice(0, 3), 22, 3, 0.6, 3);
     } else if (event.kind === 'vent') {
       add({ kind: 'ring', life: 0.6, x: event.x, y: event.y, r: 0.8, color: '#f97316', width: 3 });
       this._sparks(event.x, event.y, FLAME.slice(0, 3), 16, 2.4, 0.6, 3);

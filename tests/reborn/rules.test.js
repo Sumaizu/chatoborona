@@ -382,7 +382,8 @@ test('маг огня: первый камень — только стиль; д
     ['wide', 'lungs', 'flight', 'beam', 'smolder', 'fireReact', 'torch', 'blue'], 'чужих усилений нет');
   ok(after.every((option) => option.state === 'open'));
   eq(choiceOf('pyro', ['ignite', 'torch']).map((option) => [option.skill.id, option.state]),
-    [['smolder', 'open'], ['fireReact', 'open'], ['torch', 'taken'], ['blue', 'open']]);
+    [['flameRing', 'open'], ['fireWall', 'open'], ['amaterasu', 'open'], ['phoenix', 'open'], ['smolder', 'open'],
+      ['fireReact', 'open'], ['torch', 'taken'], ['blue', 'open']]);
   eq([skinOf('pyro', []), skinOf('pyro', ['dragon']), skinOf('pyro', ['fireball', 'blue'])],
     ['pyro-ragged', 'pyro-dragon', 'pyro-fireball-blue']);
   eq(skinOf('sniper', ['perk0']), 'sniper');

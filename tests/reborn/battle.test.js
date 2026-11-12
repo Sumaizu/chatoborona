@@ -3037,3 +3037,86 @@ test('карта: моб второго входа вливается в гла�
   eq(mob.r, 0, 'перешёл на главную');
   ok(jump < 0.15, 'шаг за кадр без скачка: ' + jump.toFixed(3));
 });
+
+test('маг огня, возгорание: кольцо пламени жжёт всех рядом каждый тик', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'pyro', 10, 4);
+  battle.setMods(t, { runes: ['ignite', 'flameRing'] });
+  near(t.ring, FIRE.ring.radius);
+  battle.random = () => 0.99;
+  const close = walker(battle, 10, 1e6), far = walker(battle, 16, 1e6);
+  still(close, far);
+  runFor(battle, PULSE * 2 + 0.01);
+  ok(hit(close) > 0, 'внутри кольца');
+  eq(hit(far), 0, 'снаружи — нет');
+  battle.setMods(t, { runes: ['fireball', 'flameRing'] });
+  eq(t.ring, 0, 'только у стиля «Возгорание»');
+});
+
+test('маг огня, возгорание: стена огня — 3 клетки у ближайшей дороги, сперва общей', () => {
+  const battle = mapWith(), t = battle.place(player(), 'pyro', 9, 4);
+  battle.setMods(t, { runes: ['ignite', 'fireWall'] });
+  const cells = battle._blazeOf(t).cells.map((cell) => [cell.x - 0.5, cell.y - 0.5]);
+  eq(cells, [[9, 5], [10, 5], [11, 5]], 'эпицентр на общей дороге, по клетке в обе стороны');
+  battle.random = () => 0.99;
+  const inside = walker(battle, 12, 1e6), outside = walker(battle, 16, 1e6);
+  still(inside, outside);
+  runFor(battle, PULSE + 0.01);
+  ok(hit(inside) >= t.damage * FIRE.wall.mul * 0.99, 'сильно жжёт в стене');
+  eq(hit(outside), 0);
+  const moved = battle.place(player(), 'pyro', 4, 4);
+  battle.setMods(moved, { runes: ['ignite', 'fireWall'] });
+  eq(battle._blazeOf(moved).cells.map((cell) => cell.x - 0.5), [3, 4, 5], 'без общей рядом — ближайшая');
+});
+
+test('маг огня, возгорание: аматерасу — чёрное пламя, вспыхивает чаще, урон мага по нему больше', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'pyro', 10, 4), other = battle.place(player(), 'pyro', 2, 2);
+  battle.setMods(t, { runes: ['ignite', 'amaterasu'] });
+  battle.setMods(other, { runes: ['ignite'] });
+  const mob = walker(battle, 5, 1e9);
+  still(mob);
+  battle.random = () => 0.01;
+  battle.step(TICK);
+  eq(mob.black.get(t), 1, 'чёрное пламя');
+  eq(mob.black.has(other), false, 'без аматерасу — обычное');
+  ok(battle.events.some((e) => e.kind === 'ignite' && e.black));
+  const plain = walker(battle, 15, 1e9);
+  still(plain);
+  battle.random = () => FIRE.ignite * 1.5;
+  const was = hit(mob);
+  runFor(battle, PULSE + 0.1);
+  ok(hit(mob) > was, 'с чёрным пламенем вспыхивает чаще');
+  eq(hit(plain), 0, 'без него — нет');
+  eq(mob.black.get(t), 2);
+  let before = hit(mob);
+  battle._hurt(mob, 10, t, 'fire', true);
+  const own = hit(mob) - before;
+  before = hit(mob);
+  battle._hurt(mob, 10, other, 'fire', true);
+  near(own / (hit(mob) - before), 1 + FIRE.black.damage * 2, 'урон мага больше, урон других — как был');
+});
+
+test('маг огня, возгорание: феникс летит от сердца к случайному выходу и жжёт каждого по разу', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'pyro', 10, 2);
+  battle.setMods(t, { runes: ['ignite', 'phoenix'] });
+  battle.random = () => 0.99;
+  const a = walker(battle, 3, 1e9), b = walker(battle, 12, 1e9);
+  still(a, b);
+  battle.step(TICK);
+  eq(battle.phoenixes.length, 1, 'вылетел');
+  const way = battle.phoenixes[0].cells;
+  eq([way[0].x, way[0].y], [19.5, 5.5], 'от сердца');
+  runFor(battle, way.length / FIRE.phoenix.speed + 0.5);
+  eq(battle.phoenixes.length, 0, 'долетел до выхода');
+  ok(hit(a) > 0 && Math.abs(hit(a) - hit(b)) < 1e-6 * hit(a), 'каждого по разу');
+  ok(hit(a) >= t.damage * FIRE.phoenix.mul * 0.99, 'очень сильный огонь');
+  runFor(battle, FIRE.phoenix.every);
+  eq(battle.events.filter((e) => e.kind === 'phoenix').length, 2, 'снова через несколько секунд');
+
+  const fork = mapWith(), f = fork.place(player(), 'pyro', 12, 2);
+  fork.setMods(f, { runes: ['ignite', 'phoenix'] });
+  still(walker(fork, 3, 1e9));
+  fork.random = () => 0.99;
+  fork.step(TICK);
+  const exit = fork.phoenixes[0].cells;
+  eq([exit[exit.length - 1].x, exit[exit.length - 1].y], [10.5, 0.5], 'ко второму выходу');
+});
