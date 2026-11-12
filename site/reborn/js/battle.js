@@ -2618,9 +2618,9 @@ function aimOf(b, t) {
   const air = t.style === 'marksman' && t.runes.has('antiair');
   let best = null, rank = -Infinity;
   for (const mob of b.mobs) {
-    if (!canShoot(b, t, mob) || t.style === 'scope' && !big(mob)) continue;
-    let score = t.style === 'scope' ? mob.hp : -Math.hypot(mob.x - t.cx, mob.y - t.cy);
-    if (big(mob)) score += 1e7;
+    if (!canShoot(b, t, mob) || t.style === 'scope' && !prized(mob)) continue;
+    let score = t.style === 'scope' ? mob.hp + (big(mob) ? 1e15 : 0)
+      : -Math.hypot(mob.x - t.cx, mob.y - t.cy) + (big(mob) ? 1e7 : 0);
     if (air && mob.flying) score += 1e8;
     if (t.deep && hidden(mob, b.time)) score += 1e9;
     if (score > rank) {

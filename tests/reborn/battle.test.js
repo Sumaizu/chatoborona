@@ -427,7 +427,7 @@ test('стрелок: без стиля — редкий дальний выст
   ok(battle._target(t) === strong, 'самого крепкого, летучих не выделяет');
 });
 
-test('стрелок-снайпер: через всю карту, только элитных и боссов; целится, бьёт сильно, потом перезарядка', () => {
+test('стрелок-снайпер: через всю карту, только элитных, серебряных и боссов; целится, бьёт сильно, перезарядка', () => {
   const battle = makeBattle(), t = shooter(battle, 1, 4, ['scope']);
   const plain = walker(battle, 2, 1e9), elite = quiet(put(battle, special(battle, 'elite', 'vampire', 1e9), 18));
   still(plain);
@@ -447,6 +447,16 @@ test('стрелок-снайпер: через всю карту, только 
   still(walker(empty, 3, 1e9));
   empty.step(TICK);
   eq(e.charge, null, 'нет элитных и боссов — ждёт');
+  const silver = makeBattle(), s = shooter(silver, 1, 4, ['scope']);
+  const shiny = walker(silver, 12, 1e9), boss = quiet(put(silver, special(silver, 'boss', 'crusher', 1e6), 16));
+  shiny.silver = AFFIXES[0];
+  still(shiny);
+  silver.step(TICK);
+  ok(s.charge && s.charge.target === boss, 'золотые и боссы — раньше серебряных');
+  boss.dead = true;
+  s.charge = null;
+  silver._fire(s);
+  ok(s.charge && s.charge.target === shiny, 'серебряного элитного тоже бьёт');
 });
 
 test('стрелок-снайпер: донаводка, быстрые руки, бронебой, рикошет', () => {
