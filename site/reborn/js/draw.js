@@ -3,7 +3,7 @@ import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintR
 import { FIRE, flightAt } from './battle.js';
 import { FIREBALL_FRAMES, HERO_SIZE, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite, cocoonSprite,
   coinSprite, fireballSprite, flaskSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
-  meteorSprite, mineSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf, reticleSprite, rocketSprite,
+  meteorSprite, mineSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf, rocketSprite,
   shellSprite, splitSprite, starSprite, tintSprite, trapSprite, ventSprite, wallSprite } from './sprites.js';
 import { SOILS } from './props.js';
 import { gearColor } from './gacha.js';
@@ -340,6 +340,30 @@ function stars(ctx, x, y, r, spin) {
     ctx.drawImage(image, Math.round(x + Math.cos(a) * r - image.width / 2), Math.round(y + Math.sin(a) * r * 0.45
       - image.height / 2));
   }
+}
+
+function reticle(ctx, x, y, r, alpha, turn = 0) {
+  ctx.save();
+  ctx.translate(Math.round(x), Math.round(y));
+  ctx.rotate(turn);
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = '#b91c1c';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.stroke();
+  for (let k = 0; k < 4; k++) {
+    const a = k * Math.PI / 2;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * r * 0.55, Math.sin(a) * r * 0.55);
+    ctx.lineTo(Math.cos(a) * r * 1.2, Math.sin(a) * r * 1.2);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#fca5a5';
+  ctx.beginPath();
+  ctx.arc(0, 0, 1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 function burst(ctx, x, y, r, count, spin, arm, color) {
@@ -1314,7 +1338,7 @@ export class Scene {
     ctx.ellipse(tx, ty, e.radius * CELL, e.radius * CELL * 0.92, 0, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
-    sprite(ctx, reticleSprite(), tx, ty, 0, 2 + pulse);
+    reticle(ctx, tx, ty, 6.5 * (2 + pulse), 0.7);
     ctx.fillStyle = 'rgba(0, 0, 0, ' + (0.15 + 0.25 * share) + ')';
     ctx.beginPath();
     ctx.ellipse(at(e.x1 + (e.x2 - e.x1) * share), at(e.y1 + (e.y2 - e.y1) * share) + 4, 6 + 6 * share,
@@ -1502,11 +1526,9 @@ export class Scene {
         square(ctx, x + size * 0.32, top + 1, bag, '#facc15');
       }
       if (mob.markUntil > now) {
-        const reticle = reticleSprite(), zoom = Math.max(2, Math.round(size / reticle.width + 0.4));
-        const side = reticle.width * zoom + 2 * Math.round(Math.sin(this.clock * 6 + mob.id) + 1);
-        ctx.globalAlpha = 0.85 + 0.15 * Math.sin(this.clock * 6);
-        ctx.drawImage(reticle, Math.round(x - side / 2), Math.round(y - lift - side / 2), side, side);
-        ctx.globalAlpha = 1;
+        const side = 13 * Math.max(2, Math.round(size / 13 + 0.4))
+          + 2 * Math.round(Math.sin(this.clock * 6 + mob.id) + 1);
+        reticle(ctx, x, y - lift, side / 2, 0.55 + 0.1 * Math.sin(this.clock * 6));
       }
       if (mob.charge && mob.charge.until > now) this._chargedOn(ctx, mob, x, y - lift, size);
       if (mob.netUntil > now) this._netOn(ctx, x, y - lift, size);
@@ -1944,13 +1966,7 @@ export class Scene {
       ctx.lineTo(mx, my);
       ctx.stroke();
       ctx.restore();
-      const reticle = reticleSprite(), side = Math.round(reticle.width * (5 - 2.6 * share));
-      ctx.save();
-      ctx.translate(Math.round(mx), Math.round(my));
-      ctx.rotate((1 - share) * Math.PI);
-      ctx.globalAlpha = 0.75 + 0.25 * share;
-      ctx.drawImage(reticle, -side / 2, -side / 2, side, side);
-      ctx.restore();
+      reticle(ctx, mx, my, 6.5 * (5 - 2.6 * share), 0.5 + 0.2 * share, (1 - share) * Math.PI);
     }
   }
 

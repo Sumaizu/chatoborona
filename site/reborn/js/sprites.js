@@ -192,22 +192,6 @@ export const starSprite = () => remember('star', () => mapSprite([
   '.Y...Y.',
 ], { Y: '#ffd43b', y: '#fff7c2' }));
 
-export const reticleSprite = () => remember('reticle', () => mapSprite([
-  'RRR.......RRR',
-  'R...........R',
-  'R.....R.....R',
-  '......R......',
-  '.............',
-  '.............',
-  '..RR..r..RR..',
-  '.............',
-  '.............',
-  '......R......',
-  'R.....R.....R',
-  'R...........R',
-  'RRR.......RRR',
-], { R: '#ef4444', r: '#fecaca' }));
-
 export const bubbleSprite = () => remember('bubble', () => mapSprite([
   '.ggg.',
   'g..wg',
