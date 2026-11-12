@@ -1659,6 +1659,8 @@ test('маг огня: дракон дышит струёй раз в тик; ш
   runFor(fly, FIRE.idle + 0.2);
   ok(Math.abs(d.cx - far.x) < 1.6 && Math.abs(d.cy - far.y) < 1.6, 'перелетел к первому мобу');
   ok(fly.events.some((e) => e.kind === 'flight'));
+  ok(d.pull && d.pull.fly && d.pull.end > fly.time, 'летит, а не прыгает');
+  near(d.pull.end - d.pull.start, Math.max(0.6, Math.hypot(d.cx - d.pull.fx, d.cy - d.pull.fy) / FIRE.soar));
 
   const beam = makeBattle(), e = beam.place(player(), 'pyro', 10, 4);
   beam.setMods(e, { runes: ['dragon', 'beam'] });

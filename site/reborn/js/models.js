@@ -101,6 +101,22 @@ class Model {
     }
   }
 
+  sheet(points, z, color, n = [0, 0, 1]) {
+    const spots = points.map(([x, y]) => this.place(x, y)), normal = unit(n);
+    const xs = spots.map((spot) => spot[0]), ys = spots.map((spot) => spot[1]);
+    for (let y = Math.floor(Math.min(...ys)); y <= Math.max(...ys); y++) {
+      for (let x = Math.floor(Math.min(...xs)); x <= Math.max(...xs); x++) {
+        const px = x + 0.5, py = y + 0.5;
+        let inside = false;
+        for (let i = 0, j = spots.length - 1; i < spots.length; j = i++) {
+          const [xi, yi] = spots[i], [xj, yj] = spots[j];
+          if (yi > py !== yj > py && px < (xj - xi) * (py - yi) / (yj - yi) + xi) inside = !inside;
+        }
+        if (inside) this.plot(x, y, z * this.k, color, normal, 0, 0);
+      }
+    }
+  }
+
   dot(x, y, color, z = 99) {
     [x, y] = this.place(x + 0.5, y + 0.5);
     this.plot(x, y, z * this.k, color, [0, 0, 1], 1, 0);
@@ -321,22 +337,101 @@ function igniteMage(m, fire, core) {
   });
 }
 
-function dragon(m, scale, wing, fire) {
-  m.limb(16, 22, 6, 16, 29.5, 4, 1.8, scale, 0, 0.6);
-  m.egg(7, 17, 6.5, 6.5, 4.4, 1, wing);
-  m.egg(25, 17, 6.5, 6.5, 4.4, 1, wing);
-  m.limb(12, 15, 7.5, 2, 13, 8, 0.7, scale);
-  m.limb(20, 15, 7.5, 30, 13, 8, 0.7, scale);
-  m.egg(16, 18, 7, 4.8, 6.4, 4, scale);
-  for (const y of [15, 18, 21]) m.ball(16, y, 11.2, 0.9, wing);
-  m.egg(16, 10.5, 9, 3.4, 3.8, 3, scale);
-  m.egg(16, 7.4, 9.4, 2.2, 2.4, 2.2, scale);
-  m.limb(14, 11, 11, 12.2, 13.6, 12.6, 0.6, '#f5e6c8');
-  m.limb(18, 11, 11, 19.8, 13.6, 12.6, 0.6, '#f5e6c8');
-  m.dot(14.6, 9.4, '#fde047', 60);
-  m.dot(17.4, 9.4, '#fde047', 60);
-  m.dot(15.4, 5.6, fire, 60);
-  m.dot(16.6, 5.6, fire, 60);
+const DRAGONS = {
+  red: { scale: '#c2410c', light: '#fb923c', dark: '#7c2d12', skin: '#7f1d1d', fold: '#9a3412', spine: '#fbbf24',
+    eye: '#fde047' },
+  blue: { scale: '#1d4ed8', light: '#60a5fa', dark: '#1e3a8a', skin: '#172554', fold: '#1e40af', spine: '#93c5fd',
+    eye: '#e0f2ff' },
+};
+const HORN = '#f5e6c8';
+const AWAY = [0.4, 0.4, 1];
+
+function scales(m, cx, cy, rx, ry, cz, rz, color) {
+  for (let y = cy - ry + 1, row = 0; y < cy + ry - 0.5; y += 1.5, row++) {
+    for (let x = cx - rx + (row % 2 ? 1.5 : 0.75); x < cx + rx; x += 1.5) {
+      const q = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2;
+      if (q < 0.75) m.dot(x - 0.5, y - 0.5, color, cz + rz * Math.sqrt(1 - q) + 0.3);
+    }
+  }
+}
+
+function chain(m, points, z, r0, r1, color) {
+  const last = points.length - 1;
+  for (let i = 0; i < last; i++) {
+    const [ax, ay] = points[i], [bx, by] = points[i + 1];
+    m.limb(ax, ay, z, bx, by, z, r0 + (r1 - r0) * i / last, color, 0, r0 + (r1 - r0) * (i + 1) / last);
+  }
+}
+
+function dragonHead(m, c, y, z) {
+  m.limb(16, y + 6.5, z - 0.6, 16, y + 2, z, 2, c.scale, 0, 1.7);
+  m.egg(16, y, z, 2.7, 3.1, 2.2, c.scale);
+  m.egg(16, y - 2.8, z - 0.3, 1.8, 1.9, 1.6, c.scale);
+  m.limb(14.4, y + 0.6, z + 1.4, 12.6, y + 3.8, z + 2.4, 0.65, HORN, 0, 0.2);
+  m.limb(17.6, y + 0.6, z + 1.4, 19.4, y + 3.8, z + 2.4, 0.65, HORN, 0, 0.2);
+  m.limb(14.2, y - 0.6, z + 1.6, 14.6, y - 2, z + 1.4, 0.4, c.light);
+  m.limb(17.8, y - 0.6, z + 1.6, 17.4, y - 2, z + 1.4, 0.4, c.light);
+  m.dot(14, y - 1.2, c.eye, z + 3);
+  m.dot(17, y - 1.2, c.eye, z + 3);
+  m.dot(15, y - 4.2, c.dark, z + 3);
+  m.dot(16, y - 4.2, c.dark, z + 3);
+}
+
+function spine(m, c, from, to, z) {
+  for (let y = from; y <= to; y += 1.6) m.ball(16, y, z, 0.55, c.spine, 0.6);
+}
+
+function dragon(m, c) {
+  chain(m, [[16, 23], [19.4, 26.6], [23.2, 27.6], [26.2, 25.6], [27.2, 22], [26.2, 18.8]], 4, 2, 0.6, c.scale);
+  m.sheet([[26.2, 19.6], [24.6, 17.6], [26.2, 15.4], [27.8, 17.6]], 4.8, c.dark);
+  for (const [x, y] of [[19.4, 26.6], [23.2, 27.6], [26.2, 25.6]]) m.ball(x, y, 6, 0.45, c.spine, 0.6);
+  for (const side of [-1, 1]) {
+    m.egg(16 + side * 4.8, 22.6, 4, 3, 3.4, 2.6, c.scale);
+    m.egg(16 + side * 6, 19.6, 3.6, 1.4, 2, 1.2, c.dark);
+    m.egg(16 + side * 4.4, 12.6, 4.6, 1.5, 2.3, 1.4, c.scale);
+    for (const dx of [-0.8, 0.8]) {
+      m.dot(16 + side * 6 + dx - 0.5, 17.4, HORN, 6);
+      m.dot(16 + side * 4.4 + dx - 0.5, 10.2, HORN, 7);
+    }
+  }
+  m.egg(16, 18.6, 7.5, 5.2, 6.6, 4, c.scale);
+  scales(m, 16, 18.6, 5.2, 6.6, 7.5, 4, c.light);
+  scales(m, 11.2, 22.6, 3, 3.4, 4, 2.6, c.light);
+  scales(m, 20.8, 22.6, 3, 3.4, 4, 2.6, c.light);
+  for (const side of [-1, 1]) {
+    const x = (dx) => 16 + side * dx;
+    m.sheet([[x(3), 13.2], [x(6.6), 14.6], [x(7.8), 20], [x(6.8), 26.6], [x(4.2), 24], [x(2.6), 19]], 12, c.skin);
+    m.sheet([[x(3), 14.6], [x(5.4), 15.8], [x(6.2), 20.6], [x(5.6), 24.2], [x(4.2), 22.4]], 12.2, c.fold, AWAY);
+    chain(m, [[x(3), 13.2], [x(6.8), 15.2], [x(7.6), 20.4], [x(6.8), 26.4]], 12.6, 0.9, 0.5, c.scale);
+    m.limb(x(6.8), 15.2, 13, x(7.6), 13.6, 13.2, 0.45, HORN, 0, 0.15);
+  }
+  spine(m, c, 11.6, 23, 11.4);
+  dragonHead(m, c, 7.4, 10.4);
+}
+
+function dragonFly(m, c, span) {
+  chain(m, [[16, 22], [17.2, 25.4], [16.6, 28.6], [15, 31.6], [15.6, 33.6]], 5, 1.9, 0.4, c.scale);
+  m.sheet([[15.6, 32.8], [13.6, 35], [15.6, 37], [17.6, 35]], 5.6, c.dark);
+  for (const side of [-1, 1]) {
+    const sx = 16 + side * 3.4, wing = (dx, y) => [sx + side * (dx - 3.4) * span, y];
+    const S = [sx, 14.4], W = wing(12.4, 9.6), tips = [wing(17.6, 6.6), wing(18.6, 12.6), wing(16.6, 18.6),
+      wing(11.6, 22.6)], B = [sx, 21.2];
+    const dip = (a, b) => [W[0] + ((a[0] + b[0]) / 2 - W[0]) * 0.7, W[1] + ((a[1] + b[1]) / 2 - W[1]) * 0.7];
+    for (let i = 0; i < 3; i++) {
+      const panel = [W, tips[i], dip(tips[i], tips[i + 1]), tips[i + 1]];
+      m.sheet(panel, 6.4, i % 2 ? c.fold : c.skin, i % 2 ? AWAY : [0, 0, 1]);
+    }
+    m.sheet([S, W, tips[3], dip(tips[3], B), B], 6.4, c.fold, AWAY);
+    m.limb(S[0], S[1], 7.2, W[0], W[1], 7.6, 1.1, c.scale, 0, 0.75);
+    for (const tip of tips) m.limb(W[0], W[1], 7.4, tip[0], tip[1], 7, 0.55, c.dark, 0, 0.2);
+    m.limb(W[0], W[1], 7.8, W[0] + side * 0.6, W[1] - 1.8, 8, 0.45, HORN, 0, 0.15);
+    m.egg(16 + side * 3.4, 22.4, 4.4, 1.5, 2.2, 1.2, c.scale);
+    m.dot(16 + side * 3.4 - 0.5, 24.2, HORN, 6);
+  }
+  m.egg(16, 17.4, 7, 4, 6.4, 3.4, c.scale);
+  scales(m, 16, 17.4, 4, 6.4, 7, 3.4, c.light);
+  spine(m, c, 11, 30, 9.6);
+  dragonHead(m, c, 6.4, 9.6);
 }
 
 function phoenix(m, deep, plume, flare, core) {
@@ -365,8 +460,12 @@ const SKINS = {
   'pyro-ragged': ragged,
   'pyro-fireball': (m) => fireballMage(m, '#f97316', '#fde047'),
   'pyro-fireball-blue': (m) => fireballMage(m, '#3b82f6', '#e0f2ff'),
-  'pyro-dragon': (m) => dragon(m, '#c2410c', '#7c2d12', '#fde047'),
-  'pyro-dragon-blue': (m) => dragon(m, '#1d4ed8', '#1e3a8a', '#9bd5ff'),
+  'pyro-dragon': (m) => dragon(m, DRAGONS.red),
+  'pyro-dragon-blue': (m) => dragon(m, DRAGONS.blue),
+  'pyro-dragon-fly': (m) => dragonFly(m, DRAGONS.red, 1),
+  'pyro-dragon-flap': (m) => dragonFly(m, DRAGONS.red, 0.72),
+  'pyro-dragon-blue-fly': (m) => dragonFly(m, DRAGONS.blue, 1),
+  'pyro-dragon-blue-flap': (m) => dragonFly(m, DRAGONS.blue, 0.72),
   'pyro-ignite': (m) => igniteMage(m, '#f97316', '#fde047'),
   'pyro-ignite-blue': (m) => igniteMage(m, '#3b82f6', '#e0f2ff'),
 };

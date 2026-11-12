@@ -1653,15 +1653,20 @@ export class Scene {
     const now = battle.time;
     for (const t of battle.towers) {
       const pose = this._pose(t), lit = highlight && highlight.has(t.player.login);
-      let spot = { x: t.cx, y: t.cy, lift: 0, riding: false };
+      let spot = { x: t.cx, y: t.cy, lift: 0, riding: false }, look = t.look;
       if (t.rider) spot = this._riderSpot(t, pose, now);
       else if (t.pull && now < t.pull.end) {
         const k = 1 - Math.pow(1 - Math.max(0, (now - t.pull.start) / (t.pull.end - t.pull.start)), 2);
         spot = { x: t.pull.fx + (t.cx - t.pull.fx) * k, y: t.pull.fy + (t.cy - t.pull.fy) * k,
-          lift: Math.sin(k * Math.PI) * 10, riding: false };
+          lift: Math.sin(k * Math.PI) * (t.pull.fly ? 22 : 10), riding: false };
+        if (t.pull.fly) {
+          look = t.look + (Math.floor(this.clock * 7) % 2 ? '-flap' : '-fly');
+          pose.angle = Math.atan2(t.cx - t.pull.fx, -(t.cy - t.pull.fy));
+        }
       }
       pose.x = spot.x;
       pose.y = spot.y;
+      pose.lift = spot.lift;
       if (t.rider && battle.covered(spot.x, spot.y)) continue;
       const x = at(spot.x), y = at(spot.y) - spot.lift;
       if (!still) {
@@ -1680,10 +1685,10 @@ export class Scene {
       if (t.boost.muse) glow(ctx, x, y, 20, 'rgba(168, 85, 247, .95)', 0.3 + 0.12 * Math.sin(this.clock * 5));
       const firing = now - t.lastShot < 0.4;
       if (t.berserk && firing) glow(ctx, x, y, 22, 'rgba(239, 68, 68, .95)', 0.45 + 0.2 * Math.sin(this.clock * 14));
-      ctx.globalAlpha = t.busy > now && !t.perch ? 0.5 : 1;
+      ctx.globalAlpha = t.busy > now && !t.perch && look === t.look ? 0.5 : 1;
       const lift = pose.kick > 0 ? Math.round(pose.kick / KICK * 2) : 0;
       if (t.cocoon) sprite(ctx, cocoonSprite(Math.floor(this.clock * 1.6 + t.x) % 2), x, y, 0, ZOOM, 0);
-      else sprite(ctx, heroSprite(t.look), x, y, pose.angle, ZOOM, lift, HERO_TURN_STEPS);
+      else sprite(ctx, heroSprite(look), x, y, pose.angle, ZOOM, lift, HERO_TURN_STEPS);
       if (t.berserk && firing) {
         ctx.globalAlpha = 0.35 + 0.2 * Math.sin(this.clock * 14);
         sprite(ctx, tintSprite(heroSprite(t.look), '#ff2a2a'), x, y, pose.angle, ZOOM, lift, HERO_TURN_STEPS);
@@ -1845,7 +1850,7 @@ export class Scene {
       const w = image.width / this.k, h = image.height / this.k;
       const riding = t.rider && t.host && !t.host.dead;
       const x = Math.max(1, Math.min(BOARD - w - 1, at(pose.x) - w / 2));
-      let y = at(pose.y) + (riding ? 31 : -23) - (marked ? 2 : 0);
+      let y = at(pose.y) - (pose.lift || 0) + (riding ? 31 : -23) - (marked ? 2 : 0);
       if (y - h / 2 < EDGE) y = at(pose.y) + 31;
       const box = [x - 1, y - h / 2, x + w + 1, y + h / 2];
       if (taken.some((o) => box[0] < o[2] && o[0] < box[2] && box[1] < o[3] && o[1] < box[3])) continue;
@@ -2131,10 +2136,7 @@ export class Scene {
       add({ kind: 'ring', life: 0.6, x: event.x, y: event.y, r: 0.8, color: '#f97316', width: 3 });
       this._sparks(event.x, event.y, FLAME.slice(0, 3), 16, 2.4, 0.6, 3);
     } else if (event.kind === 'flight') {
-      add({ kind: 'shot', life: 0.35, x1: event.x1, y1: event.y1, x2: event.x, y2: event.y,
-        bolt: { look: 'tracer', color: '#ff9a1f', width: 4 } });
-      this._sparks(event.x1, event.y1, FLAME.slice(0, 3), 10, 2, 0.4, 2);
-      this._sparks(event.x, event.y, FLAME.slice(0, 3), 14, 2.4, 0.5, 3);
+      this._sparks(event.x1, event.y1, FLAME.slice(0, 3), 14, 2.4, 0.5, 3);
     } else if (event.kind === 'net') {
       add({ kind: 'chain', life: 0.3, points: [[t.cx, t.cy], [event.mob.x, event.mob.y]],
         color: 'rgba(214, 180, 120, .7)' });
