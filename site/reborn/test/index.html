@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Чатоборона Реборн — тест</title>
+<link rel="stylesheet" href="../css/page.css">
+<link rel="stylesheet" href="test.css">
+</head>
+<body>
+<main class="page">
+  <form class="panel gate" id="gate" autocomplete="off">
+    <h2>Вход</h2>
+    <div class="row">
+      <input type="text" id="nick" placeholder="Ник" aria-label="Ник" spellcheck="false">
+      <button type="submit" class="primary" id="enter" disabled>Войти</button>
+    </div>
+    <p class="status warn" id="gate-status"></p>
+  </form>
+  <div class="layout with-settings lab" id="lab" hidden>
+    <div class="stage">
+      <div class="screen"><iframe id="game" title="Чатоборона Реборн — тест"></iframe></div>
+    </div>
+    <aside class="panel settings admin" id="admin"></aside>
+  </div>
+</main>
+<script type="module" src="admin.js"></script>
+</body>
+</html>

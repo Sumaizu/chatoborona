@@ -57,10 +57,10 @@ const MINE_BLASTS = {
   grenade: { sparks: ['#fff3b0', '#ffb020', '#5f6b3a'], ring: '#ffd84a' },
 };
 const CHARGES = {
-  heavy: { ring: '#fff3b0', glow: 'rgba(255, 243, 176, .95)', sparks: ['#ffffff', '#fff3b0'] },
-  aim: { ring: '#ef4444', glow: 'rgba(255, 90, 90, .95)', sparks: ['#fecaca', '#ef4444'] },
-  rpg: { ring: '#ffb020', glow: 'rgba(255, 176, 32, .95)', sparks: ['#ffd84a', '#ff8a1f'] },
-  beam: { ring: '#ff8a1f', glow: 'rgba(255, 138, 31, .95)', sparks: ['#ffd84a', '#ff5a1f'] },
+  heavy: { glow: 'rgba(255, 243, 176, .95)', sparks: ['#ffffff', '#fff3b0'] },
+  aim: { glow: 'rgba(255, 90, 90, .95)', sparks: ['#fecaca', '#ef4444'] },
+  rpg: { glow: 'rgba(255, 176, 32, .95)', sparks: ['#ffd84a', '#ff8a1f'] },
+  beam: { glow: 'rgba(255, 138, 31, .95)', sparks: ['#ffd84a', '#ff5a1f'] },
 };
 const ELEMENT_TONES = { fire: '#ff8a1f', poison: '#a3e635', ice: '#a5f3fc', storm: '#fde047' };
 const STORM_GUSTS = 14;
@@ -1734,10 +1734,6 @@ export class Scene {
       }
       if (t.hot && firing) this._muzzleFire(ctx, x, y, pose.angle);
       if (t.reloadUntil > now) this._progress(ctx, x, y - 2, 1 - (t.reloadUntil - now) / t.cls.base.reload, '#e5e7eb');
-      if (t.charge && t.charge.kind !== 'beam') {
-        const share = (now - t.charge.at) / (t.charge.until - t.charge.at);
-        this._progress(ctx, x, y - 2, share, CHARGES[t.charge.kind].ring);
-      }
       if (pose.flash > 0 && !t.rider && !t.cocoon) {
         const a = pose.angle, d = HERO_SIZE * ZOOM / 2 + 1;
         const fx = x + Math.sin(a) * d, fy = y - Math.cos(a) * d;

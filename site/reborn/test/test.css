@@ -1,0 +1,28 @@
+.gate { align-self: center; margin-top: 18vh; width: min(360px, 100%); }
+.lab.layout.with-settings { grid-template-columns: minmax(0, 1fr) 440px; }
+.admin { display: grid; align-content: start; gap: 10px; padding: 12px 14px; font-size: 14px; }
+.admin button { padding: 5px 9px; border-radius: 9px; font-size: 13px; }
+.admin input, .admin select { padding: 5px 8px; border-radius: 8px; font-size: 13px; }
+.admin input[type=number] { width: 72px; }
+.admin details { border: 1px solid var(--line); border-radius: 12px; padding: 6px 10px 10px; background: var(--field); }
+.admin details[open] > summary { margin-bottom: 8px; }
+.admin summary {
+  cursor: pointer; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--accent);
+}
+.admin .rows { display: grid; gap: 7px; }
+.admin .row { gap: 6px; }
+.admin .row > span { color: var(--muted); }
+.admin .row > select { flex: 1 1 120px; }
+.admin label.tick { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); }
+.admin .state { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.admin .state b { color: var(--ink); }
+.admin .skills { display: grid; gap: 3px; max-height: 260px; overflow-y: auto; padding-right: 4px; }
+.admin .skills label { display: flex; align-items: center; gap: 6px; }
+.admin .skills small { color: var(--muted); }
+.admin .log { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; max-height: 180px; overflow-y: auto;
+  font-size: 12.5px; }
+.admin .log b { color: var(--accent); }
+.admin .log i { color: var(--muted); font-style: normal; }
+.admin .options { display: grid; gap: 4px; }
+.admin .options button { text-align: left; }
