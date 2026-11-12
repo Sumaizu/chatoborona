@@ -1828,7 +1828,7 @@ export class Battle {
   }
 
   _fly(t, now) {
-    const lead = this._leader();
+    const lead = this._leader((mob) => !immune(mob, t.cls.element));
     if (!lead) return;
     const cx = Math.floor(lead.x), cy = Math.floor(lead.y);
     let best = null;
@@ -1852,7 +1852,7 @@ export class Battle {
 
   _torchHit(t, mob, damage) {
     const pyro = t.torch;
-    if (!pyro || mob.dead || !this.towers.includes(pyro)) return;
+    if (!pyro || mob.dead || immune(mob, 'fire') || !this.towers.includes(pyro)) return;
     this._hurt(mob, damage * FIRE.torch.share * (pyro.runes.has('blue') ? FIRE.blue : 1), t, 'fire', true);
     if (pyro.react && mob.hp > 0) this._mark(mob, 'fire', pyro);
   }
@@ -2133,7 +2133,8 @@ export class Battle {
   }
 
   _targetable(t, mob, range = t.range, mode = t.cls.base.target) {
-    if (mob.dead || hidden(mob, this.time) || !near(mob, t.cx, t.cy, range) || !this.sees(t, mob)) return false;
+    if (mob.dead || hidden(mob, this.time) || immune(mob, t.cls.element) || !near(mob, t.cx, t.cy, range)
+      || !this.sees(t, mob)) return false;
     if (mode === 'potion' && (mob.flying || mob.undead && !t.runes.has('plague'))) return false;
     if (mode === 'land' && mob.flying) return false;
     return true;
@@ -2153,7 +2154,6 @@ export class Battle {
       if (mode === 'strongest') score = mob.hp + (t.cls.base.skyFirst && mob.flying ? 1e12 : 0);
       else if (mode === 'bigFirst' && prized(mob)) score += big(mob) ? 2e6 : 1e6;
       else if (mode === 'small' && prized(mob)) score -= 1e6;
-      if (immune(mob, t.cls.element)) score -= 1e15;
       if (score > bestScore) {
         bestScore = score;
         best = mob;
@@ -2550,6 +2550,7 @@ function kindle(b, t, mob) {
 }
 
 function scorch(b, t, mob, damage) {
+  if (immune(mob, 'fire')) return;
   b._hurt(mob, damage * flame(t), t, 'fire');
   if (mob.dead || !t.runes.has('smolder')) return;
   b._ignite(mob, t, t.damage * FIRE.smolder * flame(t), FIRE.burn * (t.runes.has('blue') ? FIRE.blueBurn : 1));
@@ -2975,7 +2976,7 @@ const SKILLS = {
       if (t.style === 'ignite' && alive && now >= (t.nextIgnite || 0)) {
         t.nextIgnite = now + PULSE;
         for (const mob of b.mobs.slice()) {
-          if (mob.dead || hidden(mob, now) || b.covered(mob.x, mob.y)
+          if (mob.dead || hidden(mob, now) || immune(mob, 'fire') || b.covered(mob.x, mob.y)
             || b.random() >= FIRE.ignite * (1 + FIRE.black.chance * stacksOf(mob, t))) continue;
           kindle(b, t, mob);
         }
@@ -3008,8 +3009,8 @@ const SKILLS = {
       if (t.runes.has('vent') && !b.vents.some((vent) => vent.tower === t)) b._openVent(t);
       for (const vent of b.vents) {
         if (vent.tower !== t || now < vent.next) continue;
-        const prey = b.mobs.filter((mob) => !mob.dead && !hidden(mob, now) && !b.covered(mob.x, mob.y)
-          && near(mob, vent.cx, vent.cy, FIRE.vent.reach));
+        const prey = b.mobs.filter((mob) => !mob.dead && !hidden(mob, now) && !immune(mob, 'fire')
+          && !b.covered(mob.x, mob.y) && near(mob, vent.cx, vent.cy, FIRE.vent.reach));
         if (!prey.length) continue;
         vent.next = now + FIRE.vent.every;
         fireball(b, t, prey[Math.floor(b.random() * prey.length)], { x: vent.cx, y: vent.cy });

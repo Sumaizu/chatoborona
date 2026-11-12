@@ -2826,13 +2826,13 @@ test('карта: с вышки видно поверх гор, но моба в
   eq(hit(deep), 0, 'взрыв рядом не задевает моба в тоннеле');
 });
 
-test('бой: неуязвимого к своей стихии бьют в последнюю очередь', () => {
+test('бой: неуязвимого к своей стихии не бьют вовсе', () => {
   const battle = makeBattle(), pyro = battle.place(player(), 'pyro', 10, 4);
   const ember = creature(battle, 'ember', 11.2), zombie = creature(battle, 'zombie', 10.4);
   still(ember, zombie);
   ok(battle._target(pyro) === zombie, 'огонь не берёт элементаля — бьёт зомби, хоть элементаль и впереди');
   zombie.dead = true;
-  ok(battle._target(pyro) === ember, 'других нет — бьёт кого есть');
+  eq(battle._target(pyro), null, 'других нет — не бьёт никого');
 });
 
 test('карта: в снегах на льду озёр и рек стоять можно; в расщелину, кратер, руины и древности не встать нигде', () => {
@@ -3126,4 +3126,36 @@ test('маг огня, возгорание: феникс летит от сер
   fork.step(TICK);
   const exit = fork.phoenixes[0].cells;
   eq([exit[exit.length - 1].x, exit[exit.length - 1].y], [10.5, 0.5], 'ко второму выходу');
+});
+
+test('стихии: мага огня не тянет к мобам с иммунитетом к огню — не бьёт, не поджигает, не жжёт кольцом', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'pyro', 10, 4);
+  battle.setMods(t, { runes: ['fireball'] });
+  battle.random = () => 0.99;
+  t.critChance = 0;
+  const ember = creature(battle, 'ember', 11);
+  still(ember);
+  eq(battle._target(t), null, 'одна цель, и та с иммунитетом — целиться не во что');
+  eq(battle._fire(t), false, 'шар не летит');
+  const plain = creature(battle, 'zombie', 12);
+  still(plain);
+  eq(battle._target(t), plain, 'берёт того, кого огонь берёт');
+  battle.setMods(t, { runes: ['ignite', 'flameRing', 'fireWall', 'phoenix'] });
+  battle.random = () => 0.01;
+  const before = battle.events.length;
+  runFor(battle, PULSE * 4);
+  eq(ember.hp, ember.max, 'возгорание, кольцо, стена и феникс его не трогают');
+  no(battle.events.slice(before).some((e) => e.mob === ember && e.kind === 'immune'), 'и не показывают «иммунитет»');
+  no(battle.events.slice(before).some((e) => e.kind === 'ignite' && e.x === ember.x && e.y === ember.y));
+  ok(hit(plain) > 0, 'остальных жжёт');
+  const sky = makeBattle(), d = sky.place(player(), 'pyro', 2, 4);
+  sky.setMods(d, { runes: ['dragon', 'flight'] });
+  const front = creature(sky, 'ember', 16), back = creature(sky, 'zombie', 10);
+  still(front, back);
+  runFor(sky, FIRE.idle + 0.2);
+  ok(Math.abs(d.cx - back.x) < 1.6 && Math.abs(d.cy - back.y) < 1.6, 'дракон летит к первому, кого может жечь');
+  const thunder = battle.place(player(), 'thunder', 12, 4), storm = creature(battle, 'stormling', 13);
+  still(storm);
+  no(battle._targetable(thunder, storm), 'маг молнии тоже не целится в грозового элементаля');
+  ok(battle._targetable(thunder, ember), 'а в огненного — да');
 });
