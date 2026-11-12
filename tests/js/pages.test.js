@@ -430,6 +430,8 @@ test('страницы: главная — без канала просит ка
   ok(home.querySelector('img').naturalWidth > 0, 'логотип загрузился');
   ok(element(w, 'news').open, 'при открытии — новости');
   no(element(w, 'rules').open, 'правила сами не открываются');
+  ok(element(w, 'settings').contains(element(w, 'reset')), 'сброс — в настройках');
+  no(w.document.querySelector('.top').contains(element(w, 'reset')), 'а не в шапке');
   ok(text(w, 'news').includes('Чатоборона Реборн') && text(w, 'news').includes('ни один стример'));
   eq(w.document.querySelector('#news a').getAttribute('href'), 'reborn/', 'ссылка на Реборн');
   element(w, 'news-close').click();

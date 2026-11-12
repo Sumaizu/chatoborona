@@ -15,12 +15,12 @@ export const EXTRA_SLOTS = [30, 100];
 export const ASCEND_AT = 30;
 
 export const OUTCOMES = [
-  { id: 'void', name: 'Пустота', color: '#6b7280', chance: 0.097 },
+  { id: 'void', name: 'Пустота', color: '#6b7280', chance: 0.147 },
   { id: 'handful', name: 'Горстка монет', color: '#facc15', chance: 0.075, coins: [1, 50] },
   { id: 'bag', name: 'Мешок монет', color: '#e8a33d', chance: 0.0675, coins: [51, 150] },
   { id: 'chest', name: 'Сундук монет', color: '#ffb020', chance: 0.0075, coins: [151, 500] },
   { id: 'particle', name: 'Частица бога', color: '#ff2e4d', chance: 0.003 },
-  { id: 'stone', name: 'Камень навыка', color: '#e879f9', chance: 0.05 },
+  { id: 'stone', name: 'Камень навыка', color: '#e879f9', chance: 0 },
 ];
 
 export const RARITIES = [
@@ -81,9 +81,9 @@ export function ascend(weapon) {
 
 export const weaponPower = (weapon) => (weapon ? weapon.power : 0);
 
-export function spin(random, cls, { particle = false, stone = false } = {}) {
-  const pool = OUTCOMES.filter((outcome) => !(particle && outcome.id === 'particle')
-    && !(!stone && outcome.id === 'stone'));
+export function spin(random, cls, { particle = false, stone = 0 } = {}) {
+  if (stone && random() < stone) return { kind: 'stone' };
+  const pool = OUTCOMES.filter((outcome) => outcome.chance > 0 && !(particle && outcome.id === 'particle'));
   const roll = pick(pool.concat(RARITIES), random);
   if (roll.coins) {
     const [low, high] = roll.coins;

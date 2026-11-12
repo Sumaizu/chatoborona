@@ -22,7 +22,6 @@
       <button type="button" id="next" title="Не ждать: сразу карта или следующая волна" disabled>Дальше</button>
       <button type="button" id="speed" title="Скорость игры: ×1, ×2 или ×3" disabled>×1</button>
       <button type="button" id="restart" title="Закончить эту игру и собрать отряд заново" disabled>Заново</button>
-      <button type="button" id="reset" title="Обнулить уровни, счёт и рекорд" disabled>Сброс</button>
       <button type="button" id="toggle-settings" aria-expanded="false" aria-controls="settings">Настройки</button>
       <button type="button" id="toggle-link" aria-expanded="false" aria-controls="link-panel">Ссылка для OBS</button>
       <button type="button" id="open-rules">Правила</button>
@@ -100,6 +99,13 @@
         </div>
       </fieldset>
 
+      <fieldset>
+        <legend>Уровни и рекорд</legend>
+        <div class="field">
+          <div class="row"><button type="button" id="reset" title="Обнулить уровни, счёт и рекорд" disabled>Сброс</button><span class="hint">обнулить уровни, счёт и рекорд канала — нажать дважды, пока идёт игра</span></div>
+        </div>
+      </fieldset>
+
       <div class="footer"><button type="button" class="quiet" id="defaults">Рекомендуемые настройки</button></div>
     </form>
   </div>
@@ -109,6 +115,23 @@
     <p class="author">Создано <a href="https://www.twitch.tv/sumaizu" target="_blank" rel="noopener">Sumaizu</a></p>
   </footer>
 </main>
+<dialog class="rules news" id="news" aria-labelledby="news-title">
+  <header class="rules-head">
+    <h2 id="news-title">Чатоборона Реборн — ранняя альфа</h2>
+    <button type="button" class="rules-x" id="news-x" aria-label="Закрыть">×</button>
+  </header>
+  <div class="rules-body">
+    <ul class="news-list">
+      <li><b class="alpha-word">Игра в ранней альфе.</b> Она не сбалансирована и ещё сырая: что-то может работать не так, а правила будут меняться.</li>
+      <li><b>Уровни свои.</b> Уровни и рекорд Реборна не пересекаются с обычной Чатобороной.</li>
+      <li><b>Потом Реборн заменит Чатоборону.</b> После релиза он встанет на место старой Чатобороны, а прогресс и уровни перенесутся по результатам старой Чатобороны.</li>
+    </ul>
+    <p class="note-line">Как играть и все команды — кнопка «Правила» в шапке.</p>
+  </div>
+  <footer class="rules-foot">
+    <button type="button" class="primary" id="news-close">Понятно</button>
+  </footer>
+</dialog>
 <dialog class="rules" id="rules" aria-labelledby="rules-title">
   <header class="rules-head">
     <h2 id="rules-title"></h2>

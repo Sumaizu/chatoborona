@@ -1,7 +1,8 @@
 import { MIGHT, STAT, TOWER } from './balance.js';
 
 export const PERKS = [10, 30, 50];
-export const STONES = [10, 30, 50, 75];
+export const STONES = [1, 10, 30, 50, 70, 100];
+export const STONE_CHANCE = { first: 0.2, next: 0.03 };
 export const RUNE_CAPS = { rot: 0.6, thorn: 40, shatter: 40 };
 
 const pct = (value) => Math.round(value * 100) + '%';
@@ -171,8 +172,8 @@ export const CLASSES = [
         scale: { every: 'haste', bonus: 'dmg', stun: 'time' },
         text: (v) => 'раз в ' + sec(v.every) + ' бьёт молнией в первого моба на дороге, где бы он ни был: '
           + 'критический урон ×' + num(v.bonus) + ' ему и всем ' + around(v.radius) + ', оглушение на ' + sec(v.stun) },
-      { name: 'Перегрузка', v: {},
-        text: () => 'электрошок бьёт не только мокрых, но и заряженных: молния по ним вдвое сильнее и оглушает' },
+      { name: 'Грозовая реакция', v: {},
+        text: () => 'его удары накладывают на мобов стихию молнии — для реакций с другими стихиями' },
       { name: 'Грозовая туча', v: { every: 20, time: 8, radius: 1, bonus: 2 },
         scale: { every: 'haste', time: 'time', bonus: 'dmg' },
         text: (v) => 'раз в ' + sec(v.every) + ' над дорогой встаёт грозовая туча на ' + sec(v.time) + ': дважды в '
@@ -183,6 +184,7 @@ export const CLASSES = [
           + 'поле: урон ×' + num(v.bonus) },
     ],
     pool: ['perk0', 'perk1', 'perk3', 'perk2', 'perk4', 'perk5', 'chain'],
+    react: { skill: 'perk3', element: 'lightning' },
     runes: [
       { id: 'chain', name: 'Живая цепь', text: 'молния не слабеет, перескакивает ещё на 5 мобов и может идти '
         + 'в обе стороны' },
@@ -224,10 +226,13 @@ export const CLASSES = [
       { name: 'Философский камень', v: { chance: 0.15, coins: 3 }, scale: { chance: 'luck' },
         text: (v) => 'моб, погибший отравленным, с шансом ' + pct(v.chance) + ' рассыпается золотом: каждому в '
           + 'отряде +' + v.coins + ' монеты' },
+      { name: 'Ядовитая реакция', v: {},
+        text: () => 'его удары накладывают на мобов стихию яда — для реакций с другими стихиями' },
     ],
-    pool: ['perk0', 'perk3', 'perk1', 'perk4', 'perk2', 'epidemic', 'perk5'],
+    pool: ['perk0', 'perk3', 'perk1', 'perk4', 'perk2', 'epidemic', 'perk5', 'perk6'],
+    react: { skill: 'perk6', element: 'poison' },
     runes: [
-      { id: 'epidemic', name: 'Эпидемия', text: 'яд чернеет: берёт и нежить, пробивает броню и щиты, бьёт на 25% '
+      { id: 'epidemic', name: 'Чёрный мор', text: 'яд чернеет: берёт и нежить, пробивает броню и щиты, бьёт на 25% '
         + 'сильнее; отравленный, умирая, заражает соседей на клетку вокруг' },
       { id: 'infection', name: 'Инфекция', text: 'отравленные гниют ещё 5 с после яда: теряют 1% здоровья в секунду '
         + '(боссы — 0,3%), но не больше урона ×' + num(RUNE_CAPS.rot) + ' в секунду' },
@@ -243,44 +248,47 @@ export const CLASSES = [
     earn: { xp: 1.2, coins: 1.18 },
     weapon: 'посох',
     stats: { str: 'low', agi: 'mid', int: 'mid' },
-    base: { damage: 0.8, interval: 1, range: 3, burn: 0.3, burnTime: 3, undead: 1.5, cone: 0.35, jet: 0.15,
-      jetEvery: 0.2 },
-    summary: 'Огненные шары: цель загорается',
-    main: (b) => 'Бросает огненные шары на ' + cells(b.range) + ': урон ×' + num(b.damage) + ', и цель горит '
-      + sec(b.burnTime) + '; нежить горит в ' + num(b.undead) + ' раза сильнее',
-    skills: [
-      { name: 'Струя пламени', v: { time: 3, dps: 12 }, scale: { time: 'time', dps: 'dmg' },
-        text: (v) => 'вместо шаров бьёт непрерывной узкой струёй, сперва по мелочи: задетые горят ещё ' + sec(v.time)
-          + ', теряя в секунду ×' + num(v.dps) + ' урона струи' },
-      { name: 'Вспыхнуть', v: { chance: 0.1, bonus: 18, radius: 1 },
-        scale: { chance: 'luck', bonus: 'dmg', radius: 'power' },
-        text: (v) => 'горящий с шансом ' + pct(v.chance) + ' в секунду вспыхивает: урон ×' + num(v.bonus)
-          + ' ему и огненному кольцу ' + around(v.radius) },
-      { name: 'Нефть', v: { every: 20, radius: 1.5, time: 3, dps: 27, keep: 20 },
-        scale: { every: 'haste', time: 'time', dps: 'dmg' },
-        text: (v) => 'раз в ' + sec(v.every) + ' разливает нефть на дорогу рядом с собой; от огня она горит '
-          + sec(v.time) + ' и жжёт всех в ней на ×' + num(v.dps) + ' урона в секунду' },
-      { name: 'Огненный шар', v: { radius: 1 },
-        text: (v) => 'шар взрывается: всем ' + around(v.radius) + ' тот же урон, и все загораются' },
-      { name: 'Стена огня', v: { every: 15, time: 6, radius: 0.9, dps: 20 },
-        scale: { every: 'haste', time: 'time', dps: 'dmg' },
-        text: (v) => 'раз в ' + sec(v.every) + ' перед мобами поперёк дороги встаёт стена огня на ' + sec(v.time)
-          + ': всех в ней жжёт ×' + num(v.dps) + ' урона в секунду' },
-      { name: 'Феникс', v: { every: 30, bonus: 6, step: 0.06 }, scale: { every: 'haste', bonus: 'dmg' },
-        text: (v) => 'раз в ' + sec(v.every) + ' огненный феникс пролетает по всей дороге от сердца к порталам: всем '
-          + 'на пути урон ×' + num(v.bonus) + ', и все загораются' },
-      { name: 'Инферно', v: { every: 60, time: 3, dps: 15 }, scale: { every: 'haste', time: 'time', dps: 'dmg' },
-        text: (v) => 'раз в ' + sec(v.every) + ' всё поле в огне: все мобы горят ' + sec(v.time) + ', теряя ×'
-          + num(v.dps) + ' урона в секунду' },
-      { name: 'Сердце вулкана', v: { radius: 1, bonus: 4 }, scale: { bonus: 'dmg' },
-        text: (v) => 'горящий моб, погибая, взрывается: всем ' + around(v.radius) + ' урон ×' + num(v.bonus)
-          + ', и они загораются' },
+    base: { damage: 0.8, interval: 1, range: 3 },
+    summary: 'Огненные шары; первый камень даёт стиль: огненный шар, дракон или возгорание',
+    main: (b) => 'Бросает огненные шары на ' + cells(b.range) + ', урон огнём ×' + num(b.damage),
+    styles: [
+      { id: 'fireball', name: 'Огненный шар', text: 'шары крупнее, летят дальше и бьют сильнее, а у цели взрываются на '
+        + 'клетку вокруг' },
+      { id: 'dragon', name: 'Дракон', text: 'маг становится драконом: вместо шаров дышит струёй пламени — раз в тик '
+        + 'жжёт всех в конусе' },
+      { id: 'ignite', name: 'Возгорание', text: 'не стреляет, зато каждый тик любой моб на карте может вспыхнуть от '
+        + 'его огня — у каждого свой шанс' },
     ],
-    pool: ['perk0', 'perk3', 'perk1', 'perk4', 'perk2', 'perk5', 'perk6', 'perk7'],
-    runes: [
-      { id: 'nozzle', name: 'Широкое сопло', text: 'струя огня вдвое шире' },
-      { id: 'blue', name: 'Синее пламя', text: 'огонь синеет: урон и горение вдвое сильнее' },
+    upgrades: [
+      { id: 'giant', style: 'fireball', name: 'Гигантский шар', text: 'шар ещё больше: сильнее, дальше, чаще бьёт '
+        + 'критом, взрыв шире' },
+      { id: 'twin', style: 'fireball', name: 'Двойной каст', text: 'вместе с шаром летит второй такой же — '
+        + 'в случайного моба в радиусе' },
+      { id: 'rain', style: 'fireball', name: 'Огненный дождь', text: 'раз в несколько секунд на мобов вокруг одной из '
+        + 'целей сыплются огненные шары, на 3 клетки вокруг' },
+      { id: 'vent', style: 'fireball', name: 'Жерло', text: 'рядом с магом открывается жерло вулкана до конца игры: '
+        + 'раз в несколько секунд плюётся огненным шаром в моба в 5 клетках' },
+      { id: 'wide', style: 'dragon', name: 'Широкое дыхание', text: 'струя пламени шире' },
+      { id: 'lungs', style: 'dragon', name: 'Большие лёгкие', text: 'струя вдвое длиннее, и дракон достаёт вдвое '
+        + 'дальше' },
+      { id: 'flight', style: 'dragon', name: 'Перелёт', text: 'если 3 секунды некого жечь, дракон перелетает к первому '
+        + 'мобу на карте' },
+      { id: 'beam', style: 'dragon', name: 'Заряженное дыхание', text: 'раз в несколько секунд секунду набирает '
+        + 'пламя и бьёт лучом в ближайшего — сперва в элитных и боссов' },
     ],
+    abilities: [
+      { id: 'smolder', name: 'Тление', text: 'кого задел его огонь, тот ещё несколько секунд горит и теряет здоровье '
+        + 'каждый тик' },
+      { id: 'fireReact', name: 'Огненная реакция', text: 'его огонь накладывает на мобов стихию огня — для реакций с '
+        + 'другими стихиями' },
+      { id: 'torch', name: 'Факел', text: 'снайпер, пулемётчик и охотник в клетке от мага добавляют к ударам огонь, '
+        + 'а с «Огненной реакцией» — и стихию огня' },
+      { id: 'blue', name: 'Синее пламя', text: 'его огонь синеет: бьёт сильнее, горит дольше, а реакции с его огнём '
+        + 'сильнее' },
+    ],
+    react: { skill: 'fireReact', element: 'fire' },
+    skills: [],
+    runes: [],
   },
   {
     id: 'hunter',
@@ -426,26 +434,26 @@ export const CLASSES = [
           + 'тоннелях; в буре мобы медленнее на ' + pct(Math.min(0.8, v.slow)) + ', а вышедшие ещё ' + sec(v.time)
           + ' подморожены' },
       { name: 'Заморозка', v: { chance: 0.08, time: 1.5 }, scale: { chance: 'luck', time: 'time' },
-        text: (v) => 'с шансом ' + pct(v.chance) + ' его удар замораживает на ' + sec(v.time)
-          + ', а мокрого — всегда' },
+        text: (v) => 'с шансом ' + pct(v.chance) + ' его удар замораживает на ' + sec(v.time) },
       { name: 'Снегопад', v: { every: 30, time: 3, chance: 0.15, slow: 0.3 },
         scale: { every: 'haste', time: 'time', chance: 'luck' },
         text: (v) => 'раз в ' + sec(v.every) + ' снег на всё поле: все мобы ' + sec(v.time) + ' подморожены, а с '
           + 'шансом ' + pct(v.chance) + ' — заморожены' },
       { name: 'Волна', v: { every: 6, push: 1 }, scale: { every: 'haste' },
         text: (v) => 'раз в ' + sec(v.every) + ' пускает волну: все мобы в его радиусе отброшены ' + by(v.push)
-          + ' назад и намокают; боссов не сдвинуть' },
+          + ' назад; боссов не сдвинуть' },
       { name: 'Водоворот', v: { every: 15, time: 3, radius: 1, dps: 3 },
         scale: { every: 'haste', time: 'time', dps: 'dmg' },
         text: (v) => 'раз в ' + sec(v.every) + ' на дороге воронка на ' + sec(v.time) + ': мобы ' + around(v.radius)
           + ' крутятся на месте и получают урон ×' + num(v.dps) + ' в секунду; боссов не держит' },
       { name: 'Цунами', v: { every: 40, push: 3 }, scale: { every: 'haste' },
         text: (v) => 'раз в ' + sec(v.every) + ' волна от сердца к порталам отбрасывает всех, кроме боссов, '
-          + by(v.push) + ' назад, и все намокают' },
-      { name: 'Ливень', v: {},
-        text: () => 'над полем всё время дождь: все мобы мокрые' },
+          + by(v.push) + ' назад' },
+      { name: 'Водная реакция', v: {},
+        text: () => 'его удары накладывают на мобов стихию воды — для реакций с другими стихиями' },
     ],
     pool: ['perk0', 'perk3', 'perk1', 'perk4', 'perk2', 'perk5', 'permafrost', 'perk6'],
+    react: { skill: 'perk6', element: 'water' },
     runes: [
       { id: 'permafrost', name: 'Вечная мерзлота', text: 'подморозка и заморозка вдвое дольше' },
       { id: 'brittle', name: 'Хрупкость', text: 'замороженный моб с шансом 0,5% гибнет от любого удара; слишком '
@@ -482,8 +490,11 @@ export const CLASSES = [
       { name: 'Око бури', v: { every: 60, push: 4 }, scale: { every: 'haste' },
         text: (v) => 'раз в ' + sec(v.every) + ' смерч проходит по всей дороге и отбрасывает всех, кроме боссов, '
           + by(v.push) + ' назад' },
+      { name: 'Воздушная реакция', v: {},
+        text: () => 'его удары накладывают на мобов стихию воздуха — для реакций с другими стихиями' },
     ],
-    pool: ['perk0', 'perk3', 'perk1', 'tornado', 'perk2', 'perk4', 'perk5', 'headwind'],
+    pool: ['perk0', 'perk3', 'perk1', 'tornado', 'perk2', 'perk4', 'perk5', 'headwind', 'perk6'],
+    react: { skill: 'perk6', element: 'air' },
     runes: [
       { id: 'tornado', name: 'Торнадо', text: 'вихри становятся торнадо: впитывают огонь, яд, лёд и молнию по '
         + 'пути — с земли, из бури и с задетых мобов — и бьют всеми стихиями' },
@@ -523,8 +534,11 @@ export const CLASSES = [
       { name: 'Зыбучий песок', v: { every: 10, time: 6, radius: 1, slow: 0.5 }, scale: { every: 'haste', time: 'time' },
         text: (v) => 'раз в ' + sec(v.every) + ' клетка дороги перед мобами на ' + sec(v.time) + ' становится '
           + 'трясиной: мобы ' + around(v.radius) + ' медленнее на ' + pct(v.slow) },
+      { name: 'Земляная реакция', v: {},
+        text: () => 'его удары накладывают на мобов стихию земли — для реакций с другими стихиями' },
     ],
-    pool: ['perk0', 'perk5', 'perk1', 'perk3', 'perk2', 'perk4', 'steel'],
+    pool: ['perk0', 'perk5', 'perk1', 'perk3', 'perk2', 'perk4', 'steel', 'perk6'],
+    react: { skill: 'perk6', element: 'earth' },
     runes: [
       { id: 'steel', name: 'Стальная крепость', text: 'стена из стали, втрое прочнее, а рухнув, взрывается камнями '
         + 'и оглушает всех вокруг' },
@@ -693,10 +707,35 @@ export const mightOf = (power = 0, paragon = 0) => Math.round((MIGHT.base + powe
 export function poolOf(id) {
   const cls = CLASS_BY_ID.get(id);
   if (!cls) return [];
-  const all = cls.skills.map((skill, i) => ({ id: 'perk' + i, perk: i, name: skill.name,
+  if (cls.styles) {
+    const tag = (kind) => (skill) => Object.assign({ kind, perk: null }, skill);
+    return cls.styles.map(tag('style')).concat(cls.upgrades.map(tag('upgrade')), cls.abilities.map(tag('ability')));
+  }
+  const all = cls.skills.map((skill, i) => ({ id: 'perk' + i, perk: i, kind: 'ability', name: skill.name,
     text: skill.text(scaled(skill, mastery())) }))
-    .concat(cls.runes.map((rune) => ({ id: rune.id, perk: null, name: rune.name, text: rune.text })));
+    .concat(cls.runes.map((rune) => ({ id: rune.id, perk: null, kind: 'ability', name: rune.name, text: rune.text })));
   return cls.pool ? cls.pool.map((key) => all.find((skill) => skill.id === key)) : all;
+}
+
+export function choiceOf(id, taken) {
+  const pool = poolOf(id), style = pool.find((skill) => skill.kind === 'style' && taken.includes(skill.id));
+  if (!style && pool.some((skill) => skill.kind === 'style')) {
+    return pool.filter((skill) => skill.kind === 'style').map((skill) => ({ skill, state: 'open' }));
+  }
+  return pool.filter((skill) => skill.kind !== 'style' && (!skill.style || style && skill.style === style.id))
+    .map((skill) => ({ skill, state: taken.includes(skill.id) ? 'taken' : 'open' }));
+}
+
+export function styleOf(id, taken) {
+  const cls = CLASS_BY_ID.get(id);
+  return cls && cls.styles ? cls.styles.find((item) => taken.includes(item.id)) || null : null;
+}
+
+export function skinOf(id, taken = []) {
+  const cls = CLASS_BY_ID.get(id);
+  if (!cls || !cls.styles) return id;
+  const style = cls.styles.find((item) => taken.includes(item.id));
+  return style ? id + '-' + style.id + (taken.includes('blue') ? '-blue' : '') : id + '-ragged';
 }
 
 export const skillOf = (cls, id) => poolOf(cls).find((skill) => skill.id === id) || null;
@@ -704,6 +743,7 @@ export const skillOf = (cls, id) => poolOf(cls).find((skill) => skill.id === id)
 export const stonesAt = (level) => STONES.filter((at) => level >= at).length;
 
 export function describe(id, skills = []) {
-  const cls = CLASS_BY_ID.get(id);
-  return { main: cls.main(cls.base), skills: skills.map((skill) => skillOf(id, skill)).filter(Boolean) };
+  const cls = CLASS_BY_ID.get(id), style = styleOf(id, skills);
+  const main = style ? style.text[0].toUpperCase() + style.text.slice(1) : cls.main(cls.base);
+  return { main, skills: skills.map((skill) => skillOf(id, skill)).filter(Boolean) };
 }

@@ -317,12 +317,14 @@ body {
 .pick .options li { display: flex; align-items: flex-start; gap: 10px; padding: 6px 10px 7px 6px; border-radius: 12px;
   background: var(--empty); font-size: 13px; line-height: 16px; color: #d9d5ea; }
 .pick .options li b { color: var(--ink); }
-.pick .options li.rune b { color: #f5b3ff; }
 .pick .options .digit { flex: none; width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center;
   font-style: normal; font-size: 18px; font-weight: 900; color: #1d0b22; background: var(--stone);
   box-shadow: 0 2px 0 #a21caf; }
-.pick .options li.taken { opacity: .38; }
-.pick .options li.taken .digit { background: #6b6880; box-shadow: none; }
+.pick .options li.taken { opacity: .85; }
+.pick .options li.taken b { color: var(--own); }
+.pick .options li.taken .digit { background: var(--own); box-shadow: none; color: #fff; }
+.pick .options .kind { margin-left: 6px; padding: 0 6px 1px; border-radius: 6px; background: rgba(255, 255, 255, .08);
+  font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 .pick-bar { flex: none; width: 100%; height: 6px; border-radius: 3px; background: var(--empty); overflow: hidden; }
 .pick-bar i { display: block; height: 100%; background: var(--stone); }
 .pick .options.many li { padding: 4px 8px 5px 4px; font-size: 11.5px; line-height: 14px; }
@@ -533,6 +535,8 @@ body {
 .skill-line { font-size: 11.5px; line-height: 14px; color: var(--ink); margin-top: 1px; }
 .skill-line i, .skill-line b { font-style: normal; font-weight: 800; color: var(--stone); }
 .skill-line.none { color: var(--muted); }
+.skill-line.style { color: var(--muted); }
+.skill-line.style b { color: var(--own); }
 .note.skill {
   display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center; gap: 0 9px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, .5), inset 0 0 0 1.5px var(--stone), 0 0 14px rgba(232, 121, 249, .35);

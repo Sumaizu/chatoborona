@@ -47,6 +47,17 @@ export function drawMine(kind, lit) {
   return m.paint();
 }
 
+export function drawVent(lit) {
+  const m = new Model(24, 1);
+  m.egg(12, 12.5, 1.5, 10, 9.5, 3.4, '#57534e');
+  for (const [x, y, r] of [[4, 8, 2], [19, 6, 1.8], [20, 17, 2.2], [6, 18, 1.6]]) m.ball(x, y, 3, r, '#78716c');
+  m.egg(12, 12, 4.6, 6, 5.6, 1.4, '#292524');
+  m.egg(12, 12, 5.4, 4.2, 3.8, 0.8, lit ? '#f97316' : '#c2410c', 1);
+  m.ball(12, 11.6, 5.8, 1.7, lit ? '#fde047' : '#fb923c', 1);
+  m.dot(9, 9, '#fed7aa', 40);
+  return m.paint();
+}
+
 export function drawTrap(closed) {
   const m = new Model(24, 1), cx = 12, cy = 12.5;
   if (!closed) {

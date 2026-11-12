@@ -1,6 +1,6 @@
 import { Battle } from './battle.js';
 import { makeMap, parseCell, parseMove } from './field.js';
-import { CLASSES, CLASS_BY_ID, poolOf, skillOf, stonesAt } from './classes.js';
+import { CLASSES, CLASS_BY_ID, STONE_CHANCE, choiceOf, skillOf, skinOf, stonesAt } from './classes.js';
 import { FINALE, LEVEL_MAX, SLEEP_AFTER, TICK, levelOf, rollTempo, waveReward } from './balance.js';
 import { DIVINE, EXTRA_SLOTS, PRICE, QUEUE_CAP, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, UPGRADE_PRICE, boonOf,
   rankOf, spin, upgrade } from './gacha.js';
@@ -465,6 +465,7 @@ export class Game {
     total.perks = chosen.filter((skill) => skill.perk !== null).map((skill) => skill.perk);
     total.runes = chosen.filter((skill) => skill.perk === null).map((skill) => skill.id);
     total.paragon = member.paragon || 0;
+    total.look = skinOf(member.cls, member.skills || []);
     return total;
   }
 
@@ -801,10 +802,9 @@ export class Game {
       return;
     }
     if (outcome.kind === 'stone') {
-      const options = poolOf(member.cls);
-      slot.took = options.some((skill) => !member.skills.includes(skill.id));
+      slot.took = choiceOf(member.cls, member.skills).some((option) => option.state === 'open');
       if (!slot.took) return;
-      this.choices.push({ id: ++this._choiceNo, login: member.login, cls: member.cls, options, left: PICK_TIME,
+      this.choices.push({ id: ++this._choiceNo, login: member.login, cls: member.cls, left: PICK_TIME,
         span: PICK_TIME });
       this._emit('stone', { login: member.login });
       return;
@@ -832,29 +832,35 @@ export class Game {
   _stoneDue(member) {
     const rolling = this.slots.filter((slot) => slot && slot.login === member.login && slot.phase === 'spin'
       && slot.outcome.kind === 'stone').length;
-    const taken = member.skills.length + rolling + this.choices.filter((c) => c.login === member.login).length;
-    return taken < stonesAt(levelOf(member.xp)) && taken < poolOf(member.cls).length;
+    const waiting = rolling + this.choices.filter((c) => c.login === member.login).length;
+    const taken = member.skills.length + waiting;
+    if (waiting || taken >= stonesAt(levelOf(member.xp))) return 0;
+    if (!choiceOf(member.cls, member.skills).some((option) => option.state === 'open')) return 0;
+    return taken ? STONE_CHANCE.next : STONE_CHANCE.first;
+  }
+
+  optionsOf(choice) {
+    const member = this.members.get(choice.login);
+    return member && member.cls === choice.cls ? choiceOf(choice.cls, member.skills) : [];
   }
 
   _waitChoice(dt) {
     const choice = this.choices[0];
     choice.left -= dt;
     if (choice.left > 0) return;
-    const member = this.members.get(choice.login);
-    const open = choice.options.map((skill, i) => i).filter((i) => !member
-      || !member.skills.includes(choice.options[i].id));
+    const open = this.optionsOf(choice).map((option, i) => (option.state === 'open' ? i : -1)).filter((i) => i >= 0);
     if (!open.length) this.choices.shift();
     else this._choose(choice, open[Math.floor(this.random() * open.length)], true);
   }
 
   _choose(choice, index, auto = false) {
-    const skill = choice.options[index], member = this.members.get(choice.login);
-    if (!skill || member && member.skills.includes(skill.id)) return null;
+    const option = this.optionsOf(choice)[index], member = this.members.get(choice.login);
+    if (!option || option.state !== 'open') return null;
     this.choices.splice(this.choices.indexOf(choice), 1);
-    if (!member || member.cls !== choice.cls) return null;
+    const skill = option.skill;
     member.skills.push(skill.id);
     this._refresh(member);
-    this._note('skill', member, SKILL_TIME, { skill: skill.id, auto });
+    this._note('skill', member, SKILL_TIME, { skill: skill.id, auto, style: skill.kind === 'style' });
     this._emit('skill', { login: member.login, skill: skill.id, auto });
     return 'skill';
   }

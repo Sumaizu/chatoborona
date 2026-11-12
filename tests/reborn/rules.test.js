@@ -4,7 +4,8 @@ import { seeded } from './fixtures.js';
 import { BIOMES, SIZE, cellName, coverage, makeMap, parseCell } from '../../site/reborn/js/field.js';
 import { LEVEL_MAX, MIGHT, MOBS, STAT, TEMPO, WAVE, crowdFactor, eliteCount, levelOf, rollTempo, waveHp, waveReward,
   waveSpawns, xpForLevel } from '../../site/reborn/js/balance.js';
-import { CLASSES, CLASS_BY_ID, PERKS, STONES, describe, mastery, mightOf, poolOf, scaled, stonesAt }
+import { CLASSES, CLASS_BY_ID, PERKS, STONES, STONE_CHANCE, choiceOf, describe, mastery, mightOf, poolOf, scaled,
+  skinOf, stonesAt, styleOf }
   from '../../site/reborn/js/classes.js';
 import { ASCEND_AT, BOONS, DIVINE, OUTCOMES, RARITIES, boonOf, makeWeapon, rankOf, spin, upgrade, weaponPower,
   weaponTitle } from '../../site/reborn/js/gacha.js';
@@ -199,17 +200,17 @@ test('классы: пятнадцать, у каждого оружие, сво
   for (const cls of CLASSES) {
     ok(cls.weapon && cls.name && ['str', 'agi', 'int'].includes(cls.primary), cls.id);
     for (const stat of ['str', 'agi', 'int']) ok(STAT.grades[cls.stats[stat]], cls.id + ' ' + stat);
-    ok(cls.skills.length >= 3, cls.id);
-    ok(cls.runes.length >= 2, cls.id);
+    if (!cls.styles) ok(cls.skills.length >= 3 && cls.runes.length >= 2, cls.id);
     ok(cls.earn.xp > 0 && cls.earn.coins > 0, cls.id);
     const pool = poolOf(cls.id);
     ok(pool.every(Boolean), cls.id + ': все навыки набора есть');
     eq(new Set(pool.map((skill) => skill.id)).size, pool.length, cls.id + ': без повторов');
     for (const skill of pool) {
       ok(skill.name && skill.text && !/undefined|NaN/.test(skill.text), cls.id + ' ' + skill.id);
-      ok(skill.perk === null ? cls.runes.some((rune) => rune.id === skill.id) : skill.id === 'perk' + skill.perk);
+      ok(skill.perk === null ? Boolean(cls.styles) || cls.runes.some((rune) => rune.id === skill.id)
+        : skill.id === 'perk' + skill.perk);
     }
-    if (!cls.pool) eq(pool.length, 5, cls.id);
+    if (!cls.pool && !cls.styles) eq(pool.length, 5, cls.id);
     const chosen = [pool[2].id, pool[pool.length - 1].id], info = describe(cls.id, chosen.concat('чужое'));
     ok(info.main && !/undefined|NaN/.test(info.main), cls.id);
     eq(info.skills.map((skill) => skill.id), chosen, cls.id);
@@ -221,8 +222,8 @@ test('классы: пятнадцать, у каждого оружие, сво
   eq(names('hunter'), ['Капканы', 'Сеть', 'Кровопускание', 'Добыча', 'Гроза чудовищ', 'Медвежий капкан']);
   eq(names('bomber'), ['Горящая земля', 'Шрапнель', 'Детонация', 'Кассетный выстрел', 'РПГ', 'Липкая бомба',
     'Ковровая бомбардировка', 'Мегабомба']);
-  eq(names('alchemist'), ['Ядовитая лужа', 'Кислота', 'Отрава', 'Зелье безумия', 'Ядовитый туман', 'Эпидемия',
-    'Философский камень']);
+  eq(names('alchemist'), ['Ядовитая лужа', 'Кислота', 'Отрава', 'Зелье безумия', 'Ядовитый туман', 'Чёрный мор',
+    'Философский камень', 'Ядовитая реакция']);
   eq(names('miner'), ['Граната', 'Оглушающие мины', 'Усиленная мина', 'Ядерка', 'Минное поле', 'Ядерный синтез',
     'Цепная реакция']);
   eq(names('parasite'), ['Шок', 'Липкий кокон', 'Заражение', 'Налёт', 'Пожиратель', 'Королева роя', 'Захват разума']);
@@ -268,7 +269,7 @@ test('мощь: 100 без оружия, оружие прибавляет св�
 test('гача: пустота, монеты (горстка 50%, мешок 45%, сундук 5% от 15%), остальное — оружие по редкостям', () => {
   const random = seeded(11), counts = new Map(), money = { handful: [1, 50], bag: [51, 150], chest: [151, 500] };
   for (let i = 0; i < 20000; i++) {
-    const outcome = spin(random, 'sniper', { stone: true }), key = outcome.kind === 'weapon' ? outcome.weapon.rarity : outcome.kind;
+    const outcome = spin(random, 'sniper'), key = outcome.kind === 'weapon' ? outcome.weapon.rarity : outcome.kind;
     counts.set(key, (counts.get(key) || 0) + 1);
     if (money[key]) ok(outcome.coins >= money[key][0] && outcome.coins <= money[key][1], key + ' ' + outcome.coins);
   }
@@ -355,28 +356,39 @@ test('гача: частица бога — 0,3%, у кого она есть, �
   for (let i = 0; i < 2000; i++) {
     const before = OUTCOMES.slice(0, OUTCOMES.indexOf(particle)).reduce((sum, item) => sum + item.chance, 0);
     const at = (before + particle.chance * (i + 0.5) / 2000) / total;
-    if (spin(() => at, 'sniper', { stone: true }).kind === 'particle') seen += 1;
-    no(spin(() => at, 'sniper', { particle: true, stone: true }).kind === 'particle', 'уже есть — не выпадает');
+    if (spin(() => at, 'sniper').kind === 'particle') seen += 1;
+    no(spin(() => at, 'sniper', { particle: true }).kind === 'particle', 'уже есть — не выпадает');
   }
   eq(seen, 2000);
 });
 
-test('гача: камень навыка — 5%, и только тому, кому он положен', () => {
-  const stone = OUTCOMES.find((outcome) => outcome.id === 'stone');
-  eq(stone.chance, 0.05);
-  no(OUTCOMES.some((outcome) => outcome.id === 'rune'), 'рун в гаче больше нет');
-  const total = OUTCOMES.concat(RARITIES).reduce((sum, item) => sum + item.chance, 0);
-  const before = OUTCOMES.slice(0, OUTCOMES.indexOf(stone)).reduce((sum, item) => sum + item.chance, 0);
-  for (let i = 0; i < 500; i++) {
-    const at = (before + stone.chance * (i + 0.5) / 500) / total;
-    eq(spin(() => at, 'sniper', { stone: true }).kind, 'stone');
-    no(spin(() => at, 'sniper').kind === 'stone', 'не положен — не выпадает');
-  }
+test('гача: камень навыка — первый с шансом 20%, следующие — 3%, и только тому, кому он положен', () => {
+  eq([STONE_CHANCE.first, STONE_CHANCE.next], [0.2, 0.03]);
+  eq(OUTCOMES.find((outcome) => outcome.id === 'stone').chance, 0, 'в общей таблице камня нет');
+  eq(spin(() => 0.19, 'sniper', { stone: 0.2 }).kind, 'stone');
+  no(spin(() => 0.21, 'sniper', { stone: 0.2 }).kind === 'stone');
+  no(spin(() => 0.01, 'sniper').kind === 'stone', 'не положен — не выпадает');
 });
 
-test('камни навыков: ступени 10, 30, 50 и 75 уровня — по камню на каждую', () => {
-  eq(STONES, [10, 30, 50, 75]);
-  eq([0, 9, 10, 29, 30, 49, 50, 74, 75, 100].map(stonesAt), [0, 0, 1, 1, 2, 2, 3, 3, 4, 4]);
+test('камни навыков: первый — с 1 уровня, дальше на 10, 30, 50, 70 и 100', () => {
+  eq(STONES, [1, 10, 30, 50, 70, 100]);
+  eq([1, 9, 10, 29, 30, 50, 69, 70, 99, 100].map(stonesAt), [1, 1, 2, 2, 3, 4, 4, 5, 5, 6]);
+});
+
+test('маг огня: первый камень — только стиль; дальше — усиления своего стиля и способности; скин по стилю', () => {
+  eq(choiceOf('pyro', []).map((option) => option.skill.id), ['fireball', 'dragon', 'ignite']);
+  const after = choiceOf('pyro', ['dragon']);
+  eq(after.map((option) => option.skill.id),
+    ['wide', 'lungs', 'flight', 'beam', 'smolder', 'fireReact', 'torch', 'blue'], 'чужих усилений нет');
+  ok(after.every((option) => option.state === 'open'));
+  eq(choiceOf('pyro', ['ignite', 'torch']).map((option) => [option.skill.id, option.state]),
+    [['smolder', 'open'], ['fireReact', 'open'], ['torch', 'taken'], ['blue', 'open']]);
+  eq([skinOf('pyro', []), skinOf('pyro', ['dragon']), skinOf('pyro', ['fireball', 'blue'])],
+    ['pyro-ragged', 'pyro-dragon', 'pyro-fireball-blue']);
+  eq(skinOf('sniper', ['perk0']), 'sniper');
+  eq(styleOf('pyro', ['twin', 'fireball']).name, 'Огненный шар');
+  eq(choiceOf('sniper', []).length, poolOf('sniper').length, 'у классов без стилей — сразу навыки');
+  for (const option of choiceOf('pyro', [])) ok(option.skill.text.length < 140, 'коротко: ' + option.skill.name);
 });
 
 test('улучшение: +' + MIGHT.upgrade + ' мощи за каждое, сколько угодно раз', () => {

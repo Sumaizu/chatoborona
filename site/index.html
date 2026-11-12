@@ -19,7 +19,6 @@
       <button type="button" id="next" title="Не ждать: сразу карта или следующая волна" disabled>Дальше</button>
       <button type="button" id="speed" title="Скорость игры: ×1, ×2 или ×3" disabled>×1</button>
       <button type="button" id="restart" title="Закончить эту игру и собрать отряд заново" disabled>Заново</button>
-      <button type="button" id="reset" title="Обнулить уровни, счёт и рекорд" disabled>Сброс</button>
       <button type="button" id="toggle-settings" aria-expanded="false" aria-controls="settings">Настройки</button>
       <button type="button" id="toggle-link" aria-expanded="false" aria-controls="link-panel">Ссылка для OBS</button>
       <button type="button" id="open-rules">Правила</button>
@@ -94,6 +93,13 @@
           <div class="switch" role="group" aria-labelledby="webcam-label">
             <button type="button" data-webcam="none">Без вебки</button><button type="button" data-webcam="cam">С вебкой</button><button type="button" data-webcam="vtuber">Витубер</button>
           </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Уровни и рекорд</legend>
+        <div class="field">
+          <div class="row"><button type="button" id="reset" title="Обнулить уровни, счёт и рекорд" disabled>Сброс</button><span class="hint">обнулить уровни, счёт и рекорд канала — нажать дважды, пока идёт игра</span></div>
         </div>
       </fieldset>
 

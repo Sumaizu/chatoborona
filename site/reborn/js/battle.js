@@ -58,13 +58,36 @@ const COOLDOWNS = ['nextActive', 'nextBear', 'nextBlaze', 'nextBless', 'nextCarp
 const TRACE_TIME = 1;
 const WARD_AURA = 0.25;
 const FIREBALL_FLIGHT = 0.3;
-const REACT_GAP = 1;
-const SHOCK = { mul: 2, stun: 0.5 };
-const STEAM = { radius: 1, vuln: 0.25, time: 3 };
-const QUICK_FREEZE = 1.5;
-const GAS = { radius: 1, mul: 3, gap: 3 };
 const ZONE_PULSE = 0.5;
-const PHOENIX_REACH = 0.8;
+export const PULSE = 0.5;
+export const MARK_TIME = 4;
+export const STRONG = 3;
+export const REACTIONS = {
+  steam: { name: 'Пар', color: '#e2e8f0', fire: 3, time: 1 },
+  blast: { name: 'Взрыв', color: '#fb923c', fire: 3, radius: 1 },
+  corrosion: { name: 'Коррозия', color: '#a3e635', dot: 0.5, time: 4, weak: 0.25 },
+  mud: { name: 'Грязь', color: '#a16207', slow: 0.3, time: 4 },
+  frost: { name: 'Мороз', color: '#a5f3fc', slow: 0.3, time: 4, ice: 0.3 },
+  discharge: { name: 'Разряд', color: '#facc15', stun: 1 },
+  disease: { name: 'Болезнь', color: '#a78bfa', dot: 0.4, time: 4, armor: 0.3 },
+  charge: { name: 'Заряд', color: '#fde047', bonus: 0.3, time: 4 },
+  gas: { name: 'Газ', color: '#84cc16', radius: 2, time: 4, dot: 0.6 },
+  ice: { name: 'Лёд', color: '#e0f2fe', time: 2, keep: 0.5 },
+  thaw: { name: 'Пар', color: '#e2e8f0' },
+  nuke: { name: 'Ядерный взрыв', color: '#f97316', radius: 2, mul: 15 },
+  epidemic: { name: 'Эпидемия', color: '#7c3aed', dot: 0.8, time: 10, weak: 0.5 },
+  overload: { name: 'Перегрузка', color: '#fef08a', mul: 6, stun: 5 },
+  lava: { name: 'Лава', color: '#ef4444', radius: 1, time: 4, dot: 0.6, slow: 0.4 },
+};
+const PAIRS = [['fire', 'water', 'steam'], ['fire', 'lightning', 'blast'], ['fire', 'poison', 'corrosion'],
+  ['water', 'earth', 'mud'], ['water', 'air', 'frost'], ['water', 'lightning', 'discharge'],
+  ['earth', 'poison', 'disease'], ['air', 'lightning', 'charge']];
+const BLUE_REACT = 1.5;
+export const FIRE = { styled: 1.5, giant: 1.5, splash: 1, wide: 1.5, breath: 0.6, cone: 0.35, coneWide: 1.6,
+  ignite: 0.06, igniteMul: 1.2, smolder: 0.3, burn: 3, blue: 1.3, blueBurn: 1.5, crit: 0.15, twin: 1,
+  rain: { every: 8, count: 6, radius: 3, gap: 0.15 }, vent: { every: 3, reach: 5 }, idle: 3,
+  beam: { every: 10, charge: 1, mul: 8 }, torch: { radius: 1, share: 0.25 } };
+const TORCH_USERS = new Set(['sniper', 'gunner', 'hunter']);
 const STEEL_BLAST = { radius: 1.5, mul: 8, stun: 1 };
 const ECHO_DELAY = 0.3;
 const ROCKET_FLIGHT = 0.6;
@@ -207,8 +230,9 @@ export class Battle {
     this.tosses = [];
     this.puddles = [];
     this.fogs = [];
-    this.oils = [];
     this.zones = [];
+    this.vents = [];
+    this.pulseAt = 0;
     this.traps = [];
     this.whirls = [];
     this.grounds = [];
@@ -232,7 +256,8 @@ export class Battle {
   }
 
   free(x, y) {
-    return inside(x, y) && !this.blocked.has(y * SIZE + x) && !this.byCell.has(y * SIZE + x);
+    return inside(x, y) && !this.blocked.has(y * SIZE + x) && !this.byCell.has(y * SIZE + x)
+      && !this.vents.some((vent) => vent.x === x && vent.y === y);
   }
 
   bestCell(range) {
@@ -409,8 +434,8 @@ export class Battle {
     if (at < 0) return;
     this.towers.splice(at, 1);
     if (!tower.rider) this.byCell.delete(tower.y * SIZE + tower.x);
-    for (const list of ['walls', 'mines', 'tosses', 'puddles', 'fogs', 'oils', 'traps', 'whirls', 'patches',
-      'grounds', 'zones']) {
+    for (const list of ['walls', 'mines', 'tosses', 'puddles', 'fogs', 'traps', 'whirls', 'patches', 'grounds',
+      'zones']) {
       this[list] = this[list].filter((item) => item.tower !== tower);
     }
     if (this.prey && this.prey.by === tower) this.prey = null;
@@ -556,6 +581,10 @@ export class Battle {
     this._jobs(now);
     this._powers(dt, now);
     this._effects(dt, now);
+    if (now >= this.pulseAt) {
+      this.pulseAt = now + PULSE;
+      this._pulse(now);
+    }
     this._walk(dt, now);
     this._buffs(now);
     this._shoot(dt, now);
@@ -798,9 +827,8 @@ export class Battle {
 
   _swallow(mob, power) {
     const close = (item) => near(item, mob.x, mob.y, power.reach);
-    const eaten = this.mines.filter(close).length + this.traps.filter(close).length + this.puddles.filter(close).length
-      + this.oils.filter(close).length;
-    for (const list of ['mines', 'traps', 'puddles', 'oils']) this[list] = this[list].filter((item) => !close(item));
+    const eaten = this.mines.filter(close).length + this.traps.filter(close).length + this.puddles.filter(close).length;
+    for (const list of ['mines', 'traps', 'puddles']) this[list] = this[list].filter((item) => !close(item));
     this._event({ kind: 'swallow', mob, eaten });
   }
 
@@ -823,7 +851,7 @@ export class Battle {
     for (const t of this.towers) {
       if (!t.rider && burnt({ x: t.cx, y: t.cy })) this._daze(t, power.hold);
     }
-    for (const list of ['mines', 'traps', 'puddles', 'oils']) this[list] = this[list].filter((item) => !burnt(item));
+    for (const list of ['mines', 'traps', 'puddles']) this[list] = this[list].filter((item) => !burnt(item));
     this._event({ kind: 'breath', mob, x: mob.x + dx * power.length, y: mob.y + dy * power.length });
   }
 
@@ -934,29 +962,39 @@ export class Battle {
     tower.s = cls.skills.map((item) => scaled(item, { power: skill.power, luck: skill.luck, haste }));
     tower.runes = new Set(mods.runes || []);
     if (tower.runes.has('epidemic')) tower.runes.add('plague');
+    tower.look = mods.look || cls.id;
+    tower.style = cls.styles ? (cls.styles.find((item) => tower.runes.has(item.id)) || {}).id || null : null;
+    tower.react = cls.react && (cls.react.skill.startsWith('perk') ? open(tower, Number(cls.react.skill.slice(4)))
+      : tower.runes.has(cls.react.skill)) ? cls.react.element : null;
     const boost = Math.max(FLOOR, 1 + (mods.damage || 0)) * tower.might / MIGHT.base;
     tower.damage = base.damage * boost;
     tower.skill = base.skill * boost;
     tower.interval = base.interval / (Math.max(FLOOR, 1 + (mods.rate || 0)) * (tower.runes.has('frenzy') ? 3 : 1));
-    if (cls.id === 'pyro' && open(tower, 0)) tower.interval *= b.jetEvery / b.interval;
-    tower.critChance = Math.min(STAT.critMax, base.crit + (mods.crit || 0));
+    if (tower.style === 'dragon') tower.interval = PULSE / Math.max(FLOOR, 1 + (mods.rate || 0));
+    tower.critChance = Math.min(STAT.critMax, base.crit + (mods.crit || 0)
+      + (tower.style === 'fireball' && tower.runes.has('giant') ? FIRE.crit : 0));
     tower.critMul = base.critMul;
     tower.reach = base.reach;
-    tower.cone = (b.cone || 0) * (tower.runes.has('nozzle') ? 2 : 1);
-    tower.baseRange = Math.max(RANGE_MIN, (b.range || 0) + (mods.range || 0)) + (this.onHill(tower) ? TERRAIN.hill : 0)
-      + (this.onWatch(tower) ? TERRAIN.watch : 0);
+    tower.cone = tower.style === 'dragon' ? FIRE.cone * (tower.runes.has('wide') ? FIRE.coneWide : 1) : 0;
+    tower.baseRange = Math.max(RANGE_MIN, this._reachOf(tower, b) + (mods.range || 0))
+      + (this.onHill(tower) ? TERRAIN.hill : 0) + (this.onWatch(tower) ? TERRAIN.watch : 0);
     tower.ownRange = tower.baseRange + tower.reach;
     tower.range = tower.ownRange * (1 + tower.boost.range);
     tower.lift = 1 + (tower.might / MIGHT.base - 1) * MIGHT.lift;
     this._flags();
   }
 
+  _reachOf(tower, b) {
+    if (tower.style === 'fireball') return b.range + 1 + (tower.runes.has('giant') ? 0.5 : 0);
+    if (tower.style === 'dragon') return (b.range - 0.5) * (tower.runes.has('lungs') ? 2 : 1);
+    if (tower.style === 'ignite') return 0;
+    return b.range || 0;
+  }
+
   _flags() {
     const rune = (cls, id) => this.towers.some((t) => t.cls.id === cls && t.runes.has(id));
     this.headwind = rune('shaman', 'headwind');
     this.brittle = rune('frost', 'brittle');
-    this.rain = this.towers.some((t) => t.cls.id === 'frost' && open(t, 6));
-    this.overload = this.towers.some((t) => t.cls.id === 'thunder' && open(t, 3));
   }
 
   _hold(mob, seconds, tower, full = false) {
@@ -999,7 +1037,7 @@ export class Battle {
   }
 
   _ignite(mob, tower, dps, seconds) {
-    if (mob.dead || immune(mob, 'fire') || mob.doused === this.time) return;
+    if (mob.dead || immune(mob, 'fire')) return;
     if (!mob.burn) mob.burn = new Map();
     mob.burn.set(tower, { tower, dps, until: this.time + seconds });
   }
@@ -1034,7 +1072,6 @@ export class Battle {
         }
       }
     }
-    if (this.oils.length) this._oils(dt, now);
     if (this.zones.length) this._zones(dt, now);
     if (this.fogs.length) this._fogs(dt, now);
     if (this.puddles.length) this._puddles(dt, now);
@@ -1057,7 +1094,6 @@ export class Battle {
         }
         if (!mob.dead && !mob.poison.size) mob.poison = null;
       }
-      if (mob.burn && !mob.dead) this._burning(mob, dt, now);
       if (mob.rot && !mob.dead && mob.rot.until <= now) mob.rot = null;
       if (mob.wound && !mob.dead && mob.wound.until <= now) mob.wound = null;
       if (mob.wound && !mob.dead) this._hurt(mob, mob.wound.dps * dt, mob.wound.by, null, true, SHIELDS);
@@ -1078,87 +1114,209 @@ export class Battle {
     }
   }
 
-  _burning(mob, dt, now) {
-    let roll = false;
-    if (now >= mob.rollAt) {
-      mob.rollAt = now + ROLL_EVERY;
-      roll = true;
-    }
+  _burning(mob, now) {
     for (const [key, fire] of mob.burn) {
       if (fire.until <= now) {
         mob.burn.delete(key);
         continue;
       }
-      const t = fire.tower;
-      this._hurt(mob, fire.dps * dt, t, 'fire', true);
-      if (mob.dead) return;
-      if (roll && open(t, 1) && this.random() < t.s[1].chance) this._flare(t, mob);
+      this._hurt(mob, fire.dps, fire.tower, 'fire', true);
       if (mob.dead || !mob.burn) return;
     }
     if (!mob.burn.size) mob.burn = null;
   }
 
-  _flare(t, mob) {
-    const s = t.s[1], damage = t.skill * s.bonus * (t.runes.has('blue') ? 2 : 1), x = mob.x, y = mob.y;
-    this._event({ kind: 'ignite', tower: t, x, y, radius: s.radius, blue: t.runes.has('blue') });
-    for (const other of this.mobs.slice()) {
-      if (!other.dead && near(other, x, y, s.radius)) this._hurt(other, damage, t, 'fire');
+  _pulse(now) {
+    for (const mob of this.mobs) {
+      if (mob.dead) continue;
+      if (mob.burn) this._burning(mob, now);
+      if (!mob.dead && (mob.marks || mob.states)) this._reactions(mob, now);
+      if (!mob.dead && mob.states) this._afflict(mob, now);
     }
   }
 
-  _wet(mob, seconds) {
-    if (!mob.dead) mob.wetUntil = Math.max(mob.wetUntil || 0, this.time + seconds);
+  _mark(mob, element, t) {
+    if (mob.dead) return;
+    if (!mob.marks) mob.marks = new Map();
+    if (!mob.marks.has(element)) mob.marks.set(element, new Map());
+    mob.marks.get(element).set(t, this.time + MARK_TIME);
   }
 
-  wet(mob) {
-    return this.rain || mob.wetUntil > this.time;
+  state(mob, name) {
+    const item = mob.states && mob.states.get(name);
+    return item && item.until > this.time ? item : null;
   }
 
-  _react(mob, element, t, now) {
-    const wet = this.wet(mob);
-    if (element === 'storm') {
-      const charged = this.overload && mob.charge && mob.charge.until > now;
-      if (!wet && !charged) return 1;
-      if (now >= (mob.shockAt || 0)) {
-        mob.shockAt = now + REACT_GAP;
-        this._hold(mob, SHOCK.stun, t);
-        this._event({ kind: 'react', mob, name: 'Электрошок', color: '#facc15' });
+  _setState(mob, name, time, by, extra = {}) {
+    if (!mob.states) mob.states = new Map();
+    const old = this.state(mob, name);
+    const item = Object.assign({ until: Math.max(old ? old.until : 0, this.time + time), by: new Set(by) }, extra);
+    if (old) for (const t of old.by) item.by.add(t);
+    mob.states.set(name, item);
+    return item;
+  }
+
+  _reactions(mob, now) {
+    if (mob.marks) {
+      for (const [element, list] of mob.marks) {
+        for (const [t, until] of list) if (until <= now || !this.towers.includes(t)) list.delete(t);
+        if (!list.size) mob.marks.delete(element);
       }
-      return SHOCK.mul;
+      if (!mob.marks.size) mob.marks = null;
     }
-    if (element === 'ice' && wet) {
-      if (!this.rain) mob.wetUntil = 0;
-      if (now >= (mob.freezeAt || 0)) {
-        mob.freezeAt = now + REACT_GAP;
-        this._hold(mob, QUICK_FREEZE, t);
-        this._event({ kind: 'react', mob, name: 'Заморозка', color: '#a5f3fc' });
+    if (mob.states) {
+      for (const [name, item] of mob.states) if (item.until <= now) mob.states.delete(name);
+      if (!mob.states.size) mob.states = null;
+    }
+    const count = (element) => (mob.marks && mob.marks.has(element) ? mob.marks.get(element).size : 0);
+    const has = (name) => Boolean(this.state(mob, name));
+    if (has('corrosion') && has('disease')) this._react(mob, 'epidemic', [], ['corrosion', 'disease']);
+    if (has('mud') && count('fire')) {
+      this._react(mob, 'lava', ['fire'], ['mud']);
+      if (count('water')) this._react(mob, 'steam', ['water'], []);
+      if (has('frost') || has('ice')) this._react(mob, 'thaw', [], [has('ice') ? 'ice' : 'frost']);
+    }
+    const options = [];
+    for (const [a, b, name] of PAIRS) {
+      if (count(a) && count(b)) options.push({ name, marks: [a, b], states: [], weight: count(a) + count(b) });
+    }
+    const strong = (name, marks, states) => options.push({ name, marks, states, weight: STRONG * (1
+      + marks.reduce((sum, element) => sum + count(element), 0)) });
+    if (has('steam') && count('poison')) strong('gas', ['poison'], ['steam']);
+    if (has('corrosion') && count('poison')) strong('corrosion', ['poison'], []);
+    for (const element of ['water', 'earth']) if (has('mud') && count(element)) strong('mud', [element], []);
+    for (const element of ['water', 'air']) {
+      if (has('frost') && count(element)) strong('frost', [element], []);
+      if (has('ice') && count(element)) strong('ice', [element], []);
+    }
+    const cold = ['ice', 'frost'].filter(has);
+    if (cold.length && count('fire')) strong('thaw', ['fire'], cold);
+    while (options.length) {
+      let roll = this.random() * options.reduce((sum, option) => sum + option.weight, 0), pick = options[0];
+      for (const option of options) {
+        roll -= option.weight;
+        if (roll < 0) {
+          pick = option;
+          break;
+        }
       }
-      return 1;
-    }
-    if (element !== 'fire') return 1;
-    if (wet && now >= (mob.steamAt || 0)) {
-      mob.steamAt = now + REACT_GAP;
-      if (!this.rain) mob.wetUntil = 0;
-      mob.burn = null;
-      mob.doused = now;
-      for (const other of this._around(mob.x, mob.y, STEAM.radius)) this._vulnerable(other, STEAM.vuln, STEAM.time);
-      this._event({ kind: 'react', mob, name: 'Пар', color: '#e2e8f0' });
-    }
-    if (mob.poison && now >= (mob.gasAt || 0)) {
-      mob.gasAt = now + GAS.gap;
-      const doses = Array.from(mob.poison.values());
-      this._event({ kind: 'react', mob, name: 'Взрыв газа', color: '#a3e635' });
-      this._event({ kind: 'boom', tower: t, x: mob.x, y: mob.y, radius: GAS.radius });
-      for (const other of this._around(mob.x, mob.y, GAS.radius, mob)) {
-        this._hurt(other, t.skill * GAS.mul, t, 'poison', true);
-        for (const dose of doses) this._poison(other, dose.tower, dose.tower, dose.dps, dose.until - now);
+      this._react(mob, pick.name, pick.marks, pick.states);
+      if (mob.dead) return;
+      const used = new Set(pick.marks.concat(pick.states));
+      for (let i = options.length - 1; i >= 0; i--) {
+        if (options[i].marks.concat(options[i].states).some((key) => used.has(key))) options.splice(i, 1);
       }
     }
-    return 1;
+  }
+
+  _react(mob, name, marks, states) {
+    const party = new Set();
+    for (const element of marks) {
+      if (mob.marks && mob.marks.has(element)) for (const t of mob.marks.get(element).keys()) party.add(t);
+    }
+    for (const key of states) {
+      const item = this.state(mob, key);
+      if (item) for (const t of item.by) if (this.towers.includes(t)) party.add(t);
+    }
+    if (!party.size) return;
+    const towers = Array.from(party), lead = towers[0], blue = towers.some((t) => t.runes.has('blue'));
+    const fiery = marks.includes('fire') || name === 'blast' || name === 'lava';
+    const power = towers.reduce((sum, t) => sum + t.skill, 0) * (blue && fiery ? BLUE_REACT : 1);
+    for (const element of marks) if (mob.marks) mob.marks.delete(element);
+    if (mob.marks && !mob.marks.size) mob.marks = null;
+    for (const key of states) if (mob.states) mob.states.delete(key);
+    const r = REACTIONS[name], x = mob.x, y = mob.y;
+    this._event({ kind: 'react', mob, name: r.name, color: blue && fiery ? '#7cc4ff' : r.color });
+    const hit = (target, amount, element) => {
+      target.party = towers;
+      this._hurt(target, amount, lead, element, true, ARMOR);
+      target.party = null;
+    };
+    if (name === 'steam') {
+      hit(mob, power * r.fire, 'fire');
+      this._setState(mob, 'steam', r.time, towers);
+    } else if (name === 'thaw') {
+      const degree = states.includes('ice') ? 3 : 2;
+      if (degree === 3) mob.holdUntil = Math.min(mob.holdUntil, this.time);
+      hit(mob, power * REACTIONS.steam.fire * degree, 'fire');
+      this._setState(mob, 'steam', degree, towers);
+    } else if (name === 'blast') {
+      const cloud = this.zones.find((zone) => zone.kind === 'gas' && near(mob, zone.x, zone.y, zone.radius));
+      if (cloud) {
+        this.zones.splice(this.zones.indexOf(cloud), 1);
+        const nuke = REACTIONS.nuke;
+        this._event({ kind: 'react', mob, name: nuke.name, color: nuke.color });
+        this._event({ kind: 'nuke', tower: lead, x: cloud.x, y: cloud.y, radius: nuke.radius });
+        for (const target of this._around(cloud.x, cloud.y, nuke.radius)) {
+          hit(target, power * nuke.mul / 2, 'fire');
+          if (!target.dead) hit(target, power * nuke.mul / 2, 'poison');
+        }
+        return;
+      }
+      this._event({ kind: 'boom', tower: lead, x, y, radius: r.radius });
+      for (const target of this._around(x, y, r.radius)) hit(target, power * r.fire, 'fire');
+    } else if (name === 'corrosion') {
+      if (!this.state(mob, 'epidemic')) this._setState(mob, 'corrosion', r.time, towers, { dot: power * r.dot });
+    } else if (name === 'mud') {
+      if (!(mob.lavaUntil > this.time)) this._setState(mob, 'mud', r.time, towers);
+    } else if (name === 'frost') {
+      this._setState(mob, 'frost', r.time, towers);
+      if (states.length === 0 && marks.length === 1 && this.random() < r.ice) this._freeze(mob, towers);
+    } else if (name === 'ice') {
+      if (this.random() < r.keep) this._freeze(mob, towers);
+    } else if (name === 'discharge') {
+      const charge = this.state(mob, 'charge');
+      if (charge) {
+        mob.states.delete('charge');
+        mob.charge = null;
+        const overload = REACTIONS.overload;
+        this._event({ kind: 'react', mob, name: overload.name, color: overload.color });
+        hit(mob, power * overload.mul, 'storm');
+        if (!mob.dead) this._hold(mob, overload.stun, lead);
+        return;
+      }
+      this._hold(mob, r.stun, lead);
+    } else if (name === 'disease') {
+      if (!this.state(mob, 'epidemic')) this._setState(mob, 'disease', r.time, towers, { dot: power * r.dot });
+    } else if (name === 'charge') {
+      this._setState(mob, 'charge', r.time, towers);
+      mob.charge = { by: lead, bonus: r.bonus, until: this.time + r.time };
+    } else if (name === 'gas') {
+      this._zone('gas', lead, x, y, r.radius, r.time, { dot: power * r.dot, party: towers });
+    } else if (name === 'epidemic') {
+      this._setState(mob, 'epidemic', r.time, towers, { dot: power * r.dot });
+    } else if (name === 'lava') {
+      this._zone('lava', lead, x, y, r.radius, r.time, { dot: power * r.dot, party: towers });
+    }
+  }
+
+  _freeze(mob, towers) {
+    const ice = REACTIONS.ice;
+    this._setState(mob, 'ice', ice.time, towers);
+    mob.holdUntil = Math.max(mob.holdUntil, this.time + ice.time * (mob.info.boss ? BOSS_HOLD : 1));
+    mob.holdBy = 'frost';
+    this._event({ kind: 'react', mob, name: ice.name, color: ice.color });
+  }
+
+  _afflict(mob, now) {
+    let slow = 0;
+    if (this.state(mob, 'mud')) slow += REACTIONS.mud.slow;
+    if (this.state(mob, 'frost')) slow += REACTIONS.frost.slow;
+    if (slow) this._slow(mob, Math.min(CHILL_MAX, slow), PULSE * 2);
+    for (const name of ['corrosion', 'disease', 'epidemic']) {
+      const item = this.state(mob, name);
+      if (!item || !item.dot) continue;
+      const towers = Array.from(item.by).filter((t) => this.towers.includes(t));
+      if (!towers.length) continue;
+      mob.party = towers;
+      this._hurt(mob, item.dot, towers[0], name === 'disease' ? null : 'poison', true, SHIELDS);
+      mob.party = null;
+      if (mob.dead) return;
+    }
   }
 
   _zones(dt, now) {
-    this.zones = this.zones.filter((zone) => zone.until > now);
+    this.zones = this.zones.filter((zone) => zone.until > now && this.towers.includes(zone.tower));
     for (const zone of this.zones) {
       const pulse = now >= zone.pulse;
       if (pulse) {
@@ -1168,6 +1326,15 @@ export class Battle {
       for (const mob of this._around(zone.x, zone.y, zone.radius)) {
         if (zone.kind === 'sand') {
           if (grounded(mob, now)) this._slow(mob, zone.slow, ZONE_PULSE);
+        } else if (zone.kind === 'gas' || zone.kind === 'lava') {
+          if (!pulse) continue;
+          mob.party = zone.party;
+          this._hurt(mob, zone.dot, zone.tower, zone.kind === 'gas' ? 'poison' : 'fire', true);
+          mob.party = null;
+          if (zone.kind === 'lava' && !mob.dead) {
+            mob.lavaUntil = now + ZONE_PULSE * 2;
+            this._slow(mob, REACTIONS.lava.slow, ZONE_PULSE * 2);
+          }
         } else if (zone.kind === 'pool') {
           if (!mob.info.boss) mob.holdUntil = Math.max(mob.holdUntil, now + dt * 2);
           this._hurt(mob, zone.dps * dt, zone.tower, 'water', true);
@@ -1183,51 +1350,13 @@ export class Battle {
     this.zones.push(Object.assign({ kind, tower: t, x, y, radius, until: this.time + time, pulse: this.time }, extra));
   }
 
-  _sweep(t, push, wet) {
+  _sweep(push) {
     for (const mob of this.mobs) {
       if (mob.dead || mob.info.boss) continue;
       mob.d = Math.max(0, mob.d - push);
       mob.biting = 0;
       this._locate(mob);
-      if (wet) this._wet(mob, wet);
     }
-  }
-
-  _erupt(mob) {
-    const fire = Array.from(mob.burn.values()).find((item) => item.tower.cls.id === 'pyro' && open(item.tower, 7)
-      && this.towers.includes(item.tower));
-    if (!fire) return;
-    const t = fire.tower, s = t.s[7], base = t.cls.base;
-    this._event({ kind: 'boom', tower: t, x: mob.x, y: mob.y, radius: s.radius });
-    for (const other of this._around(mob.x, mob.y, s.radius, mob)) {
-      this._hurt(other, t.skill * s.bonus, t, 'fire', true);
-      this._ignite(other, t, t.damage * base.burn, base.burnTime);
-    }
-  }
-
-  _oils(dt, now) {
-    this.oils = this.oils.filter((oil) => (oil.lit ? oil.burnUntil > now : oil.until > now));
-    for (const oil of this.oils) {
-      const inside = (item) => near(item, oil.x, oil.y, oil.radius);
-      if (!oil.lit) {
-        const burning = this.mobs.some((mob) => !mob.dead && mob.burn && inside(mob))
-          || this.patches.some((patch) => near(patch, oil.x, oil.y, oil.radius + patch.radius))
-          || this.oils.some((other) => other.lit && near(other, oil.x, oil.y, oil.radius + other.radius));
-        if (burning) this._light(oil);
-        continue;
-      }
-      for (const mob of this.mobs) {
-        if (!mob.dead && grounded(mob, now) && inside(mob)) this._hurt(mob, oil.dps * dt, oil.tower, 'fire', true);
-      }
-    }
-  }
-
-  _light(oil) {
-    if (oil.lit) return;
-    const t = oil.tower;
-    oil.lit = this.time;
-    oil.burnUntil = this.time + t.s[2].time * (t.runes.has('blue') ? 2 : 1);
-    this._event({ kind: 'oilfire', tower: t, x: oil.x, y: oil.y, radius: oil.radius });
   }
 
   _fogs(dt, now) {
@@ -1393,8 +1522,9 @@ export class Battle {
   _absorb(whirl, at, now) {
     const touch = (item, radius) => near(item, at.x, at.y, radius + WHIRL_REACH);
     const met = this.mobs.filter((mob) => !mob.dead && touch(mob, 0));
-    if (this.patches.some((patch) => touch(patch, patch.radius)) || this.oils.some((oil) => oil.lit
-      && touch(oil, oil.radius)) || met.some((mob) => mob.burn)) whirl.elements.add('fire');
+    if (this.patches.some((patch) => touch(patch, patch.radius)) || met.some((mob) => mob.burn)) {
+      whirl.elements.add('fire');
+    }
     const toxic = this.puddles.concat(this.fogs);
     if (toxic.some((cloud) => touch(cloud, cloud.radius)) || met.some((mob) => mob.poison)) {
       whirl.elements.add('poison');
@@ -1548,12 +1678,13 @@ export class Battle {
   }
 
   _buffs(now) {
-    const banners = [], sages = [], winds = [];
+    const banners = [], sages = [], winds = [], pyros = [];
     for (const t of this.towers) {
       if (t.cocoon || t.rider) continue;
       if (t.cls.id === 'banner') banners.push(t);
       else if (t.cls.id === 'sage') sages.push(t);
       else if (t.cls.id === 'shaman' && open(t, 3)) winds.push(t);
+      else if (t.cls.id === 'pyro' && t.runes.has('torch')) pyros.push(t);
     }
     const close = (a, b, radius) => (a.cx - b.cx) * (a.cx - b.cx) + (a.cy - b.cy) * (a.cy - b.cy) <= radius * radius;
     const herald = banners.find((flag) => open(flag, 6)), hero = herald ? this._hero() : null;
@@ -1620,12 +1751,54 @@ export class Battle {
       boost.crit = crit;
       boost.wisdom = wisdom;
       boost.clarity = clarity;
+      t.torch = TORCH_USERS.has(t.cls.id) ? pyros.find((pyro) => close(pyro, t, FIRE.torch.radius + pyro.reach))
+        || null : null;
       boost.cheer = Boolean(cheer);
       boost.muse = muse > 0;
       by.delete(t);
       const range = t.ownRange * (1 + boost.range);
       if (range !== t.range) t.range = range;
     }
+  }
+
+  _openVent(t) {
+    const spots = [];
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if ((dx || dy) && this.free(t.x + dx, t.y + dy)) spots.push([t.x + dx, t.y + dy]);
+      }
+    }
+    if (!spots.length) return;
+    const [x, y] = spots[Math.floor(this.random() * spots.length)];
+    this.vents.push({ tower: t, x, y, cx: x + 0.5, cy: y + 0.5, next: this.time + FIRE.vent.every, born: this.time });
+    this._event({ kind: 'vent', tower: t, x: x + 0.5, y: y + 0.5 });
+  }
+
+  _fly(t, now) {
+    const lead = this._leader();
+    if (!lead) return;
+    const cx = Math.floor(lead.x), cy = Math.floor(lead.y);
+    let best = null;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const x = cx + dx, y = cy + dy;
+        if (!this.free(x, y)) continue;
+        const gap = (x + 0.5 - lead.x) ** 2 + (y + 0.5 - lead.y) ** 2;
+        if (!best || gap < best.gap) best = { x, y, gap };
+      }
+    }
+    if (!best) return;
+    const from = { x: t.cx, y: t.cy };
+    this._relocate(t, best.x, best.y);
+    t.lastFire = now;
+    this._event({ kind: 'flight', tower: t, x1: from.x, y1: from.y, x: t.cx, y: t.cy });
+  }
+
+  _torchHit(t, mob, damage) {
+    const pyro = t.torch;
+    if (!pyro || mob.dead || !this.towers.includes(pyro)) return;
+    this._hurt(mob, damage * FIRE.torch.share * (pyro.runes.has('blue') ? FIRE.blue : 1), t, 'fire', true);
+    if (pyro.react && mob.hp > 0) this._mark(mob, 'fire', pyro);
   }
 
   _hero() {
@@ -1971,7 +2144,6 @@ export class Battle {
       }
     }
     amount *= this._weak(element);
-    if (!dot && element && !immune(mob, element)) amount *= this._react(mob, element, t, now);
     if (immune(mob, element)) {
       mob.helpers.add(t);
       if (now >= mob.immuneAt) {
@@ -1992,8 +2164,9 @@ export class Battle {
     const vulnerable = ((mob.markUntil > now ? mob.mark : 0) + (mob.charge && mob.charge.until > now
       ? mob.charge.bonus : 0) + (mob.vulnUntil > now ? mob.vuln : 0) + (mob.weakUntil > now ? mob.weak : 0))
       * (1 - mob.resist);
-    let dealt = amount * (1 + vulnerable) * (1 + t.boost.damage);
-    const cut = Math.max(power && power.cut || 0, mob.armor) - (mob.acidUntil > now ? mob.acid : 0);
+    let dealt = amount * (1 + vulnerable) * (1 + t.boost.damage) * this._frailty(mob, element);
+    const cut = Math.max(power && power.cut || 0, mob.armor) - (mob.acidUntil > now ? mob.acid : 0)
+      - (this.state(mob, 'disease') ? REACTIONS.disease.armor : 0);
     if (cut && !pierce) dealt *= 1 - cut;
     if (mob.front && !dot && !t.rider && !pierce && this._facing(mob, t)) dealt *= 1 - mob.front;
     if (ghostly(mob, now) && element !== 'holy') dealt *= GHOST_CUT;
@@ -2015,6 +2188,8 @@ export class Battle {
     mob.hp -= dealt;
     if (!dot) mob.hitAt = now;
     mob.helpers.add(t);
+    if (mob.party) for (const ally of mob.party) mob.helpers.add(ally);
+    if (!dot && t.react && mob.hp > 0) this._mark(mob, t.react, t);
     if (t.windBy && t.windUntil > now && t.windBy !== t) mob.helpers.add(t.windBy);
     for (const by of t.boostBy) mob.helpers.add(by);
     mob.last = t;
@@ -2037,6 +2212,14 @@ export class Battle {
     }
   }
 
+  _frailty(mob, element) {
+    if (!mob.states) return 1;
+    let mul = 1;
+    if (element && this.state(mob, 'corrosion')) mul += REACTIONS.corrosion.weak;
+    if (this.state(mob, 'epidemic')) mul += REACTIONS.epidemic.weak;
+    return mul;
+  }
+
   _slay(mob, t) {
     if (mob.dead) return;
     t.run.damage += mob.hp;
@@ -2057,17 +2240,17 @@ export class Battle {
       killer.feast = (killer.feast || 0) + killer.s[4].bonus;
     }
     if (mob.poison) this._alchemy(mob);
-    if (mob.burn) this._erupt(mob);
     const insight = mob.weakUntil > this.time && mob.weakBy && open(mob.weakBy, 2) ? mob.weakBy.s[2].xp : 1;
     const prize = mob.silver ? SILVER.xp : 1, purse = mob.silver ? SILVER.coins : 1;
+    const killers = new Set(mob.party || [killer]);
     for (const t of mob.helpers) {
       const earn = t.cls.earn || NO_EARN;
       this._grant(t, mob.info.xp * earn.xp * insight * prize);
-      const coins = (t === killer ? KILL_COINS : ASSIST_COINS) * mob.info.coins * earn.coins * purse
+      const coins = (killers.has(t) ? KILL_COINS : ASSIST_COINS) * mob.info.coins * earn.coins * purse
         * Math.max(0, 1 + (t.mods.coins || 0));
       t.player.coins += coins;
       t.run.coins += coins;
-      if (t === killer) {
+      if (killers.has(t)) {
         t.run.kills += 1;
         t.player.kills += 1;
       } else {
@@ -2290,6 +2473,55 @@ export class Battle {
 
 const guard = (t) => t.s[0].chance * (t.runes.has('guardian') ? 2 : 1);
 
+const flame = (t) => (t.runes.has('blue') ? FIRE.blue : 1);
+
+function scorch(b, t, mob, damage) {
+  b._hurt(mob, damage * flame(t), t, 'fire');
+  if (mob.dead || !t.runes.has('smolder')) return;
+  b._ignite(mob, t, t.damage * FIRE.smolder * flame(t), FIRE.burn * (t.runes.has('blue') ? FIRE.blueBurn : 1));
+}
+
+function fireball(b, t, target, from = null) {
+  const styled = t.style === 'fireball', giant = styled && t.runes.has('giant');
+  const crit = rollCrit(b, t), damage = t.damage * (styled ? FIRE.styled : 1) * (giant ? FIRE.giant : 1)
+    * (crit ? t.critMul : 1);
+  const radius = styled ? FIRE.splash * (giant ? FIRE.wide : 1) : 0, x = target.x, y = target.y;
+  const event = { kind: 'shot', tower: t, x, y, crit, mob: target.dead ? null : target, time: FIREBALL_FLIGHT,
+    size: giant ? 8 : styled ? 6 : 4, blue: t.runes.has('blue') };
+  if (from) Object.assign(event, { sx: from.x, sy: from.y });
+  b._event(event);
+  b._later(FIREBALL_FLIGHT, () => {
+    if (radius) b._event({ kind: 'boom', tower: t, x, y, radius, blue: t.runes.has('blue') });
+    const hit = radius ? b._around(x, y, radius) : target.dead ? [] : [target];
+    for (const mob of hit) scorch(b, t, mob, damage);
+  }, t);
+}
+
+function breathe(b, t, target) {
+  const angle = Math.atan2(target.y - t.cy, target.x - t.cx), blue = t.runes.has('blue');
+  const inCone = (mob) => {
+    if (!near(mob, t.cx, t.cy, t.range)) return false;
+    let delta = Math.atan2(mob.y - t.cy, mob.x - t.cx) - angle;
+    while (delta > Math.PI) delta -= Math.PI * 2;
+    while (delta < -Math.PI) delta += Math.PI * 2;
+    return Math.abs(delta) <= t.cone;
+  };
+  b._event({ kind: 'flame', tower: t, angle, x: target.x, y: target.y, blue, cone: t.cone, breath: true });
+  const crit = rollCrit(b, t), damage = t.damage * FIRE.breath * (crit ? t.critMul : 1);
+  for (const mob of b.mobs.slice()) {
+    if (mob.dead || hidden(mob, b.time) || mob !== target && !inCone(mob)) continue;
+    scorch(b, t, mob, damage);
+  }
+  return true;
+}
+
+function closestPrey(b, t) {
+  const prey = b.mobs.filter((mob) => b._targetable(t, mob));
+  prey.sort((a, c) => (big(c) ? 1 : 0) - (big(a) ? 1 : 0)
+    || Math.hypot(a.x - t.cx, a.y - t.cy) - Math.hypot(c.x - t.cx, c.y - t.cy));
+  return prey[0] || null;
+}
+
 const monster = (t, mob) => (open(t, 4) && big(mob) ? 1 + t.s[4].bonus : 1);
 
 const rollCrit = (b, t) => b.random() < 1 - (1 - t.critChance) * (1 - t.boost.crit);
@@ -2314,6 +2546,7 @@ function snipe(b, t, target, { base = t.damage, mul = 1, crit = false, heavy = '
       continue;
     }
     b._hurt(mob, power, t, null, false, breaker ? SHIELDS : 0);
+    b._torchHit(t, mob, power);
     if (breaker && !mob.dead && mob.armor > 0) mob.armor = Math.max(0, mob.armor - t.s[4].shred);
     if (t.runes.has('burst') && b.random() < BURST.chance) {
       const radius = BURST.radius * t.power;
@@ -2483,6 +2716,7 @@ const SKILLS = {
       const x = target.x, y = target.y;
       b._hurt(target, damage, t, null, false, pierce);
       if (fire) b._hurt(target, fire, t, 'fire', false, pierce);
+      b._torchHit(t, target, damage);
       if (open(t, 4) && !target.dead) {
         const s = t.s[4];
         target.lead = Math.min(s.max, (target.leadUntil > now ? target.lead : 0) + s.slow);
@@ -2650,84 +2884,65 @@ const SKILLS = {
   },
   pyro: {
     fire(b, t, now) {
+      if (t.style === 'ignite') return false;
       const target = b._target(t);
       if (!target) return false;
-      if (open(t, 0)) return this.jet(b, t, now, target);
-      const crit = rollCrit(b, t), base = t.cls.base, damage = t.damage * (crit ? t.critMul : 1);
-      const x = target.x, y = target.y, ball = open(t, 3) ? t.s[3] : null;
-      b._event({ kind: 'shot', tower: t, x, y, crit, mob: target, time: FIREBALL_FLIGHT });
-      b._later(FIREBALL_FLIGHT, () => {
-        const hit = ball ? b._around(x, y, ball.radius) : target.dead ? [] : [target];
-        if (ball) b._event({ kind: 'boom', tower: t, x, y, radius: ball.radius });
-        for (const mob of hit) {
-          b._hurt(mob, damage * (mob.undead ? base.undead : 1), t);
-          if (!mob.dead) b._ignite(mob, t, t.damage * base.burn, base.burnTime);
-        }
-        for (const oil of b.oils) if (!oil.lit && oil.tower === t && near(oil, x, y, oil.radius + 0.5)) b._light(oil);
-      }, t);
-      return true;
-    },
-    jet(b, t, now, target) {
-      const angle = Math.atan2(target.y - t.cy, target.x - t.cx), blue = t.runes.has('blue') ? 2 : 1;
-      const base = t.cls.base, crit = rollCrit(b, t);
-      const damage = t.damage * base.jet / base.damage * blue * (crit ? t.critMul : 1);
-      const inCone = (x, y) => {
-        if (!near({ x, y }, t.cx, t.cy, t.range)) return false;
-        let delta = Math.atan2(y - t.cy, x - t.cx) - angle;
-        while (delta > Math.PI) delta -= Math.PI * 2;
-        while (delta < -Math.PI) delta += Math.PI * 2;
-        return Math.abs(delta) <= t.cone;
-      };
-      b._event({ kind: 'flame', tower: t, angle, x: target.x, y: target.y, blue: blue > 1, cone: t.cone });
-      for (const mob of b.mobs.slice()) {
-        if (mob.dead || hidden(mob, now) || mob !== target && !inCone(mob.x, mob.y)) continue;
-        b._hurt(mob, damage * (mob.undead ? base.undead : 1), t);
-        if (!mob.dead) b._ignite(mob, t, t.skill * base.jet / base.damage * t.s[0].dps * blue, t.s[0].time * blue);
+      t.lastFire = now;
+      if (t.style === 'dragon') return breathe(b, t, target);
+      fireball(b, t, target);
+      if (t.runes.has('twin')) {
+        const other = b._target(t, { skip: target, mode: 'any' });
+        if (other) fireball(b, t, other);
       }
-      for (const oil of b.oils) if (!oil.lit && oil.tower === t && inCone(oil.x, oil.y)) b._light(oil);
       return true;
     },
     every(b, t, now, alive) {
-      if (open(t, 4) && alive && now >= (t.nextBlaze || 0)) {
-        const lead = b._target(t), s = t.s[4];
-        if (lead) {
-          const at = b._roadPoint(lead.r, lead.d + 1);
-          t.nextBlaze = now + s.every;
-          b.oils.push({ tower: t, i: -1, x: at.x, y: at.y, radius: s.radius, until: now + s.time, dps: t.skill * s.dps,
-            lit: now, burnUntil: now + s.time, born: now });
-          b._event({ kind: 'oilfire', tower: t, x: at.x, y: at.y, radius: s.radius });
+      if (t.lastFire === undefined) t.lastFire = now;
+      if (t.style === 'ignite' && alive && now >= (t.nextIgnite || 0)) {
+        t.nextIgnite = now + PULSE;
+        for (const mob of b.mobs.slice()) {
+          if (mob.dead || hidden(mob, now) || b.covered(mob.x, mob.y) || b.random() >= FIRE.ignite) continue;
+          b._event({ kind: 'ignite', tower: t, x: mob.x, y: mob.y, radius: 0.5, blue: t.runes.has('blue') });
+          scorch(b, t, mob, t.damage * FIRE.igniteMul);
         }
       }
-      if (open(t, 5) && alive && now >= (t.nextPhoenix || 0)) {
-        const s = t.s[5], base = t.cls.base;
-        t.nextPhoenix = now + s.every;
-        b._event({ kind: 'phoenix', tower: t });
-        b.road.slice().reverse().forEach(([x, y], k) => b._later(k * s.step, () => {
-          b._event({ kind: 'boom', tower: t, x: x + 0.5, y: y + 0.5, radius: PHOENIX_REACH, phoenix: true });
-          for (const mob of b._around(x + 0.5, y + 0.5, PHOENIX_REACH)) {
-            b._hurt(mob, t.skill * s.bonus, t);
-            b._ignite(mob, t, t.damage * base.burn, base.burnTime);
+      if (t.runes.has('rain') && alive && now >= (t.nextRain || 0)) {
+        const target = b._target(t, { mode: 'any' }), s = FIRE.rain;
+        if (target) {
+          t.nextRain = now + s.every;
+          for (let k = 0; k < s.count; k++) {
+            const a = b.random() * Math.PI * 2, r = Math.sqrt(b.random()) * s.radius;
+            const x = target.x + Math.cos(a) * r, y = target.y + Math.sin(a) * r;
+            b._later(k * s.gap, () => fireball(b, t, { x, y, dead: true }, { x, y: y - 3 }), t);
           }
-        }, t));
+        }
       }
-      if (open(t, 6) && alive && now >= (t.nextInferno || 0)) {
-        const s = t.s[6];
-        t.nextInferno = now + s.every;
-        b._event({ kind: 'inferno', tower: t });
-        for (const mob of b.mobs) b._ignite(mob, t, t.skill * s.dps, s.time);
+      if (t.runes.has('vent') && !b.vents.some((vent) => vent.tower === t)) b._openVent(t);
+      for (const vent of b.vents) {
+        if (vent.tower !== t || now < vent.next) continue;
+        const prey = b.mobs.filter((mob) => !mob.dead && !hidden(mob, now) && !b.covered(mob.x, mob.y)
+          && near(mob, vent.cx, vent.cy, FIRE.vent.reach));
+        if (!prey.length) continue;
+        vent.next = now + FIRE.vent.every;
+        fireball(b, t, prey[Math.floor(b.random() * prey.length)], { x: vent.cx, y: vent.cy });
       }
-      if (!open(t, 2) || now < t.nextActive) return;
-      const cells = b._reach(t.range)[t.y * SIZE + t.x];
-      if (!cells.length) return;
-      const gap = (i) => (b.road[i][0] + 0.5 - t.cx) ** 2 + (b.road[i][1] + 0.5 - t.cy) ** 2;
-      const least = Math.min(...cells.map(gap)), close = cells.filter((i) => gap(i) <= least + 1e-9);
-      const s = t.s[2], i = close[Math.floor(b.random() * close.length)], { r, d } = b._spot(i);
-      const at = b._roadPoint(r, d), blue = t.runes.has('blue') ? 2 : 1;
-      t.nextActive = now + s.every;
-      b.oils = b.oils.filter((oil) => oil.tower !== t || oil.lit);
-      b.oils.push({ tower: t, i, x: at.x, y: at.y, radius: s.radius, until: now + s.keep, dps: t.skill * s.dps * blue,
-        lit: 0, burnUntil: 0, born: now });
-      b._event({ kind: 'oil', tower: t, x: at.x, y: at.y, radius: s.radius });
+      if (t.style !== 'dragon' || !alive) return;
+      if (t.runes.has('flight') && now - t.lastFire >= FIRE.idle && !b._target(t)) b._fly(t, now);
+      if (t.runes.has('beam') && !t.charge && now >= (t.nextBeam || 0)) {
+        const target = closestPrey(b, t);
+        if (target) {
+          t.nextBeam = now + FIRE.beam.every;
+          b._charge(t, now, 'beam', FIRE.beam.charge, target);
+        }
+      }
+    },
+    charged(b, t, now, charge) {
+      const target = charge.target && b._targetable(t, charge.target) ? charge.target : closestPrey(b, t);
+      if (!target) return;
+      t.lastFire = now;
+      b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit: true, mob: target, heavy: 'mega',
+        blue: t.runes.has('blue') });
+      scorch(b, t, target, t.damage * FIRE.beam.mul * t.critMul);
     },
   },
   hunter: {
@@ -2739,6 +2954,7 @@ const SKILLS = {
       t.lastHit = b.time;
       b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target });
       b._hurt(target, damage, t);
+      b._torchHit(t, target, damage);
       if (open(t, 3) && big(target) && !target.dead) {
         const s = t.s[3], share = target.info.boss ? s.boss : s.share;
         target.wound = { by: t, until: b.time + s.time, dps: Math.min(target.max * share / s.time, t.skill * s.cap) };
@@ -2852,8 +3068,8 @@ const SKILLS = {
   frost: {
     fire(b, t) {
       const base = t.cls.base, crit = rollCrit(b, t), long = t.runes.has('permafrost') ? 2 : 1;
-      const freeze = (mob, wet) => {
-        if (open(t, 1) && !mob.dead && !immune(mob, 'ice') && (wet || b.random() < t.s[1].chance)) {
+      const freeze = (mob) => {
+        if (open(t, 1) && !mob.dead && !immune(mob, 'ice') && b.random() < t.s[1].chance) {
           b._hold(mob, t.s[1].time * long, t);
         }
       };
@@ -2863,33 +3079,25 @@ const SKILLS = {
         const damage = t.damage * base.storm / base.damage * (crit ? t.critMul : 1);
         b._event({ kind: 'nova', tower: t, radius: t.range });
         for (const mob of caught) {
-          const wet = b.wet(mob);
           b._hurt(mob, damage, t, 'ice');
-          freeze(mob, wet);
+          freeze(mob);
         }
         return true;
       }
       const target = b._target(t);
       if (!target) return false;
-      const wet = b.wet(target);
       b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target });
       b._hurt(target, t.damage * (crit ? t.critMul : 1), t);
-      if (target.dead) return true;
-      b._wet(target, base.wet);
-      freeze(target, wet);
+      freeze(target);
       return true;
     },
     every(b, t, now, alive) {
-      const base = t.cls.base;
       if (open(t, 3) && alive && now >= (t.nextWave || 0)) {
         const caught = b.mobs.filter((mob) => b._targetable(t, mob));
         if (caught.length) {
           t.nextWave = now + t.s[3].every;
           b._event({ kind: 'wave', tower: t, radius: t.range });
-          for (const mob of caught) {
-            b._push(mob, t.s[3].push, t);
-            b._wet(mob, base.wet);
-          }
+          for (const mob of caught) b._push(mob, t.s[3].push, t);
         }
       }
       if (open(t, 4) && alive && now >= (t.nextPool || 0)) {
@@ -2902,7 +3110,7 @@ const SKILLS = {
       if (open(t, 5) && alive && now >= (t.nextTsunami || 0)) {
         t.nextTsunami = now + t.s[5].every;
         b._event({ kind: 'tsunami', tower: t });
-        b._sweep(t, t.s[5].push, base.wet);
+        b._sweep(t.s[5].push);
       }
       if (!open(t, 2) || !alive || now < t.nextActive) return;
       const s = t.s[2], long = t.runes.has('permafrost') ? 2 : 1;
@@ -2946,7 +3154,7 @@ const SKILLS = {
       if (open(t, 5) && alive && now >= (t.nextEye || 0)) {
         t.nextEye = now + t.s[5].every;
         b._event({ kind: 'eye', tower: t });
-        b._sweep(t, t.s[5].push, 0);
+        b._sweep(t.s[5].push);
       }
       if (!open(t, 2) || !alive || now < t.nextActive) return;
       const s = t.s[2], radius = s.radius + t.reach;

@@ -1,7 +1,7 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
 import { BITE_TIME, BURST, Battle, CRIMSON, DISCHARGE, FUSION, HEADWIND, MOVE_PAUSE, NUKE_FLIGHT, OVERTIME, PLAGUE,
-  PLANTED, ROT, SECOND, SHELL_FLIGHT, SPLIT_TIME, THORN } from '../../site/reborn/js/battle.js';
+  FIRE, PLANTED, PULSE, REACTIONS, ROT, SECOND, SHELL_FLIGHT, SPLIT_TIME, THORN } from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
 import { AFFIXES, BOSSES, DIABLO, ELITES, FAMILIES, FAMILY_BY_ID, FINALE, LIVES, LOOKS, MIGHT, MIMIC, MOBS, POWERS,
   SILVER, TERRAIN, TICK, familyPool, resistOf, silverChance, waveHp, waveSpawns, xpForLevel }
@@ -945,70 +945,6 @@ test('алхимик: руна «Инфекция» — отравленный �
   near(hit(knight), black.damage * (1 + PLAGUE), 'сквозь броню и на 25% сильнее');
 });
 
-test('огнемётчик: жжёт узкой струёй в сторону цели, за спиной никого; с 10-го задетые горят', () => {
-  const battle = makeBattle(), pyro = battle.place(level(10), 'pyro', 10, 4);
-  const front = walker(battle, 12, 1e6), back = walker(battle, 10, 1e6);
-  still(front, back);
-  ok(pyro.cone > 0 && pyro.cone <= 0.45, 'струя узкая');
-  ok(pyro.interval <= 0.2, 'огонь идёт без остановки');
-  battle._fire(pyro);
-  ok(front.hp < front.max && front.burn, 'цель горит');
-  eq(back.hp, back.max, 'за спиной не горит');
-  ok(battle.events.some((e) => e.kind === 'flame' && Math.abs(e.angle) < 0.8));
-  const burnt = hit(front);
-  pyro.busy = 1e9;
-  runFor(battle, 1);
-  ok(hit(front) > burnt * 2, 'и горит после');
-});
-
-test('огнемётчик: с 30-го горящий иногда вспыхивает — огненное кольцо задевает соседей', () => {
-  const battle = makeBattle(), pyro = battle.place(level(30), 'pyro', 10, 4);
-  battle.random = () => 0;
-  const mob = walker(battle, 12, 1e6), side = walker(battle, 11.2, 1e6);
-  still(mob, side);
-  battle._fire(pyro);
-  pyro.busy = 1e9;
-  eq(side.hp, side.max, 'вне струи');
-  runFor(battle, 1.1);
-  ok(battle.events.some((e) => e.kind === 'ignite'));
-  ok(hit(side) > 0, 'кольцо задело соседа');
-});
-
-test('огнемётчик: с 50-го разливает нефть; от огня она загорается и жжёт', () => {
-  const battle = makeBattle(), pyro = battle.place(level(50), 'pyro', 10, 4);
-  battle.random = () => 0.5;
-  battle.step(TICK);
-  eq(battle.oils.length, 1, 'разлил нефть');
-  pyro.busy = 1e9;
-  const oil = battle.oils[0], spot = battle._spot(oil.i), mob = walker(battle, spot.d, 1e6);
-  still(mob);
-  no(oil.lit);
-  battle._ignite(mob, pyro, 1, 5);
-  battle.step(TICK);
-  ok(oil.lit, 'загорелась от горящего');
-  const before = hit(mob);
-  runFor(battle, 1);
-  ok(hit(mob) - before > pyro.damage * pyro.s[2].dps * 0.5);
-});
-
-test('огнемётчик: нежить горит сильнее; руна «Широкое сопло» — струя вдвое шире, «Синее пламя» — вдвое сильнее', () => {
-  const battle = makeBattle(), pyro = battle.place(player(), 'pyro', 10, 4), base = pyro.cls.base;
-  battle.setMods(pyro, { perks: [0] });
-  pyro.critChance = 0;
-  battle.random = () => 0.99;
-  const zombie = creature(battle, 'zombie', 12, 1e6);
-  still(zombie);
-  battle._fire(pyro);
-  near(hit(zombie), pyro.damage * base.jet / base.damage * base.undead);
-  const cone = pyro.cone;
-  battle.setMods(pyro, { perks: [0], runes: ['nozzle', 'blue'] });
-  pyro.critChance = 0;
-  near(pyro.cone, cone * 2);
-  const before = hit(zombie);
-  battle._fire(pyro);
-  near(hit(zombie) - before, before * 2);
-});
-
 test('охотник: из арбалета бьёт всех, элитных и боссов — первыми и в пять раз сильнее', () => {
   const battle = makeBattle(), hunter = battle.place(player(), 'hunter', 10, 4);
   hunter.critChance = 0;
@@ -1648,53 +1584,151 @@ test('лекарь: с 10-го щит — дошедший моб не отни�
   ok(again.dead && battle.lives === lives, 'с ангелом-хранителем — держит');
 });
 
-test('маг огня: шары поджигают; огненный шар, стена огня, феникс, инферно, сердце вулкана', () => {
-  const battle = makeBattle(), t = battle.place(player(), 'pyro', 10, 4);
+test('маг огня без стиля и в стиле огненного шара: шар, взрыв, гигантский шар, двойной каст', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'pyro', 10, 4), base = t.cls.base;
   battle.random = () => 0.99;
   t.critChance = 0;
   t.cooldown = 1e9;
-  const target = walker(battle, 10, 1e6), side = walker(battle, 9.2, 1e6);
-  still(target, side);
+  const a = walker(battle, 10, 1e6), b = walker(battle, 9.3, 1e6);
+  still(a, b);
+  near(t.baseRange, base.range);
   battle._fire(t);
   runFor(battle, 0.35);
-  ok(hit(target) >= t.damage && hit(target) < t.damage * 1.2, 'шар бьёт цель');
-  ok(target.burn && target.burn.has(t), 'и поджигает');
-  no(side.burn, 'соседа — нет');
-  battle.setMods(t, { perks: [3] });
+  near(hit(a), t.damage, 'обычный шар — одна цель');
+  eq(hit(b), 0);
+  battle.setMods(t, { runes: ['fireball'] });
+  eq(t.style, 'fireball');
+  near(t.baseRange, base.range + 1, 'стиль — дальше');
+  t.critChance = 0;
   t.cooldown = 1e9;
+  const before = hit(a);
   battle._fire(t);
   runFor(battle, 0.35);
-  ok(side.burn && hit(side) > 0, 'огненный шар взрывается и поджигает соседей');
-
-  const wall = makeBattle(), w = wall.place(player(), 'pyro', 10, 4);
-  wall.setMods(w, { perks: [4, 6] });
-  w.cooldown = 1e9;
-  const crowd = [walker(wall, 9, 1e6), walker(wall, 2, 1e6)];
-  still(...crowd);
-  wall.step(TICK);
-  ok(wall.oils.some((oil) => oil.tower === w && oil.lit && oil.burnUntil > wall.time), 'стена огня');
-  ok(crowd.every((mob) => mob.burn && mob.burn.has(w)), 'инферно: горит всё поле');
-
-  const bird = makeBattle(), p = bird.place(player(), 'pyro', 10, 4);
-  bird.setMods(p, { perks: [5] });
-  p.cooldown = 1e9;
-  const far = walker(bird, 3, 1e6);
-  still(far);
-  bird.step(TICK);
-  ok(bird.events.some((e) => e.kind === 'phoenix'));
-  runFor(bird, bird.road.length * p.s[5].step + 0.2);
-  ok(hit(far) >= p.skill * p.s[5].bonus && far.burn, 'феникс пролетел по всей дороге');
-
-  const heart = makeBattle(), h = heart.place(player(), 'pyro', 10, 4);
-  heart.setMods(h, { perks: [7] });
-  const dying = walker(heart, 10, 10), close = walker(heart, 10.6, 1e6);
-  still(dying, close);
-  heart._ignite(dying, h, 1, 3);
-  heart._hurt(dying, 1e6, h, null);
-  ok(dying.dead && hit(close) >= h.skill * h.s[7].bonus * 0.999 && close.burn, 'сердце вулкана: горящий взорвался');
+  near(hit(a) - before, t.damage * FIRE.styled, 'сильнее');
+  ok(hit(b) > 0, 'взрыв на клетку вокруг');
+  battle.setMods(t, { runes: ['fireball', 'giant', 'twin'] });
+  ok(t.critChance >= FIRE.crit, 'гигантский шар чаще бьёт критом');
+  near(t.baseRange, base.range + 1.5);
+  t.critChance = 0;
+  t.cooldown = 1e9;
+  const shots = battle.events.filter((e) => e.kind === 'shot').length;
+  battle._fire(t);
+  eq(battle.events.filter((e) => e.kind === 'shot').length - shots, 2, 'двойной каст — два шара');
 });
 
-test('маг воды: струя намачивает; заморозка, волна, водоворот, цунами, ливень', () => {
+test('маг огня: огненный дождь и жерло вулкана', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'pyro', 10, 4);
+  battle.setMods(t, { runes: ['fireball', 'rain', 'vent'] });
+  t.cooldown = 1e9;
+  const mob = walker(battle, 10, 1e6);
+  still(mob);
+  battle.step(TICK);
+  eq(battle.vents.length, 1, 'жерло открылось');
+  const vent = battle.vents[0];
+  ok(Math.abs(vent.x - t.x) <= 1 && Math.abs(vent.y - t.y) <= 1, 'рядом');
+  no(battle.free(vent.x, vent.y), 'клетка занята');
+  runFor(battle, FIRE.vent.every + 0.5);
+  const shots = battle.events.filter((e) => e.kind === 'shot' && e.sx !== undefined);
+  ok(shots.some((e) => e.sx === vent.cx), 'жерло плюётся шарами');
+  ok(shots.some((e) => e.sy < e.y), 'дождь: шары падают сверху');
+  ok(hit(mob) > 0);
+  eq(battle.vents.length, 1, 'жерло одно на мага');
+});
+
+test('маг огня: дракон дышит струёй раз в тик; широкое дыхание, большие лёгкие, перелёт, заряженное дыхание', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'pyro', 10, 4), base = t.cls.base;
+  battle.setMods(t, { runes: ['dragon'] });
+  eq(t.style, 'dragon');
+  near(t.interval, PULSE, 'раз в тик');
+  near(t.baseRange, base.range - 0.5);
+  const cone = t.cone;
+  battle.setMods(t, { runes: ['dragon', 'wide', 'lungs'] });
+  ok(t.cone > cone, 'шире');
+  near(t.baseRange, (base.range - 0.5) * 2, 'вдвое дальше');
+  battle.random = () => 0.99;
+  t.critChance = 0;
+  const a = walker(battle, 12, 1e6), b = walker(battle, 13, 1e6);
+  still(a, b);
+  battle._fire(t);
+  ok(hit(a) > 0 && hit(b) > 0 && battle.events.some((e) => e.kind === 'flame'), 'струя по всем в конусе');
+
+  const fly = makeBattle(), d = fly.place(player(), 'pyro', 2, 4);
+  fly.setMods(d, { runes: ['dragon', 'flight'] });
+  const far = walker(fly, 16, 1e6);
+  still(far);
+  runFor(fly, FIRE.idle + 0.2);
+  ok(Math.abs(d.cx - far.x) < 1.6 && Math.abs(d.cy - far.y) < 1.6, 'перелетел к первому мобу');
+  ok(fly.events.some((e) => e.kind === 'flight'));
+
+  const beam = makeBattle(), e = beam.place(player(), 'pyro', 10, 4);
+  beam.setMods(e, { runes: ['dragon', 'beam'] });
+  const boss = put(beam, special(beam, 'boss', 'crusher', 1e9), 11), plain = walker(beam, 10, 1e9);
+  still(boss, plain);
+  beam.step(TICK);
+  ok(e.charge && e.charge.kind === 'beam' && e.charge.target === boss, 'набирает пламя — сперва в босса');
+  runFor(beam, FIRE.beam.charge + 0.1);
+  ok(hit(boss) >= e.damage * FIRE.beam.mul, 'луч');
+});
+
+test('маг огня: возгорание — не стреляет, каждый тик у каждого моба свой шанс вспыхнуть', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'pyro', 10, 4);
+  battle.setMods(t, { runes: ['ignite'] });
+  eq(battle._fire(t), false, 'не стреляет');
+  const far = walker(battle, 1, 1e6), other = walker(battle, 18, 1e6);
+  still(far, other);
+  battle.random = () => 0.01;
+  battle.step(TICK);
+  ok(hit(far) > 0 && hit(other) > 0, 'вспыхнули в любом конце карты');
+  const was = hit(far);
+  battle.random = () => 0.99;
+  runFor(battle, 1);
+  eq(hit(far), was, 'не повезло — не вспыхнул');
+});
+
+test('маг огня: тление, огненная реакция, факел, синее пламя', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'pyro', 10, 4);
+  battle.setMods(t, { runes: ['smolder', 'fireReact'] });
+  battle.random = () => 0.99;
+  t.critChance = 0;
+  t.cooldown = 1e9;
+  const mob = walker(battle, 10, 1e6);
+  still(mob);
+  battle._fire(t);
+  runFor(battle, 0.35);
+  ok(mob.burn && mob.burn.has(t), 'тление');
+  ok(mob.marks && mob.marks.get('fire').has(t), 'стихия огня');
+  const was = hit(mob);
+  runFor(battle, 1.1);
+  ok(hit(mob) > was, 'горит каждый тик');
+
+  const torch = makeBattle(), p = torch.place(player(), 'pyro', 10, 4), s = torch.place(player(), 'sniper', 11, 4);
+  const far = torch.place(player(), 'gunner', 2, 4);
+  torch.setMods(p, { runes: ['torch', 'fireReact'] });
+  still(walker(torch, 0, 1e6));
+  torch.step(TICK);
+  ok(s.torch === p && !far.torch, 'факел — соседям-стрелкам');
+  const target = walker(torch, 13, 1e7);
+  still(target);
+  s.critChance = 0;
+  torch.random = () => 0.99;
+  torch._fire(s);
+  ok(hit(target) > s.damage, 'к выстрелу добавился огонь');
+  ok(target.marks && target.marks.get('fire').has(p), 'и стихия огня от мага');
+
+  const blue = makeBattle(), q = blue.place(player(), 'pyro', 10, 4);
+  blue.setMods(q, { runes: ['blue'] });
+  q.critChance = 0;
+  q.cooldown = 1e9;
+  blue.random = () => 0.99;
+  const m = walker(blue, 10, 1e6);
+  still(m);
+  blue._fire(q);
+  runFor(blue, 0.35);
+  near(hit(m), q.damage * FIRE.blue, 'синее пламя сильнее');
+  ok(blue.events.some((e) => e.kind === 'shot' && e.blue), 'и синее');
+});
+
+test('маг воды: струя; заморозка, волна, водоворот, цунами', () => {
   const battle = makeBattle(), t = battle.place(player(), 'frost', 10, 4);
   battle.random = () => 0.99;
   t.critChance = 0;
@@ -1702,10 +1736,11 @@ test('маг воды: струя намачивает; заморозка, во
   still(mob);
   battle._fire(t);
   near(hit(mob), t.damage, 'струя бьёт одного');
-  ok(battle.wet(mob), 'и намачивает');
+  no(mob.marks, 'стихию сама не накладывает');
   battle.setMods(t, { perks: [1] });
+  battle.random = () => 0.01;
   battle._fire(t);
-  ok(mob.holdUntil > battle.time, 'заморозка: мокрого — всегда');
+  ok(mob.holdUntil > battle.time, 'заморозка');
 
   const waves = makeBattle(), w = waves.place(player(), 'frost', 10, 4), boss = put(waves,
     special(waves, 'boss', 'crusher', 1e9), 12);
@@ -1717,45 +1752,140 @@ test('маг воды: струя намачивает; заморозка, во
   waves.step(TICK);
   ok(waves.events.some((e) => e.kind === 'wave') && waves.events.some((e) => e.kind === 'tsunami'));
   ok(a.d <= da - 3.9, 'волна и цунами отбросили');
-  ok(b.d <= db - 2.9 && waves.wet(b), 'цунами — по всему полю, и все мокрые');
+  ok(b.d <= db - 2.9, 'цунами — по всему полю');
   near(boss.d, dboss, 'босса не сдвинуть');
   ok(waves.zones.some((zone) => zone.kind === 'pool' && zone.tower === w), 'водоворот');
-
-  const rain = makeBattle(), r = rain.place(player(), 'frost', 10, 4);
-  no(rain.wet(walker(rain, 2, 100)));
-  rain.setMods(r, { perks: [6] });
-  ok(rain.rain && rain.wet(walker(rain, 3, 100)), 'ливень: все мокрые');
 });
 
-test('реакции стихий: электрошок, мгновенная заморозка, пар, взрыв газа, перегрузка', () => {
-  const battle = makeBattle(), storm = battle.place(player(), 'thunder', 10, 4);
-  const ice = battle.place(player(), 'frost', 12, 4), fire = battle.place(player(), 'pyro', 8, 4);
-  const lab = battle.place(player(), 'alchemist', 6, 4);
-  const shocked = walker(battle, 2, 1e6);
-  battle._wet(shocked, 5);
-  battle._hurt(shocked, 100, storm);
-  near(hit(shocked), 200, 'молния по мокрому — вдвое');
-  ok(shocked.holdUntil > battle.time && battle.events.some((e) => e.kind === 'react' && e.name === 'Электрошок'));
-  const frozen = walker(battle, 3, 1e6);
-  battle._wet(frozen, 5);
-  battle._hurt(frozen, 10, ice, 'ice');
-  ok(frozen.holdUntil > battle.time && !battle.wet(frozen), 'лёд по мокрому — заморозка, вода ушла');
-  const steamy = walker(battle, 4, 1e6), nearby = walker(battle, 4.5, 1e6);
-  battle._wet(steamy, 5);
-  battle._hurt(steamy, 10, fire);
-  battle._ignite(steamy, fire, 1, 3);
-  ok(!steamy.burn && nearby.vuln >= 0.25 && nearby.vulnUntil > battle.time, 'пар: огонь гаснет, рядом +25% урона');
-  const gassy = walker(battle, 7, 1e6), neighbour = walker(battle, 7.5, 1e6);
-  battle._poison(gassy, lab, lab, 1, 5);
-  battle._hurt(gassy, 10, fire);
-  ok(hit(neighbour) > 0 && neighbour.poison && neighbour.poison.has(lab), 'взрыв газа разносит яд');
-  const charged = walker(battle, 9, 1e6);
-  charged.charge = { by: storm, bonus: 0, until: battle.time + 5 };
-  battle._hurt(charged, 100, storm);
-  near(hit(charged), 100, 'заряженного без перегрузки — как обычно');
-  battle.setMods(storm, { perks: [3] });
-  battle._hurt(charged, 100, storm);
-  near(hit(charged), 300, 'перегрузка: и заряженного вдвое');
+function lab() {
+  const battle = makeBattle(), at = (cls, x, mods) => {
+    const t = battle.place(player(), cls, x, 3);
+    battle.setMods(t, mods);
+    return t;
+  };
+  const towers = {
+    fire: at('pyro', 1, { runes: ['fireReact'] }), fire2: at('pyro', 3, { runes: ['fireReact'] }),
+    fire3: at('pyro', 17, { runes: ['fireReact'] }),
+    water: at('frost', 5, { perks: [6] }), earth: at('earth', 7, { perks: [6] }), air: at('shaman', 9, { perks: [6] }),
+    lightning: at('thunder', 11, { perks: [3] }), poison: at('alchemist', 13, { perks: [6] }),
+  };
+  return { battle, towers };
+}
+
+test('реакции: стихию накладывают только «… реакция»; две стихии — реакция в тик, урон от суммы мощи', () => {
+  const { battle, towers } = lab(), plain = battle.place(player(), 'thunder', 15, 3);
+  eq([towers.fire.react, towers.water.react, towers.air.react, towers.poison.react],
+    ['fire', 'water', 'air', 'poison']);
+  eq(plain.react, null, 'без способности стихия не накладывается');
+  const mob = walker(battle, 2, 1e6);
+  still(mob);
+  battle._hurt(mob, 10, plain);
+  no(mob.marks);
+  battle._hurt(mob, 10, towers.fire);
+  battle._hurt(mob, 10, towers.water);
+  eq(Array.from(mob.marks.keys()).sort(), ['fire', 'water']);
+  const was = hit(mob);
+  battle._pulse(battle.time);
+  ok(!mob.marks, 'стихии ушли в реакцию');
+  ok(battle.state(mob, 'steam'), 'пар');
+  near(hit(mob) - was, (towers.fire.skill + towers.water.skill) * REACTIONS.steam.fire, 'урон — от суммы мощи');
+  ok(battle.events.some((e) => e.kind === 'react' && e.name === 'Пар'));
+  const weak = walker(battle, 4, 1e6);
+  still(weak);
+  for (const key of ['fire', 'fire2', 'water']) battle._mark(weak, towers[key].react, towers[key]);
+  weak.hp = 1;
+  battle._pulse(battle.time);
+  ok(weak.dead);
+  eq([towers.fire.run.kills, towers.fire2.run.kills, towers.water.run.kills], [1, 1, 1], 'убийство — всем участникам');
+});
+
+test('реакции: шанс выше у стихии, наложенной чаще; несколько реакций сразу, если не мешают', () => {
+  const { battle, towers } = lab();
+  battle.random = seeded(5);
+  let steam = 0, frost = 0;
+  for (let i = 0; i < 300; i++) {
+    const mob = walker(battle, 2, 1e9);
+    still(mob);
+    for (const key of ['fire', 'fire2', 'fire3', 'water', 'air']) battle._mark(mob, towers[key].react, towers[key]);
+    battle._pulse(battle.time);
+    if (battle.state(mob, 'steam')) steam += 1;
+    if (battle.state(mob, 'frost')) frost += 1;
+    mob.dead = true;
+  }
+  ok(steam > frost * 1.3, 'огня больше — пар чаще: ' + steam + ' против ' + frost);
+  const both = walker(battle, 6, 1e9);
+  still(both);
+  for (const key of ['fire', 'water', 'air', 'lightning']) battle._mark(both, towers[key].react, towers[key]);
+  battle._pulse(battle.time);
+  ok(!both.marks, 'две реакции сразу');
+});
+
+test('реакции: мороз продлевается и может заморозить; огонь по льду — пар втрое сильнее', () => {
+  const { battle, towers } = lab();
+  const mob = walker(battle, 2, 1e9);
+  still(mob);
+  battle._mark(mob, 'water', towers.water);
+  battle._mark(mob, 'air', towers.air);
+  battle._pulse(battle.time);
+  ok(battle.state(mob, 'frost'), 'мороз');
+  ok(mob.slowUntil > battle.time, 'замедляет');
+  battle.random = () => 0.01;
+  battle._mark(mob, 'water', towers.water);
+  battle._pulse(battle.time);
+  ok(battle.state(mob, 'ice') && mob.holdUntil > battle.time, 'лёд');
+  const was = hit(mob);
+  battle._mark(mob, 'fire', towers.fire);
+  battle._pulse(battle.time);
+  no(battle.state(mob, 'ice'), 'лёд растаял');
+  const power = towers.fire.skill + towers.water.skill + towers.air.skill;
+  near(hit(mob) - was, power * REACTIONS.steam.fire * 3, 'пар третьей степени — от мощи всех участников');
+  ok(battle.state(mob, 'steam').until >= battle.time + 2.9);
+});
+
+test('реакции: гарантированные — лава, перегрузка, эпидемия, ядерный взрыв; газ из пара и яда', () => {
+  const { battle, towers } = lab();
+  const mud = walker(battle, 2, 1e9);
+  still(mud);
+  battle._mark(mud, 'water', towers.water);
+  battle._mark(mud, 'earth', towers.earth);
+  battle._pulse(battle.time);
+  ok(battle.state(mud, 'mud'), 'грязь');
+  battle._mark(mud, 'fire', towers.fire);
+  battle._mark(mud, 'air', towers.air);
+  battle._pulse(battle.time);
+  ok(battle.zones.some((zone) => zone.kind === 'lava') && !battle.state(mud, 'mud'), 'лава');
+
+  const charged = walker(battle, 5, 1e9);
+  still(charged);
+  battle._mark(charged, 'air', towers.air);
+  battle._mark(charged, 'lightning', towers.lightning);
+  battle._pulse(battle.time);
+  ok(battle.state(charged, 'charge'), 'заряд');
+  battle._mark(charged, 'water', towers.water);
+  battle._mark(charged, 'lightning', towers.lightning);
+  battle._pulse(battle.time);
+  ok(battle.events.some((e) => e.kind === 'react' && e.name === 'Перегрузка'), 'перегрузка');
+  ok(charged.holdUntil >= battle.time + 2, 'надолго оглушён');
+
+  const sick = walker(battle, 8, 1e9);
+  still(sick);
+  battle._setState(sick, 'corrosion', 4, [towers.fire], { dot: 1 });
+  battle._setState(sick, 'disease', 4, [towers.earth], { dot: 1 });
+  battle._pulse(battle.time);
+  ok(battle.state(sick, 'epidemic') && !battle.state(sick, 'corrosion'), 'эпидемия');
+
+  const gas = walker(battle, 11, 1e9);
+  still(gas);
+  battle._setState(gas, 'steam', 2, [towers.water]);
+  battle._mark(gas, 'poison', towers.poison);
+  battle._pulse(battle.time);
+  const cloud = battle.zones.find((zone) => zone.kind === 'gas');
+  ok(cloud, 'облако газа');
+  battle._mark(gas, 'fire', towers.fire);
+  battle._mark(gas, 'lightning', towers.lightning);
+  battle._pulse(battle.time);
+  ok(battle.events.some((e) => e.kind === 'react' && e.name === 'Ядерный взрыв'), 'взрыв в газе — ядерный');
+  ok(!battle.zones.includes(cloud), 'облако сгорело');
 });
 
 test('маг молнии: грозовая туча и гроза над полем', () => {

@@ -261,6 +261,84 @@ const MAGES = {
   }),
 };
 
+function ragged(m) {
+  hero(m, {
+    coat: '#7d6b52', dark: '#5b4c39', sleeve: '#6f5f48', boots: '#3b2c22', hands: [12.5, 12, 19.5, 12.5],
+    chest: (q) => {
+      q.limb(12, 23, 9.2, 15, 21, 9.2, 0.5, '#4a3d2e');
+      q.dot(19, 22, '#a08a68', 30);
+      q.dot(13, 19, '#4a3d2e', 30);
+    },
+    weapon: (q) => q.limb(12.5, 16.5, 10, 12, 5.5, 10.6, 0.8, '#7a5a35'),
+    head: (q) => {
+      q.ball(16, 17, 11.2, 4.3, SKIN);
+      q.ball(16, 18.6, 12.4, 3.2, '#5a4632');
+      for (const [x, y] of [[13.6, 15.4], [18.4, 15.8], [16, 14.2]]) q.dot(x, y, '#3b2f22', 60);
+    },
+  });
+}
+
+function fireballMage(m, fire, core) {
+  hero(m, {
+    coat: '#b91c1c', dark: '#7f1d1d', sleeve: '#c42828', boots: '#3b1a14', hands: [11.5, 12, 20.5, 12],
+    back: (q) => q.egg(16, 23, 2.6, 8.2, 6, 3, '#7f1d1d'),
+    chest: (q) => q.limb(16, 13.5, 9.6, 16, 23.5, 9.6, 0.8, '#f59e0b'),
+    weapon: (q) => {
+      for (const [x, y] of [[11.5, 11], [20.5, 11]]) {
+        q.ball(x, y, 12, 2.5, fire, 1);
+        q.ball(x - 0.3, y - 0.5, 13.6, 1.3, core, 1);
+      }
+    },
+    head: (q) => hat(q, '#991b1b', '#f59e0b', core),
+  });
+}
+
+function igniteMage(m, fire, core) {
+  hero(m, {
+    coat: '#9a3412', dark: '#5c1a0a', sleeve: '#a63b17', boots: '#2b1610', hands: [12, 13, 20.5, 11],
+    back: (q) => q.egg(16, 23, 2.6, 8.2, 6, 3, '#5c1a0a'),
+    chest: (q) => q.limb(16, 13.5, 9.6, 16, 23.5, 9.6, 0.8, '#fbbf24'),
+    weapon: (q) => {
+      q.ball(20.5, 9.8, 12, 2.1, fire, 1);
+      q.ball(20.6, 8.4, 13.8, 1.4, fire, 1);
+      q.ball(20.4, 7.3, 15.2, 0.8, core, 1);
+    },
+    head: (q) => {
+      q.ball(16, 17.5, 11.6, 5, '#7c2d12');
+      q.ball(16, 18.6, 13.4, 3.4, '#5c1a0a');
+      q.dot(16, 14.4, core, 60);
+    },
+  });
+}
+
+function dragon(m, scale, wing, fire) {
+  m.limb(16, 22, 6, 16, 29.5, 4, 1.8, scale, 0, 0.6);
+  m.egg(7, 17, 6.5, 6.5, 4.4, 1, wing);
+  m.egg(25, 17, 6.5, 6.5, 4.4, 1, wing);
+  m.limb(12, 15, 7.5, 2, 13, 8, 0.7, scale);
+  m.limb(20, 15, 7.5, 30, 13, 8, 0.7, scale);
+  m.egg(16, 18, 7, 4.8, 6.4, 4, scale);
+  for (const y of [15, 18, 21]) m.ball(16, y, 11.2, 0.9, wing);
+  m.egg(16, 10.5, 9, 3.4, 3.8, 3, scale);
+  m.egg(16, 7.4, 9.4, 2.2, 2.4, 2.2, scale);
+  m.limb(14, 11, 11, 12.2, 13.6, 12.6, 0.6, '#f5e6c8');
+  m.limb(18, 11, 11, 19.8, 13.6, 12.6, 0.6, '#f5e6c8');
+  m.dot(14.6, 9.4, '#fde047', 60);
+  m.dot(17.4, 9.4, '#fde047', 60);
+  m.dot(15.4, 5.6, fire, 60);
+  m.dot(16.6, 5.6, fire, 60);
+}
+
+const SKINS = {
+  'pyro-ragged': ragged,
+  'pyro-fireball': (m) => fireballMage(m, '#f97316', '#fde047'),
+  'pyro-fireball-blue': (m) => fireballMage(m, '#3b82f6', '#e0f2ff'),
+  'pyro-dragon': (m) => dragon(m, '#c2410c', '#7c2d12', '#fde047'),
+  'pyro-dragon-blue': (m) => dragon(m, '#1d4ed8', '#1e3a8a', '#9bd5ff'),
+  'pyro-ignite': (m) => igniteMage(m, '#f97316', '#fde047'),
+  'pyro-ignite-blue': (m) => igniteMage(m, '#3b82f6', '#e0f2ff'),
+};
+
 const HEROES = {
   sniper: (m) => hero(m, {
     coat: '#5f7f3c', dark: '#4a6430', sleeve: '#557235',
@@ -435,7 +513,7 @@ const HEROES = {
   },
 };
 
-Object.assign(HEROES, MAGES);
+Object.assign(HEROES, MAGES, SKINS);
 export const HERO_IDS = Object.keys(HEROES);
 
 export function drawHero(id) {

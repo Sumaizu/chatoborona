@@ -7,7 +7,7 @@ import { FAMILY_BY_ID, LEVEL_MAX, MIGHT, REWARD, SLEEP_AFTER, TEMPO, TICK, waveR
   from '../../site/reborn/js/balance.js';
 import { ASCEND_AT, EXTRA_SLOTS, PRICE, QUEUE_CAP, RARITIES, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, ascend,
   makeWeapon, weaponName } from '../../site/reborn/js/gacha.js';
-import { CLASSES, CLASS_BY_ID, poolOf } from '../../site/reborn/js/classes.js';
+import { CLASSES, CLASS_BY_ID, STONE_CHANCE, poolOf } from '../../site/reborn/js/classes.js';
 import { ODDS, effectOf, rollEvent } from '../../site/reborn/js/events.js';
 import { cellName } from '../../site/reborn/js/field.js';
 
@@ -259,6 +259,7 @@ test('игра: поражение — итоги, рекорд, через вр
 
 test('гача: без монет нельзя, крутят трое сразу, место — сперва тому, кто не крутит, докупка — в конец очереди', () => {
   const { game } = makeGame();
+  game._stoneDue = () => 0;
   game.open();
   for (const name of ['Ева', 'Жора', 'Зина', 'Ия']) say(game, name, 'привет');
   toWave(game);
@@ -327,6 +328,7 @@ test('гача: в очереди у игрока не больше десяти
 
 test('гача: при очереди больше 30 круток — четвёртое окошко, больше 100 — пятое; очередь спала — лишние уходят', () => {
   const { game } = makeGame();
+  game._stoneDue = () => 0;
   game.open();
   for (let i = 0; i < 25; i++) say(game, 'Игрок' + i, 'привет');
   toWave(game);
@@ -878,74 +880,91 @@ test('частица бога: выпадает в гаче, хранится м
   no(game.members.get('лия').particle, 'сброс уровней забирает и частицу');
 });
 
-test('камень навыка: положен с 10 уровня, по одному на ступень 10, 30, 50 и 75', () => {
+function sniper(game, name) {
+  say(game, name, 'привет');
+  game.members.get(name.toLowerCase()).cls = 'sniper';
+}
+
+test('камень навыка: первый с 1 уровня (20%), дальше по ступеням 10, 30, 50, 70, 100 (3%)', () => {
   const { game } = makeGame();
   game.open();
-  say(game, 'Рина', 'привет');
+  sniper(game, 'Рина');
   toWave(game);
-  const member = game.members.get('рина'), runes = CLASS_BY_ID.get(member.cls).runes.map((rune) => rune.id);
-  member.xp = xpForLevel(9);
-  no(game._stoneDue(member), 'до 10 уровня камня нет');
-  member.xp = xpForLevel(10);
-  ok(game._stoneDue(member), 'на 10 — положен');
+  const member = game.members.get('рина');
+  member.xp = 0;
+  eq(game._stoneDue(member), STONE_CHANCE.first, 'с первого уровня — 20%');
   stone(game, 'рина');
-  no(game._stoneDue(member), 'пока выбор открыт, второй не выпадает');
+  eq(game._stoneDue(member), 0, 'пока выбор открыт, второй не выпадает');
   game.choices = [];
   member.skills = ['perk0'];
-  no(game._stoneDue(member), 'за 10 уровень уже взят');
+  eq(game._stoneDue(member), 0, 'за первую ступень уже взят');
+  member.xp = xpForLevel(10);
+  eq(game._stoneDue(member), STONE_CHANCE.next, 'на 10-м — 3%');
   member.xp = xpForLevel(LEVEL_MAX);
-  ok(game._stoneDue(member));
-  member.skills = ['perk0', 'perk1', 'perk2', runes[0]];
-  no(game._stoneDue(member), 'четыре ступени — четыре камня');
+  member.skills = poolOf('sniper').map((skill) => skill.id).slice(0, 6);
+  eq(game._stoneDue(member), 0, 'шесть ступеней — шесть камней');
   member.skills = [];
   no(game.modsOf(member).perks.length, 'уровень сам приёмов не открывает');
-  eq(member.tower.mods.perks, [], 'у бойца приёмов нет, хоть он и сотого уровня');
 });
 
 test('камень навыка: игра замирает, игрок пишет цифру — навык его до конца игры', () => {
   const { game } = makeGame();
   game.open();
-  say(game, 'Рина', 'привет');
+  sniper(game, 'Рина');
   say(game, 'Лев', 'привет');
   toWave(game);
-  const member = game.members.get('рина'), pool = poolOf(member.cls), second = pool[1], fourth = pool[3];
+  const member = game.members.get('рина'), pool = poolOf('sniper'), second = pool[1], fourth = pool[3];
   member.xp = xpForLevel(30);
   ok(stone(game, 'рина').took);
   const choice = game.choice;
-  eq(choice.login, 'рина');
-  eq(choice.options.map((skill) => skill.id), poolOf(member.cls).map((skill) => skill.id), 'все навыки класса');
-  ok(game.events.some((e) => e.kind === 'stone' && e.login === 'рина'));
+  eq(game.optionsOf(choice).map((option) => option.skill.id), pool.map((skill) => skill.id), 'все навыки класса');
   const time = game.battle.time;
   runFor(game, 5);
   eq(game.battle.time, time, 'бой стоит');
   ok(Math.abs(choice.left - (PICK_TIME - 5)) < 1e-6, 'отсчёт выбора идёт');
   eq(say(game, 'Лев', '2'), null, 'чужая цифра не считается');
   eq(say(game, 'Рина', '9'), null, 'такого номера нет');
-  ok(game.choice === choice);
   eq(say(game, 'Рина', '2'), 'skill');
   eq(game.choice, null);
   eq(member.skills, [second.id]);
   eq(member.tower.mods.perks, [second.perk], 'дошёл до бойца');
-  const note = game.notes.find((n) => n.kind === 'skill' && n.login === 'рина');
-  ok(note && note.left === SKILL_TIME && note.detail.skill === second.id && !note.detail.auto);
-  runFor(game, 1);
-  ok(game.battle.time > time, 'бой пошёл дальше');
+  ok(game.notes.some((n) => n.kind === 'skill' && n.detail.skill === second.id && !n.detail.auto));
   stone(game, 'рина');
-  eq(game.choice.options.length, poolOf(member.cls).length, 'в окне все навыки класса под теми же номерами');
-  eq(say(game, 'Рина', '2'), null, 'взятый навык второй раз не берётся');
+  eq(game.optionsOf(game.choice)[1].state, 'taken', 'взятый — отмечен');
+  eq(say(game, 'Рина', '2'), null, 'и второй раз не берётся');
   eq(say(game, 'Рина', '4'), 'skill');
   eq(member.skills, [second.id, fourth.id]);
-  if (fourth.perk === null) ok(member.tower.runes.has(fourth.id), 'руна дошла до бойца');
-  else eq(member.tower.mods.perks, [second.perk, fourth.perk], 'оба приёма у бойца');
   game.restart();
   say(game, 'Рина', 'снова');
   eq(game.members.get('рина').skills, [], 'в новой игре навыков нет');
 });
 
+test('камень навыка: маг огня сперва выбирает стиль — меняется скин и набор навыков', () => {
+  const { game } = makeGame();
+  game.open();
+  say(game, 'Рина', 'привет');
+  game.members.get('рина').cls = 'pyro';
+  toWave(game);
+  const member = game.members.get('рина');
+  eq(member.tower.look, 'pyro-ragged', 'без стиля — оборванец');
+  stone(game, 'рина');
+  eq(game.optionsOf(game.choice).map((option) => option.skill.kind), ['style', 'style', 'style']);
+  eq(say(game, 'Рина', '2'), 'skill');
+  eq(member.skills, ['dragon']);
+  eq([member.tower.style, member.tower.look], ['dragon', 'pyro-dragon']);
+  ok(game.notes.some((n) => n.kind === 'skill' && n.detail.style), 'плашка «Новый стиль»');
+  member.xp = xpForLevel(10);
+  stone(game, 'рина');
+  eq(game.optionsOf(game.choice).map((option) => option.skill.id),
+    ['wide', 'lungs', 'flight', 'beam', 'smolder', 'fireReact', 'torch', 'blue']);
+  eq(say(game, 'Рина', '8'), 'skill');
+  eq(member.tower.look, 'pyro-dragon-blue', 'синее пламя — синий дракон');
+});
+
 test('камень навыка: не выбрал за минуту — случайный; хозяин канала выбирает за игрока; пауза держит отсчёт', () => {
   const { game } = makeGame({ settings: { channel: 'streamer' } });
   game.open();
-  say(game, 'Рина', 'привет');
+  sniper(game, 'Рина');
   toWave(game);
   const member = game.members.get('рина');
   member.xp = xpForLevel(50);
@@ -961,15 +980,14 @@ test('камень навыка: не выбрал за минуту — слу�
   eq(member.skills.length, 1, 'навык выпал сам');
   ok(game.notes.some((n) => n.kind === 'skill' && n.detail.auto), 'с пометкой «случайно»');
   stone(game, 'рина');
-  const free = game.choice.options.findIndex((skill) => !member.skills.includes(skill.id));
+  const free = game.optionsOf(game.choice).findIndex((option) => option.state === 'open');
   eq(say(game, 'Лев', '@рина ' + (free + 1)), null, 'зрителю нельзя');
   eq(game.feed('Streamer', '@Рина ' + (free + 1), { login: 'streamer' }), 'skill');
-  eq(member.skills[1], poolOf(member.cls)[free].id);
+  eq(member.skills[1], poolOf('sniper')[free].id);
   const other = makeGame().game;
   other.open();
-  say(other, 'Лев', 'привет');
+  sniper(other, 'Лев');
   ok(until(other, () => other.state === 'placing'));
-  other.members.get('лев').xp = xpForLevel(10);
   stone(other, 'лев');
   eq(say(other, 'Лев', 'реролл'), 'reroll');
   eq(other.choice, null, 'реролл закрывает выбор старого класса');

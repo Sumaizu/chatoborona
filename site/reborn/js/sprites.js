@@ -1,6 +1,6 @@
 import { HERO_IDS, drawHero } from './models.js';
 import { MOB_IDS, drawMelt, drawMob, drawSplit, gooColor } from './monsters.js';
-import { drawClod, drawCocoon, drawCoinIcon, drawEmblem, drawHeart, drawMeteor, drawMine, drawMound, drawNuke,
+import { drawClod, drawCocoon, drawCoinIcon, drawEmblem, drawHeart, drawMeteor, drawMine, drawMound, drawNuke, drawVent,
   drawRocket, drawTrap, drawWall } from './props.js';
 
 const OUTLINE = '#15111d';
@@ -329,6 +329,7 @@ export const flaskSprite = () => remember('flask', () => {
 });
 
 export const mineSprite = (kind, lit) => remember('mine:' + kind + ':' + lit, () => drawMine(kind, lit));
+export const ventSprite = (lit) => remember('vent:' + lit, () => drawVent(lit));
 export const rocketSprite = () => remember('rocket', () => drawRocket());
 export const meteorSprite = () => remember('meteor', () => drawMeteor());
 export const cocoonSprite = (frame) => remember('cocoon:' + frame, () => drawCocoon(frame));

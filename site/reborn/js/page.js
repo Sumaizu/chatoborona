@@ -228,6 +228,7 @@ $('toggle-settings').addEventListener('click', toggleSettings);
 $('toggle-link').addEventListener('click', () => showLinkPanel(linkPanel.hidden));
 $('copy').addEventListener('click', copyLink);
 for (const id of ['rules-x', 'rules-close']) $(id).addEventListener('click', () => $('rules').close());
+for (const id of ['news-x', 'news-close']) $(id).addEventListener('click', () => $('news').close());
 $('open-rules').addEventListener('click', () => $('rules').showModal());
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') showLinkPanel(false);
@@ -240,6 +241,7 @@ fillForm();
 showLink();
 $('rules-title').textContent = RULES_TITLE;
 renderRules($('rules-body'));
+$('news').showModal();
 frame.src = overlayLink(['embed=1', toQuery(settings)].filter(Boolean).join('&'));
 sync();
 setInterval(sync, SYNC_MS);

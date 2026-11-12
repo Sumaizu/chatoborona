@@ -1,5 +1,5 @@
 import { Scene } from './draw.js';
-import { CLASSES, CLASS_BY_ID, STONES, describe, mightOf, poolOf, skillOf, stonesAt } from './classes.js';
+import { CLASSES, CLASS_BY_ID, choiceOf, describe, mightOf, skillOf, skinOf, stonesAt, styleOf } from './classes.js';
 import { coinUrl, effectUrl, emblemUrl, flagCanvas, flagUrl, heroUrl, markUrl, mightUrl, particleSprite, particleUrl,
   prizeUrl } from './sprites.js';
 import { EXTRA_SLOTS, OUTCOMES, PRICE, RARITIES, SLOTS, SPIN_TIME, UPGRADE_PRICE, boonOf, gearColor,
@@ -765,20 +765,26 @@ export class View {
   _paintPick(game, choice) {
     const member = game.members.get(choice.login), cls = CLASS_BY_ID.get(choice.cls);
     const name = member ? member.name : choice.login, taken = member ? member.skills : [];
+    const options = game.optionsOf(choice), styling = options.some((option) => option.skill.kind === 'style');
     this._once('pick', choice.id + ':' + taken.join(), () => {
-      const who = $('pick-who'), title = el('b', 'cls', cls.name);
+      const who = $('pick-who'), title = el('b', 'cls', cls.name), style = styleOf(choice.cls, taken);
       title.style.color = cls.color;
       who.textContent = '';
-      who.append(image(heroUrl(choice.cls, 64), 'face'),
+      who.append(image(heroUrl(skinOf(choice.cls, taken), 64), 'face'),
         member ? this._starName(member.name, member.star, member.color, 'nick') : el('b', 'nick', name), ' · ', title,
-        ' — навык до конца игры');
+        styling ? ' — выбирает стиль игры' : style ? ' · стиль «' + style.name + '»' : ' — навык до конца игры');
+      $('pick-title').textContent = styling ? 'Выбор стиля' : 'Камень навыка';
       const list = $('pick-options');
       list.textContent = '';
-      list.classList.toggle('many', choice.options.length > 6);
-      choice.options.forEach((skill, i) => {
-        const item = el('li', (skill.perk === null ? 'rune' : '') + (taken.includes(skill.id) ? ' taken' : ''));
-        const text = el('div');
-        text.append(el('b', '', skill.name), ' — ' + skill.text);
+      list.style.setProperty('--own', cls.color);
+      list.classList.toggle('many', options.length > 6);
+      options.forEach(({ skill, state }, i) => {
+        const item = el('li', state), text = el('div');
+        text.append(el('b', '', skill.name));
+        if (skill.kind !== 'style') {
+          text.append(el('span', 'kind', skill.kind === 'upgrade' ? 'усиление' : 'способность'));
+        }
+        text.append(' — ' + skill.text);
         item.append(el('i', 'digit', String(i + 1)), text);
         list.append(item);
       });
@@ -786,10 +792,10 @@ export class View {
     $('pick-bar').style.width = (Math.max(0, choice.left) / choice.span * 100).toFixed(1) + '%';
     const seconds = Math.max(0, Math.ceil(choice.left));
     this._once('pickClock', choice.id + ':' + seconds, () => {
-      const how = $('pick-how'), count = choice.options.length;
+      const how = $('pick-how'), count = options.length;
       how.textContent = '';
       how.append(el('b', '', name), ', напиши в чат цифру от 1 до ' + count + '. Отряд, подскажи! Не выберет за ',
-        el('b', 'timer', clockText(choice.left)), ' — навык выпадет случайно');
+        el('b', 'timer', clockText(choice.left)), styling ? ' — стиль выпадет случайно' : ' — навык выпадет случайно');
     });
   }
 
@@ -1111,14 +1117,15 @@ export class View {
           if (m.asleep) {
             const row = el('li', 'asleep');
             row.title = 'спит: любая команда — и снова в строю';
-            row.append(image(heroUrl(m.cls), 'face'), el('span', 'name', m.name), el('span', 'zzz', 'Zzz'));
+            row.append(image(heroUrl(skinOf(m.cls, m.skills)), 'face'), el('span', 'name', m.name),
+              el('span', 'zzz', 'Zzz'));
             box.append(row);
             continue;
           }
           const row = el('li'), level = el('span', 'lvl', (two ? '' : 'ур. ') + levelOf(m.xp));
           level.style.background = gearColor(m.weapon);
           level.title = 'уровень';
-          row.append(image(heroUrl(m.cls), 'face'), this._starName(m.name, m.star, m.color));
+          row.append(image(heroUrl(skinOf(m.cls, m.skills)), 'face'), this._starName(m.name, m.star, m.color));
           if (m.paragon) row.append(paragonTag(m.paragon));
           row.append(level, this._coins(m.coins));
           box.append(row);
@@ -1212,14 +1219,15 @@ export class View {
     } else if (note.kind === 'skill') {
       node.className = 'note skill';
       const skill = skillOf(member.cls, detail.skill), text = el('div');
-      text.append(el('b', 'title', detail.auto ? 'Навык выпал случайно' : 'Новый навык'), nick, ': ',
+      const label = detail.style ? 'стиль' : 'навык';
+      text.append(el('b', 'title', detail.auto ? 'Случайный ' + label : 'Новый ' + label), nick, ': ',
         el('b', 'what', skill ? skill.name : ''));
-      node.append(image(heroUrl(member.cls, 64)), text);
+      node.append(image(heroUrl(skinOf(member.cls, member.skills), 64)), text);
     } else if (note.kind === 'divine') {
       node.className = 'note divine';
       const text = el('div');
       text.append(el('b', 'title', 'Божественное оружие!'), nick, gearLine(detail.weapon));
-      node.append(image(heroUrl(member.cls, 64)), text);
+      node.append(image(heroUrl(skinOf(member.cls, member.skills), 64)), text);
     } else {
       node.className = 'note upgrade';
       node.append(nick, ' улучшает оружие' + (detail.times > 1 ? ' ×' + detail.times : '') + ': ',
@@ -1246,7 +1254,7 @@ export class View {
     helps.title = 'помощь в этой игре';
     marks.append(lvl, spot, kills, helps);
     top.append(this._starName(member.name, member.star, member.color, 'nick'), coins);
-    const face = image(heroUrl(member.cls, 64));
+    const face = image(heroUrl(skinOf(member.cls, member.skills), 64));
     node.append(face, top, marks, body, gear);
     const state = { body: '', gear: null, power: '', powerBox: null };
     return {
@@ -1270,7 +1278,7 @@ export class View {
         const skills = m.skills || [], bodyKey = JSON.stringify([level, m.cls, brief, skills]);
         if (state.body !== bodyKey) {
           state.body = bodyKey;
-          face.src = heroUrl(m.cls, 64);
+          face.src = heroUrl(skinOf(m.cls, skills), 64);
           const cls = CLASS_BY_ID.get(m.cls), info = describe(m.cls, skills), kind = el('div', 'line');
           const clsName = el('b', '', cls.name);
           clsName.style.color = cls.color;
@@ -1280,13 +1288,20 @@ export class View {
           state.power = '';
           state.powerBox = el('div', 'stat-line power');
           body.append(kind, state.powerBox);
-          for (const skill of info.skills) body.append(skillLine(skill, brief));
-          const free = Math.max(0, Math.min(stonesAt(level), poolOf(m.cls).length) - info.skills.length);
+          const style = styleOf(m.cls, skills);
+          if (style) {
+            const line = el('div', 'skill-line style');
+            line.append('Стиль: ', el('b', '', style.name));
+            line.style.setProperty('--own', cls.color);
+            body.append(line);
+          }
+          for (const skill of info.skills) if (skill.kind !== 'style') body.append(skillLine(skill, brief));
+          const open = choiceOf(m.cls, skills).filter((option) => option.state === 'open').length;
+          const free = Math.max(0, Math.min(stonesAt(level) - skills.length, open));
           if (!brief && free) {
             body.append(el('div', 'skill-line none', 'Свободных мест под камни навыка: ' + free));
-          } else if (!brief && !info.skills.length) {
-            body.append(el('div', 'skill-line none', 'Навыков пока нет: камень навыка выпадает в гаче с '
-              + STONES[0] + ' уровня'));
+          } else if (!brief && !skills.length) {
+            body.append(el('div', 'skill-line none', 'Навыков пока нет: камень навыка выпадает в гаче'));
           }
         }
         const might = mightOfMember(m);
