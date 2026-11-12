@@ -457,7 +457,128 @@ function phoenix(m, deep, plume, flare, core, span) {
   m.dot(17.1, 9, core, 60);
 }
 
+function seated(m, o) {
+  for (const side of [-1, 1]) {
+    m.limb(16 + side * 3.2, 21.5, 4.5, 16 + side * 7.6, 14.2, 6.4, 2.2, o.legs, 0, 1.9);
+    m.limb(16 + side * 7.6, 14.2, 6.4, 16 + side * 4.2, 10, 3, 1.8, o.legs, 0, 1.5);
+    m.egg(16 + side * 3.9, 9.4, 2.2, 1.6, 2.1, 1.4, o.boots);
+  }
+  m.egg(16, 21.8, 5, 5.9, 5, 4.2, o.coat);
+  if (o.chest) o.chest(m);
+  const [lx, ly, rx, ry] = o.hands;
+  m.limb(11.2, 20.8, 7.5, lx, ly + 0.5, 8.5, 1.9, o.sleeve);
+  m.limb(20.8, 20.8, 7.5, rx, ry + 0.5, 8.5, 1.9, o.sleeve);
+  m.ball(11, 21.2, 8, 2.6, o.dark);
+  m.ball(21, 21.2, 8, 2.6, o.dark);
+  o.weapon(m);
+  m.ball(lx, ly, 9.4, 1.9, o.glove);
+  m.ball(rx, ry, 9.4, 1.9, o.glove);
+  o.head(m);
+}
+
+function recruit(m) {
+  hero(m, {
+    coat: '#5b6b3a', dark: '#4a5a2c', sleeve: SKIN, boots: '#4a5a32', hands: [12.5, 14.5, 19.5, 12],
+    chest: (q) => q.dot(16, 14.4, METAL, 30),
+    weapon: (q) => {
+      q.limb(19.5, 13.4, 10.2, 19.5, 11.8, 10.2, 0.8, '#3f444d');
+      q.limb(19.5, 12.4, 10.8, 19.5, 7.8, 11, 0.85, '#4b5563', 0.7);
+      q.dot(19, 7.6, '#cbd5e1', 40);
+    },
+    head: (q) => {
+      q.ball(16, 17, 11.2, 4.4, SKIN);
+      q.ball(16, 18.4, 12.3, 3.5, '#4a3524');
+    },
+  });
+}
+
+const GHILLIE = ['#4d6b2f', '#6b7d3a', '#3f5626', '#7a6a3a', '#5a7a35', '#8a7d45'];
+
+function ghillie(m) {
+  seated(m, {
+    coat: '#556b2f', dark: '#3f5626', sleeve: '#4d6b2f', legs: '#4d6b2f', boots: '#3a3326', glove: '#3f4a2a',
+    hands: [15.2, 17, 16.7, 11.5],
+    weapon: (q) => {
+      q.limb(16, 23, 8, 16, 17, 8.3, 1.4, '#3f4a2a');
+      q.limb(16, 17, 8.4, 16, 0.5, 8.4, 0.55, '#2d323b', 0.6);
+      q.limb(16, 15.5, 9.8, 16, 9.5, 9.8, 1, '#1f2937', 0.8);
+      q.dot(15.5, 9, '#7fd4ff', 40);
+      for (const side of [-1, 1]) q.limb(16, 3.6, 7.8, 16 + side * 1.4, 2.2, 6.4, 0.3, '#2d323b');
+    },
+    head: (q) => q.ball(16, 20.5, 10.6, 4.4, '#4d6b2f'),
+  });
+  let seed = 11;
+  const roll = () => {
+    seed = seed * 16807 % 2147483647;
+    return seed / 2147483647;
+  };
+  const surface = (x, y) => {
+    const head = Math.hypot(x - 16, y - 20.5), body = ((x - 16) / 6.8) ** 2 + ((y - 21.5) / 5.4) ** 2;
+    if (head < 4.4) return 10.6 + Math.sqrt(4.4 * 4.4 - head * head);
+    if (body < 1) return 5 + 4.2 * Math.sqrt(1 - body);
+    return 6.5;
+  };
+  for (let k = 0; k < 90; k++) {
+    const a = roll() * Math.PI * 2, r = Math.sqrt(roll()), x = 16 + Math.cos(a) * r * 8.5;
+    const y = 18.5 + Math.sin(a) * r * 7.5;
+    if (Math.abs(x - 16) < 1.3 && y < 17.5) continue;
+    const turn = roll() * Math.PI * 2, length = 1 + roll() * 1.4, z = surface(x, y) + 0.4;
+    m.limb(x, y, z, x + Math.cos(turn) * length, y + Math.sin(turn) * length, z + 0.3, 0.5,
+      GHILLIE[Math.floor(roll() * GHILLIE.length)], 0, 0.2);
+  }
+}
+
+const CAMO = ['#2f4a22', '#7a8b4a', '#5b4a2a', '#3d5229'];
+
+function assault(m) {
+  hero(m, {
+    coat: '#4f6b35', dark: '#3d5229', sleeve: '#557538', boots: '#3a3326', glove: '#2f3a24',
+    hands: [14.5, 13, 17.5, 9.5],
+    chest: (q) => {
+      const spots = [[11, 16], [13.5, 21], [19, 15.5], [21, 20], [16.5, 23], [10.5, 20.5], [20, 23], [12.5, 17.5]];
+      spots.forEach(([x, y], i) => q.egg(x, y, 9.1, 1.5, 1.1, 0.5, CAMO[i % CAMO.length]));
+    },
+    weapon: (q) => {
+      q.limb(16, 17.5, 10, 16, 15, 10.2, 1.5, '#2d323b');
+      q.limb(16, 15, 10.4, 16, 5.5, 10.6, 1.05, '#3f444d', 0.5);
+      q.limb(16, 6, 10.8, 16, 3.2, 10.8, 0.6, STEEL, 0.6);
+      q.limb(17, 12.5, 9.8, 18.4, 13.8, 9.4, 0.7, '#2d323b');
+    },
+    head: (q) => {
+      q.egg(16, 17.2, 11.4, 6.1, 5.9, 0.7, '#3d4b2a');
+      q.egg(16, 17.2, 12, 5.4, 5.2, 3.2, '#4b5d33', 0.3);
+      for (const [x, y, c] of [[14.2, 15.6, CAMO[0]], [17.8, 18.6, CAMO[2]], [15.6, 19.4, CAMO[1]]]) {
+        q.egg(x, y, 14.6, 1.1, 0.9, 0.5, c);
+      }
+    },
+  });
+}
+
+function marksman(m) {
+  seated(m, {
+    coat: '#8a6a3c', dark: '#6b5230', sleeve: '#94723f', legs: '#4f3d24', boots: '#2a2018', glove: '#4a3b26',
+    hands: [15.2, 16.5, 16.7, 10.5],
+    weapon: (q) => {
+      q.limb(16, 23, 8, 16, 17.5, 8.2, 1.5, WOOD);
+      q.limb(16, 17.5, 8.4, 16, 8, 8.4, 0.9, '#5c3d22');
+      q.limb(16, 8, 8.5, 16, 0, 8.5, 0.5, STEEL, 0.6);
+    },
+    head: (q) => {
+      q.egg(16, 21, 11, 4.6, 4.5, 3, '#6b5a3a', 0.3);
+      q.limb(16, 18, 13.4, 16, 17, 13.4, 0.8, '#3f444d');
+      for (const x of [15, 17]) {
+        q.limb(x, 17.2, 13.2, x, 15.4, 13.2, 0.6, '#1f2937');
+        q.dot(x - 0.5, 14.8, '#4ade80', 60);
+      }
+    },
+  });
+}
+
 const SKINS = {
+  'sniper-ragged': recruit,
+  'sniper-scope': ghillie,
+  'sniper-assault': assault,
+  'sniper-marksman': marksman,
   'pyro-ragged': ragged,
   'pyro-fireball': (m) => fireballMage(m, '#f97316', '#fde047'),
   'pyro-fireball-blue': (m) => fireballMage(m, '#3b82f6', '#e0f2ff'),

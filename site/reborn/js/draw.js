@@ -1862,7 +1862,9 @@ export class Scene {
         ctx.globalAlpha = 1;
       }
       if (t.hot && firing) this._muzzleFire(ctx, x, y, pose.angle);
-      if (t.reloadUntil > now) this._progress(ctx, x, y - 2, 1 - (t.reloadUntil - now) / t.cls.base.reload, '#e5e7eb');
+      if (t.reloadUntil > now) {
+        this._progress(ctx, x, y - 2, 1 - (t.reloadUntil - now) / (t.reloadSpan || t.cls.base.reload), '#e5e7eb');
+      }
       if (pose.flash > 0 && !t.rider && !t.cocoon) {
         const a = pose.angle, d = HERO_SIZE * ZOOM / 2 + 1;
         const fx = x + Math.sin(a) * d, fy = y - Math.cos(a) * d;
@@ -2156,6 +2158,7 @@ export class Scene {
         bolt = Object.assign({}, bolt, { width: event.heavy === 'mega' ? 5 : 3.5,
           color: event.blue ? '#9bd5ff' : t.cls.id === 'pyro' ? '#ff9a1f' : '#ffffff' });
       } else if (event.hot) bolt = Object.assign({}, bolt, { color: '#ff9a1f', size: 3 });
+      if (event.gold) bolt = Object.assign({}, bolt, { color: '#facc15' });
       add({ kind: 'shot', life: event.time || TRAVEL * (bolt.look === 'lob' ? 2.5 : 1), x1: away ? event.sx : t.cx,
         y1: away ? event.sy : t.cy, x2: event.x, y2: event.y, bolt, crit: event.crit, heavy: event.heavy });
       if (event.heavy) {
@@ -2172,6 +2175,10 @@ export class Scene {
       const bolt = event.hot ? { look: 'dot', color: '#ff9a1f', size: 3 } : BOLTS.gunner;
       add({ kind: 'shot', life: TRAVEL, x1: event.x, y1: event.y, x2: event.mob.x, y2: event.mob.y, bolt });
       this._sparks(event.x, event.y, ['#ffffff', '#ffd84a'], 3, 1.6, 0.2);
+    } else if (event.kind === 'flashbang') {
+      add({ kind: 'ring', life: 0.4, x: event.x, y: event.y, r: event.radius, color: '#ffffff', width: 3 });
+      add({ kind: 'pulse', life: 0.5, x: event.x, y: event.y, r: event.radius * 1.3, color: '#fef9c3', width: 2 });
+      this._sparks(event.x, event.y, ['#ffffff', '#fef9c3', '#e5e7eb'], 16, event.radius * 4, 0.4, 2);
     } else if (event.kind === 'burst') {
       add({ kind: 'boom', life: 0.3, x: event.x, y: event.y, r: event.radius, ring: '#e5e7eb' });
       this._sparks(event.x, event.y, ['#e5e7eb', '#9ca3af', '#fff3b0', '#d6a72e'], 14, event.radius * 5, 0.35, 2);

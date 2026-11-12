@@ -569,7 +569,7 @@ test('свойство легендарного действует на бойц
   game.open();
   say(game, 'Ося', 'привет');
   const member = game.members.get('ося');
-  member.cls = 'sniper';
+  member.cls = 'hunter';
   toWave(game);
   game.run.now = [];
   for (const key of Object.keys(game.run.mods)) game.run.mods[key] = 0;
@@ -884,15 +884,15 @@ test('частица бога: выпадает в гаче, хранится м
   no(game.members.get('лия').particle, 'сброс уровней забирает и частицу');
 });
 
-function sniper(game, name) {
+function gunner(game, name) {
   say(game, name, 'привет');
-  game.members.get(name.toLowerCase()).cls = 'sniper';
+  game.members.get(name.toLowerCase()).cls = 'gunner';
 }
 
 test('камень навыка: первый с 1 уровня (20%), дальше по ступеням 10, 30, 50, 70, 100 (3%)', () => {
   const { game } = makeGame();
   game.open();
-  sniper(game, 'Рина');
+  gunner(game, 'Рина');
   toWave(game);
   const member = game.members.get('рина');
   member.xp = 0;
@@ -905,7 +905,7 @@ test('камень навыка: первый с 1 уровня (20%), даль�
   member.xp = xpForLevel(10);
   eq(game._stoneDue(member), STONE_CHANCE.next, 'на 10-м — 3%');
   member.xp = xpForLevel(LEVEL_MAX);
-  member.skills = poolOf('sniper').map((skill) => skill.id).slice(0, 6);
+  member.skills = poolOf('gunner').map((skill) => skill.id).slice(0, 6);
   eq(game._stoneDue(member), 0, 'шесть ступеней — шесть камней');
   member.skills = [];
   no(game.modsOf(member).perks.length, 'уровень сам приёмов не открывает');
@@ -914,10 +914,10 @@ test('камень навыка: первый с 1 уровня (20%), даль�
 test('камень навыка: игра замирает, игрок пишет цифру — навык его до конца игры', () => {
   const { game } = makeGame();
   game.open();
-  sniper(game, 'Рина');
+  gunner(game, 'Рина');
   say(game, 'Лев', 'привет');
   toWave(game);
-  const member = game.members.get('рина'), pool = poolOf('sniper'), second = pool[1], fourth = pool[3];
+  const member = game.members.get('рина'), pool = poolOf('gunner'), second = pool[1], fourth = pool[3];
   member.xp = xpForLevel(30);
   ok(stone(game, 'рина').took);
   const choice = game.choice;
@@ -968,7 +968,7 @@ test('камень навыка: маг огня сперва выбирает �
 test('камень навыка: не выбрал за минуту — случайный; хозяин канала выбирает за игрока; пауза держит отсчёт', () => {
   const { game } = makeGame({ settings: { channel: 'streamer' } });
   game.open();
-  sniper(game, 'Рина');
+  gunner(game, 'Рина');
   toWave(game);
   const member = game.members.get('рина');
   member.xp = xpForLevel(50);
@@ -987,10 +987,10 @@ test('камень навыка: не выбрал за минуту — слу�
   const free = game.optionsOf(game.choice).findIndex((option) => option.state === 'open');
   eq(say(game, 'Лев', '@рина ' + (free + 1)), null, 'зрителю нельзя');
   eq(game.feed('Streamer', '@Рина ' + (free + 1), { login: 'streamer' }), 'skill');
-  eq(member.skills[1], poolOf('sniper')[free].id);
+  eq(member.skills[1], poolOf('gunner')[free].id);
   const other = makeGame().game;
   other.open();
-  sniper(other, 'Лев');
+  gunner(other, 'Лев');
   ok(until(other, () => other.state === 'placing'));
   stone(other, 'лев');
   eq(say(other, 'Лев', 'реролл'), 'reroll');

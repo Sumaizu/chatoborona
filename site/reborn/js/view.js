@@ -455,7 +455,7 @@ export class View {
       this._sound('zap');
     } else if (kind === 'flame' || kind === 'beam') {
       this._sound('flame');
-    } else if (kind === 'boom') {
+    } else if (kind === 'boom' || kind === 'flashbang') {
       this._sound(event.meteor ? 'quake' : 'boom');
     } else if (kind === 'thunderbolt' || kind === 'discharge') {
       this._sound('storm');

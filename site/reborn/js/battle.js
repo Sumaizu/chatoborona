@@ -12,7 +12,6 @@ export const STREAK_GAP = 0.6;
 export const AMBUSH = 10;
 export const HEADWIND = 0.2;
 export const FUSION = { chance: 0.25, mul: 60, radius: 2, hold: 10, flight: 1.5 };
-export const BURST = { chance: 0.05, share: 0.25, radius: 1 };
 export const THORN = { chance: 0.03, below: 0.3 };
 export const DISCHARGE = { mul: 18, hold: 5 };
 export const ROT = { share: 0.01, boss: 0.003, time: 5 };
@@ -45,7 +44,6 @@ const MINE_SPREAD = { along: 0.6, side: 0.24 };
 const TOSS_FLIGHT = 0.6;
 const TRAP_TOUCH = 0.45;
 const WHIRL_REACH = 0.5;
-const PIERCE_REACH = 1.4;
 const PIERCE_WIDTH = 0.4;
 const FAR_REACH = SIZE * 1.5;
 const MAD_BITE = 0.7;
@@ -91,6 +89,10 @@ export const FIRE = { styled: 1.5, giant: 1.5, splash: 1, wide: 1.5, breath: 0.6
   wall: { mul: 1.5, reach: 0.7 }, black: { chance: 1, damage: 0.2, max: 5 },
   phoenix: { every: 15, speed: 8, mul: 10, reach: 0.9, step: 0.25 } };
 const TORCH_USERS = new Set(['sniper', 'gunner', 'hunter']);
+export const SHOT = { scope: { mul: 5, aim: 2, reload: 3 }, assault: { range: -1, interval: 0.55, mul: 0.35,
+  crit: 0.25, mag: 30, reload: 3 }, marksman: { range: 1.5, interval: 2.2, mul: 1.6, crit: 0.25, mag: 5, reload: 3 },
+  gold: 2, mark: { bonus: 0.25, time: 4 }, ricochet: { share: 0.5, arc: 75, reach: 3 }, burst: { count: 3, radius: 1 },
+  flash: { every: 30, radius: 1, stun: 1.5 }, double: { arc: 30 }, air: 3 };
 const STEEL_BLAST = { radius: 1.5, mul: 8, stun: 1 };
 const ECHO_DELAY = 0.3;
 const ROCKET_FLIGHT = 0.6;
@@ -973,11 +975,15 @@ export class Battle {
     const boost = Math.max(FLOOR, 1 + (mods.damage || 0)) * tower.might / MIGHT.base;
     tower.damage = base.damage * boost;
     tower.skill = base.skill * boost;
-    tower.interval = base.interval / (Math.max(FLOOR, 1 + (mods.rate || 0)) * (tower.runes.has('frenzy') ? 3 : 1));
+    const shot = cls.id === 'sniper' && SHOT[tower.style] || null;
+    if (shot) tower.damage *= shot.mul;
+    tower.interval = (shot && shot.interval || base.interval) / (Math.max(FLOOR, 1 + (mods.rate || 0))
+      * (tower.runes.has('frenzy') ? 3 : 1));
     if (tower.style === 'dragon') tower.interval = PULSE / Math.max(FLOOR, 1 + (mods.rate || 0));
     tower.critChance = Math.min(STAT.critMax, base.crit + (mods.crit || 0)
-      + (tower.style === 'fireball' && tower.runes.has('giant') ? FIRE.crit : 0));
-    tower.critMul = base.critMul;
+      + (tower.style === 'fireball' && tower.runes.has('giant') ? FIRE.crit : 0) + (shot && shot.crit || 0));
+    tower.critMul = base.critMul * (cls.id === 'sniper' && tower.runes.has('goldRounds') ? SHOT.gold : 1);
+    tower.deep = tower.style === 'marksman' && tower.runes.has('sixth');
     tower.reach = base.reach;
     tower.cone = tower.style === 'dragon' ? FIRE.cone * (tower.runes.has('wide') ? FIRE.coneWide : 1) : 0;
     tower.ring = tower.style === 'ignite' && tower.runes.has('flameRing') ? Math.min(FIRE.ring.max,
@@ -994,6 +1000,8 @@ export class Battle {
     if (tower.style === 'fireball') return b.range + 1 + (tower.runes.has('giant') ? 0.5 : 0);
     if (tower.style === 'dragon') return (b.range - 0.5) * (tower.runes.has('lungs') ? 2 : 1);
     if (tower.style === 'ignite') return 0;
+    if (tower.style === 'scope') return FAR_REACH;
+    if (tower.style === 'assault' || tower.style === 'marksman') return b.range + SHOT[tower.style].range;
     return b.range || 0;
   }
 
@@ -1850,6 +1858,16 @@ export class Battle {
     this._event({ kind: 'flight', tower: t, x1: from.x, y1: from.y, x: t.cx, y: t.cy });
   }
 
+  _backup(t, target) {
+    if (t.cls.id !== 'sniper' || target.dead) return;
+    for (const u of this.towers) {
+      if (u === t || u.cls.id !== 'sniper' || u.style !== 'assault' || !u.runes.has('support') || u.cocoon
+        || u.busy > this.time || u.reloadUntil > this.time || !canShoot(this, u, target)) continue;
+      shoot(this, u, target, { relay: true });
+      if (target.dead) return;
+    }
+  }
+
   _torchHit(t, mob, damage) {
     const pyro = t.torch;
     if (!pyro || mob.dead || immune(mob, 'fire') || !this.towers.includes(pyro)) return;
@@ -2151,7 +2169,7 @@ export class Battle {
     for (const mob of this.mobs) {
       if (mob === skip || !this._targetable(t, mob, range, mode)) continue;
       let score = this.ahead(mob);
-      if (mode === 'strongest') score = mob.hp + (t.cls.base.skyFirst && mob.flying ? 1e12 : 0);
+      if (mode === 'strongest') score = mob.hp;
       else if (mode === 'bigFirst' && prized(mob)) score += big(mob) ? 2e6 : 1e6;
       else if (mode === 'small' && prized(mob)) score -= 1e6;
       if (score > bestScore) {
@@ -2189,7 +2207,7 @@ export class Battle {
   }
 
   _hurt(mob, amount, t, element = t.cls.element || null, dot = false, pierce = 0) {
-    if (mob.dead || amount <= 0 || underground(mob, this.time)) return;
+    if (mob.dead || amount <= 0 || underground(mob, this.time) && !t.deep) return;
     if (!dot && !t.rider && !t.cls.through && this.covered(mob.x, mob.y)) return;
     const now = this.time;
     if (element === 'poison') {
@@ -2480,16 +2498,6 @@ export class Battle {
     return best;
   }
 
-  _anywhere() {
-    const now = this.time;
-    let best = null;
-    for (const mob of this.mobs) {
-      if (mob.dead || hidden(mob, now) || underground(mob, now) || this.covered(mob.x, mob.y)) continue;
-      if (!best || mob.hp > best.hp) best = mob;
-    }
-    return best;
-  }
-
   _heist(t, victim, now) {
     const s = t.s[2], coins = Math.floor(victim.player.coins);
     victim.player.coins -= coins;
@@ -2601,35 +2609,116 @@ const monster = (t, mob) => (open(t, 4) && big(mob) ? 1 + t.s[4].bonus : 1);
 
 const rollCrit = (b, t) => b.random() < 1 - (1 - t.critChance) * (1 - t.boost.crit);
 
-function snipe(b, t, target, { base = t.damage, mul = 1, crit = false, heavy = '', pierce = true, far = false } = {}) {
-  const head = crit || rollCrit(b, t), damage = base * mul * (head ? t.critMul : 1);
-  const dx = target.x - t.cx, dy = target.y - t.cy, length = Math.hypot(dx, dy) || 1;
-  const ux = dx / length, uy = dy / length, through = far || pierce && open(t, 0);
-  const reach = far ? FAR_REACH : through ? Math.max(length, t.range * PIERCE_REACH) : length;
-  const along = (mob) => (mob.x - t.cx) * ux + (mob.y - t.cy) * uy;
-  const line = through ? b.mobs.filter((mob) => !mob.dead && mob !== target && !hidden(mob, b.time)
-    && along(mob) >= 0.3 && along(mob) <= reach && Math.abs((mob.x - t.cx) * uy - (mob.y - t.cy) * ux) <= PIERCE_WIDTH)
-    : [];
-  const struck = [target].concat(line), power = damage * (1 + (through ? t.s[0].ramp * (struck.length - 1) : 0));
-  b._event({ kind: 'shot', tower: t, x: t.cx + ux * reach, y: t.cy + uy * reach, crit: head, mob: target, heavy });
-  const breaker = open(t, 4), last = open(t, 6) ? t.s[6] : null;
-  for (const mob of struck) {
-    const x = mob.x, y = mob.y;
-    if (last && mob.hp < mob.max * (mob.info.boss ? last.boss : last.below)) {
-      b._event({ kind: 'execute', mob, tower: t });
-      b._execute(mob, t, t.skill * last.cap);
-      continue;
-    }
-    b._hurt(mob, power, t, null, false, breaker ? SHIELDS : 0);
-    b._torchHit(t, mob, power);
-    if (breaker && !mob.dead && mob.armor > 0) mob.armor = Math.max(0, mob.armor - t.s[4].shred);
-    if (t.runes.has('burst') && b.random() < BURST.chance) {
-      const radius = BURST.radius * t.power;
-      b._event({ kind: 'burst', tower: t, x, y, radius });
-      for (const other of b._around(x, y, radius, mob)) b._hurt(other, power * BURST.share, t);
+const canShoot = (b, t, mob, range = t.range) => !mob.dead && !immune(mob, t.cls.element)
+  && !b.covered(mob.x, mob.y) && (t.deep || !hidden(mob, b.time)) && near(mob, t.cx, t.cy, range)
+  && (t.style === 'scope' || b.sees(t, mob));
+
+function aimOf(b, t) {
+  if (!t.style) return b._target(t);
+  const air = t.style === 'marksman' && t.runes.has('antiair');
+  let best = null, rank = -Infinity;
+  for (const mob of b.mobs) {
+    if (!canShoot(b, t, mob) || t.style === 'scope' && !big(mob)) continue;
+    let score = t.style === 'scope' ? mob.hp : -Math.hypot(mob.x - t.cx, mob.y - t.cy);
+    if (big(mob)) score += 1e7;
+    if (air && mob.flying) score += 1e8;
+    if (t.deep && hidden(mob, b.time)) score += 1e9;
+    if (score > rank) {
+      rank = score;
+      best = mob;
     }
   }
-  return struck;
+  return best;
+}
+
+function reload(t, now, time) {
+  if (t.runes.has('endless')) return;
+  t.reloadUntil = now + time;
+  t.reloadSpan = time;
+}
+
+function behind(b, t, target, ux, uy) {
+  const s = SHOT.ricochet, cos = Math.cos(s.arc * Math.PI / 180);
+  const pool = b.mobs.filter((mob) => {
+    if (mob === target || mob.dead || immune(mob, t.cls.element) || b.covered(mob.x, mob.y)) return false;
+    if (!t.deep && hidden(mob, b.time)) return false;
+    const dx = mob.x - target.x, dy = mob.y - target.y, far = Math.hypot(dx, dy);
+    return far > 0 && far <= s.reach && (dx * ux + dy * uy) / far >= cos;
+  });
+  return pool.length ? pool[Math.floor(b.random() * pool.length)] : null;
+}
+
+function shoot(b, t, target, { mul = 1, crit = false, heavy = '', from = null, relay = false } = {}) {
+  const head = crit || rollCrit(b, t), damage = t.damage * mul * (head ? t.critMul : 1);
+  const ox = from ? from.x : t.cx, oy = from ? from.y : t.cy, tx = target.x, ty = target.y;
+  const length = Math.hypot(tx - ox, ty - oy) || 1, ux = (tx - ox) / length, uy = (ty - oy) / length;
+  const through = !from && t.style === 'marksman' && t.runes.has('pierce');
+  const reach = through ? Math.max(length, t.range) : length;
+  const along = (mob) => (mob.x - ox) * ux + (mob.y - oy) * uy;
+  const line = through ? b.mobs.filter((mob) => mob !== target && canShoot(b, t, mob, Infinity) && along(mob) >= 0.3
+    && along(mob) <= reach && Math.abs((mob.x - ox) * uy - (mob.y - oy) * ux) <= PIERCE_WIDTH) : [];
+  const event = { kind: 'shot', tower: t, x: ox + ux * reach, y: oy + uy * reach, crit: head, mob: target, heavy,
+    gold: t.runes.has('goldRounds') };
+  if (from) Object.assign(event, { sx: from.x, sy: from.y });
+  b._event(event);
+  const air = t.style === 'marksman' && t.runes.has('antiair'), pierce = t.style === 'scope' && t.runes.has('breaker');
+  for (const mob of [target].concat(line)) {
+    const hp = mob.hp, hit = damage * (air && mob.flying ? SHOT.air : 1);
+    b._hurt(mob, hit, t, null, false, pierce ? SHIELDS : 0);
+    b._torchHit(t, mob, hit);
+    const dealt = hp - mob.hp;
+    if (mob.dead) continue;
+    if (t.runes.has('spotter')) {
+      if (mob.markUntil <= b.time || SHOT.mark.bonus >= mob.mark) mob.mark = SHOT.mark.bonus;
+      mob.markUntil = b.time + SHOT.mark.time;
+    }
+    if (t.runes.has('lastRound') && dealt > 0 && mob.hp < dealt) {
+      b._event({ kind: 'execute', mob, tower: t });
+      b._slay(mob, t);
+    }
+  }
+  if (!from && !relay) b._backup(t, target);
+  const bounce = t.runes.has(t.style === 'scope' ? 'scopeRicochet' : 'ricochet');
+  const next = !from && bounce && (t.style === 'scope' || t.style === 'assault') ? behind(b, t, target, ux, uy) : null;
+  if (next) {
+    shoot(b, t, next, { mul: mul * SHOT.ricochet.share, crit: head, heavy, from: { x: tx, y: ty }, relay: true });
+  }
+}
+
+function spend(b, t, now, count, target) {
+  const shot = SHOT[t.style];
+  if (!shot || !shot.mag) return;
+  if (t.style === 'assault' && t.runes.has('flashbang')) {
+    t.thrown = (t.thrown || 0) + count;
+    if (t.thrown >= SHOT.flash.every) {
+      t.thrown -= SHOT.flash.every;
+      flashbang(b, t, target);
+    }
+  }
+  t.bullets = (t.bullets || 0) + count;
+  if (t.bullets < shot.mag) return;
+  t.bullets = 0;
+  reload(t, now, shot.reload);
+}
+
+function flashbang(b, t, target) {
+  const s = SHOT.flash, x = target.x, y = target.y;
+  b._event({ kind: 'flashbang', tower: t, x, y, radius: s.radius });
+  for (const mob of b._around(x, y, s.radius)) if (!mob.info.boss) b._hold(mob, s.stun, t, true);
+}
+
+function sideShot(b, t, first) {
+  const a = Math.atan2(first.y - t.cy, first.x - t.cx), arc = SHOT.double.arc * Math.PI / 180;
+  const pool = b.mobs.filter((mob) => {
+    if (mob === first || !canShoot(b, t, mob)) return false;
+    let delta = Math.atan2(mob.y - t.cy, mob.x - t.cx) - a;
+    while (delta > Math.PI) delta -= Math.PI * 2;
+    while (delta < -Math.PI) delta += Math.PI * 2;
+    return Math.abs(delta) <= arc;
+  });
+  pool.sort((m, n) => (big(n) ? 1 : 0) - (big(m) ? 1 : 0)
+    || Math.hypot(m.x - t.cx, m.y - t.cy) - Math.hypot(n.x - t.cx, n.y - t.cy));
+  return pool[0] || null;
 }
 
 function explode(b, t, x, y, crit, chance) {
@@ -2705,48 +2794,32 @@ function spikes(b, t, target) {
 const SKILLS = {
   sniper: {
     fire(b, t, now) {
-      const target = b._target(t);
+      if (t.reloadUntil > now) return false;
+      const target = aimOf(b, t);
       if (!target) return false;
-      if (open(t, 1) && b.random() < t.s[1].chance) {
-        b._charge(t, now, 'heavy', t.s[1].charge, target);
+      if (t.style === 'scope') {
+        const aim = SHOT.scope.aim * (t.runes.has('steady') ? 2 : 1) / (t.runes.has('quick') ? 2 : 1);
+        b._charge(t, now, 'aim', aim, target);
         return true;
       }
-      t.volley = (t.volley || 0) + 1;
-      if (open(t, 3) && t.volley % t.s[3].every === 0) {
-        snipe(b, t, target, { crit: true, mul: t.s[3].bonus });
-        if (!target.dead) b._hold(target, t.s[3].stun, t);
-      } else snipe(b, t, target);
-      const second = t.runes.has('twin') ? b._target(t, { skip: target }) : null;
-      if (second) snipe(b, t, second);
+      if (t.style === 'assault' && t.runes.has('burstFire')) {
+        const s = SHOT.burst, pool = b.mobs.filter((mob) => canShoot(b, t, mob, Infinity)
+          && near(mob, target.x, target.y, s.radius));
+        for (let k = 0; k < s.count; k++) shoot(b, t, pool[Math.floor(b.random() * pool.length)] || target);
+        spend(b, t, now, s.count, target);
+        return true;
+      }
+      shoot(b, t, target);
+      const second = t.style === 'marksman' && t.runes.has('double') ? sideShot(b, t, target) : null;
+      if (second) shoot(b, t, second);
+      spend(b, t, now, second ? 2 : 1, target);
       return true;
     },
-    every(b, t, now, alive) {
-      if (open(t, 5) && alive && !t.charge && now >= (t.nextFar || 0)) {
-        const far = b._anywhere();
-        if (far) {
-          t.nextFar = now + t.s[5].every;
-          snipe(b, t, far, { base: t.skill, mul: t.s[5].bonus, heavy: 'heavy', far: true });
-        }
-      }
-      if (!open(t, 2) || !alive || t.charge || now < t.nextActive) return;
-      const lead = b._target(t, { mode: 'bigFirst' }), target = lead && prized(lead) ? lead : b._target(t);
-      if (!target) return;
-      t.nextActive = now + t.s[2].every;
-      b._charge(t, now, 'aim', t.s[2].charge, target);
-    },
     charged(b, t, now, charge) {
-      const ready = (mob) => mob && b._targetable(t, mob, t.range * PIERCE_REACH);
-      const target = ready(charge.target) ? charge.target : b._target(t);
+      const target = charge.target && canShoot(b, t, charge.target) ? charge.target : aimOf(b, t);
       if (!target) return;
-      if (charge.kind === 'heavy') {
-        snipe(b, t, target, { base: t.skill, mul: t.s[1].bonus, crit: true, heavy: 'heavy' });
-        return;
-      }
-      snipe(b, t, target, { base: t.skill, mul: t.s[2].bonus, crit: true, heavy: 'mega', pierce: false });
-      if (target.dead) return;
-      const s = t.s[2];
-      if (target.markUntil <= now || s.mark >= target.mark) target.mark = s.mark;
-      target.markUntil = now + s.markTime;
+      shoot(b, t, target, { crit: t.runes.has('steady'), heavy: 'heavy' });
+      reload(t, now, SHOT.scope.reload);
     },
   },
   gunner: {

@@ -216,8 +216,13 @@ test('классы: пятнадцать, у каждого оружие, сво
     eq(info.skills.map((skill) => skill.id), chosen, cls.id);
   }
   const names = (id) => poolOf(id).map((skill) => skill.name);
-  eq(names('sniper'), ['Сквозная пуля', 'Выстрел в голову', 'Заряженная пуля', 'Двойной выстрел', 'Наповал',
-    'Бронебой', 'Выстрел через карту', 'Последний патрон']);
+  eq(names('sniper'), ['Снайпер', 'Штурмовик', 'Марксман', 'Донаводка', 'Быстрые руки', 'Бронебой', 'Рикошет',
+    'Очередь', 'Рикошет', 'Шумовая граната', 'Отряд поддержки', 'Пробивная пуля', 'Двойной выстрел', 'Шестое чувство',
+    'Воздушная оборона', 'Последний патрон', 'Наводчик', 'Золотые пули', 'Бесконечный магазин']);
+  eq(choiceOf('sniper', ['assault']).map((option) => option.skill.id), ['burstFire', 'ricochet', 'flashbang', 'support',
+    'lastRound', 'spotter', 'goldRounds', 'endless'], 'у штурмовика — только свои усиления');
+  eq(['sniper-ragged', 'sniper-scope', 'sniper-assault', 'sniper-marksman'],
+    [[], ['scope'], ['assault'], ['marksman']].map((taken) => skinOf('sniper', taken)));
   eq(names('gunner'), ['Перегрев', 'Длинная лента', 'Рикошет', 'Подавление', 'Берсерк', 'Шквал свинца', 'Трассеры']);
   eq(names('hunter'), ['Капканы', 'Сеть', 'Кровопускание', 'Добыча', 'Гроза чудовищ', 'Медвежий капкан']);
   eq(names('bomber'), ['Горящая земля', 'Шрапнель', 'Детонация', 'Кассетный выстрел', 'РПГ', 'Липкая бомба',
@@ -246,7 +251,7 @@ test('классы: описания — простой текст, без ме�
 });
 
 test('классы: мастерство одно на всех и постоянное, шанс способности никогда не 100%', () => {
-  const skill = mastery(), aim = CLASS_BY_ID.get('sniper').skills[2];
+  const skill = mastery(), aim = CLASS_BY_ID.get('hunter').skills[2];
   ok(skill.power > 1 && skill.haste > 1 && skill.luck > 1);
   ok(scaled(aim, skill).every < aim.v.every, 'перезарядка короче базовой');
   for (const cls of CLASSES) {
@@ -386,9 +391,9 @@ test('маг огня: первый камень — только стиль; д
       ['fireReact', 'open'], ['torch', 'taken'], ['blue', 'open']]);
   eq([skinOf('pyro', []), skinOf('pyro', ['dragon']), skinOf('pyro', ['fireball', 'blue'])],
     ['pyro-ragged', 'pyro-dragon', 'pyro-fireball-blue']);
-  eq(skinOf('sniper', ['perk0']), 'sniper');
+  eq(skinOf('gunner', ['perk0']), 'gunner');
   eq(styleOf('pyro', ['twin', 'fireball']).name, 'Огненный шар');
-  eq(choiceOf('sniper', []).length, poolOf('sniper').length, 'у классов без стилей — сразу навыки');
+  eq(choiceOf('gunner', []).length, poolOf('gunner').length, 'у классов без стилей — сразу навыки');
   for (const option of choiceOf('pyro', [])) ok(option.skill.text.length < 140, 'коротко: ' + option.skill.name);
 });
 

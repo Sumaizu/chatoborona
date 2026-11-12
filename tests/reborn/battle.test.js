@@ -1,7 +1,8 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { BITE_TIME, BURST, Battle, CRIMSON, DISCHARGE, FUSION, HEADWIND, MOVE_PAUSE, NUKE_FLIGHT, OVERTIME, PLAGUE,
-  FIRE, PLANTED, PULSE, REACTIONS, ROT, SECOND, SHELL_FLIGHT, SPLIT_TIME, THORN } from '../../site/reborn/js/battle.js';
+import { BITE_TIME, Battle, CRIMSON, DISCHARGE, FUSION, HEADWIND, MOVE_PAUSE, NUKE_FLIGHT, OVERTIME, PLAGUE,
+  FIRE, PLANTED, PULSE, REACTIONS, ROT, SECOND, SHELL_FLIGHT, SHOT, SPLIT_TIME, THORN }
+  from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
 import { AFFIXES, BOSSES, DIABLO, ELITES, FAMILIES, FAMILY_BY_ID, FINALE, LIVES, LOOKS, MIGHT, MIMIC, MOBS, POWERS,
   SILVER, TERRAIN, TICK, familyPool, resistOf, silverChance, waveHp, waveSpawns, xpForLevel }
@@ -403,133 +404,195 @@ test('виды волн: у каждого вида с его первой во�
   ok(slime.mobs.filter((mob) => mob.look === 'slime2').length >= 2, 'и распадается на слизней');
 });
 
-test('снайпер: бьёт дальше всех, сперва летучих, потом самого крепкого', () => {
-  const battle = makeBattle(), sniper = battle.place(player(), 'sniper', 10, 4);
-  ok(CLASSES.every((cls) => (cls.base.range || 0) <= sniper.cls.base.range));
-  const strong = walker(battle, 10, 1e6), flyer = walker(battle, 12, 100, bat());
-  ok(battle._target(sniper) === flyer);
-  flyer.dead = true;
-  ok(battle._target(sniper) === strong);
-});
+const quiet = (mob) => {
+  mob.power = null;
+  mob.speed = 0;
+  return mob;
+};
 
-test('снайпер: до 10-го бьёт одного, с 10-го пуля прошивает всю линию поровну, за каждого задетого сильнее', () => {
-  const setup = (n) => {
-    const battle = makeBattle(), sniper = battle.place(level(n), 'sniper', 2, 4);
-    sniper.cx = 0.5;
-    sniper.cy = 5.5;
-    sniper.critChance = 0;
-    battle.random = () => 0.99;
-    const mobs = [walker(battle, 3, 1e6), walker(battle, 5, 1e6), walker(battle, 4, 2e6)];
-    battle._fire(sniper);
-    return { sniper, mobs };
-  };
-  const young = setup(1);
-  eq(young.mobs.map(hit).map((v) => v > 0), [false, false, true], 'только цель');
-  const { sniper, mobs } = setup(10);
-  for (const mob of mobs) near(hit(mob), sniper.damage * (1 + sniper.s[0].ramp * 2), 'вся линия поровну');
-});
-
-test('снайпер: с 30-го иногда секунду заряжает толстую пулю — урон выше и всегда крит', () => {
-  const battle = makeBattle(), sniper = battle.place(level(30), 'sniper', 10, 4), mob = walker(battle, 11, 1e9);
-  still(mob);
-  battle.random = () => 0;
-  ok(battle._fire(sniper));
-  eq(mob.hp, mob.max, 'сначала заряжает');
-  ok(sniper.charge && sniper.charge.kind === 'heavy');
-  ok(battle.events.some((e) => e.kind === 'charge' && e.charge === 'heavy'));
-  runFor(battle, sniper.s[1].charge - 0.1);
-  eq(mob.hp, mob.max, 'заряжает секунду');
-  runFor(battle, 0.2);
-  ok(battle.events.some((e) => e.kind === 'shot' && e.heavy === 'heavy' && e.crit), 'толстая пуля, крит');
-  near(hit(mob), sniper.skill * sniper.s[1].bonus * sniper.critMul);
-});
-
-test('снайпер: с 50-го три секунды целится в элитного, бьёт критом без пробития и метит его', () => {
-  const battle = makeBattle(), sniper = battle.place(level(50), 'sniper', 10, 4), gun = battle.place(player(), 'gunner',
-    18, 0);
+function shooter(battle, x, y, runes) {
+  const t = battle.place(player(), 'sniper', x, y);
+  battle.setMods(t, { runes });
+  t.critChance = 0;
   battle.random = () => 0.99;
-  const plain = walker(battle, 12, 1e9), elite = put(battle, special(battle, 'elite', 'vampire', 1e9), 9);
-  still(plain, elite);
-  battle.step(TICK);
-  ok(sniper.charge && sniper.charge.kind === 'aim' && sniper.charge.target === elite, 'целится в элитного');
-  runFor(battle, sniper.s[2].charge - 0.2);
-  eq(elite.hp, elite.max, 'пока целится — не стреляет');
-  runFor(battle, 0.3);
-  ok(battle.events.some((e) => e.kind === 'shot' && e.heavy === 'mega' && e.crit));
-  near(hit(elite), sniper.skill * sniper.s[2].bonus * sniper.critMul);
-  eq(plain.hp, plain.max, 'не прошивает');
-  ok(elite.markUntil > battle.time + sniper.s[2].markTime - 0.2, 'метка');
-  const before = elite.hp;
-  battle._hurt(elite, 100, gun, null);
-  near(before - elite.hp, 100 * (1 + sniper.s[2].mark), 'меченый получает больше от всех');
-});
+  return t;
+}
 
-test('снайпер: руна «Двойной выстрел» — обычная атака сразу по двум мобам', () => {
-  const battle = makeBattle(), sniper = battle.place(player(), 'sniper', 10, 4);
-  battle.random = () => 0.99;
-  const a = walker(battle, 9, 1e6), b = walker(battle, 13, 2e6);
-  battle._fire(sniper);
-  eq([hit(a) > 0, hit(b) > 0], [false, true], 'без руны — один');
-  battle.setMods(sniper, { runes: ['twin'] });
-  battle._fire(sniper);
-  ok(hit(a) > 0, 'с руной — оба');
-});
-
-test('снайпер: руна «Разрывная пуля» — пуля иногда рвётся и задевает соседей четвертью урона', () => {
-  const battle = makeBattle(), sniper = battle.place(player(), 'sniper', 10, 4);
-  battle.setMods(sniper, { runes: ['burst'] });
-  sniper.critChance = 0;
-  battle.random = () => BURST.chance / 2;
-  const target = walker(battle, 10, 2e6), side = walker(battle, 10.7, 1e6);
-  still(target, side);
-  battle._fire(sniper);
-  ok(battle.events.some((e) => e.kind === 'burst'));
-  near(hit(side), sniper.damage * BURST.share, 'сосед получил четверть');
-});
-
-test('снайпер, навыки Реборна: выстрел в голову, бронебой, выстрел через карту, последний патрон', () => {
+test('стрелок: без стиля — редкий дальний выстрел в самого крепкого, дальше всех', () => {
   const battle = makeBattle(), t = battle.place(player(), 'sniper', 10, 4);
-  battle.random = () => 0.99;
-  battle.setMods(t, { perks: [3] });
-  const a = walker(battle, 10, 1e9);
-  still(a);
-  battle._fire(t);
-  battle._fire(t);
-  const two = hit(a);
-  battle._fire(t);
-  near(hit(a) - two, t.damage * t.critMul * t.s[3].bonus, 'третий — в голову');
-  ok(a.holdUntil > battle.time, 'и оглушает');
-  battle.setMods(t, { perks: [4] });
-  const armored = walker(battle, 11, 2e9);
-  still(armored);
-  armored.armor = 0.3;
-  battle._fire(t);
-  near(hit(armored), t.damage, 'бронебой: броня не режет урон');
-  near(armored.armor, 0.2, 'и насовсем снимает 10%');
+  eq(t.cls.name, 'Стрелок');
+  ok(CLASSES.every((cls) => (cls.base.range || 0) <= t.cls.base.range));
+  const strong = walker(battle, 10, 1e6), flyer = walker(battle, 12, 100, bat());
+  still(strong, flyer);
+  ok(battle._target(t) === strong, 'самого крепкого, летучих не выделяет');
+});
 
-  const far = makeBattle(), s = far.place(player(), 'sniper', 1, 4);
-  far.random = () => 0.99;
-  far.setMods(s, { perks: [5] });
-  const close = walker(far, 2, 100), distant = walker(far, 18, 1e6);
-  still(close, distant);
-  far.step(TICK);
-  near(hit(distant), s.skill * s.s[5].bonus, 'через всю карту — в самого крепкого');
-  far.step(TICK);
-  near(hit(distant), s.skill * s.s[5].bonus, 'дальше — по перезарядке');
+test('стрелок-снайпер: через всю карту, только элитных и боссов; целится, бьёт сильно, потом перезарядка', () => {
+  const battle = makeBattle(), t = shooter(battle, 1, 4, ['scope']);
+  const plain = walker(battle, 2, 1e9), elite = quiet(put(battle, special(battle, 'elite', 'vampire', 1e9), 18));
+  still(plain);
+  ok(t.range >= SIZE, 'достаёт через всю карту');
+  near(t.damage / baseOf(t.cls).damage, SHOT.scope.mul);
+  battle.step(TICK);
+  ok(t.charge && t.charge.kind === 'aim' && t.charge.target === elite, 'целится в элитного, обычного не замечает');
+  near(t.charge.until - t.charge.at, SHOT.scope.aim);
+  runFor(battle, SHOT.scope.aim + 0.1);
+  near(hit(elite), t.damage, 'попал');
+  eq(plain.hp, plain.max, 'обычного не трогает');
+  ok(t.reloadUntil > battle.time + SHOT.scope.reload - 0.3, 'после выстрела — перезарядка');
+  const before = hit(elite);
+  runFor(battle, SHOT.scope.reload - 0.4);
+  eq(hit(elite), before, 'пока перезаряжается — не стреляет');
+  const empty = makeBattle(), e = shooter(empty, 1, 4, ['scope']);
+  still(walker(empty, 3, 1e9));
+  empty.step(TICK);
+  eq(e.charge, null, 'нет элитных и боссов — ждёт');
+});
 
-  const last = makeBattle(), l = last.place(player(), 'sniper', 10, 4);
-  last.random = () => 0.99;
-  last.setMods(l, { perks: [6] });
-  const weak = walker(last, 10, 1000);
-  still(weak);
-  weak.hp = 90;
-  last._fire(l);
-  ok(weak.dead, 'меньше 10% — гибнет от любого выстрела');
-  const boss = put(last, special(last, 'boss', 'crusher', 1e9), 10);
-  still(boss);
-  boss.hp = boss.max * 0.05;
-  last._fire(l);
-  ok(!boss.dead && boss.hp > boss.max * 0.04, 'босса — только с 3%');
+test('стрелок-снайпер: донаводка, быстрые руки, бронебой, рикошет', () => {
+  const battle = makeBattle(), t = shooter(battle, 1, 4, ['scope', 'steady']);
+  const elite = quiet(put(battle, special(battle, 'elite', 'vampire', 1e9), 10));
+  battle.step(TICK);
+  near(t.charge.until - t.charge.at, SHOT.scope.aim * 2, 'донаводка — вдвое дольше');
+  runFor(battle, SHOT.scope.aim * 2 + 0.1);
+  near(hit(elite), t.damage * t.critMul, 'и всегда крит');
+  const fast = makeBattle(), q = shooter(fast, 1, 4, ['scope', 'quick']);
+  quiet(put(fast, special(fast, 'boss', 'crusher', 1e9), 10));
+  fast.step(TICK);
+  near(q.charge.until - q.charge.at, SHOT.scope.aim / 2, 'быстрые руки — вдвое быстрее');
+  const armor = makeBattle(), a = shooter(armor, 1, 4, ['scope', 'breaker']);
+  const knight = quiet(put(armor, special(armor, 'elite', 'vampire', 1e9), 10));
+  knight.armor = 0.5;
+  armor.step(TICK);
+  runFor(armor, SHOT.scope.aim + 0.1);
+  near(hit(knight), a.damage, 'бронебой: броня не режет');
+  const bounce = makeBattle(), r = shooter(bounce, 1, 4, ['scope', 'scopeRicochet']);
+  quiet(put(bounce, special(bounce, 'elite', 'vampire', 1e9), 8));
+  const back = walker(bounce, 10, 1e9);
+  still(back);
+  bounce.step(TICK);
+  runFor(bounce, SHOT.scope.aim + 0.1);
+  near(hit(back), r.damage * SHOT.ricochet.share, 'рикошет в того, кто позади, — вдвое слабее');
+});
+
+test('стрелок-штурмовик: средняя дальность, часто, критом, сперва ближайший элитный; 30 пуль — перезарядка', () => {
+  const battle = makeBattle(), t = shooter(battle, 10, 4, ['assault']);
+  near(t.baseRange, t.cls.base.range + SHOT.assault.range);
+  near(t.interval, SHOT.assault.interval);
+  battle.setMods(t, { runes: ['assault'] });
+  ok(t.critChance >= SHOT.assault.crit, 'часто бьёт критом');
+  t.critChance = 0;
+  const close = walker(battle, 11, 1e9), far = walker(battle, 13, 1e9);
+  const elite = quiet(put(battle, special(battle, 'elite', 'vampire', 1e9), 14));
+  still(close, far);
+  battle._fire(t);
+  ok(hit(elite) > 0 && hit(close) === 0, 'сперва элитный');
+  elite.dead = true;
+  battle._fire(t);
+  ok(hit(close) > 0 && hit(far) === 0, 'потом ближайший');
+  for (let i = 2; i < SHOT.assault.mag; i++) ok(battle._fire(t));
+  ok(t.reloadUntil >= battle.time + SHOT.assault.reload - 1e-9, '30-я пуля — перезарядка');
+  no(battle._fire(t), 'перезаряжается');
+  battle.setMods(t, { runes: ['assault', 'endless'] });
+  t.reloadUntil = 0;
+  for (let i = 0; i < SHOT.assault.mag * 2; i++) battle._fire(t);
+  ok(t.reloadUntil <= battle.time, 'бесконечный магазин — без перезарядки');
+});
+
+test('стрелок-штурмовик: очередь, рикошет, шумовая граната, отряд поддержки', () => {
+  const battle = makeBattle(), t = shooter(battle, 10, 4, ['assault', 'burstFire']);
+  still(walker(battle, 12, 1e9), walker(battle, 12.5, 1e9));
+  const shots = battle.events.length;
+  battle._fire(t);
+  eq(battle.events.slice(shots).filter((e) => e.kind === 'shot').length, SHOT.burst.count, 'очередь — три пули');
+  eq(t.bullets, SHOT.burst.count, 'в магазине считаются все три');
+  const r = makeBattle(), u = shooter(r, 10, 4, ['assault', 'ricochet']);
+  const front = walker(r, 12, 1e9), back = walker(r, 14, 1e9);
+  still(front, back);
+  r._fire(u);
+  near(hit(back), u.damage * SHOT.ricochet.share, 'рикошет в того, кто позади');
+  const f = makeBattle(), g = shooter(f, 10, 4, ['assault', 'flashbang', 'endless']);
+  const boss = quiet(put(f, special(f, 'boss', 'crusher', 1e9), 11.2));
+  const a = walker(f, 11, 1e9), b = walker(f, 11.5, 1e9);
+  still(a, b);
+  for (let i = 1; i < SHOT.flash.every; i++) f._fire(g);
+  no(f.events.some((e) => e.kind === 'flashbang'));
+  f._fire(g);
+  ok(f.events.some((e) => e.kind === 'flashbang'), 'после 30 пуль — граната');
+  ok(a.holdUntil > f.time && b.holdUntil > f.time, 'все рядом оглушены');
+  ok(boss.holdUntil <= f.time, 'босс — нет');
+  const s = makeBattle(), main = shooter(s, 10, 4, ['marksman']), mate = shooter(s, 12, 4, ['assault', 'support']);
+  const mob = walker(s, 12, 1e9);
+  still(mob);
+  s._fire(main);
+  near(hit(mob), main.damage + mate.damage, 'штурмовик поддержал выстрел марксмана');
+  const before = hit(mob);
+  s._fire(mate);
+  near(hit(mob) - before, mate.damage, 'свой выстрел поддержку не зовёт');
+});
+
+test('стрелок-марксман: далеко, редко, сильно; 5 пуль — перезарядка; пробивная и двойной выстрел', () => {
+  const battle = makeBattle(), t = shooter(battle, 1, 4, ['marksman', 'pierce']);
+  near(t.baseRange, t.cls.base.range + SHOT.marksman.range);
+  near(t.interval, SHOT.marksman.interval);
+  near(t.damage / baseOf(t.cls).damage, SHOT.marksman.mul);
+  t.cx = 0.5;
+  t.cy = 5.5;
+  const line = [walker(battle, 3, 1e9), walker(battle, 4, 1e9), walker(battle, 5, 1e9)];
+  still(...line);
+  battle._fire(t);
+  ok(line.every((mob) => hit(mob) > 0), 'пробивная — прошивает всех на пути');
+  for (let i = 1; i < SHOT.marksman.mag; i++) battle._fire(t);
+  ok(t.reloadUntil > battle.time, 'пятая пуля — перезарядка');
+  const two = makeBattle(), d = shooter(two, 3, 4, ['marksman', 'double']);
+  d.cx = 3.5;
+  d.cy = 5.5;
+  const first = walker(two, 6, 1e9), ahead = walker(two, 8, 1e9), rear = walker(two, 1, 1e9);
+  still(first, ahead, rear);
+  two._fire(d);
+  ok(hit(first) > 0 && hit(ahead) > 0, 'две пули в одну сторону');
+  eq(hit(rear), 0, 'в другую сторону — нет');
+  eq(d.bullets, 2);
+});
+
+test('стрелок-марксман: шестое чувство — подземных первыми; воздушная оборона — летучих первыми, втрое сильнее', () => {
+  const blind = makeBattle(), plainShot = shooter(blind, 10, 4, ['marksman']);
+  const mole = creature(blind, 'mole', 13, 1e9), plain = walker(blind, 11, 1e9);
+  still(mole, plain);
+  mole.underUntil = 1e9;
+  blind._fire(plainShot);
+  ok(hit(plain) > 0 && hit(mole) === 0, 'без навыка подземного не видно');
+  const sense = makeBattle(), m = shooter(sense, 10, 4, ['marksman', 'sixth']);
+  const deep = creature(sense, 'mole', 13, 1e9), near1 = walker(sense, 11, 1e9);
+  still(deep, near1);
+  deep.underUntil = 1e9;
+  sense._fire(m);
+  ok(hit(deep) > 0 && hit(near1) === 0, 'с навыком — подземного первым и бьёт');
+  const sky = makeBattle(), aa = shooter(sky, 10, 4, ['marksman', 'antiair']);
+  const ground = walker(sky, 11, 1e9), flyer = walker(sky, 13, 1e9, bat());
+  still(ground, flyer);
+  sky._fire(aa);
+  near(hit(flyer), aa.damage * SHOT.air, 'летучего — первым и втрое сильнее');
+  eq(hit(ground), 0);
+});
+
+test('стрелок: последний патрон, наводчик, золотые пули', () => {
+  const battle = makeBattle(), t = shooter(battle, 10, 4, ['marksman', 'lastRound', 'spotter', 'goldRounds']);
+  near(t.critMul, baseOf(t.cls).critMul * SHOT.gold, 'золотые пули — криты сильнее');
+  t.critChance = 0;
+  const boss = quiet(put(battle, special(battle, 'boss', 'crusher', 1e9), 11));
+  boss.hp = t.damage * 1.5;
+  battle._fire(t);
+  ok(boss.dead, 'осталось меньше, чем снял выстрел, — гибнет даже босс');
+  ok(battle.events.some((e) => e.kind === 'shot' && e.gold), 'трассеры золотые');
+  const mob = walker(battle, 12, 1e9), gun = battle.place(player(), 'gunner', 16, 6);
+  still(mob);
+  t.reloadUntil = 0;
+  battle._fire(t);
+  ok(mob.markUntil > battle.time && mob.mark === SHOT.mark.bonus, 'метка наводчика');
+  const before = hit(mob);
+  battle._hurt(mob, 100, gun, null);
+  near(hit(mob) - before, 100 * (1 + SHOT.mark.bonus), 'меченого бьют сильнее и союзники');
 });
 
 test('пулемётчик, навыки Реборна: длинная лента, подавление, шквал свинца, трассеры', () => {
@@ -2892,7 +2955,7 @@ test('карта: с холма бьют поверх руин, круга ка�
   }
 });
 
-test('серебряные — тоже элитные: охотник бьёт их первым (после золотых и боссов), «Добыча» и «Наповал» их видят', () => {
+test('серебряные — тоже элитные: охотник бьёт их первым (после золотых и боссов), «Добыча» их видит', () => {
   const battle = makeBattle(), hunter = battle.place(level(50), 'hunter', 10, 4);
   const plain = walker(battle, 12, 1e9), silver = walker(battle, 9, 1e9);
   silver.silver = AFFIXES[0];
@@ -2903,11 +2966,6 @@ test('серебряные — тоже элитные: охотник бьёт 
   gold.info = MOBS.elite;
   still(gold);
   ok(battle._target(hunter) === gold, 'золотой элитный — раньше серебряного');
-  const sniper = battle.place(level(50), 'sniper', 9, 4);
-  gold.dead = true;
-  battle.time = sniper.nextActive;
-  battle.step(TICK);
-  ok(sniper.charge && sniper.charge.target === silver, '«Наповал» целится в серебряного');
 });
 
 test('карта: с холма бьют дальше', () => {
