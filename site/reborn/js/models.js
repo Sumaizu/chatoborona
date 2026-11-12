@@ -460,7 +460,15 @@ function phoenix(m, deep, plume, flare, core, span) {
 }
 
 function seated(m, o) {
-  for (const side of [-1, 1]) {
+  if (o.kneel) {
+    m.limb(13, 21, 4.5, 11.8, 14.6, 7, 2.2, o.legs, 0, 1.9);
+    m.limb(11.8, 14.6, 7, 11.8, 13.4, 2.6, 1.7, o.legs, 0, 1.5);
+    m.egg(11.8, 12.4, 1.8, 1.6, 2.2, 1.3, o.boots);
+    m.limb(19, 21, 4.5, 19.8, 18.4, 2.6, 2.1, o.legs, 0, 1.8);
+    m.limb(19.8, 18.4, 2.6, 19.8, 26, 2, 1.7, o.legs, 0, 1.4);
+    m.egg(19.8, 27.2, 1.6, 1.4, 1.9, 1.2, o.boots);
+  }
+  for (const side of o.kneel ? [] : [-1, 1]) {
     m.limb(16 + side * 3.2, 21.5, 4.5, 16 + side * 7.6, 14.2, 6.4, 2.2, o.legs, 0, 1.9);
     m.limb(16 + side * 7.6, 14.2, 6.4, 16 + side * 4.2, 10, 3, 1.8, o.legs, 0, 1.5);
     m.egg(16 + side * 3.9, 9.4, 2.2, 1.6, 2.1, 1.4, o.boots);
@@ -501,11 +509,16 @@ function ghillie(m) {
     coat: '#556b2f', dark: '#3f5626', sleeve: '#4d6b2f', legs: '#4d6b2f', boots: '#3a3326', glove: '#3f4a2a',
     hands: [15.2, 17, 16.7, 11.5],
     weapon: (q) => {
-      q.limb(16, 23, 8, 16, 17, 8.3, 1.4, '#3f4a2a');
-      q.limb(16, 17, 8.4, 16, 0.5, 8.4, 0.55, '#2d323b', 0.6);
-      q.limb(16, 15.5, 9.8, 16, 9.5, 9.8, 1, '#1f2937', 0.8);
-      q.dot(15.5, 9, '#7fd4ff', 40);
-      for (const side of [-1, 1]) q.limb(16, 3.6, 7.8, 16 + side * 1.4, 2.2, 6.4, 0.3, '#2d323b');
+      q.limb(16, 23, 8, 16, 17, 8.3, 1.5, '#4b3f2a');
+      q.limb(16, 17.5, 8.6, 16, 9, 8.6, 1.1, '#2d323b', 0.5);
+      q.limb(16, 9, 8.6, 16, -5.5, 8.6, 0.6, '#3f444d', 0.7);
+      q.limb(16, -5, 8.7, 16, -7, 8.7, 0.95, '#1f2937');
+      for (const side of [-1, 1]) q.limb(16, 1.5, 8.2, 16 + side * 2, -0.4, 6.6, 0.35, '#2d323b');
+      q.limb(16, 16, 11.4, 16, 7, 11.4, 1.35, '#1f2937', 0.9);
+      q.ball(16, 6.8, 11.4, 2, '#1f2937', 0.9);
+      q.egg(16, 5.4, 11.6, 1.5, 0.6, 1.5, '#38bdf8', 1);
+      q.limb(14, 11.5, 11.2, 18, 11.5, 11.2, 0.7, '#4b5563', 0.6);
+      q.limb(16, 11.5, 12.4, 16, 10.3, 12.4, 0.6, '#4b5563', 0.6);
     },
     head: (q) => q.ball(16, 20.5, 10.6, 4.4, '#4d6b2f'),
   });
@@ -523,7 +536,7 @@ function ghillie(m) {
   for (let k = 0; k < 90; k++) {
     const a = roll() * Math.PI * 2, r = Math.sqrt(roll()), x = 16 + Math.cos(a) * r * 8.5;
     const y = 18.5 + Math.sin(a) * r * 7.5;
-    if (Math.abs(x - 16) < 1.3 && y < 17.5) continue;
+    if (Math.abs(x - 16) < 2.4 && y < 17.5) continue;
     const turn = roll() * Math.PI * 2, length = 1 + roll() * 1.4, z = surface(x, y) + 0.4;
     m.limb(x, y, z, x + Math.cos(turn) * length, y + Math.sin(turn) * length, z + 0.3, 0.5,
       GHILLIE[Math.floor(roll() * GHILLIE.length)], 0, 0.2);
@@ -559,11 +572,13 @@ function assault(m) {
 function marksman(m) {
   seated(m, {
     coat: '#8a6a3c', dark: '#6b5230', sleeve: '#94723f', legs: '#4f3d24', boots: '#2a2018', glove: '#4a3b26',
+    kneel: true,
     hands: [15.2, 16.5, 16.7, 10.5],
     weapon: (q) => {
       q.limb(16, 23, 8, 16, 17.5, 8.2, 1.5, WOOD);
-      q.limb(16, 17.5, 8.4, 16, 8, 8.4, 0.9, '#5c3d22');
-      q.limb(16, 8, 8.5, 16, 0, 8.5, 0.5, STEEL, 0.6);
+      q.limb(16, 17.5, 8.4, 16, 5, 8.4, 0.95, '#5c3d22');
+      q.limb(16, 5, 8.5, 16, -6, 8.5, 0.5, STEEL, 0.6);
+      q.dot(15.5, -5.5, '#cbd5e1', 40);
     },
     head: (q) => {
       q.egg(16, 21, 11, 4.6, 4.5, 3, '#6b5a3a', 0.3);
