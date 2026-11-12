@@ -548,7 +548,7 @@ const CAMO = ['#2f4a22', '#7a8b4a', '#5b4a2a', '#3d5229'];
 function assault(m) {
   hero(m, {
     coat: '#4f6b35', dark: '#3d5229', sleeve: '#557538', boots: '#3a3326', glove: '#2f3a24', slim: true,
-    hands: [17.4, 4.6, 15, 10.2],
+    hands: [17, 7.2, 15, 10.6],
     chest: (q) => {
       const spots = [[11, 16], [13.5, 21], [19, 15.5], [21, 20], [16.5, 23], [10.5, 20.5], [20, 23], [12.5, 17.5]];
       spots.forEach(([x, y], i) => q.egg(x, y, 9.1, 1.5, 1.1, 0.5, CAMO[i % CAMO.length]));
