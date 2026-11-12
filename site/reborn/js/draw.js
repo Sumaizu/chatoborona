@@ -88,6 +88,8 @@ const FLAME = ['#fff3b0', '#ffd84a', '#ff9a1f', '#ff5a1f', '#b8320f'];
 const BLUE_FLAME = ['#e0f2ff', '#9bd5ff', '#4aa3ff', '#2563eb', '#1e3a8a'];
 const BOOM = { heat: 'rgba(255, 200, 80, .9)', core: '#ffd84a' };
 const BLACK_FLAME = ['#c084fc', '#7e22ce', '#3b0764', '#1c1917', '#0a0a0a'];
+const FIRE_SPARKS = new Set(FLAME.concat(BLUE_FLAME, BLACK_FLAME, ['#ffd84a', '#ff8a1f', '#ff4d1f', '#ff5a1f',
+  '#ff9a1f']));
 const HEAT = { warm: ['rgba(255, 110, 30, .9)', 'rgba(255, 220, 120, .9)'],
   blue: ['rgba(74, 163, 255, .9)', 'rgba(224, 242, 255, .9)'] };
 const PUDDLES = {
@@ -140,6 +142,24 @@ function roundRect(ctx, x, y, w, h, r) {
 function square(ctx, x, y, size, color) {
   ctx.fillStyle = color;
   ctx.fillRect(Math.round(x - size / 2), Math.round(y - size / 2), size, size);
+}
+
+function tongue(ctx, x, y, size, color) {
+  const r = size / 2;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x, y - r * 2.4);
+  ctx.quadraticCurveTo(x + r * 1.2, y - r * 0.5, x + r, y);
+  ctx.arc(x, y, r, 0, Math.PI);
+  ctx.quadraticCurveTo(x - r * 1.2, y - r * 0.5, x, y - r * 2.4);
+  ctx.fill();
+}
+
+function ember(ctx, x, y, size, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 const turnOf = (angle, steps = TURN_STEPS) => Math.round(angle / (Math.PI * 2 / steps));
@@ -905,7 +925,7 @@ export class Scene {
       const a = i * 2.39 + seed, d = r * 0.85 * Math.sqrt(noise(i, seed + 40));
       const rise = (this.clock * 2.2 + noise(i + 9, seed + 40)) % 1;
       ctx.globalAlpha = fade * (1 - rise * 0.7);
-      square(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8 - rise * tall, rise < 0.35 ? 4 : 3,
+      tongue(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8 - rise * tall, rise < 0.35 ? 4 : 3,
         tones[Math.min(tones.length - 1, Math.floor(rise * tones.length))]);
     }
     ctx.globalAlpha = 1;
@@ -944,7 +964,7 @@ export class Scene {
     for (let i = 0; i < 10; i++) {
       const k = (this.clock * 4 + i / 10) % 1, side = Math.sin(i * 2.3 + this.clock * 30) * 4 * power;
       ctx.globalAlpha = 1 - k * 0.6;
-      square(ctx, x1 + (x2 - x1) * k + Math.cos(a) * side, y1 + (y2 - y1) * k + Math.sin(a) * side, 2,
+      ember(ctx, x1 + (x2 - x1) * k + Math.cos(a) * side, y1 + (y2 - y1) * k + Math.sin(a) * side, 2.5,
         tones[i % 3]);
     }
     ctx.restore();
@@ -960,14 +980,14 @@ export class Scene {
       const a = i / 16 * Math.PI * 2 + this.clock * 0.35, d = zone * (0.78 + 0.18 * noise(i, seed));
       const rise = (this.clock * 1.3 + noise(i + 5, seed)) % 1;
       ctx.globalAlpha = 1 - rise;
-      square(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8 - rise * 10, 3,
+      tongue(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8 - rise * 10, 3,
         tones[1 + Math.min(3, Math.floor(rise * 4))]);
     }
     for (let i = 0; i < 26; i++) {
       const a = i / 26 * Math.PI * 2, d = CELL * (0.42 + 0.12 * noise(i + 9, seed));
       const rise = (this.clock * 2.6 + noise(i + 2, seed)) % 1;
       ctx.globalAlpha = 1 - rise * 0.8;
-      square(ctx, x + Math.cos(a) * d, y + 5 + Math.sin(a) * d * 0.7 - rise * 18, rise < 0.3 ? 4 : 3,
+      tongue(ctx, x + Math.cos(a) * d, y + 5 + Math.sin(a) * d * 0.7 - rise * 18, rise < 0.3 ? 4 : 3,
         tones[Math.min(4, Math.floor(rise * 5))]);
     }
     ctx.globalAlpha = 1;
@@ -978,7 +998,7 @@ export class Scene {
     for (let i = 0; i < 7; i++) {
       const rise = (this.clock * 2 + i / 7) % 1;
       ctx.globalAlpha = 1 - rise * 0.8;
-      square(ctx, x - 9 + i * 3 + Math.sin(this.clock * 6 + i) * 1.5, y - 4 - rise * 16, rise < 0.4 ? 4 : 3,
+      tongue(ctx, x - 9 + i * 3 + Math.sin(this.clock * 6 + i) * 1.5, y - 4 - rise * 16, rise < 0.4 ? 4 : 3,
         tones[Math.min(4, Math.floor(rise * 5))]);
     }
     ctx.globalAlpha = 1;
@@ -1002,7 +1022,7 @@ export class Scene {
         const a = i / count * Math.PI * 2 + this.clock * 0.7, d = r * (0.86 + 0.14 * noise(i + 3, seed));
         const rise = (this.clock * 2.4 + noise(i, seed)) % 1;
         ctx.globalAlpha = 1 - rise * 0.7;
-        square(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8 - rise * 12, rise < 0.35 ? 4 : 3,
+        tongue(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8 - rise * 12, rise < 0.35 ? 4 : 3,
           tones[Math.min(tones.length - 1, Math.floor(rise * tones.length))]);
       }
       ctx.globalAlpha = 1;
@@ -1695,7 +1715,7 @@ export class Scene {
       const tones = black ? BLACK_FLAME : blue ? BLUE_FLAME : FLAME;
       for (let i = 0; i < 6; i++) {
         const rise = (this.clock * 14 + i * 2.7 + mob.id) % 12, side = Math.sin(i * 2.1 + mob.id) * 7;
-        square(ctx, x + side, y - 2 - rise, rise < 4 ? 3 : 2, tones[Math.min(4, Math.floor(rise / 2.6))]);
+        tongue(ctx, x + side, y - 2 - rise, rise < 4 ? 3 : 2, tones[Math.min(4, Math.floor(rise / 2.6))]);
       }
     }
   }
@@ -1782,7 +1802,7 @@ export class Scene {
         for (let i = 0; i < 6; i++) {
           const rise = (this.clock * 2.2 + i / 6) % 1, a = i * 1.05 + t.x;
           ctx.globalAlpha = 1 - rise;
-          square(ctx, x + Math.cos(a) * 12, y + Math.sin(a) * 9 - rise * 12, 2, i % 2 ? '#ff4d4d' : '#ffb020');
+          tongue(ctx, x + Math.cos(a) * 12, y + Math.sin(a) * 9 - rise * 12, 2, i % 2 ? '#ff4d4d' : '#ffb020');
         }
         ctx.globalAlpha = 1;
       }
@@ -1812,7 +1832,7 @@ export class Scene {
     glow(ctx, fx, fy, 8, 'rgba(255, 120, 30, .95)', 0.7);
     for (let i = 0; i < 5; i++) {
       const rise = (this.clock * 6 + i / 5) % 1;
-      square(ctx, fx + Math.sin(i * 2.3 + this.clock * 9) * 2, fy - rise * 9, rise < 0.4 ? 3 : 2,
+      tongue(ctx, fx + Math.sin(i * 2.3 + this.clock * 9) * 2, fy - rise * 9, rise < 0.4 ? 3 : 2,
         FLAME[Math.min(FLAME.length - 1, Math.floor(rise * FLAME.length))]);
     }
   }
@@ -1850,7 +1870,7 @@ export class Scene {
       for (let i = 0; i < 6; i++) {
         const k = (this.clock * 2.5 + i / 6) % 1, a = i * 1.05 + this.clock, r = 14 * (1 - k);
         ctx.globalAlpha = k;
-        square(ctx, fx + Math.cos(a) * r, fy + Math.sin(a) * r, 2, look.sparks[i % look.sparks.length]);
+        ember(ctx, fx + Math.cos(a) * r, fy + Math.sin(a) * r, 2.5, look.sparks[i % look.sparks.length]);
       }
       ctx.restore();
       if (charge.kind !== 'aim' || !target) continue;
@@ -2049,7 +2069,7 @@ export class Scene {
     for (let i = 0; i < count; i++) {
       const a = Math.random() * Math.PI * 2, v = speed * (0.4 + Math.random() * 0.8);
       this.effects.push({ kind: 'spark', t: 0, life: life * (0.7 + Math.random() * 0.5), x, y, vx: Math.cos(a) * v,
-        vy: Math.sin(a) * v, color: colors[i % colors.length], size });
+        vy: Math.sin(a) * v, color: colors[i % colors.length], size, ember: FIRE_SPARKS.has(colors[0]) });
     }
   }
 
@@ -2455,7 +2475,7 @@ export class Scene {
         const d = travel * reach, px = ox + Math.cos(a) * d, py = oy + Math.sin(a) * d - travel * travel * 6;
         const tone = tones[Math.min(tones.length - 1, Math.floor(travel * tones.length))];
         ctx.globalAlpha = fade * (1 - travel * 0.7);
-        square(ctx, px, py, 2 + Math.round(travel * 3), tone);
+        ember(ctx, px, py, 2.5 + travel * 3, tone);
       }
       ctx.restore();
     }
@@ -2642,7 +2662,8 @@ export class Scene {
         ctx.globalAlpha = 1;
       } else if (e.kind === 'spark') {
         ctx.globalAlpha = fade;
-        square(ctx, at(e.x + e.vx * e.t), at(e.y + e.vy * e.t), e.size, e.color);
+        if (e.ember) ember(ctx, at(e.x + e.vx * e.t), at(e.y + e.vy * e.t), e.size + 0.5, e.color);
+        else square(ctx, at(e.x + e.vx * e.t), at(e.y + e.vy * e.t), e.size, e.color);
         ctx.globalAlpha = 1;
       } else if (e.kind === 'puff') {
         ctx.globalAlpha = fade * 0.55;
