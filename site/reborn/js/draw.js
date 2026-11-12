@@ -1028,17 +1028,46 @@ export class Scene {
     ctx.globalAlpha = 1;
   }
 
+  _fireWall(ctx, cells, blue, seed) {
+    const tones = blue ? BLUE_FLAME : FLAME, [warm, core] = HEAT[blue ? 'blue' : 'warm'];
+    const first = cells[0], second = cells[1] || first, last = cells[cells.length - 1];
+    const before = cells[cells.length - 2] || last;
+    const points = [{ x: first.x - (second.x - first.x) / 2, y: first.y - (second.y - first.y) / 2 }].concat(cells,
+      [{ x: last.x + (last.x - before.x) / 2, y: last.y + (last.y - before.y) / 2 }]);
+    const spots = [];
+    for (let i = 0; i < points.length - 1; i++) {
+      const a = points[i], b = points[i + 1];
+      const steps = Math.max(1, Math.round(Math.hypot(b.x - a.x, b.y - a.y) * CELL / 3));
+      for (let k = 0; k < steps; k++) {
+        spots.push({ x: at(a.x + (b.x - a.x) * k / steps), y: at(a.y + (b.y - a.y) * k / steps) });
+      }
+    }
+    spots.forEach((spot, i) => {
+      if (i % 3) return;
+      glow(ctx, spot.x, spot.y, CELL * 0.55, 'rgba(40, 14, 6, .9)', 0.3);
+      glow(ctx, spot.x, spot.y, CELL * 0.65, warm, 0.4);
+      glow(ctx, spot.x, spot.y - 6, CELL * 0.3, core, 0.3 + 0.1 * Math.sin(this.clock * 9 + i));
+    });
+    spots.forEach((spot, i) => {
+      for (const shift of [0, 0.5]) {
+        const rise = (this.clock * 2.2 + noise(i, seed) + shift) % 1, side = (noise(i + 7, seed + shift) - 0.5) * 6;
+        ctx.globalAlpha = 1 - rise * 0.7;
+        bit(ctx, spot.x + side, spot.y + 3 - rise * 22, rise < 0.35 ? 4 : 3,
+          tones[Math.min(tones.length - 1, Math.floor(rise * tones.length))], i * 2 + shift * 2 + this.clock * 9);
+      }
+      ctx.globalAlpha = 0.9;
+      bit(ctx, spot.x, spot.y + 4, 3, tones[i % 2 ? 1 : 2], i + this.clock * 6);
+    });
+    ctx.globalAlpha = 1;
+  }
+
   _blazes(ctx, battle) {
     for (const t of battle.towers) {
       if (t.cls.id === 'pyro' && t.runes.has('torch')) this._torch(ctx, t);
       if (t.torch && battle.towers.includes(t.torch)) this._torchLit(ctx, t);
       if (t.style !== 'ignite') continue;
       const blue = t.runes.has('blue'), tones = blue ? BLUE_FLAME : FLAME;
-      if (t.runes.has('fireWall')) {
-        for (const cell of battle._blazeOf(t).cells) {
-          this._blaze(ctx, at(cell.x), at(cell.y), CELL * 0.5, Math.round(cell.x * 7 + cell.y * 13) % 9, 1, blue, 22);
-        }
-      }
+      if (t.runes.has('fireWall')) this._fireWall(ctx, battle._blazeOf(t).cells, blue, (t.x * 7 + t.y * 13) % 9);
       if (!t.ring) continue;
       const x = at(t.cx), y = at(t.cy), r = t.ring * CELL, seed = (t.x * 7 + t.y * 13) % 9;
       glow(ctx, x, y, r, HEAT[blue ? 'blue' : 'warm'][0], 0.22);
