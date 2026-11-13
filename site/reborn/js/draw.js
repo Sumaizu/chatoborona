@@ -14,21 +14,21 @@ const FIELD = 640;
 
 const ZOOM = 2;
 const SMOOTH = 28;
-const TURN = 8;
-const TURN_EASE = 12;
+const TURN = 14;
+const TURN_EASE = 30;
 const TURN_MIN = 2;
 const AIM_SLACK = Math.PI / 8;
 const SHOT_HOLD = 0.15;
 const SHOT_WAIT = 0.5;
 const SHOT_QUEUE = 4;
-const LOOK_EVERY = 0.1;
 const FLIGHT_MIN = 0.05;
 const LOB_ARC = 22;
 const COG = ['.#.#.', '#####', '##.##', '#####', '.#.#.'];
 const SHELL = ['oo', '##', '##', '##', '##'];
 const AURAS = { team: { glow: 'rgba(100, 116, 139, 1)', tones: ['#64748b', '#475569', '#7c8a9e'], shape: COG },
   tuning: { glow: 'rgba(250, 204, 21, 1)', tones: ['#facc15', '#eab308', '#d4a017'], shape: SHELL, tip: '#b45309' } };
-const BUCKLER = { radius: 27, speed: 1.1 };
+const BUCKLER = { radius: 22, speed: 1.1, margin: 9 };
+const BLAST_TONES = ['#fff3b0', '#ffd84a', '#ff9a1f', '#e2531f', '#6b5a50'];
 const DRONE_LIFT = 18;
 const AIRBURST = 22;
 const NUKE_ARC = 90;
@@ -1324,6 +1324,31 @@ export class Scene {
     }
   }
 
+  _rugged(ctx, e, share) {
+    const x = at(e.x), y = at(e.y), r = e.r * CELL, fade = 1 - share, grow = 0.45 + 0.55 * Math.min(1, share * 2.5);
+    const lobe = (a) => {
+      const spot = ((a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) / (Math.PI * 2) * 7, j = Math.floor(spot);
+      const k = spot - j;
+      return (0.55 + 0.45 * noise(j, e.seed)) * (1 - k) + (0.55 + 0.45 * noise((j + 1) % 7, e.seed)) * k;
+    };
+    glow(ctx, x, y, r * grow, BOOM.heat, fade * 0.6);
+    for (let i = 0, count = Math.round(30 + 28 * e.r); i < count; i++) {
+      const a = i * 2.39 + e.seed, k = Math.sqrt(noise(i, e.seed + 3)), reach = r * grow * k * lobe(a);
+      const tone = Math.min(BLAST_TONES.length - 1, Math.floor(k * 2.2 + share * 3));
+      ctx.globalAlpha = fade * (1 - k * 0.25);
+      bit(ctx, x + Math.cos(a) * reach, y + Math.sin(a) * reach * 0.9 - share * 5 * k, k < 0.5 ? 4 : 3,
+        BLAST_TONES[tone], i + e.seed);
+    }
+    if (share > 0.35) {
+      for (let i = 0; i < 8; i++) {
+        const a = i * 0.79 + e.seed, reach = r * lobe(a) * 0.9;
+        glow(ctx, x + Math.cos(a) * reach, y + Math.sin(a) * reach * 0.9 - share * 10, 6 + 4 * noise(i, e.seed),
+          'rgba(90, 80, 74, 1)', (share - 0.35) * fade * 1.4);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
   _nukeBlast(ctx, e, share) {
     const x = at(e.x), y = at(e.y), r = e.radius * CELL, time = share * NUKE_LIFE;
     const dark = time < 0.15 ? time / 0.15 : time < 1.2 ? 1 : Math.max(0, 1 - (time - 1.2) / (NUKE_LIFE - 1.2));
@@ -1408,22 +1433,24 @@ export class Scene {
   _auras(ctx, battle) {
     for (const t of battle.towers) {
       if (t.cls.id !== 'mechanic' || t.cocoon || t.rider) continue;
-      for (const id of ['team', 'tuning']) if (t.runes.has(id)) this._aura(ctx, t, AURAS[id], MECH[id].radius);
+      const own = ['team', 'tuning'].filter((id) => t.runes.has(id));
+      own.forEach((id, n) => this._aura(ctx, t, AURAS[id], MECH[id].radius, n));
     }
   }
 
-  _aura(ctx, t, look, radius) {
+  _aura(ctx, t, look, radius, n) {
     const pose = this._pose(t), x = at(pose.x), y = at(pose.y), zone = radius * CELL, seed = (t.x * 7 + t.y * 13) % 9;
-    glow(ctx, x, y, zone, look.glow, 0.22 + 0.05 * Math.sin(this.clock * 3 + seed));
+    glow(ctx, x, y, zone, look.glow, (0.22 + 0.05 * Math.sin(this.clock * 3 + seed)) / (1 + n));
     for (let i = 0; i < 14; i++) {
-      const a = i / 14 * Math.PI * 2 + this.clock * 0.35, d = zone * (0.74 + 0.18 * noise(i, seed));
-      const rise = (this.clock * 0.9 + noise(i + 5, seed)) % 1;
+      const a = (i + n / 2) / 14 * Math.PI * 2 + this.clock * 0.35 * (n ? -1 : 1);
+      const d = zone * (0.8 - n * 0.22 + 0.14 * noise(i + n * 20, seed)), rise = (this.clock * 0.9 + noise(i + 5, seed)
+        + n / 2) % 1;
       ctx.globalAlpha = 1 - rise;
       pixels(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8 - rise * 12, look.shape, look.tones[i % 3], look.tip);
     }
     for (let i = 0; i < 9; i++) {
-      const a = i / 9 * Math.PI * 2, d = CELL * (0.46 + 0.1 * noise(i + 9, seed));
-      const rise = (this.clock * 1.4 + noise(i + 2, seed)) % 1;
+      const a = (i + n / 2) / 9 * Math.PI * 2, d = CELL * (0.46 + n * 0.14 + 0.08 * noise(i + 9 + n * 20, seed));
+      const rise = (this.clock * 1.4 + noise(i + 2, seed) + n / 2) % 1;
       ctx.globalAlpha = 1 - rise * 0.8;
       pixels(ctx, x + Math.cos(a) * d, y + 5 + Math.sin(a) * d * 0.7 - rise * 16, look.shape, look.tones[i % 3],
         look.tip);
@@ -1435,9 +1462,10 @@ export class Scene {
     for (let i = 0; i < count; i++) {
       const a = this.clock * BUCKLER.speed + i / count * Math.PI * 2;
       if (Math.sin(a) >= 0 !== front) continue;
-      const bx = x + Math.cos(a) * BUCKLER.radius, by = y + Math.sin(a) * BUCKLER.radius * 0.8 - 4;
-      glow(ctx, bx, by, 9, 'rgba(191, 219, 254, 1)', 0.25 + 0.1 * Math.sin(this.clock * 4 + i));
-      sprite(ctx, bucklerSprite(), bx, by + Math.sin(this.clock * 3 + i) * 1.5, 0, 1.2);
+      const inside = (v) => Math.max(EDGE + BUCKLER.margin, Math.min(BOARD - EDGE - BUCKLER.margin, v));
+      const bx = inside(x + Math.cos(a) * BUCKLER.radius), by = inside(y + Math.sin(a) * BUCKLER.radius * 0.85);
+      glow(ctx, bx, by, 8, 'rgba(191, 219, 254, 1)', 0.2 + 0.08 * Math.sin(this.clock * 4 + i));
+      sprite(ctx, bucklerSprite(), bx, by + Math.sin(this.clock * 3 + i), 0, 1.4);
     }
   }
 
@@ -1922,10 +1950,7 @@ export class Scene {
   _pose(t) {
     let pose = this.poses.get(t);
     if (!pose) {
-      const [bx, by] = this.battle.path[Math.floor(this.battle.path.length / 2)];
-      const aim = Math.atan2(bx - t.x, -(by - t.y));
-      pose = { angle: aim, aim, kick: 0, flash: 0, leap: null, x: t.cx, y: t.cy, queue: [], lock: null, look: null,
-        lookAt: 0, shooter: false };
+      pose = { angle: t.angle, aim: t.angle, kick: 0, flash: 0, leap: null, x: t.cx, y: t.cy, queue: [], lock: null };
       this.poses.set(t, pose);
     }
     return pose;
@@ -1976,7 +2001,7 @@ export class Scene {
       if (t.rider && battle.covered(spot.x, spot.y)) continue;
       const x = at(spot.x), y = at(spot.y) - spot.lift;
       if (!still) {
-        if (!t.rider && !(t.pull && now < t.pull.end)) this._steer(t, pose, battle);
+        if (!t.rider && !(t.pull && now < t.pull.end)) this._steer(t, pose);
         pose.angle = turnToward(pose.angle, pose.aim, dt);
         this._release(t, pose);
         pose.kick = Math.max(0, pose.kick - dt);
@@ -1995,9 +2020,6 @@ export class Scene {
       const lift = pose.kick > 0 ? Math.round(pose.kick / KICK * 2) : 0;
       if (t.cocoon) sprite(ctx, cocoonSprite(Math.floor(this.clock * 1.6 + t.x) % 2), x, y, 0, ZOOM, 0);
       else sprite(ctx, heroSprite(look), x, y, pose.angle, ZOOM, lift, HERO_TURN_STEPS);
-      if (t.reloadUntil > now) {
-        this._progress(ctx, x, y - 2, 1 - (t.reloadUntil - now) / (t.reloadSpan || t.cls.base.reload), '#e5e7eb');
-      }
       if (pose.flash > 0 && !t.rider && !t.cocoon) {
         const tip = this._muzzle(t), fx = at(tip.x), fy = at(tip.y);
         glow(ctx, fx, fy, 7, 'rgba(255, 236, 160, .95)', 0.9);
@@ -2016,29 +2038,13 @@ export class Scene {
     }
   }
 
-  _progress(ctx, x, y, share, color) {
-    ctx.save();
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = 'rgba(16, 14, 31, .85)';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(x, y, 15, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(x, y, 15, -Math.PI / 2, -Math.PI / 2 + Math.max(0, Math.min(1, share)) * Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-  }
-
   _charges(ctx, battle) {
     const now = battle.time;
     for (const t of battle.towers) {
       const charge = t.charge;
       if (!charge) continue;
       const share = Math.max(0, Math.min(1, (now - charge.at) / (charge.until - charge.at)));
-      const look = CHARGES[charge.kind], pose = this._pose(t), x = at(pose.x), y = at(pose.y);
+      const look = CHARGES[charge.kind], target = charge.target && !charge.target.dead ? charge.target : null;
       const tip = this._muzzle(t), fx = at(tip.x), fy = at(tip.y);
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
@@ -2231,31 +2237,18 @@ export class Scene {
     ctx.fillText(text, x + shake, y - 2);
   }
 
-  _steer(t, pose, battle) {
-    const lock = pose.lock && this.clock < pose.lock.until ? pose.lock : null, charge = t.charge;
-    const spot = lock ? aimSpot(lock) : pose.queue.length ? aimSpot(pose.queue[0])
-      : charge && charge.target && !charge.target.dead ? charge.target : this._lookout(t, pose, battle);
-    if (spot) pose.aim = bearing(t, spot);
-  }
-
-  _lookout(t, pose, battle) {
-    if (!pose.shooter) return null;
-    if (this.clock >= pose.lookAt) {
-      pose.look = battle.facing(t);
-      pose.lookAt = this.clock + LOOK_EVERY;
-    }
-    return pose.look && !pose.look.dead ? pose.look : null;
+  _steer(t, pose) {
+    const lock = pose.lock && this.clock < pose.lock.until ? pose.lock : null;
+    const spot = lock ? aimSpot(lock) : pose.queue.length ? aimSpot(pose.queue[0]) : null;
+    pose.aim = spot ? bearing(t, spot) : t.angle;
   }
 
   _face(t, x, y, mob = null, hold = SHOT_HOLD) {
-    const pose = this._pose(t);
-    pose.shooter = true;
-    pose.lock = { x, y, mob, until: this.clock + hold };
+    this._pose(t).lock = { x, y, mob, until: this.clock + hold };
   }
 
   _fire(t, x, y, mob, spawn, hold = 0) {
     const pose = this._pose(t);
-    pose.shooter = true;
     pose.queue.push({ x, y, mob, mx: mob ? mob.x : x, my: mob ? mob.y : y, spawn, hold, at: this.clock });
     this._release(t, pose);
   }
@@ -2375,6 +2368,10 @@ export class Scene {
         add({ kind: 'chain', life: 0.2, points });
         for (const [x, y] of event.points.slice(1)) this._sparks(x, y, ['#bfdbfe', '#ffffff'], 3, 1.6, 0.25);
       });
+    } else if (event.kind === 'boom' && t && t.style === 'demo') {
+      add({ kind: 'blast', life: 0.55, x: event.x, y: event.y, r: event.radius, seed: Math.floor(Math.random() * 97) });
+      this._sparks(event.x, event.y, ['#ffd84a', '#ff8a1f', '#e2531f', '#5a4a40'], 12, event.radius * 4.5, 0.45, 3);
+      this.decals.push({ kind: 'scorch', t: 0, life: 3, x: event.x, y: event.y, r: Math.min(1, event.radius * 0.6) });
     } else if (event.kind === 'boom') {
       const big = event.rocket || event.meteor;
       add({ kind: 'boom', life: big ? 0.6 : 0.35, x: event.x, y: event.y, r: event.radius,
@@ -2930,6 +2927,8 @@ export class Scene {
         burst(ctx, at(e.x), at(e.y), r, Math.max(8, Math.round(e.r * 10)), e.y * 2 + share, share < 0.5 ? 1 : 0,
           share < 0.5 ? e.core || BOOM.core : e.ring);
         ctx.globalAlpha = 1;
+      } else if (e.kind === 'blast') {
+        this._rugged(ctx, e, share);
       } else if (e.kind === 'nuke') {
         this._nukeBlast(ctx, e, share);
       } else if (e.kind === 'storm') {

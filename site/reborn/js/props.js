@@ -55,31 +55,6 @@ export function drawDrone(kind, frame) {
   return m.paint();
 }
 
-export function drawBuckler() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 14;
-  canvas.height = 16;
-  const g = canvas.getContext('2d'), shape = (inset) => {
-    g.beginPath();
-    g.moveTo(1 + inset, 1 + inset);
-    g.lineTo(13 - inset, 1 + inset);
-    g.lineTo(13 - inset, 7);
-    g.quadraticCurveTo(13 - inset, 12 - inset, 7, 15 - inset * 1.4);
-    g.quadraticCurveTo(1 + inset, 12 - inset, 1 + inset, 7);
-    g.closePath();
-  };
-  shape(0);
-  g.fillStyle = '#1e293b';
-  g.fill();
-  shape(1);
-  const light = g.createLinearGradient(2, 2, 12, 14);
-  light.addColorStop(0, '#f1f5f9');
-  light.addColorStop(0.45, '#a8b4c4');
-  light.addColorStop(1, '#475569');
-  g.fillStyle = light;
-  g.fill();
-  return canvas;
-}
 
 export function drawGrenade(kind, lit) {
   const m = new Model(22, 1);

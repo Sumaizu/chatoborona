@@ -80,7 +80,8 @@ export const FIRE = { styled: 1.5, giant: 1.5, splash: 1, wide: 1.5, breath: 0.6
   ring: { radius: 2, mul: 0.5, grow: 1, max: 4 },
   wall: { mul: 1.5, reach: 0.7 }, black: { chance: 1, damage: 0.2, max: 5 },
   phoenix: { every: 15, speed: 8, mul: 10, reach: 0.9, step: 0.25 } };
-const TORCH_USERS = new Set(['sniper', 'hunter']);
+const TORCH_USERS = new Set(['sniper', 'mechanic', 'hunter']);
+const LOFTY = new Set(['scope', 'mortar']);
 export const SHOT = { scope: { mul: 5, aim: 2, reload: 3 }, assault: { range: -1, interval: 0.55, mul: 0.35,
   crit: 0.25, mag: 30, reload: 3 }, marksman: { range: 1.5, interval: 2.2, mul: 1.6, crit: 0.25, mag: 5, reload: 3 },
   gold: 2, mark: { bonus: 0.25, time: 4 }, ricochet: { share: 0.5, arc: 75, reach: 3 },
@@ -91,17 +92,18 @@ export const MECH = { turret: { range: -1.5, interval: 1, mul: 0.3, count: 3, ga
   mortar: { interval: 2.4, mul: 1.1, radius: 0.8, flight: 0.7, pace: 0.06 },
   team: { radius: 1.5, per: 0.1 }, tuning: { radius: 1.5, haste: 0.3 },
   emp: { every: 8, radius: 2, stun: 1.5, mute: 4, drop: 0.35 },
-  cluster: { count: 2, share: 0.5, reach: 1, radius: 0.6, flight: 0.35 }, caliber: 2, salvo: { chance: 0.3, gap: 0.25 },
+  cluster: { count: 2, share: 0.5, reach: 1, radius: 0.9, flight: 0.35 }, caliber: 2, salvo: { chance: 0.3, gap: 0.25 },
   aimed: { idle: 5 }, napalm: { radius: 0.8, time: 2, dps: 0.5, mark: 2 },
   shrapnel: { count: 8, spread: 2, side: 0.3, mul: 0.35, hit: 0.45, fall: 0.3, fire: 0.35 },
   nuke: { every: 20, radius: 3, mul: 12, stun: 2, poison: 5, flight: 1.8 },
   giant: { gap: 0.07, arc: 30 }, drone: { speed: 4, hover: 0.6, reach: 1.6, spin: 1.3 },
-  droneAttack: { every: 1.2, count: 3, gap: 0.08, mul: 0.2 }, droneLaser: { every: 1.5, mul: 0.6 },
-  droneAir: { every: 1.5, mul: 0.1, slow: 0.6, time: 2 } };
+  droneAttack: { every: 1.2, count: 3, gap: 0.08, mul: 0.35 }, droneLaser: { every: 1.5, mul: 1 },
+  droneAir: { every: 1.5, mul: 0.2, slow: 0.6, time: 2 } };
 const DRONE_KINDS = [['droneAttack', 'attack'], ['droneLaser', 'laser'], ['droneAir', 'air']];
 const STEEL_BLAST = { radius: 1.5, mul: 8, stun: 1 };
 const METEOR_FLIGHT = 1.2;
 const FOG_FLIGHT = 0.6;
+export const AIM = { turn: 8, slack: Math.PI / 12, hold: 0.15 };
 export const GRENADE = { flight: 0.5, pace: 0.05 };
 const SPIKE_TOUCH = 0.55;
 const ROLL_EVERY = 1;
@@ -167,8 +169,8 @@ export const SPLIT_TIME = 0.35;
 const STEAL_RANGE = 1.2;
 const GHOST_CUT = 0.5;
 const MIRAGE_GAP = 0.35;
-const big = (mob) => mob.info.elite || mob.info.boss;
-const prized = (mob) => big(mob) || Boolean(mob.silver);
+const elite = (mob) => mob.info.elite || Boolean(mob.silver);
+const big = (mob) => elite(mob) || mob.info.boss;
 const lookOfMob = (mob) => Object.values(LOOKS).flat().find((look) => look.id === mob.look) || null;
 const steady = (mob, now) => mob.wild || Boolean(mob.power) && (Boolean(mob.power.firm)
   || mob.power.steady && mob.powerUntil > now);
@@ -325,7 +327,7 @@ export class Battle {
       critMul: STAT.critBase, reach: 0, cone: 0, power: 1, luck: 1, haste: 1, cooldown: 0, busy: 0, napUntil: 0,
       stunUntil: 0, webUntil: 0, perch: null,
       web: 1, windUntil: 0, wind: 0, windBy: null, rider: false, host: null, leapUntil: 0, cocoon: 0, late: false,
-      waveXp: 0, reloadUntil: 0,
+      waveXp: 0, reloadUntil: 0, angle: this._homeAngle(x, y), aimMob: null, aimHold: 0,
       charge: null,
       nextActive: 0, nextTrap: 0, nextWall: 0, lastHit: this.time, pull: null,
       nextCheer: 0, nextCleanse: 0, nextMuse: 0, cheerUntil: 0, rallyUntil: 0, wardUntil: 0, muses: [], lift: 1,
@@ -333,6 +335,23 @@ export class Battle {
       boostBy: new Set(),
       run: { damage: 0, kills: 0, assists: 0, xp: 0, coins: 0 },
     };
+  }
+
+  _homeAngle(x, y) {
+    const [bx, by] = this.path[Math.floor(this.path.length / 2)];
+    return Math.atan2(bx - x, -(by - y));
+  }
+
+  _turn(t, dt, now) {
+    if (t.rider || t.cls.passive) return true;
+    const charge = t.charge && t.charge.target && !t.charge.target.dead ? t.charge.target : null;
+    const held = t.aimHold > now && t.aimMob && !t.aimMob.dead ? t.aimMob : null;
+    const mob = charge || held || this.facing(t);
+    if (!mob) return true;
+    t.aimMob = mob;
+    const want = Math.atan2(mob.x - t.cx, -(mob.y - t.cy)), gap = bend(want, t.angle);
+    t.angle += Math.sign(gap) * Math.min(Math.abs(gap), AIM.turn * dt);
+    return Math.abs(bend(want, t.angle)) <= AIM.slack;
   }
 
   place(player, classId, x, y, mods = NO_MODS) {
@@ -376,7 +395,7 @@ export class Battle {
   }
 
   screen(t) {
-    if (!this.solid || t.cls.through || this.onWatch(t)) return null;
+    if (!this.solid || t.cls.through || LOFTY.has(t.style) || this.onWatch(t)) return null;
     return this.onHill(t) ? this.tall : this.solid;
   }
 
@@ -1024,7 +1043,7 @@ export class Battle {
 
   _hold(mob, seconds, tower, full = false) {
     if (mob.dead || steady(mob, this.time) || !full && this.time < mob.holdFree) return;
-    const time = (full ? seconds : seconds * (mob.info.boss ? BOSS_HOLD : mob.info.elite ? ELITE_HOLD : 1))
+    const time = (full ? seconds : seconds * (mob.info.boss ? BOSS_HOLD : elite(mob) ? ELITE_HOLD : 1))
       * (1 - mob.resist);
     mob.holdUntil = Math.max(mob.holdUntil, this.time + time);
     mob.holdFree = mob.holdUntil + HOLD_GAP;
@@ -1041,7 +1060,7 @@ export class Battle {
 
   _push(mob, distance, tower) {
     if (mob.info.boss || mob.dead || mob.biting || steady(mob, this.time)) return;
-    const shift = Math.min(distance * (mob.info.elite ? ELITE_PUSH : 1) * (1 - mob.resist), PUSH_LIMIT - mob.pushed,
+    const shift = Math.min(distance * (elite(mob) ? ELITE_PUSH : 1) * (1 - mob.resist), PUSH_LIMIT - mob.pushed,
       mob.d);
     if (shift <= 0) return;
     mob.pushed += shift;
@@ -1581,24 +1600,25 @@ export class Battle {
     }
     this.drones = this.drones.filter((drone) => this.towers.includes(drone.tower) && drone.tower.style === 'turret'
       && drone.n < (drone.tower.stacks.get(drone.rune) || 0));
-    this._skyGuard();
+    this._assign();
     for (const drone of this.drones) this._pilot(drone, dt, now);
   }
 
-  _skyGuard() {
-    const guards = this.drones.filter((drone) => drone.kind === 'air');
-    if (!guards.length) return;
-    const flyers = this.mobs.filter((mob) => this._droneCan(guards[0], mob))
-      .sort((a, b) => this.ahead(b) - this.ahead(a));
-    const front = new Set(flyers.slice(0, guards.length)), kept = new Set(), idle = [];
-    for (const drone of guards) {
-      if (drone.target && front.has(drone.target) && !kept.has(drone.target)) kept.add(drone.target);
-      else idle.push(drone);
+  _assign() {
+    for (const [, kind] of DRONE_KINDS) {
+      const crew = this.drones.filter((drone) => drone.kind === kind);
+      if (!crew.length) continue;
+      const pool = this.mobs.filter((mob) => this._droneCan(crew[0], mob))
+        .sort((a, b) => this.ahead(b) - this.ahead(a));
+      const front = new Set(pool.slice(0, crew.length)), kept = new Set(), idle = [];
+      for (const drone of crew) {
+        if (drone.target && front.has(drone.target) && !kept.has(drone.target)) kept.add(drone.target);
+        else idle.push(drone);
+      }
+      const open = pool.filter((mob) => front.has(mob) && !kept.has(mob));
+      let extra = 0;
+      for (const drone of idle) drone.target = open.shift() || (pool.length ? pool[extra++ % pool.length] : null);
     }
-    const open = flyers.filter((mob) => front.has(mob) && !kept.has(mob));
-    idle.forEach((drone, i) => {
-      drone.target = open.shift() || (flyers.length ? flyers[i % flyers.length] : null);
-    });
   }
 
   _droneCan(drone, mob) {
@@ -1608,14 +1628,6 @@ export class Battle {
 
   _pilot(drone, dt, now) {
     const s = MECH.drone, t = drone.tower;
-    if (drone.kind !== 'air' && (!drone.target || !this._droneCan(drone, drone.target))) {
-      drone.target = null;
-      for (const mob of this.mobs) {
-        if (this._droneCan(drone, mob) && (!drone.target || this.ahead(mob) > this.ahead(drone.target))) {
-          drone.target = mob;
-        }
-      }
-    }
     const goal = drone.target || { x: t.cx, y: t.cy }, a = now * s.spin + drone.n * 2.1 + DRONE_KINDS
       .findIndex(([rune]) => rune === drone.rune) * 0.7;
     const dx = goal.x + Math.cos(a) * s.hover - drone.x, dy = goal.y + Math.sin(a) * s.hover - drone.y;
@@ -1637,9 +1649,11 @@ export class Battle {
     } else if (drone.kind === 'laser') {
       this._event({ kind: 'ray', tower: t, sx: drone.x, sy: drone.y, x: target.x, y: target.y, mob: target });
       this._hurt(target, t.damage * shot.mul, t, null, false, ARMOR);
+      this._torchHit(t, target, t.damage * shot.mul);
     } else {
       this._event({ kind: 'net', tower: t, mob: target, sx: drone.x, sy: drone.y });
       this._hurt(target, t.damage * shot.mul, t);
+      this._torchHit(t, target, t.damage * shot.mul);
       if (!target.dead) {
         this._slow(target, shot.slow, shot.time);
         target.netUntil = Math.max(target.netUntil, now + shot.time);
@@ -2023,7 +2037,7 @@ export class Battle {
     const s = t.s[2];
     const living = this.mobs.filter((mob) => !mob.dead && !mob.fake && !hidden(mob, now));
     if (!living.length) return;
-    living.sort((a, b) => (prized(b) ? 1 : 0) - (prized(a) ? 1 : 0) || (b.info.boss ? 1 : 0) - (a.info.boss ? 1 : 0)
+    living.sort((a, b) => (big(b) ? 1 : 0) - (big(a) ? 1 : 0) || (b.info.boss ? 1 : 0) - (a.info.boss ? 1 : 0)
       || b.hp - a.hp);
     t.nextActive = now + s.every;
     for (const mob of living.slice(0, t.runes.has('omniscience') ? 3 : 1)) {
@@ -2048,6 +2062,7 @@ export class Battle {
       if (t.cocoon || t.busy > now) continue;
       const skill = SKILLS[t.cls.id];
       if (skill.every) skill.every(this, t, now, alive);
+      const aligned = this._turn(t, dt, now);
       if (t.charge) {
         if (now >= t.charge.until) {
           const charge = t.charge;
@@ -2059,12 +2074,17 @@ export class Battle {
       }
       if (t.cls.passive) continue;
       t.cooldown -= dt;
+      if (!aligned) {
+        t.cooldown = Math.max(t.cooldown, 0);
+        continue;
+      }
       let shots = 0;
       while (t.cooldown <= 0 && shots < SHOTS_PER_TICK) {
         if (!this._fire(t, now)) {
           t.cooldown = 0;
           break;
         }
+        t.aimHold = now + AIM.hold;
         t.cooldown += this._intervalOf(t, now);
         shots += 1;
       }
@@ -2195,8 +2215,8 @@ export class Battle {
       if (mob === skip || !this._targetable(t, mob, range, mode)) continue;
       let score = this.ahead(mob);
       if (mode === 'strongest') score = mob.hp;
-      else if (mode === 'bigFirst' && prized(mob)) score += big(mob) ? 2e6 : 1e6;
-      else if (mode === 'small' && prized(mob)) score -= 1e6;
+      else if (mode === 'bigFirst' && big(mob)) score += big(mob) ? 2e6 : 1e6;
+      else if (mode === 'small' && big(mob)) score -= 1e6;
       if (score > bestScore) {
         bestScore = score;
         best = mob;
@@ -2217,7 +2237,7 @@ export class Battle {
   _closestBig(t) {
     let best = null, gap = Infinity;
     for (const mob of this.mobs) {
-      if (mob.dead || !prized(mob) || hidden(mob, this.time) || this.covered(mob.x, mob.y)) continue;
+      if (mob.dead || !big(mob) || hidden(mob, this.time) || this.covered(mob.x, mob.y)) continue;
       const far = (mob.x - t.cx) ** 2 + (mob.y - t.cy) ** 2 - (big(mob) ? 1e6 : 0);
       if (far < gap) {
         gap = far;
@@ -2509,7 +2529,9 @@ export class Battle {
   _blast(t, x, y, radius, damage, skip, pierce = 0) {
     this._event({ kind: 'boom', tower: t, x, y, radius });
     for (const mob of this.mobs.slice()) {
-      if (mob !== skip && !mob.dead && near(mob, x, y, radius)) this._hurt(mob, damage, t, null, false, pierce);
+      if (mob === skip || mob.dead || !near(mob, x, y, radius)) continue;
+      this._hurt(mob, damage, t, null, false, pierce);
+      this._torchHit(t, mob, damage);
     }
   }
 
@@ -2636,14 +2658,14 @@ const rollCrit = (b, t) => b.random() < 1 - (1 - t.critChance) * (1 - t.boost.cr
 
 const canShoot = (b, t, mob, range = t.range) => !mob.dead && !immune(mob, t.cls.element)
   && !b.covered(mob.x, mob.y) && (t.deep || !hidden(mob, b.time)) && near(mob, t.cx, t.cy, range)
-  && (t.style === 'scope' || b.sees(t, mob));
+  && b.sees(t, mob);
 
 function aimOf(b, t) {
   if (!t.style) return b._target(t);
   const air = t.style === 'marksman' && t.runes.has('antiair');
   let best = null, rank = -Infinity;
   for (const mob of b.mobs) {
-    if (!canShoot(b, t, mob) || t.style === 'scope' && !prized(mob)) continue;
+    if (!canShoot(b, t, mob) || t.style === 'scope' && !big(mob)) continue;
     let score = t.style === 'scope' ? mob.hp + (big(mob) ? 1e15 : 0)
       : -Math.hypot(mob.x - t.cx, mob.y - t.cy) + (big(mob) ? 1e7 : 0);
     if (air && mob.flying) score += 1e8;
@@ -2659,7 +2681,6 @@ function aimOf(b, t) {
 function reload(t, now, time) {
   if (t.runes.has('endless')) return;
   t.reloadUntil = now + time;
-  t.reloadSpan = time;
 }
 
 function behind(b, t, target, ux, uy) {
@@ -2860,7 +2881,10 @@ function scatter(b, t, target, damage) {
           hit = mob;
         }
       }
-      if (hit) b._hurt(hit, damage * s.mul, t);
+      if (hit) {
+        b._hurt(hit, damage * s.mul, t);
+        b._torchHit(t, hit, damage * s.mul);
+      }
       if (t.runes.has('napalm')) burn(b, t, px, py, s.fire);
     }
   });
@@ -3199,7 +3223,7 @@ const SKILLS = {
     fire(b, t) {
       const target = b._target(t);
       if (!target) return false;
-      const crit = rollCrit(b, t), damage = t.damage * (prized(target) ? t.cls.base.big : 1) * (crit ? t.critMul : 1)
+      const crit = rollCrit(b, t), damage = t.damage * (big(target) ? t.cls.base.big : 1) * (crit ? t.critMul : 1)
         * monster(t, target);
       t.lastHit = b.time;
       b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target });
@@ -3249,7 +3273,7 @@ const SKILLS = {
       }
       b._hurt(target, t.damage * (crit ? t.critMul : 1) * (1 + (t.feast || 0)), t);
       if (crit && open(t, 0) && !target.dead) {
-        const s = t.s[0], share = target.info.boss ? s.boss : target.info.elite ? s.elite : s.share;
+        const s = t.s[0], share = target.info.boss ? s.boss : elite(target) ? s.elite : s.share;
         b._hold(target, s.stun, t);
         b._hurt(target, Math.min(target.max * share, t.skill * s.cap), t, null, false, ARMOR);
       }
@@ -3505,7 +3529,7 @@ const SKILLS = {
             for (const mob of b._around(point.x, point.y, SPIKE_TOUCH)) {
               if (hit.has(mob) || !grounded(mob, now)) continue;
               hit.add(mob);
-              const share = mob.info.boss ? s.boss : mob.info.elite ? s.elite : s.share;
+              const share = mob.info.boss ? s.boss : elite(mob) ? s.elite : s.share;
               b._hurt(mob, Math.min(mob.hp * share, t.skill * s.cap), t, 'earth', false, ARMOR);
             }
           }

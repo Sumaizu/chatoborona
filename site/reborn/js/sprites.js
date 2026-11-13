@@ -1,6 +1,6 @@
 import { HERO_IDS, drawHero, drawPhoenix } from './models.js';
 import { MOB_IDS, drawMelt, drawMob, drawSplit, gooColor } from './monsters.js';
-import { drawClod, drawCocoon, drawCoinIcon, drawDrone, drawEmblem, drawFireball, drawBuckler, drawGrenade, drawHeart,
+import { drawClod, drawCocoon, drawCoinIcon, drawDrone, drawEmblem, drawFireball, drawGrenade, drawHeart,
   drawMeteor, drawMound, drawNuke, drawVent, drawRocket, drawTrap, drawWall } from './props.js';
 
 const OUTLINE = '#15111d';
@@ -312,7 +312,19 @@ export const flaskSprite = () => remember('flask', () => {
   return p.outline().canvas();
 });
 
-export const bucklerSprite = () => remember('buckler', () => drawBuckler());
+export const bucklerSprite = () => remember('buckler', () => mapSprite([
+  '.OOOOOOO.',
+  'OWLLLMMDO',
+  'OLLLMMMDO',
+  'OLLLMMMDO',
+  'OLLMMMMDO',
+  'OLLMMMDDO',
+  '.OLMMMDO.',
+  '.OLMMDDO.',
+  '..OMMDO..',
+  '...OMO...',
+  '....O....',
+], { O: '#1e293b', W: '#f8fafc', L: '#dbe3ec', M: '#9aa8b8', D: '#5f6f82' }));
 export const droneSprite = (kind, frame) => remember('drone:' + kind + frame, () => drawDrone(kind, frame));
 export const grenadeSprite = (kind, lit) => remember('grenade:' + kind + ':' + lit, () => drawGrenade(kind, lit));
 export const ventSprite = (lit, blue) => remember('vent:' + lit + blue, () => drawVent(lit, blue));

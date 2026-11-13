@@ -1,6 +1,6 @@
 import { SFX_GAPS, SOUNDS, measure } from '../../site/reborn/js/sound.js';
 import { CLASSES } from '../../site/reborn/js/classes.js';
-import { BOSSES, ELITES, LEVEL_MAX, xpForLevel } from '../../site/reborn/js/balance.js';
+import { BOSSES, ELITES, LEVEL_MAX, TICK, xpForLevel } from '../../site/reborn/js/balance.js';
 import { HERO_SIZE, MOB_KINDS, coinUrl, heroSprite, heroUrl, mobSprite, prizeUrl } from '../../site/reborn/js/sprites.js';
 import { PAGES } from '../../site/reborn/js/guide.js';
 import { DEFAULTS } from '../../site/reborn/js/config.js';
@@ -8,6 +8,7 @@ import { SIZE } from '../../site/reborn/js/field.js';
 import { RARITIES, ascend, makeWeapon } from '../../site/reborn/js/gacha.js';
 import { eq, no, ok, test } from './harness.js';
 import { Scene } from '../../site/reborn/js/draw.js';
+import { CELL, EDGE } from '../../site/reborn/js/terrain.js';
 import { makeBattle, player } from './fixtures.js';
 
 const SITE = '/site/reborn/';
@@ -139,13 +140,21 @@ const aimed = (pose, angle, slack) => Math.abs(Math.atan2(Math.sin(pose.angle - 
 
 test('поле: боец поворачивается плавно, а не рывком, и в 32 положениях', () => {
   const { scene, battle, t, pose } = arena();
-  Object.assign(pose, { angle: 0, aim: Math.PI / 2 });
-  frames(scene, battle, 1);
-  ok(pose.angle > 0 && pose.angle < Math.PI / 8, 'за кадр — только начало поворота: ' + pose.angle);
-  frames(scene, battle, 6);
-  ok(pose.angle < Math.PI / 2 - 0.3, 'через десятую секунды ещё поворачивается: ' + pose.angle);
-  frames(scene, battle, 40);
-  ok(aimed(pose, Math.PI / 2, 1e-6), 'довернулся: ' + pose.angle);
+  const mob = battle._spawn({ type: 'normal', hp: 1e9 }, 12);
+  mob.speed = 0;
+  Object.assign(pose, { angle: 0 });
+  t.angle = 0;
+  t.cooldown = 1e9;
+  battle.step(TICK);
+  const want = Math.atan2(mob.x - t.cx, -(mob.y - t.cy));
+  ok(t.angle > 0 && t.angle < want, 'за тик боя — только часть поворота: ' + t.angle);
+  scene.draw(battle, 1 / 60);
+  ok(pose.angle > 0 && pose.angle <= t.angle + 1e-9, 'на поле — следом, плавно: ' + pose.angle);
+  for (let i = 0; i < 20; i++) {
+    battle.step(TICK);
+    frames(scene, battle, 3);
+  }
+  ok(aimed(pose, want, 0.02), 'довернулся: ' + pose.angle);
   pose.angle = Math.PI / 16;
   const a = scene._muzzle(t);
   pose.angle = Math.PI / 8;
@@ -167,7 +176,7 @@ test('поле: пуля вылетает из дула, когда боец д�
     spent++;
   }
   eq(pose.queue.length, 0, 'выстрел состоялся');
-  ok(spent > 6, 'не мгновенно: ' + spent + ' кадров');
+  ok(spent > 2, 'не мгновенно: ' + spent + ' кадров');
   ok(aimed(pose, Math.PI / 2, Math.PI / 8), 'смотрит на цель: ' + pose.angle);
   const shot = scene.effects.find((e) => e.kind === 'shot'), tip = scene._muzzle(t);
   eq([shot.x1, shot.y1], [tip.x, tip.y], 'пуля из дула');
@@ -175,19 +184,40 @@ test('поле: пуля вылетает из дула, когда боец д�
   frames(scene, battle, 6);
   ok(aimed(pose, Math.PI / 2, Math.PI / 8), 'сразу после выстрела не отворачивается: ' + pose.angle);
   eq(pose.queue.length, 1);
-  frames(scene, battle, 60);
+  for (let i = 0; i < 60 && pose.queue.length; i++) frames(scene, battle, 1);
   eq(pose.queue.length, 0, 'потом повернулся и выстрелил во вторую');
   ok(aimed(pose, -Math.PI / 2, Math.PI / 8), 'смотрит на вторую: ' + pose.angle);
 });
 
+test('поле: вокруг бойца нет кругов перезарядки и зарядки', () => {
+  const { scene, battle, t } = arena();
+  t.reloadUntil = battle.time + 3;
+  const mob = battle._spawn({ type: 'normal', hp: 1e6 }, 3);
+  t.charge = { kind: 'aim', at: battle.time, until: battle.time + 2, target: mob };
+  const arcs = [], ctx = scene.ctx, arc = ctx.arc.bind(ctx);
+  ctx.arc = (x, y, r, ...rest) => {
+    arcs.push([x, y, r]);
+    return arc(x, y, r, ...rest);
+  };
+  frames(scene, battle, 3);
+  delete ctx.arc;
+  const cx = EDGE + t.cx * CELL, cy = EDGE + t.cy * CELL;
+  no(arcs.some(([x, y, r]) => Math.hypot(x - cx, y - cy) < 8 && r >= 8 && r <= 24), 'кругов нет');
+});
+
 test('поле: стрелок заранее поворачивается к цели, которую будет бить', () => {
   const { scene, battle, t, pose } = arena();
-  const mob = battle._spawn({ type: 'normal', hp: 1e6 }, 3);
-  Object.assign(mob, { x: t.cx - 1.5, y: t.cy + 1.5, speed: 0 });
-  eq(battle.facing(t), mob);
-  Object.assign(pose, { angle: 0, aim: 0, shooter: true });
-  frames(scene, battle, 40);
-  ok(aimed(pose, Math.atan2(-1.5, -1.5), 0.05), 'смотрит на моба до выстрела: ' + pose.angle);
+  const mob = battle._spawn({ type: 'normal', hp: 1e6 }, 9);
+  mob.speed = 0;
+  t.cooldown = 1e9;
+  ok(battle.facing(t) === mob);
+  Object.assign(pose, { angle: 0 });
+  t.angle = 0;
+  for (let i = 0; i < 20; i++) {
+    battle.step(TICK);
+    frames(scene, battle, 3);
+  }
+  ok(aimed(pose, Math.atan2(mob.x - t.cx, -(mob.y - t.cy)), 0.05), 'смотрит на моба до выстрела: ' + pose.angle);
 });
 
 test('страницы: камень навыка — окно выбора по центру, игрок пишет цифру, навык в профиле', async () => {

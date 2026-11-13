@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { BITE_TIME, Battle, CRIMSON, DISCHARGE, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, PLAGUE,
+import { AIM, BITE_TIME, Battle, CRIMSON, DISCHARGE, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, PLAGUE,
   FIRE, PLANTED, PULSE, REACTIONS, ROT, SECOND, SHOT, SPLIT_TIME, THORN }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
@@ -152,6 +152,27 @@ test('бой: шаман не отбросит моба дальше преде�
   battle.time = first + 1.5;
   battle._hold(mob, 2, shaman);
   ok(mob.holdUntil > first, 'после передышки');
+});
+
+test('бой: боец не стреляет, пока не повернётся к мобу, и после выстрела миг держит прицел', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'mechanic', 10, 4);
+  const mob = walker(battle, 12, 1e9);
+  still(mob);
+  const want = Math.atan2(mob.x - t.cx, -(mob.y - t.cy));
+  t.angle = want + Math.PI;
+  const shots = () => battle.events.filter((e) => e.kind === 'shot').length;
+  battle.step(TICK);
+  eq(shots(), 0, 'отвернулся — сначала поворачивается');
+  ok(Math.abs(Math.atan2(Math.sin(t.angle - want), Math.cos(t.angle - want))) > AIM.slack, 'поворот не мгновенный');
+  let spent = TICK;
+  while (!shots() && spent < 2) {
+    battle.step(TICK);
+    spent += TICK;
+  }
+  ok(shots() === 1, 'выстрелил, когда повернулся');
+  ok(spent >= (Math.PI - AIM.slack) / AIM.turn - TICK, 'не раньше, чем довернулся: ' + spent.toFixed(2));
+  ok(Math.abs(Math.atan2(Math.sin(t.angle - want), Math.cos(t.angle - want))) <= AIM.slack);
+  ok(t.aimHold > battle.time && t.aimMob === mob, 'после выстрела держит прицел на нём');
 });
 
 test('бой: после перехода на другую клетку защитник секунду не стреляет', () => {
@@ -658,6 +679,12 @@ test('механик-ракетчик: напалм, корректировка,
   still(front);
   pick._fire(p);
   ok(shells()[0].mob === elite, 'корректировка: сперва элитный, хоть он и позади');
+  const shine = makeBattle(), q = mechanic(shine, 1, 4, ['mortar', 'adjust']), aimed = firedBy(shine, 'mortar');
+  const lead = walker(shine, 15, 1e9), silver = walker(shine, 9, 1e9);
+  silver.silver = AFFIXES[0];
+  still(lead, silver);
+  shine._fire(q);
+  ok(aimed()[0].mob === silver, 'и серебряный элитный тоже');
   const rain = makeBattle(), r = mechanic(rain, 1, 4, ['mortar', 'shrapnel', 'napalm']);
   const bursts = firedBy(rain, 'airburst'), aim = walker(rain, 10, 1e9), side = walker(rain, 11.5, 1e9);
   still(aim, side);
@@ -735,7 +762,9 @@ test('механик-турельщик: дроны — до трёх каждо
   eq(battle.drones.map((d) => d.kind).sort(), ['air', 'attack', 'attack', 'laser'], 'два атакующих, лазерный, ПВО');
   runFor(battle, 6);
   const of = (kind) => battle.drones.filter((d) => d.kind === kind);
-  ok(of('attack').every((d) => d.target === lead && near1(d, lead)), 'атакующие — у того, кто впереди всех');
+  const hunted = of('attack').map((d) => d.target);
+  ok(hunted.includes(lead) && hunted.includes(elite), 'у каждого атакующего свой моб из передних');
+  ok(of('attack').every((d) => near1(d, d.target)), 'и каждый у своей цели');
   ok(of('laser')[0].target === elite && near1(of('laser')[0], elite), 'лазерный — у элитного');
   ok(of('air')[0].target === flyer, 'ПВО — у летучего');
   ok(hit(lead) > 0, 'атакующие бьют');
@@ -743,6 +772,23 @@ test('механик-турельщик: дроны — до трёх каждо
   ok(hit(elite) >= t.damage * MECH.droneLaser.mul - 1e-6, 'лазер сквозь броню');
   ok(flyer.slowUntil > battle.time && flyer.slow >= MECH.droneAir.slow * (1 - flyer.resist) - 1e-6, 'сеть замедляет');
   ok(flyer.netUntil > battle.time);
+  const pair = makeBattle();
+  mechanic(pair, 1, 4, ['turret', 'droneAttack', 'droneAttack', 'droneAttack']);
+  const only = walker(pair, 15, 1e9);
+  still(only);
+  pair.step(TICK);
+  ok(pair.drones.every((d) => d.target === only), 'цель одна — бьют её втроём');
+  const second = walker(pair, 12, 1e9);
+  still(second);
+  pair.step(TICK);
+  ok(pair.drones.filter((d) => d.target === second).length === 1, 'появилась вторая — к ней уходит один');
+  const silverField = makeBattle(), s = mechanic(silverField, 1, 4, ['turret', 'droneLaser']);
+  const shiny = walker(silverField, 9, 1e9), plain = walker(silverField, 15, 1e9);
+  shiny.silver = AFFIXES[0];
+  still(shiny, plain);
+  runFor(silverField, 4);
+  ok(silverField.drones[0].target === shiny, 'лазерный дрон бьёт и серебряного элитного');
+  ok(s.damage > 0 && hit(shiny) > 0);
   battle.setMods(t, { runes: ['turret', 'droneAttack'] });
   battle.step(TICK);
   eq(battle.drones.length, 1, 'навыков меньше — дронов меньше');
@@ -843,11 +889,11 @@ test('стрелок-снайпер: через всю карту, только 
   shiny.silver = AFFIXES[0];
   still(shiny);
   silver.step(TICK);
-  ok(s.charge && s.charge.target === boss, 'золотые и боссы — раньше серебряных');
-  boss.dead = true;
+  ok(s.charge && s.charge.target === shiny, 'серебряный — такой же элитный: из элитных и боссов — самый крепкий');
+  shiny.dead = true;
   s.charge = null;
   silver._fire(s);
-  ok(s.charge && s.charge.target === shiny, 'серебряного элитного тоже бьёт');
+  ok(s.charge && s.charge.target === boss);
 });
 
 test('стрелок-снайпер: донаводка, быстрые руки, бронебой, рикошет', () => {
@@ -1030,6 +1076,7 @@ test('охотник, навыки Реборна: кровопускание, �
   trap.setMods(h, { perks: [5] });
   const giant = put(trap, special(trap, 'boss', 'crusher', 1e9), 10);
   still(giant);
+  h.angle = Math.atan2(giant.x - h.cx, -(giant.y - h.cy));
   trap.step(TICK);
   ok(trap.events.some((e) => e.kind === 'snap'), 'капкан захлопнулся');
   ok(giant.holdUntil >= trap.time + h.s[5].hold * (1 - giant.resist) - 0.1, 'держит даже босса');
@@ -2995,7 +3042,7 @@ test('карта: с холма бьют поверх руин, круга ка�
   }
 });
 
-test('серебряные — тоже элитные: охотник бьёт их первым (после золотых и боссов), «Добыча» их видит', () => {
+test('серебряные — тоже элитные: охотник бьёт их первым, наравне с золотыми, «Добыча» их видит', () => {
   const battle = makeBattle(), hunter = battle.place(level(50), 'hunter', 10, 4);
   const plain = walker(battle, 12, 1e9), silver = walker(battle, 9, 1e9);
   silver.silver = AFFIXES[0];
@@ -3005,7 +3052,25 @@ test('серебряные — тоже элитные: охотник бьёт 
   const gold = walker(battle, 8, 1e9);
   gold.info = MOBS.elite;
   still(gold);
-  ok(battle._target(hunter) === gold, 'золотой элитный — раньше серебряного');
+  ok(battle._target(hunter) === silver, 'золотой элитный — наравне: бьёт того, кто впереди');
+  for (const mob of [silver, gold]) battle._hold(mob, 2, hunter);
+  ok(Math.abs(silver.holdUntil - gold.holdUntil) < 1e-9, 'оглушение — как у элитного');
+});
+
+test('карта: снайпер с прицелом и ракетчик бьют поверх гор — и радиус у них без теней от гор', () => {
+  const battle = mapWith({ mountain: [[3, 4]] });
+  const gun = battle.place(player(), 'mechanic', 3, 3), mortar = battle.place(player(), 'mechanic', 4, 3);
+  battle.setMods(mortar, { runes: ['mortar'] });
+  const scope = battle.place(player(), 'sniper', 2, 3);
+  battle.setMods(scope, { runes: ['scope'] });
+  const behind = walker(battle, 3, 1e6);
+  behind.holdUntil = 1e9;
+  put(battle, behind, 30);
+  ok(battle.screen(gun), 'у обычного стрелка горы закрывают обзор');
+  for (const t of [mortar, scope]) {
+    eq(battle.screen(t), null, t.style + ': радиус без теней');
+    ok(battle.sees(t, behind), t.style + ': видит за горой');
+  }
 });
 
 test('карта: с холма бьют дальше', () => {
