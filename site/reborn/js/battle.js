@@ -45,7 +45,7 @@ const STICKY_SLOW = 0.3;
 const EPIDEMIC = 1;
 const COOLDOWNS = ['nextActive', 'nextBear', 'nextBlaze', 'nextBless', 'nextCheer', 'nextCleanse', 'nextCloud',
   'nextEye', 'nextFar', 'nextGale', 'nextInferno', 'nextLegion', 'nextLight', 'nextMind', 'nextMuse', 'nextPhoenix',
-  'nextPool', 'nextQuake', 'nextRift', 'nextSand', 'nextStorm', 'nextSwarm', 'nextTempest', 'nextTrap', 'nextTsunami',
+  'nextPool', 'nextEmp', 'nextQuake', 'nextRift', 'nextSand', 'nextStorm', 'nextSwarm', 'nextTempest', 'nextTrap', 'nextTsunami',
   'nextWall', 'nextWave'];
 const TRACE_TIME = 1;
 const WARD_AURA = 0.25;
@@ -90,10 +90,13 @@ export const SHOT = { scope: { mul: 5, aim: 2, reload: 3 }, assault: { range: -1
   flash: { every: 30, radius: 1, stun: 1.5 }, double: { arc: 30 }, air: 3 };
 export const MECH = { turret: { range: -1.5, interval: 1, mul: 0.3, count: 3, gap: 0.08, radius: 1, mag: 15,
   reload: 3 }, demo: { range: 0, interval: 3, mul: 1.6, radius: 1, flight: 0.6 },
-  mortar: { interval: 2.4, mul: 1.1, radius: 0.8, flight: 0.7, pace: 0.06 } };
+  mortar: { interval: 2.4, mul: 1.1, radius: 0.8, flight: 0.7, pace: 0.06 },
+  team: { radius: 1.5, per: 0.1 }, tuning: { radius: 1.5, haste: 0.3 },
+  emp: { every: 8, radius: 2, stun: 1.5, mute: 4, drop: 0.35 } };
 const STEEL_BLAST = { radius: 1.5, mul: 8, stun: 1 };
 const METEOR_FLIGHT = 1.2;
 const FOG_FLIGHT = 0.6;
+export const GRENADE = { flight: 0.5, pace: 0.05 };
 const SPIKE_TOUCH = 0.55;
 const ROLL_EVERY = 1;
 const MUTE_HOLD = 0.25;
@@ -231,6 +234,8 @@ export class Battle {
     this.zones = [];
     this.vents = [];
     this.phoenixes = [];
+    this.drones = [];
+    this.steel = 0;
     this.pulseAt = 0;
     this.traps = [];
     this.whirls = [];
@@ -434,7 +439,7 @@ export class Battle {
     this.towers.splice(at, 1);
     if (!tower.rider) this.byCell.delete(tower.y * SIZE + tower.x);
     for (const list of ['walls', 'puddles', 'fogs', 'traps', 'whirls', 'patches', 'grounds',
-      'zones', 'phoenixes']) {
+      'zones', 'phoenixes', 'drones']) {
       this[list] = this[list].filter((item) => item.tower !== tower);
     }
     if (this.prey && this.prey.by === tower) this.prey = null;
@@ -467,6 +472,8 @@ export class Battle {
     this.players = players;
     for (const t of this.towers) t.feast = 0;
     this.spare = this.towers.find((t) => t.cls.id === 'healer' && !t.cocoon && open(t, 3)) || null;
+    this.steel = 0;
+    for (const t of this.towers) this._steelOf(t);
     const start = this.time, toughness = Math.max(FLOOR, 1 + this.foe.hp);
     const family = this.nextFamily || this.planFamily(wave);
     this.family = family;
@@ -986,6 +993,7 @@ export class Battle {
     tower.ownRange = tower.baseRange + tower.reach;
     tower.range = tower.ownRange * (1 + tower.boost.range);
     tower.lift = 1 + (tower.might / MIGHT.base - 1) * MIGHT.lift;
+    this._steelOf(tower);
     this._flags();
   }
 
@@ -1473,6 +1481,11 @@ export class Battle {
           this._event({ kind: 'shield', mob, tower: shield });
           continue;
         }
+        if (!mob.fatal && this.steel > 0) {
+          this.steel -= 1;
+          this._event({ kind: 'steel', mob, left: this.steel });
+          continue;
+        }
         const lost = mob.fatal ? Math.max(0, this.lives) : mob.leak;
         this.lives -= lost;
         this.leaked += lost;
@@ -1545,6 +1558,12 @@ export class Battle {
     this._event({ kind: 'mad', mob, tower: t });
   }
 
+  _steelOf(t) {
+    if (t.cls.id !== 'mechanic' || t.cocoon || !t.runes.has('steel') || t.steeled === this.wave) return;
+    t.steeled = this.wave;
+    this.steel += 1;
+  }
+
   _spared() {
     const t = this.spare;
     if (!t || !this.towers.includes(t)) return null;
@@ -1604,9 +1623,14 @@ export class Battle {
   }
 
   _buffs(now) {
-    const banners = [], sages = [], winds = [], pyros = [];
+    const banners = [], sages = [], winds = [], pyros = [], mechanics = [], teams = [], tuners = [];
     for (const t of this.towers) {
       if (t.cocoon || t.rider) continue;
+      if (t.cls.id === 'mechanic') {
+        mechanics.push(t);
+        if (t.runes.has('team')) teams.push(t);
+        if (t.runes.has('tuning')) tuners.push(t);
+      }
       if (t.cls.id === 'banner') banners.push(t);
       else if (t.cls.id === 'sage') sages.push(t);
       else if (t.cls.id === 'shaman' && open(t, 3)) winds.push(t);
@@ -1656,6 +1680,26 @@ export class Battle {
           by.add(wind);
           break;
         }
+      }
+      if (t.cls.id === 'mechanic' && !t.rider && !t.cocoon) {
+        let crew = 0, lead = null;
+        for (const head of teams) {
+          if (!close(head, t, MECH.team.radius)) continue;
+          const size = mechanics.filter((m) => close(head, m, MECH.team.radius)).length;
+          if (size > crew) {
+            crew = size;
+            lead = head;
+          }
+        }
+        if (lead) {
+          boost.rate += MECH.team.per * crew;
+          if (lead !== t) by.add(lead);
+        }
+      }
+      const tuner = t.cls.id === 'sniper' && !t.rider ? tuners.find((m) => close(m, t, MECH.tuning.radius)) : null;
+      if (tuner) {
+        boost.rate += MECH.tuning.haste;
+        by.add(tuner);
       }
       if (t.blessUntil > now) {
         boost.damage += t.bless.bonus;
@@ -2623,10 +2667,42 @@ function mortar(b, t) {
   return true;
 }
 
+function lob(b, t, target, grenade, land) {
+  const time = GRENADE.flight + Math.hypot(target.x - t.cx, target.y - t.cy) * GRENADE.pace;
+  b._event({ kind: 'grenade', tower: t, mob: target, x: target.x, y: target.y, time, grenade });
+  b._later(time, () => land(target.x, target.y));
+}
+
+function emp(b, t, now) {
+  const s = MECH.emp, carriers = b.drones.filter((drone) => drone.tower === t && drone.kind !== 'air' && drone.target);
+  if (carriers.length) {
+    const drone = carriers[Math.floor(b.random() * carriers.length)], x = drone.x, y = drone.y;
+    t.nextEmp = now + s.every;
+    b._event({ kind: 'grenade', tower: t, x, y, time: s.drop, grenade: 'emp', drone });
+    b._later(s.drop, () => pulse(b, t, x, y));
+    return;
+  }
+  const target = b._target(t);
+  if (!target) return;
+  t.nextEmp = now + s.every;
+  lob(b, t, target, 'emp', (x, y) => pulse(b, t, x, y));
+}
+
+function pulse(b, t, x, y) {
+  const s = MECH.emp;
+  b._event({ kind: 'emp', tower: t, x, y, radius: s.radius });
+  for (const mob of b._around(x, y, s.radius)) {
+    b._hold(mob, s.stun, t);
+    mob.muteUntil = Math.max(mob.muteUntil, b.time + s.mute);
+  }
+}
+
 function flashbang(b, t, target) {
-  const s = SHOT.flash, x = target.x, y = target.y;
-  b._event({ kind: 'flashbang', tower: t, x, y, radius: s.radius });
-  for (const mob of b._around(x, y, s.radius)) if (!mob.info.boss) b._hold(mob, s.stun, t, true);
+  const s = SHOT.flash;
+  lob(b, t, target, 'flash', (x, y) => {
+    b._event({ kind: 'flashbang', tower: t, x, y, radius: s.radius });
+    for (const mob of b._around(x, y, s.radius)) if (!mob.info.boss) b._hold(mob, s.stun, t, true);
+  });
 }
 
 function sideShot(b, t, first) {
@@ -2742,6 +2818,9 @@ const SKILLS = {
       } else if (t.style === 'demo') rocket(b, t, target);
       else shoot(b, t, target);
       return true;
+    },
+    every(b, t, now, alive) {
+      if (t.runes.has('emp') && alive && now >= (t.nextEmp || 0)) emp(b, t, now);
     },
   },
   gunner: {

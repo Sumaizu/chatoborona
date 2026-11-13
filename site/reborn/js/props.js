@@ -10,6 +10,20 @@ function around(count, turn, cx, cy, rx, ry, each) {
 }
 
 const GRENADES = {
+  flash(m, lit) {
+    m.limb(11, 15.5, 3.5, 11, 7.5, 3.5, 3.4, '#6b7280', 0.4);
+    for (const y of [9.5, 13.5]) m.limb(11, y, 3.6, 11, y - 0.6, 3.6, 3.6, '#facc15', 0.3);
+    m.limb(11, 7.5, 4, 11, 5.6, 4.4, 1.4, METAL, 0.6);
+    m.limb(12.2, 6, 5.2, 15.4, 12.8, 5.2, 0.6, STEEL, 0.6);
+    if (lit) m.ball(11, 5, 6, 0.9, '#ffffff', 1);
+  },
+  emp(m, lit) {
+    m.egg(11, 12, 2, 5.4, 5.4, 4.4, '#1f2937', 0.5);
+    m.limb(5.8, 12, 5, 16.2, 12, 5, 1.2, lit ? '#22d3ee' : '#0e7490', 0.6);
+    for (const x of [8, 14]) m.ball(x, 9.4, 6.4, 0.8, lit ? '#a5f3fc' : '#155e75', 1);
+    m.limb(11, 7.2, 5.6, 11, 4.6, 6, 1.3, METAL, 0.6);
+    if (lit) m.ball(11, 4.2, 7, 0.9, '#67e8f9', 1);
+  },
   grenade(m, lit) {
     m.egg(11, 13, 0, 5.6, 6.8, 4.8, '#55642f', 0.3);
     for (let row = 0; row < 4; row++) {
@@ -21,6 +35,14 @@ const GRENADES = {
     if (lit) m.ball(11, 3, 6.4, 0.9, '#ffd84a', 1);
   },
 };
+
+export function drawGear() {
+  const m = new Model(16, 1);
+  around(8, 0, 8, 8, 5.4, 5.4, (x, y) => m.ball(x, y, 2, 1.35, '#9ca3af', 0.6));
+  m.egg(8, 8, 2.4, 5, 5, 1.2, '#b8c0c8', 0.6);
+  m.egg(8, 8, 3.2, 1.8, 1.8, 0.6, '#374151');
+  return m.paint();
+}
 
 export function drawGrenade(kind, lit) {
   const m = new Model(22, 1);

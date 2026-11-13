@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { BITE_TIME, Battle, CRIMSON, DISCHARGE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, PLAGUE,
+import { BITE_TIME, Battle, CRIMSON, DISCHARGE, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, PLAGUE,
   FIRE, PLANTED, PULSE, REACTIONS, ROT, SECOND, SHOT, SPLIT_TIME, THORN }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
@@ -513,6 +513,82 @@ test('механик-ракетчик: через всю карту в того,
   near(hit(buddy), u.damage, 'цель погибла — ракета упала там же и задела соседа');
 });
 
+test('механик: команда поддержки — механики рядом стреляют быстрее, тем быстрее, чем их больше', () => {
+  const battle = makeBattle(), lead = mechanic(battle, 10, 2, ['team']), mate = mechanic(battle, 11, 2, ['turret']);
+  const far = mechanic(battle, 14, 2, []), gun = battle.place(player(), 'gunner', 10, 3);
+  battle.step(TICK);
+  near(lead.boost.rate, MECH.team.per * 2, 'двое механиков — каждому по двойной прибавке');
+  near(mate.boost.rate, MECH.team.per * 2);
+  ok(mate.boostBy.has(lead));
+  eq(far.boost.rate, 0, 'дальний — без прибавки');
+  eq(gun.boost.rate, 0, 'не механик — без прибавки');
+  mechanic(battle, 9, 3, ['mortar']);
+  battle.step(TICK);
+  near(lead.boost.rate, MECH.team.per * 3, 'трое — ещё быстрее, и по диагонали тоже');
+  ok(battle._intervalOf(lead, battle.time) < lead.interval);
+});
+
+test('механик: тюнинг — стрелки в клетке вокруг стреляют быстрее, другие классы — нет', () => {
+  const battle = makeBattle(), tuner = mechanic(battle, 10, 2, ['tuning']);
+  const near1 = battle.place(player(), 'sniper', 11, 3), far = battle.place(player(), 'sniper', 14, 2);
+  const gun = battle.place(player(), 'gunner', 9, 2);
+  battle.step(TICK);
+  near(near1.boost.rate, MECH.tuning.haste);
+  ok(near1.boostBy.has(tuner));
+  eq(far.boost.rate, 0);
+  eq(gun.boost.rate, 0);
+  eq(tuner.boost.rate, 0, 'себе — нет');
+});
+
+test('механик: стальной щит — за волну принимает один удар по сердцу, щиты механиков складываются', () => {
+  const battle = makeBattle();
+  mechanic(battle, 10, 2, ['steel']);
+  mechanic(battle, 12, 2, ['demo', 'steel']);
+  battle.startWave(1, 2);
+  eq(battle.steel, 2, 'два механика — два щита');
+  battle.spawns = [];
+  const lives = battle.lives, bite = () => {
+    const mob = walker(battle, battle.length - 1, 1e9);
+    mob.leak = 3;
+    for (let i = 0; i < 200 && !mob.dead; i++) battle.step(TICK);
+  };
+  bite();
+  eq(battle.lives, lives, 'первый удар, хоть и на 3 жизни, — в щит');
+  eq(battle.steel, 1);
+  ok(battle.events.some((e) => e.kind === 'steel'));
+  bite();
+  eq(battle.lives, lives, 'второй — во второй щит');
+  bite();
+  eq(battle.lives, lives - 3, 'щиты кончились — удар по сердцу');
+  battle.endWave();
+  battle.startWave(2, 2);
+  eq(battle.steel, 2, 'новая волна — щиты снова целы');
+  const late = makeBattle();
+  late.startWave(1, 1);
+  eq(late.steel, 0);
+  mechanic(late, 10, 2, ['steel']);
+  eq(late.steel, 1, 'взял навык посреди волны — щит сразу');
+});
+
+test('механик: ЭМИ-граната — навесом в моба, оглушает всех на 2 клетки и отключает способности', () => {
+  const battle = makeBattle(), t = mechanic(battle, 10, 4, ['emp']);
+  const target = walker(battle, 13.5, 1e9), side = walker(battle, 12, 1e9), far = walker(battle, 9, 1e9);
+  still(target, side, far);
+  battle.step(TICK);
+  const thrown = battle.events.find((e) => e.kind === 'grenade' && e.grenade === 'emp');
+  ok(thrown && thrown.mob === target, 'в того, кто впереди');
+  ok(thrown && !thrown.drone, 'граната полетела навесом');
+  ok(t.nextEmp > battle.time + MECH.emp.every - 1, 'следующая — через 8 секунд');
+  no(target.muteUntil > battle.time, 'пока летит — ничего');
+  runFor(battle, thrown.time + 0.05);
+  ok(battle.events.some((e) => e.kind === 'emp'));
+  for (const mob of [target, side]) {
+    ok(mob.holdUntil > battle.time, 'оглушён');
+    ok(mob.muteUntil > battle.time + MECH.emp.mute - 1, 'способности отключены');
+  }
+  no(far.muteUntil > battle.time, 'дальше 2 клеток — нет');
+});
+
 test('стрелок: без стиля — редкий дальний выстрел в самого крепкого, дальше всех', () => {
   const battle = makeBattle(), t = battle.place(player(), 'sniper', 10, 4);
   eq(t.cls.name, 'Стрелок');
@@ -628,7 +704,12 @@ test('стрелок-штурмовик: очередь, рикошет, шум�
   for (let i = 1; i < SHOT.flash.every; i++) f._fire(g);
   no(f.events.some((e) => e.kind === 'flashbang'));
   f._fire(g);
-  ok(f.events.some((e) => e.kind === 'flashbang'), 'после 30 пуль — граната');
+  const thrown = f.events.find((e) => e.kind === 'grenade');
+  ok(thrown && thrown.grenade === 'flash' && thrown.mob, 'после 30 пуль — граната летит навесом');
+  near(thrown.time, GRENADE.flight + Math.hypot(thrown.x - g.cx, thrown.y - g.cy) * GRENADE.pace);
+  no(f.events.some((e) => e.kind === 'flashbang'), 'пока летит — никого не оглушила');
+  runFor(f, thrown.time + 0.05);
+  ok(f.events.some((e) => e.kind === 'flashbang'), 'упала и взорвалась');
   ok(a.holdUntil > f.time && b.holdUntil > f.time, 'все рядом оглушены');
   ok(boss.holdUntil <= f.time, 'босс — нет');
   const s = makeBattle(), main = shooter(s, 10, 4, ['marksman']), mate = shooter(s, 12, 4, ['assault', 'support']);
