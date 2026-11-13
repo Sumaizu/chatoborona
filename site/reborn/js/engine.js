@@ -376,7 +376,8 @@ export class Game {
 
   goTo(member, x, y) {
     if (!member || !this.movable || member.cls && CLASS_BY_ID.get(member.cls).rider) return false;
-    if (member.tower && member.skills.includes('giant')) {
+    const anchored = member.cls === 'mechanic' && member.skills.includes('turret') && member.skills.includes('giant');
+    if (member.tower && anchored) {
       this._note('fixed', member);
       return false;
     }

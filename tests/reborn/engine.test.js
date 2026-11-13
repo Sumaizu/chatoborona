@@ -162,6 +162,11 @@ test('игра: механик с гигантской турелью на др�
   eq(say(game, 'Гена', cellName(spot.x, spot.y)), null, 'турель стоит на месте');
   eq([member.tower.x, member.tower.y], from);
   ok(game.notes.some((note) => note.kind === 'fixed' && note.login === 'гена'), 'ему сказано почему');
+  member.cls = 'pyro';
+  member.skills = ['fireball', 'giant'];
+  game._refresh(member);
+  eq(say(game, 'Гена', cellName(spot.x, spot.y)), 'move', 'маг огня с «Гигантским шаром» ходит как обычно');
+  eq([member.tower.x, member.tower.y], [spot.x, spot.y]);
 });
 
 test('игра: в лобби клетка ничего не двигает, но в отряд принимает', () => {
