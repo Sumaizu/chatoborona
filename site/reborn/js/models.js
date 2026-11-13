@@ -238,16 +238,6 @@ function mage(m, o) {
 }
 
 const MAGES = {
-  pyro: (m) => mage(m, {
-    robe: '#b91c1c', dark: '#7f1d1d', sleeve: '#c42828', hat: '#991b1b', trim: '#f59e0b',
-    glow: '#fde047',
-    tip: (q, x, y) => {
-      q.ball(x, y + 0.4, 12, 2.4, '#ea580c', 1);
-      q.ball(x, y - 0.2, 13.6, 1.8, '#f97316', 1);
-      q.ball(x - 0.2, y - 0.8, 15, 1.1, '#fde047', 1);
-      for (const [dx, dy] of [[-2, -2], [2, -1], [1, -3]]) q.dot(x + dx, y + dy, '#fff1c2', 60);
-    },
-  }),
   frost: (m) => mage(m, {
     robe: '#1d4ed8', dark: '#1e3a8a', sleeve: '#2557e0', hat: '#1e40af', trim: '#7dd3fc',
     glow: '#e0f2fe', staff: '#94a3b8',
@@ -294,20 +284,26 @@ const MAGES = {
 };
 
 function ragged(m) {
-  hero(m, {
-    coat: '#7d6b52', dark: '#5b4c39', sleeve: '#6f5f48', boots: '#3b2c22', hands: [12.5, 12, 19.5, 12.5],
-    chest: (q) => {
-      q.limb(12, 23, 9.2, 15, 21, 9.2, 0.5, '#4a3d2e');
-      q.dot(19, 22, '#a08a68', 30);
-      q.dot(13, 19, '#4a3d2e', 30);
+  robed(m, {
+    robe: '#9b2c2c', dark: '#6b1d1d', sleeve: '#a33232', trim: '#7f1d1d', hands: [12.5, 11.5, 20, 12.5],
+    weapon: (q) => {
+      q.limb(12.5, 16.5, 10, 12.1, 10, 10.4, 0.8, '#6b4a2b');
+      q.limb(12.1, 10, 10.4, 12.9, 6.5, 10.6, 0.7, '#7a5a35');
+      q.limb(12.9, 6.5, 10.6, 12.4, 3.2, 10.8, 0.6, '#6b4a2b');
+      q.ball(12.1, 10, 10.6, 0.9, '#5c3d22');
     },
-    weapon: (q) => q.limb(12.5, 16.5, 10, 12, 5.5, 10.6, 0.8, '#7a5a35'),
     head: (q) => {
       q.ball(16, 17, 11.2, 4.3, SKIN);
-      q.ball(16, 18.6, 12.4, 3.2, '#5a4632');
-      for (const [x, y] of [[13.6, 15.4], [18.4, 15.8], [16, 14.2]]) q.dot(x, y, '#3b2f22', 60);
+      q.ball(16, 18.4, 12.4, 3.4, '#3b2a1a');
+      for (const [x, y] of [[13.6, 15.6], [18.4, 16], [16, 14.6]]) q.dot(x, y, '#3b2a1a', 60);
     },
   });
+  for (const [x, y, c] of [[10.5, 26, '#7c3a1f'], [21, 24.5, '#5c1515'], [14, 28.6, '#6b1d1d']]) {
+    m.egg(x, y, 2.6, 1.3, 1, 0.4, c);
+  }
+  for (const [x, y] of [[9, 27.5], [12.5, 30.2], [19, 30], [23, 27]]) {
+    m.limb(x, y, 2, x + (x < 16 ? -0.8 : 0.8), y + 1.4, 1.6, 0.45, '#7f1d1d', 0, 0.2);
+  }
 }
 
 function fireballMage(m, fire, core) {
@@ -599,6 +595,8 @@ function marksman(m) {
 }
 
 const SKINS = {
+  pyro: ragged,
+  sniper: recruit,
   'sniper-ragged': recruit,
   'sniper-scope': ghillie,
   'sniper-assault': assault,
@@ -617,25 +615,6 @@ const SKINS = {
 };
 
 const HEROES = {
-  sniper: (m) => hero(m, {
-    coat: '#5f7f3c', dark: '#4a6430', sleeve: '#557235',
-    back: (q) => {
-      q.egg(16, 23.6, 4, 5.4, 3.2, 4.2, '#6b4a2b');
-      q.dot(14, 23, GOLD, 12);
-      q.dot(18, 23, GOLD, 12);
-    },
-    weapon: (q) => {
-      q.limb(16, 18, 10, 16, 13.5, 10.5, 1.8, WOOD);
-      q.limb(16, 13.5, 11, 16, 2, 11, 1.1, STEEL, 0.6);
-      q.limb(16, 12, 12.6, 16, 7, 12.6, 1.5, '#2d323b', 0.8);
-      q.dot(16, 6, '#7fd4ff');
-    },
-    head: (q) => {
-      q.ball(16, 17, 11.5, 4.9, '#6d8f45');
-      q.egg(16, 13.4, 14.5, 3.3, 1.3, 1, '#2a3022');
-      q.dot(15, 13, '#9be7ff');
-    },
-  }),
   gunner: (m) => hero(m, {
     coat: '#b39b68', dark: '#6b737d', sleeve: '#a58d5c', boots: '#3a2f25', hands: [13, 12.5, 19, 13], glove: '#3a3d44',
     back: (q) => {
