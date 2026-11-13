@@ -91,7 +91,8 @@ export const FIRE = { styled: 1.5, giant: 1.5, splash: 1, wide: 1.5, breath: 0.6
 const TORCH_USERS = new Set(['sniper', 'gunner', 'hunter']);
 export const SHOT = { scope: { mul: 5, aim: 2, reload: 3 }, assault: { range: -1, interval: 0.55, mul: 0.35,
   crit: 0.25, mag: 30, reload: 3 }, marksman: { range: 1.5, interval: 2.2, mul: 1.6, crit: 0.25, mag: 5, reload: 3 },
-  gold: 2, mark: { bonus: 0.25, time: 4 }, ricochet: { share: 0.5, arc: 75, reach: 3 }, burst: { count: 3, radius: 1 },
+  gold: 2, mark: { bonus: 0.25, time: 4 }, ricochet: { share: 0.5, arc: 75, reach: 3 },
+  burst: { count: 3, radius: 1, gap: 0.08 },
   flash: { every: 30, radius: 1, stun: 1.5 }, double: { arc: 30 }, air: 3 };
 const STEEL_BLAST = { radius: 1.5, mul: 8, stun: 1 };
 const ECHO_DELAY = 0.3;
@@ -2803,9 +2804,14 @@ const SKILLS = {
         return true;
       }
       if (t.style === 'assault' && t.runes.has('burstFire')) {
-        const s = SHOT.burst, pool = b.mobs.filter((mob) => canShoot(b, t, mob, Infinity)
-          && near(mob, target.x, target.y, s.radius));
-        for (let k = 0; k < s.count; k++) shoot(b, t, pool[Math.floor(b.random() * pool.length)] || target);
+        const s = SHOT.burst, x = target.x, y = target.y;
+        const volley = () => {
+          if (!b.towers.includes(t)) return;
+          const pool = b.mobs.filter((mob) => canShoot(b, t, mob, Infinity) && near(mob, x, y, s.radius));
+          if (pool.length) shoot(b, t, pool[Math.floor(b.random() * pool.length)]);
+        };
+        volley();
+        for (let k = 1; k < s.count; k++) b._later(k * s.gap, volley);
         spend(b, t, now, s.count, target);
         return true;
       }

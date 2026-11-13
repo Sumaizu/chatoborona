@@ -512,10 +512,15 @@ test('стрелок-штурмовик: средняя дальность, ча
 test('стрелок-штурмовик: очередь, рикошет, шумовая граната, отряд поддержки', () => {
   const battle = makeBattle(), t = shooter(battle, 10, 4, ['assault', 'burstFire']);
   still(walker(battle, 12, 1e9), walker(battle, 12.5, 1e9));
-  const shots = battle.events.length;
+  const shots = battle.events.length, fired = () => battle.events.slice(shots).filter((e) => e.kind === 'shot').length;
+  t.cooldown = 1e9;
   battle._fire(t);
-  eq(battle.events.slice(shots).filter((e) => e.kind === 'shot').length, SHOT.burst.count, 'очередь — три пули');
+  eq(fired(), 1, 'первая пуля — сразу');
   eq(t.bullets, SHOT.burst.count, 'в магазине считаются все три');
+  runFor(battle, SHOT.burst.gap + 0.01);
+  eq(fired(), 2, 'вторая — чуть позже');
+  runFor(battle, SHOT.burst.gap);
+  eq(fired(), SHOT.burst.count, 'очередь — три пули друг за другом');
   const r = makeBattle(), u = shooter(r, 10, 4, ['assault', 'ricochet']);
   const front = walker(r, 12, 1e9), back = walker(r, 14, 1e9);
   still(front, back);
