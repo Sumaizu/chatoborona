@@ -14,7 +14,15 @@ const FIELD = 640;
 
 const ZOOM = 2;
 const SMOOTH = 28;
-const TURN = 9;
+const TURN = 8;
+const TURN_EASE = 12;
+const TURN_MIN = 2;
+const AIM_SLACK = Math.PI / 8;
+const SHOT_HOLD = 0.15;
+const SHOT_WAIT = 0.5;
+const SHOT_QUEUE = 4;
+const LOOK_EVERY = 0.1;
+const FLIGHT_MIN = 0.05;
 const TURN_STEPS = 8;
 const KICK = 0.1;
 const FLASH = 0.06;
@@ -106,7 +114,7 @@ const SPLIT_APART = 9;
 const MELT_LIFE = 0.45;
 const GOO_LIFE = 5;
 const RESOLUTION_MAX = 2.5;
-const HERO_TURN_STEPS = 16;
+const HERO_TURN_STEPS = 32;
 const LABELS_MAX = 400;
 const piles = new WeakMap();
 const glows = new Map();
@@ -123,12 +131,20 @@ const noise = (i, seed) => {
   return v - Math.floor(v);
 };
 
-function shortTurn(from, to, max) {
+function turnGap(from, to) {
   let delta = to - from;
   while (delta > Math.PI) delta -= Math.PI * 2;
   while (delta < -Math.PI) delta += Math.PI * 2;
-  return from + Math.max(-max, Math.min(max, delta));
+  return delta;
 }
+
+function turnToward(from, to, dt) {
+  const delta = turnGap(from, to), speed = Math.max(TURN_MIN, Math.min(TURN, Math.abs(delta) * TURN_EASE));
+  return from + Math.sign(delta) * Math.min(Math.abs(delta), speed * dt);
+}
+
+const aimSpot = (entry) => (entry.mob && !entry.mob.dead ? entry.mob : entry);
+const bearing = (t, spot) => Math.atan2(spot.x - t.cx, -(spot.y - t.cy));
 
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -1812,7 +1828,8 @@ export class Scene {
     if (!pose) {
       const [bx, by] = this.battle.path[Math.floor(this.battle.path.length / 2)];
       const aim = Math.atan2(bx - t.x, -(by - t.y));
-      pose = { angle: aim, aim, kick: 0, flash: 0, leap: null, x: t.cx, y: t.cy };
+      pose = { angle: aim, aim, kick: 0, flash: 0, leap: null, x: t.cx, y: t.cy, queue: [], lock: null, look: null,
+        lookAt: 0, shooter: false };
       this.poses.set(t, pose);
     }
     return pose;
@@ -1854,7 +1871,7 @@ export class Scene {
           lift: Math.sin(k * Math.PI) * (t.pull.fly ? 22 : 10), riding: false };
         if (t.pull.fly) {
           look = t.look + (Math.floor(this.clock * 7) % 2 ? '-flap' : '-fly');
-          pose.angle = Math.atan2(t.cx - t.pull.fx, -(t.cy - t.pull.fy));
+          pose.aim = Math.atan2(t.cx - t.pull.fx, -(t.cy - t.pull.fy));
         }
       }
       pose.x = spot.x;
@@ -1863,7 +1880,9 @@ export class Scene {
       if (t.rider && battle.covered(spot.x, spot.y)) continue;
       const x = at(spot.x), y = at(spot.y) - spot.lift;
       if (!still) {
-        pose.angle = shortTurn(pose.angle, pose.aim, TURN * dt);
+        if (!t.rider && !(t.pull && now < t.pull.end)) this._steer(t, pose, battle);
+        pose.angle = turnToward(pose.angle, pose.aim, dt);
+        this._release(t, pose);
         pose.kick = Math.max(0, pose.kick - dt);
         pose.flash = Math.max(0, pose.flash - dt);
       }
@@ -1951,8 +1970,6 @@ export class Scene {
       if (!charge) continue;
       const share = Math.max(0, Math.min(1, (now - charge.at) / (charge.until - charge.at)));
       const look = CHARGES[charge.kind], pose = this._pose(t), x = at(pose.x), y = at(pose.y);
-      const target = charge.target && !charge.target.dead ? charge.target : null;
-      if (target) pose.aim = Math.atan2(target.x - t.cx, -(target.y - t.cy));
       const tip = this._muzzle(t), fx = at(tip.x), fy = at(tip.y);
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
@@ -2143,11 +2160,46 @@ export class Scene {
     ctx.fillText(text, x + shake, y - 2);
   }
 
-  _aim(tower, x, y) {
-    const pose = this._pose(tower);
-    pose.aim = Math.atan2(x - tower.cx, -(y - tower.cy));
-    pose.kick = KICK;
-    pose.flash = FLASH;
+  _steer(t, pose, battle) {
+    const lock = pose.lock && this.clock < pose.lock.until ? pose.lock : null, charge = t.charge;
+    const spot = lock ? aimSpot(lock) : pose.queue.length ? aimSpot(pose.queue[0])
+      : charge && charge.target && !charge.target.dead ? charge.target : this._lookout(t, pose, battle);
+    if (spot) pose.aim = bearing(t, spot);
+  }
+
+  _lookout(t, pose, battle) {
+    if (!pose.shooter) return null;
+    if (this.clock >= pose.lookAt) {
+      pose.look = battle.facing(t);
+      pose.lookAt = this.clock + LOOK_EVERY;
+    }
+    return pose.look && !pose.look.dead ? pose.look : null;
+  }
+
+  _face(t, x, y, mob = null, hold = SHOT_HOLD) {
+    const pose = this._pose(t);
+    pose.shooter = true;
+    pose.lock = { x, y, mob, until: this.clock + hold };
+  }
+
+  _fire(t, x, y, mob, spawn, hold = 0) {
+    const pose = this._pose(t);
+    pose.shooter = true;
+    pose.queue.push({ x, y, mob, mx: mob ? mob.x : x, my: mob ? mob.y : y, spawn, hold, at: this.clock });
+    this._release(t, pose);
+  }
+
+  _release(t, pose) {
+    while (pose.queue.length) {
+      const next = pose.queue[0], spot = aimSpot(next), late = this.clock - next.at;
+      const off = Math.abs(turnGap(pose.angle, bearing(t, spot)));
+      if (off > AIM_SLACK && late < SHOT_WAIT && pose.queue.length <= SHOT_QUEUE) return;
+      pose.queue.shift();
+      pose.kick = KICK;
+      pose.flash = FLASH;
+      pose.lock = { x: spot.x, y: spot.y, mob: next.mob, until: this.clock + Math.max(SHOT_HOLD, next.hold) };
+      next.spawn(next.x + spot.x - next.mx, next.y + spot.y - next.my, late);
+    }
   }
 
   _sparks(x, y, colors, count, speed, life = 0.35, size = 2) {
@@ -2177,7 +2229,6 @@ export class Scene {
         return;
       }
       const away = event.sx !== undefined;
-      if (!away) this._aim(t, event.x, event.y);
       let bolt = BOLTS[t.cls.id] || { look: 'dot', color: t.cls.color, size: 2 };
       if (event.size) bolt = Object.assign({}, bolt, { size: event.size });
       if (event.blue) bolt = Object.assign({}, bolt, { color: '#4aa3ff', blue: true });
@@ -2186,19 +2237,23 @@ export class Scene {
           color: event.blue ? '#9bd5ff' : t.cls.id === 'pyro' ? '#ff9a1f' : '#ffffff' });
       } else if (event.hot) bolt = Object.assign({}, bolt, { color: '#ff9a1f', size: 3 });
       if (event.gold) bolt = Object.assign({}, bolt, { color: '#facc15' });
-      const tip = away ? { x: event.sx, y: event.sy } : this._muzzle(t, event.hand || 0);
-      add({ kind: 'shot', life: event.time || TRAVEL * (bolt.look === 'lob' ? 2.5 : 1), x1: tip.x, y1: tip.y,
-        x2: event.x, y2: event.y, bolt, crit: event.crit, heavy: event.heavy });
-      if (event.heavy) {
-        this._pose(t).flash = FLASH * 3;
-        this._sparks(tip.x, tip.y, CHARGES.heavy.sparks, event.heavy === 'mega' ? 14 : 8, 2.4, 0.35);
-      }
+      const flight = event.time || TRAVEL * (bolt.look === 'lob' ? 2.5 : 1);
+      const launch = (x2, y2, late = 0) => {
+        const tip = away ? { x: event.sx, y: event.sy } : this._muzzle(t, event.hand || 0);
+        add({ kind: 'shot', life: Math.max(FLIGHT_MIN, flight - late), x1: tip.x, y1: tip.y, x2, y2, bolt,
+          crit: event.crit, heavy: event.heavy });
+        if (event.heavy) {
+          this._pose(t).flash = FLASH * 3;
+          this._sparks(tip.x, tip.y, CHARGES.heavy.sparks, event.heavy === 'mega' ? 14 : 8, 2.4, 0.35);
+        }
+      };
+      if (away || event.spray) launch(event.x, event.y);
+      else this._fire(t, event.x, event.y, event.mob, launch);
     } else if (event.kind === 'beam') {
-      const pose = this._pose(t);
-      this._aim(t, event.x, event.y);
-      pose.angle = pose.aim;
-      add({ kind: 'laser', life: LASER.life, tower: t, mob: event.mob, x2: event.x, y2: event.y, blue: event.blue });
-      this._sparks(event.x, event.y, (event.blue ? BLUE_FLAME : FLAME).slice(0, 3), 18, 3, 0.45, 3);
+      this._fire(t, event.x, event.y, event.mob, (x2, y2) => {
+        add({ kind: 'laser', life: LASER.life, tower: t, mob: event.mob, x2, y2, blue: event.blue });
+        this._sparks(x2, y2, (event.blue ? BLUE_FLAME : FLAME).slice(0, 3), 18, 3, 0.45, 3);
+      }, LASER.life);
     } else if (event.kind === 'ricochet') {
       const bolt = event.hot ? { look: 'dot', color: '#ff9a1f', size: 3 } : BOLTS.gunner;
       add({ kind: 'shot', life: TRAVEL, x1: event.x, y1: event.y, x2: event.mob.x, y2: event.mob.y, bolt });
@@ -2216,24 +2271,28 @@ export class Scene {
     } else if (event.kind === 'reload') {
       this._sparks(t.cx, t.cy, ['#d6a72e', '#a37a1a', '#fff3b0'], 5, 1.2, 0.5, 2);
     } else if (event.kind === 'rocket') {
-      this._aim(t, event.x, event.y);
-      const tip = this._muzzle(t);
-      add({ kind: 'rocket', life: event.time, x1: tip.x, y1: tip.y, x2: event.x, y2: event.y, mob: event.mob });
-    } else if (event.kind === 'chain') {
-      this._aim(t, event.points[1][0], event.points[1][1]);
-      const tip = this._muzzle(t), points = [], route = [[tip.x, tip.y]].concat(event.points.slice(1));
-      route.forEach(([x, y], i) => {
-        if (i) {
-          const [px, py] = route[i - 1];
-          for (let k = 1; k < 4; k++) {
-            points.push([px + (x - px) * k / 4 + (Math.random() - 0.5) * 0.35,
-              py + (y - py) * k / 4 + (Math.random() - 0.5) * 0.35]);
-          }
-        }
-        points.push([x, y]);
+      this._fire(t, event.x, event.y, event.mob, (x2, y2, late) => {
+        const tip = this._muzzle(t);
+        add({ kind: 'rocket', life: Math.max(FLIGHT_MIN, event.time - late), x1: tip.x, y1: tip.y, x2, y2,
+          mob: event.mob });
       });
-      add({ kind: 'chain', life: 0.2, points });
-      for (const [x, y] of event.points.slice(1)) this._sparks(x, y, ['#bfdbfe', '#ffffff'], 3, 1.6, 0.25);
+    } else if (event.kind === 'chain') {
+      const [fx, fy] = event.points[1];
+      this._fire(t, fx, fy, null, () => {
+        const tip = this._muzzle(t), points = [], route = [[tip.x, tip.y]].concat(event.points.slice(1));
+        route.forEach(([x, y], i) => {
+          if (i) {
+            const [px, py] = route[i - 1];
+            for (let k = 1; k < 4; k++) {
+              points.push([px + (x - px) * k / 4 + (Math.random() - 0.5) * 0.35,
+                py + (y - py) * k / 4 + (Math.random() - 0.5) * 0.35]);
+            }
+          }
+          points.push([x, y]);
+        });
+        add({ kind: 'chain', life: 0.2, points });
+        for (const [x, y] of event.points.slice(1)) this._sparks(x, y, ['#bfdbfe', '#ffffff'], 3, 1.6, 0.25);
+      });
     } else if (event.kind === 'boom') {
       const big = event.rocket || event.meteor;
       add({ kind: 'boom', life: big ? 0.6 : 0.35, x: event.x, y: event.y, r: event.radius,
@@ -2253,9 +2312,9 @@ export class Scene {
         }
       }
     } else if (event.kind === 'flame') {
-      const pose = this._pose(t);
-      pose.aim = Math.atan2(event.x - t.cx, -(event.y - t.cy));
-      pose.flame = { until: this.clock + FLAME_HOLD, angle: event.angle, blue: event.blue };
+      this._fire(t, event.x, event.y, null, () => {
+        this._pose(t).flame = { until: this.clock + FLAME_HOLD, angle: event.angle, blue: event.blue };
+      }, FLAME_HOLD);
     } else if (event.kind === 'flash') {
       add({ kind: 'ring', life: 0.35, x: event.x, y: event.y, r: event.radius, color: '#fde047', width: 2 });
       this._sparks(event.x, event.y, ['#fef9c3', '#facc15', '#ffffff'], 8, event.radius * 3, 0.3);
@@ -2432,17 +2491,20 @@ export class Scene {
           y: event.y + (Math.random() - 0.5) * 0.9, size: 2 + Math.floor(Math.random() * 3), color: '#8a7f70' });
       }
     } else if (event.kind === 'toss') {
-      const tip = this._muzzle(t);
-      add({ kind: 'toss', life: event.time, x1: tip.x, y1: tip.y, x2: event.mob.x, y2: event.mob.y, mob: event.mob,
-        mine: event.mine, radius: event.radius });
+      this._fire(t, event.mob.x, event.mob.y, event.mob, (x2, y2, late) => {
+        const tip = this._muzzle(t);
+        add({ kind: 'toss', life: Math.max(FLIGHT_MIN, event.time - late), x1: tip.x, y1: tip.y, x2, y2,
+          mob: event.mob, mine: event.mine, radius: event.radius });
+      });
     } else if (event.kind === 'immune') {
       const spot = this.shown.get(event.mob.id) || event.mob;
       add({ kind: 'ring', life: 0.35, x: spot.x, y: spot.y, r: 0.55, color: 'rgba(226, 232, 240, .8)', width: 1.5 });
     } else if (event.kind === 'flask' || event.kind === 'fogtoss') {
-      this._aim(t, event.x, event.y);
-      const tip = this._muzzle(t);
-      add({ kind: 'lob', life: event.time, x1: tip.x, y1: tip.y, x2: event.x, y2: event.y,
-        fog: event.kind === 'fogtoss', black: t.runes.has('plague') });
+      this._fire(t, event.x, event.y, null, (x2, y2, late) => {
+        const tip = this._muzzle(t);
+        add({ kind: 'lob', life: Math.max(FLIGHT_MIN, event.time - late), x1: tip.x, y1: tip.y, x2, y2,
+          fog: event.kind === 'fogtoss', black: t.runes.has('plague') });
+      });
     } else if (event.kind === 'splash') {
       this._sparks(event.x, event.y, t.runes.has('plague') ? ['#a78bfa', '#4c1d95', '#17141f']
         : ['#d9f99d', '#84cc16', '#3f6212'], 8, 2, 0.35, 2);
@@ -2483,10 +2545,10 @@ export class Scene {
       add({ kind: 'ring', life: 0.45, x: t.cx, y: t.cy, r: event.radius, color: '#a5f3fc', width: 3 });
       this._sparks(t.cx, t.cy, ['#f0fdff', '#a5f3fc'], 10, event.radius * 3, 0.45, 2);
     } else if (event.kind === 'spikes') {
-      this._aim(t, event.x, event.y);
+      this._face(t, event.x, event.y);
       add({ kind: 'spikes', life: 0.4, points: event.points });
     } else if (event.kind === 'whirl') {
-      this._aim(t, event.mob.x, event.mob.y);
+      this._face(t, event.mob.x, event.mob.y, event.mob);
     } else if (event.kind === 'rise') {
       const mob = event.mob;
       add({ kind: 'ring', life: 0.6, x: mob.x, y: mob.y, r: 0.9, color: '#a3e635', width: 2 });

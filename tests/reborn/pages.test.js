@@ -8,6 +8,8 @@ import { DEFAULTS } from '../../site/reborn/js/config.js';
 import { SIZE } from '../../site/reborn/js/field.js';
 import { RARITIES, ascend, makeWeapon } from '../../site/reborn/js/gacha.js';
 import { eq, no, ok, test } from './harness.js';
+import { Scene } from '../../site/reborn/js/draw.js';
+import { makeBattle, player } from './fixtures.js';
 
 const SITE = '/site/reborn/';
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -120,6 +122,73 @@ test('страницы: оверлей сам открывает набор, ч�
   watcher.disconnect();
   eq(watched.length, 0, 'карточку не переставляют в разметке');
   frame.remove();
+});
+
+function arena() {
+  const scene = new Scene(document.createElement('canvas')), battle = makeBattle();
+  scene.resize(1);
+  const t = battle.place(player(), 'gunner', 10, 3);
+  scene.draw(battle, 0);
+  return { scene, battle, t, pose: scene._pose(t) };
+}
+
+const frames = (scene, battle, count) => {
+  for (let i = 0; i < count; i++) scene.draw(battle, 1 / 60);
+};
+const aimed = (pose, angle, slack) => Math.abs(Math.atan2(Math.sin(pose.angle - angle), Math.cos(pose.angle - angle)))
+  <= slack;
+
+test('поле: боец поворачивается плавно, а не рывком, и в 32 положениях', () => {
+  const { scene, battle, t, pose } = arena();
+  Object.assign(pose, { angle: 0, aim: Math.PI / 2 });
+  frames(scene, battle, 1);
+  ok(pose.angle > 0 && pose.angle < Math.PI / 8, 'за кадр — только начало поворота: ' + pose.angle);
+  frames(scene, battle, 6);
+  ok(pose.angle < Math.PI / 2 - 0.3, 'через десятую секунды ещё поворачивается: ' + pose.angle);
+  frames(scene, battle, 40);
+  ok(aimed(pose, Math.PI / 2, 1e-6), 'довернулся: ' + pose.angle);
+  pose.angle = Math.PI / 16;
+  const a = scene._muzzle(t);
+  pose.angle = Math.PI / 8;
+  const b = scene._muzzle(t);
+  no(a.x === b.x && a.y === b.y, 'шаг поворота — 1/32 круга');
+});
+
+test('поле: пуля вылетает из дула, когда боец довернулся, и после выстрела он миг держит прицел', () => {
+  const { scene, battle, t, pose } = arena();
+  Object.assign(pose, { angle: 0, aim: 0 });
+  const right = { x: t.cx + 3, y: t.cy, dead: false }, left = { x: t.cx - 3, y: t.cy, dead: false };
+  battle.events.push({ kind: 'shot', tower: t, x: right.x, y: right.y, mob: right });
+  frames(scene, battle, 1);
+  eq(pose.queue.length, 1, 'цель сбоку — сначала поворот, пули ещё нет');
+  no(scene.effects.some((e) => e.kind === 'shot'));
+  let spent = 1;
+  while (pose.queue.length && spent < 60) {
+    frames(scene, battle, 1);
+    spent++;
+  }
+  eq(pose.queue.length, 0, 'выстрел состоялся');
+  ok(spent > 6, 'не мгновенно: ' + spent + ' кадров');
+  ok(aimed(pose, Math.PI / 2, Math.PI / 8), 'смотрит на цель: ' + pose.angle);
+  const shot = scene.effects.find((e) => e.kind === 'shot'), tip = scene._muzzle(t);
+  eq([shot.x1, shot.y1], [tip.x, tip.y], 'пуля из дула');
+  battle.events.push({ kind: 'shot', tower: t, x: left.x, y: left.y, mob: left });
+  frames(scene, battle, 6);
+  ok(aimed(pose, Math.PI / 2, Math.PI / 8), 'сразу после выстрела не отворачивается: ' + pose.angle);
+  eq(pose.queue.length, 1);
+  frames(scene, battle, 60);
+  eq(pose.queue.length, 0, 'потом повернулся и выстрелил во вторую');
+  ok(aimed(pose, -Math.PI / 2, Math.PI / 8), 'смотрит на вторую: ' + pose.angle);
+});
+
+test('поле: стрелок заранее поворачивается к цели, которую будет бить', () => {
+  const { scene, battle, t, pose } = arena();
+  const mob = battle._spawn({ type: 'normal', hp: 1e6 }, 3);
+  Object.assign(mob, { x: t.cx - 1.5, y: t.cy + 1.5, speed: 0 });
+  eq(battle.facing(t), mob);
+  Object.assign(pose, { angle: 0, aim: 0, shooter: true });
+  frames(scene, battle, 40);
+  ok(aimed(pose, Math.atan2(-1.5, -1.5), 0.05), 'смотрит на моба до выстрела: ' + pose.angle);
 });
 
 test('страницы: ядерка — свист в полёте, взрыв со звуком, затемнение и тряска поля', async () => {

@@ -2159,6 +2159,11 @@ export class Battle {
     return true;
   }
 
+  facing(t) {
+    if (t.aim && this._targetable(t, t.aim)) return t.aim;
+    return t.cls.id === 'sniper' ? aimOf(this, t) : this._target(t);
+  }
+
   _target(t, { skip = null, range = t.range, mode = t.cls.base.target } = {}) {
     if (t.rider) {
       const host = t.host;
@@ -2884,7 +2889,7 @@ const SKILLS = {
       if (t.stormUntil > now) {
         for (const mob of b.mobs.slice()) {
           if (mob === target || mob.dead || !b._targetable(t, mob)) continue;
-          b._event({ kind: 'shot', tower: t, x: mob.x, y: mob.y, crit, mob, hot: t.hot });
+          b._event({ kind: 'shot', tower: t, x: mob.x, y: mob.y, crit, mob, hot: t.hot, spray: true });
           b._hurt(mob, damage * t.s[5].share, t, null, false, pierce);
         }
       }
