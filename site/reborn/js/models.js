@@ -29,6 +29,7 @@ function ramp(color) {
 
 class Model {
   constructor(size, k) {
+    this.reload = -1;
     this.w = size;
     this.h = size;
     this.k = k;
@@ -180,19 +181,48 @@ function legs(m, cx, y, color, f, spread = 3.4, rx = 2.5, ry = 3.2) {
   m.egg(cx + spread, y + step, 1, rx, ry, 2.2, color);
 }
 
+const RELOAD = { frames: 3, tilt: [0.3, 0.55, 0.7], reach: 4.4, belt: [-6, 8.4] };
+
+function swing(m, cx, cy) {
+  if (m.reload < 0) return m;
+  const c = Math.cos(RELOAD.tilt[m.reload]), s = Math.sin(RELOAD.tilt[m.reload]);
+  const turn = (x, y) => [cx + (x - cx) * c - (y - cy) * s, cy + (x - cx) * s + (y - cy) * c];
+  return {
+    egg: (x, y, ...rest) => m.egg(...turn(x, y), ...rest),
+    ball: (x, y, ...rest) => m.ball(...turn(x, y), ...rest),
+    limb: (x0, y0, z0, x1, y1, ...rest) => m.limb(...turn(x0, y0), z0, ...turn(x1, y1), ...rest),
+    dot: (x, y, ...rest) => m.dot(...turn(x, y), ...rest),
+    sheet: (points, ...rest) => m.sheet(points.map(([x, y]) => turn(x, y)), ...rest),
+  };
+}
+
+function reloadHands(m, [lx, ly, rx, ry]) {
+  if (m.reload < 0) return [lx, ly, rx, ry];
+  const tilt = RELOAD.tilt[m.reload], s = Math.sin(tilt), c = Math.cos(tilt), k = m.reload / (RELOAD.frames - 1);
+  const mx = rx + RELOAD.reach * s, my = ry - RELOAD.reach * c, bx = rx + RELOAD.belt[0], by = ry + RELOAD.belt[1];
+  return [bx + (mx - bx) * k, by + (my - by) * k + 1.4, rx, ry];
+}
+
+function magazine(m, x, y, z) {
+  if (m.reload < 0) return;
+  m.limb(x, y - 1.4, z + 1, x + 0.5, y + 1.4, z + 0.8, 1, '#475569', 0.6);
+  m.ball(x, y - 1.6, z + 1.6, 0.7, '#facc15', 0.8);
+}
+
 function hero(m, o) {
   if (o.slim) legs(m, 16, 23.6, o.boots, 0, 2.6, 1.9, 2.2);
   else legs(m, 16, 26.5, o.boots || '#3b2c22', 0);
   if (o.back) o.back(m);
   m.egg(16, 18.5, 5, 8.6, 6.2, 4.6, o.coat);
   if (o.chest) o.chest(m);
-  const [lx, ly, rx, ry] = o.hands || [13, 11, 18.5, 12.3];
+  const [lx, ly, rx, ry] = reloadHands(m, o.hands || [13, 11, 18.5, 12.3]);
   m.limb(9.5, 17, 8, lx, ly + 0.5, 9, 2.3, o.sleeve || o.coat);
   m.limb(22.5, 17, 8, rx, ry + 0.5, 9, 2.3, o.sleeve || o.coat);
   const shoulder = o.slim ? 2.3 : 3.3, pad = o.slim ? o.coat : o.dark;
   m.ball(9, 17.5, 8.5, shoulder, pad);
   m.ball(23, 17.5, 8.5, shoulder, pad);
-  if (o.weapon) o.weapon(m);
+  if (o.weapon) o.weapon(swing(m, rx, ry));
+  magazine(m, lx, ly, 10);
   m.ball(lx, ly, 10, 2, o.glove || SKIN);
   m.ball(rx, ry, 10, 2, o.glove || SKIN);
   o.head(m);
@@ -481,12 +511,13 @@ function seated(m, o) {
   }
   m.egg(16, 21.8, 5, 5.9, 5, 4.2, o.coat);
   if (o.chest) o.chest(m);
-  const [lx, ly, rx, ry] = o.hands;
+  const [lx, ly, rx, ry] = reloadHands(m, o.hands);
   m.limb(11.2, 20.8, 7.5, lx, ly + 0.5, 8.5, 1.9, o.sleeve);
   m.limb(20.8, 20.8, 7.5, rx, ry + 0.5, 8.5, 1.9, o.sleeve);
   m.ball(11, 21.2, 8, 2.6, o.dark);
   m.ball(21, 21.2, 8, 2.6, o.dark);
-  o.weapon(m);
+  o.weapon(swing(m, rx, ry));
+  magazine(m, lx, ly, 9.4);
   m.ball(lx, ly, 9.4, 1.9, o.glove);
   m.ball(rx, ry, 9.4, 1.9, o.glove);
   o.head(m);
@@ -664,14 +695,17 @@ function turreteer(m) {
   m.egg(16, 19.4, 5, 5.8, 5.2, 4.2, '#f97316');
   for (const x of [13.2, 18.8]) m.limb(x, 15.4, 8.6, x + (x < 16 ? 0.4 : -0.4), 23, 7.6, 0.6, '#44403c');
   m.dot(16, 18.6, '#fde68a', 30);
-  m.limb(10.6, 17.4, 7.6, 10, 21.6, 7.4, 1.45, '#fb923c');
-  m.limb(21.4, 17.4, 7.6, 19.6, 13.4, 8.6, 1.45, '#fb923c');
-  m.limb(19.6, 14.6, 10.2, 19.6, 9.6, 10.6, 1, '#2d323b');
-  m.limb(20.4, 12.2, 9.6, 22, 12.8, 8.8, 0.55, '#1f2937');
-  m.limb(19.6, 9.6, 11, 19.6, 6.6, 11, 0.5, METAL, 0.6);
-  m.dot(19.1, 10.6, '#facc15', 40);
-  m.ball(10, 21.8, 8, 1.4, '#44403c');
-  m.ball(19.6, 13.4, 9.6, 1.4, '#44403c');
+  const [lx, ly, rx, ry] = m.reload < 0 ? [10, 21.6, 19.6, 13.4] : reloadHands(m, [10, 21.6, 19.6, 13.4]);
+  m.limb(10.6, 17.4, 7.6, lx, ly, 7.4 + (m.reload < 0 ? 0 : 2), 1.45, '#fb923c');
+  m.limb(21.4, 17.4, 7.6, rx, ry, 8.6, 1.45, '#fb923c');
+  const q = swing(m, rx, ry);
+  q.limb(19.6, 14.6, 10.2, 19.6, 9.6, 10.6, 1, '#2d323b');
+  if (m.reload < 0) q.limb(20.4, 12.2, 9.6, 22, 12.8, 8.8, 0.55, '#1f2937');
+  q.limb(19.6, 9.6, 11, 19.6, 6.6, 11, 0.5, METAL, 0.6);
+  q.dot(19.1, 10.6, '#facc15', 40);
+  magazine(m, lx, ly, 10);
+  m.ball(lx, ly, m.reload < 0 ? 8 : 10, 1.4, '#44403c');
+  m.ball(rx, ry, 9.6, 1.4, '#44403c');
   m.ball(16, 14.4, 10.6, 3.8, SKIN);
   shaggy(m, 16, 14.6, 10.8, 3.9);
 }
@@ -924,8 +958,11 @@ export const MUZZLES = {
   sage: [[16, 11.2]], frost: STAFF, earth: STAFF, shaman: STAFF, thunder: STAFF,
 };
 
-export function drawHero(id) {
+export const RELOAD_FRAMES = RELOAD.frames;
+
+export function drawHero(id, reload = -1) {
   const m = new Model(32, 1.08);
+  m.reload = reload;
   HEROES[id](m);
   return m.paint();
 }

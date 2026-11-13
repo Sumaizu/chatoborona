@@ -6,7 +6,7 @@ import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite
   meteorSprite, grenadeSprite, droneSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
   rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, trapSprite, ventSprite, wallSprite } from './sprites.js';
 import { SOILS } from './props.js';
-import { MUZZLES } from './models.js';
+import { MUZZLES, RELOAD_FRAMES } from './models.js';
 import { gearColor } from './gacha.js';
 
 export const BOARD = EDGE * 2 + CELL * SIZE;
@@ -2007,7 +2007,10 @@ export class Scene {
       ctx.globalAlpha = t.busy > now && !t.perch && look === t.look ? 0.5 : 1;
       const lift = pose.kick > 0 ? Math.round(pose.kick / KICK * 2) : 0;
       if (t.cocoon) sprite(ctx, cocoonSprite(Math.floor(this.clock * 1.6 + t.x) % 2), x, y, 0, ZOOM, 0);
-      else sprite(ctx, heroSprite(look), x, y, pose.angle, ZOOM, lift, HERO_TURN_STEPS);
+      else {
+        const reload = t.reloadUntil > now && look === t.look ? Math.floor(this.clock * 5) % RELOAD_FRAMES : -1;
+        sprite(ctx, heroSprite(look, reload), x, y, pose.angle, ZOOM, lift, HERO_TURN_STEPS);
+      }
       if (pose.flash > 0 && !t.rider && !t.cocoon) {
         const tip = this._muzzle(t), fx = at(tip.x), fy = at(tip.y);
         glow(ctx, fx, fy, 7, 'rgba(255, 236, 160, .95)', 0.9);

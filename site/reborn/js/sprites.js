@@ -129,7 +129,7 @@ function own(image, key, make) {
   return list.get(key);
 }
 
-export const heroSprite = (id) => remember('hero:' + id, () => drawHero(id));
+export const heroSprite = (id, reload = -1) => remember('hero:' + id + ':' + reload, () => drawHero(id, reload));
 
 export const emblemUrl = (size = 96) => remember('emblemUrl:' + size, () => fitted(drawEmblem(), size).toDataURL());
 export const coinIconUrl = (size = 80) => remember('coinIconUrl:' + size,
