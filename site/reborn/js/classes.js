@@ -141,48 +141,6 @@ export const CLASSES = [
     ],
   },
   {
-    id: 'bomber',
-    name: 'Подрывник',
-    color: '#f97316',
-    primary: 'str',
-    earn: { xp: 1.05, coins: 1.05 },
-    weapon: 'гранатомёт',
-    stats: { str: 'mid', agi: 'mid', int: 'low' },
-    base: { damage: 1.2, interval: 1.5, range: 3, splash: 1 },
-    summary: 'Снаряд взрывается и бьёт всех вокруг одинаково',
-    main: (b) => 'Стреляет на ' + cells(b.range) + ': снаряд взрывается и бьёт всех ' + around(b.splash)
-      + ' одинаково, урон ×' + num(b.damage),
-    skills: [
-      { name: 'Горящая земля', v: { time: 3, dps: 2.1, radius: 0.8 }, scale: { time: 'time', dps: 'dmg' },
-        text: (v) => 'после взрыва земля горит ' + sec(v.time) + ' и жжёт: урон ×' + num(v.dps)
-          + ' в секунду; летучих не жжёт' },
-      { name: 'Детонация', v: { chance: 0.25 }, scale: { chance: 'luck' },
-        text: (v) => 'с шансом ' + pct(v.chance) + ' через 0,3 с взрыв повторяется — и повтор может повториться, '
-          + 'каждый раз вдвое реже' },
-      { name: 'РПГ', v: { every: 25, charge: 2, bonus: 36, radius: 2, stun: 1.5 },
-        scale: { every: 'haste', bonus: 'dmg', stun: 'time' },
-        text: (v) => 'раз в ' + sec(v.every) + ' две секунды заряжает ракету и бьёт в ближайшего босса или элитного: '
-          + 'всем ' + around(v.radius) + ' урон ×' + num(v.bonus) + ' и оглушение на ' + sec(v.stun) },
-      { name: 'Шрапнель', v: { radius: 1.5 },
-        text: (v) => 'взрыв шире — ' + around(v.radius) + ', а осколки пробивают броню' },
-      { name: 'Липкая бомба', v: { every: 20, fuse: 2, bonus: 20, splash: 5, radius: 1 }, scale: { every: 'haste' },
-        text: (v) => 'раз в ' + sec(v.every) + ' лепит бомбу на самого крепкого моба в радиусе; через ' + sec(v.fuse)
-          + ' она рвётся: ему урон ×' + num(v.bonus) + ', всем ' + around(v.radius) + ' — ×' + num(v.splash) },
-      { name: 'Ковровая бомбардировка', v: { every: 45, count: 6, gap: 0.2, bonus: 3, radius: 1 },
-        scale: { every: 'haste' },
-        text: (v) => 'раз в ' + sec(v.every) + ' накрывает дорогу серией из ' + v.count + ' взрывов, клетка за '
-          + 'клеткой: урон ×' + num(v.bonus) + ' в каждом' },
-      { name: 'Мегабомба', v: { every: 8, radius: 2, bonus: 6, stun: 1 }, scale: { stun: 'time' },
-        text: (v) => 'каждый ' + v.every + '-й снаряд — мегабомба: взрыв ' + around(v.radius) + ', урон ×'
-          + num(v.bonus) + ' и оглушение на ' + sec(v.stun) },
-    ],
-    pool: ['perk0', 'perk3', 'perk1', 'cluster', 'perk2', 'perk4', 'perk5', 'perk6'],
-    runes: [
-      { id: 'napalm', name: 'Напалм', text: 'огонь растекается дальше: горящая земля вдвое шире' },
-      { id: 'cluster', name: 'Кассетный выстрел', text: 'стреляет сразу двумя снарядами в разные цели' },
-    ],
-  },
-  {
     id: 'thunder',
     name: 'Маг молнии',
     color: '#3b82f6',
@@ -414,46 +372,6 @@ export const CLASSES = [
       { id: 'frenzy', name: 'Бешенство', text: 'кусает втрое чаще' },
       { id: 'thorn', name: 'Смертельный шип', text: 'с шансом 3% добивает моба, у которого меньше 30% здоровья; '
         + 'слишком крепкому наносит урон ×' + num(RUNE_CAPS.thorn) },
-    ],
-  },
-  {
-    id: 'miner',
-    name: 'Минёр',
-    color: '#6366f1',
-    element: 'blast',
-    primary: 'int',
-    earn: { xp: 0.85, coins: 0.8 },
-    weapon: 'детонатор',
-    passive: true,
-    stats: { str: 'low', agi: 'low', int: 'high' },
-    base: { damage: 0.95, interval: 3, range: 2, cap: 10, mine: 2.5, touch: 0.5 },
-    summary: 'Не стреляет: ставит мины, кидает гранаты, а потом и ядерку',
-    main: (b) => 'Не стреляет: раз в ' + sec(b.interval) + ' ставит мину на дорогу в '
-      + cells(b.range) + ' от себя, до ' + b.cap + ' сразу. Мина рвётся под мобом, урон ×' + num(b.mine)
-      + '; летучих мины не задевают',
-    skills: [
-      { name: 'Граната', v: { every: 6, bonus: 4.6, radius: 0.6 }, scale: { every: 'haste', bonus: 'dmg' },
-        text: (v) => 'раз в ' + sec(v.every) + ' кидает гранату в случайного моба на поле: урон ×' + num(v.bonus) },
-      { name: 'Усиленная мина', v: { chance: 0.12, cap: 5, range: 10, bonus: 3.8, radius: 0.9 },
-        scale: { chance: 'luck', bonus: 'dmg' },
-        text: (v) => 'с шансом ' + pct(v.chance) + ' вместо обычной ставит усиленную в ' + v.range + ' клетках от '
-          + 'себя (до ' + v.cap + ' сразу, а когда обычных полный запас — всегда): урон ×' + num(v.bonus * 4) },
-      { name: 'Ядерка', v: { every: 120, range: 5, radius: 2, cap: 200 }, scale: { cap: 'dmg' },
-        text: (v) => 'раз в 2 минуты, если моб ближе ' + cells(v.range) + ', запускает в него ядерку: она убивает '
-          + 'его и всех мобов ' + around(v.radius) + ', а слишком крепким наносит урон ×' + num(v.cap) },
-      { name: 'Оглушающие мины', v: { stun: 1 }, scale: { stun: 'time' },
-        text: (v) => 'каждая мина ещё и оглушает задетых на ' + sec(v.stun) },
-      { name: 'Минное поле', v: { every: 30, count: 5 }, scale: { every: 'haste' },
-        text: (v) => 'раз в ' + sec(v.every) + ' засевает дорогу в радиусе ещё ' + v.count + ' минами сверх запаса' },
-      { name: 'Цепная реакция', v: { radius: 1.5, bonus: 0.5 },
-        text: (v) => 'взрыв мины подрывает его мины рядом, на ' + cells(v.radius) + ', и каждая следующая в цепи '
-          + 'бьёт на ' + pct(v.bonus) + ' сильнее' },
-    ],
-    pool: ['perk0', 'perk3', 'perk1', 'perk2', 'perk4', 'fusion', 'perk5'],
-    runes: [
-      { id: 'fusion', name: 'Ядерный синтез', text: 'граната иногда оказывается маленькой ядеркой: огромный урон '
-        + 'на 2 клетки вокруг и оглушение на 10 с всем рядом, и мобам, и защитникам' },
-      { id: 'stock', name: 'Большой запас', text: 'все запасы мин вдвое больше' },
     ],
   },
   {

@@ -3,7 +3,7 @@ import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintR
 import { FIRE, flightAt } from './battle.js';
 import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite, cocoonSprite,
   coinSprite, fireballSprite, flaskSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
-  meteorSprite, mineSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf, rocketSprite,
+  meteorSprite, grenadeSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf, rocketSprite,
   shellSprite, splitSprite, starSprite, tintSprite, trapSprite, ventSprite, wallSprite } from './sprites.js';
 import { SOILS } from './props.js';
 import { MUZZLES } from './models.js';
@@ -61,16 +61,9 @@ const HOOKLESS = { butcher: 'butcherbare' };
 const HAND = { x: 13, y: -11, link: 4.5 };
 const NUKE_LIFE = 3.4;
 const SIGHT_RAYS = 180;
-const MINE_LIGHTS = { big: 'rgba(255, 59, 59, .9)', mine: 'rgba(255, 176, 32, .9)' };
-const MINE_BLASTS = {
-  big: { sparks: ['#ffffff', '#ffd84a', '#ff4d1f'], ring: '#ff6a1f' },
-  mine: { sparks: ['#ffd84a', '#ff8a1f', '#c2410c'], ring: '#ffb020' },
-  grenade: { sparks: ['#fff3b0', '#ffb020', '#5f6b3a'], ring: '#ffd84a' },
-};
 const CHARGES = {
   heavy: { glow: 'rgba(255, 243, 176, .95)', sparks: ['#ffffff', '#fff3b0'] },
   aim: { glow: 'rgba(255, 90, 90, .95)', sparks: ['#fecaca', '#ef4444'] },
-  rpg: { glow: 'rgba(255, 176, 32, .95)', sparks: ['#ffd84a', '#ff8a1f'] },
   beam: { glow: 'rgba(255, 138, 31, .95)', sparks: ['#ffd84a', '#ff5a1f'] },
 };
 const ELEMENT_TONES = { fire: '#ff8a1f', poison: '#a3e635', ice: '#a5f3fc', storm: '#fde047' };
@@ -83,14 +76,12 @@ const BOLTS = {
   sniper: { look: 'tracer', color: '#fff3b0', width: 2, bullet: true },
   mechanic: { look: 'tracer', color: '#ffe8a3', width: 1.5, bullet: true },
   gunner: { look: 'dot', color: '#ffd84a', size: 2 },
-  bomber: { look: 'lob', color: '#5b7330', size: 4 },
   earth: { look: 'lob', color: '#9a8f80', size: 4 },
   alchemist: { look: 'dot', color: '#9be22d', size: 3 },
   hunter: { look: 'bolt', color: '#e8d9b5', width: 2 },
   frost: { look: 'dot', color: '#38bdf8', size: 3 },
   pyro: { look: 'fireball', color: '#ff7a1f', size: 7 },
   shaman: { look: 'dot', color: '#5eead4', size: 3 },
-  miner: { look: 'dot', color: '#c7d2fe', size: 2 },
   banner: { look: 'dot', color: '#ff5fb0', size: 3 },
   healer: { look: 'tracer', color: '#fde68a', width: 2 },
   sage: { look: 'dot', color: '#d8b4fe', size: 3 },
@@ -535,7 +526,6 @@ export class Scene {
       this._decals(ctx, step);
     });
     this._corpses(ctx, step);
-    this._mines(ctx, battle);
     this._traps(ctx, battle);
     this._layer(ctx, this.peaks);
     this._onField(ctx, () => {
@@ -1312,7 +1302,7 @@ export class Scene {
   _nukeBlast(ctx, e, share) {
     const x = at(e.x), y = at(e.y), r = e.radius * CELL, time = share * NUKE_LIFE;
     const dark = time < 0.15 ? time / 0.15 : time < 1.2 ? 1 : Math.max(0, 1 - (time - 1.2) / (NUKE_LIFE - 1.2));
-    ctx.fillStyle = 'rgba(4, 3, 10, ' + ((e.small ? 0.25 : 0.62) * dark).toFixed(3) + ')';
+    ctx.fillStyle = 'rgba(4, 3, 10, ' + (0.62 * dark).toFixed(3) + ')';
     ctx.fillRect(EDGE, EDGE, CELL * SIZE, CELL * SIZE);
     if (time < 0.25) glow(ctx, x, y, r * 1.6, 'rgba(255, 255, 255, 1)', 1 - time / 0.25);
     for (const [delay, width, color] of [[0, 9, [255, 236, 200]], [0.18, 5, [255, 150, 60]]]) {
@@ -1396,19 +1386,6 @@ export class Scene {
           i + Math.floor(this.clock * 5));
       }
       ctx.globalAlpha = 1;
-    }
-  }
-
-  _mines(ctx, battle) {
-    for (const mine of battle.mines) {
-      const lit = Math.floor(this.clock * 2.5 + mine.x * 1.7 + mine.y) % 2 === 0;
-      const image = mineSprite(mine.kind, lit), x = at(mine.x), y = at(mine.y);
-      ctx.fillStyle = 'rgba(0, 0, 0, .3)';
-      ctx.beginPath();
-      ctx.ellipse(x, y + 4, 8, 3, 0, 0, Math.PI * 2);
-      ctx.fill();
-      sprite(ctx, image, x, y, 0);
-      if (lit) glow(ctx, x, y, 7, MINE_LIGHTS[mine.kind], 0.7);
     }
   }
 
@@ -1570,10 +1547,6 @@ export class Scene {
       }
       if (mob.charge && mob.charge.until > now) this._chargedOn(ctx, mob, x, y - lift, size);
       if (mob.netUntil > now) this._netOn(ctx, x, y - lift, size);
-      if (mob.sticky && mob.sticky.until > now) {
-        const lit = Math.floor(this.clock * 8) % 2 === 0;
-        sprite(ctx, mineSprite('grenade', lit), x + size * 0.28, y - lift - size * 0.22, 0, 1.4);
-      }
       if (mob.rot) this._rotOn(ctx, mob, x, y - lift, size);
       if (battle.prey && battle.prey.mob === mob && battle.prey.until > now) this._preyOn(ctx, x, y - lift, size, top);
       if (mob.weakUntil > now) this._weakOn(ctx, x, y - lift, size, top);
@@ -2509,12 +2482,6 @@ export class Scene {
         this.decals.push({ kind: 'rubble', t: 0, life: 2.5, x: event.x + (Math.random() - 0.5) * 0.9,
           y: event.y + (Math.random() - 0.5) * 0.9, size: 2 + Math.floor(Math.random() * 3), color: '#8a7f70' });
       }
-    } else if (event.kind === 'toss') {
-      this._fire(t, event.mob.x, event.mob.y, event.mob, (x2, y2, late) => {
-        const tip = this._muzzle(t);
-        add({ kind: 'toss', life: Math.max(FLIGHT_MIN, event.time - late), x1: tip.x, y1: tip.y, x2, y2,
-          mob: event.mob, mine: event.mine, radius: event.radius });
-      });
     } else if (event.kind === 'immune') {
       const spot = this.shown.get(event.mob.id) || event.mob;
       add({ kind: 'ring', life: 0.35, x: spot.x, y: spot.y, r: 0.55, color: 'rgba(226, 232, 240, .8)', width: 1.5 });
@@ -2596,20 +2563,9 @@ export class Scene {
       this._sparks(spot.x, spot.y, ['#facc15', '#fff7c2'], 2, 1.4, 0.3, 2);
     } else if (event.kind === 'leech') {
       this._sparks(event.mob.x, event.mob.y, ['#dc2626', '#fca5a5'], 6, 1.2, 0.4, 2);
-    } else if (event.kind === 'plant') {
-      add({ kind: 'ring', life: 0.35, x: event.x, y: event.y, r: 0.45, color: '#c7d2fe', width: 1.5 });
-    } else if (event.kind === 'mine') {
-      const look = MINE_BLASTS[event.mine];
-      add({ kind: 'boom', life: 0.4, x: event.x, y: event.y, r: event.radius, ring: look.ring });
-      this._sparks(event.x, event.y, look.sparks, 12, event.radius * 4, 0.45, 3);
-      this.decals.push({ kind: 'scorch', t: 0, life: 3, x: event.x, y: event.y, r: Math.min(1, event.radius * 0.6) });
-      if (event.mine === 'stun') {
-        add({ kind: 'ring', life: 0.6, x: event.x, y: event.y, r: event.radius, color: '#7fe3ff', width: 3 });
-      }
     } else if (event.kind === 'nuke') {
-      add({ kind: 'nuke', life: NUKE_LIFE, x: event.x, y: event.y, radius: event.radius, small: event.small });
-      this._sparks(event.x, event.y, ['#ffffff', '#ffe08a', '#ff9a1f', '#5a4a40'], event.small ? 30 : 60,
-        event.small ? 7 : 12, 1.3, 3);
+      add({ kind: 'nuke', life: NUKE_LIFE, x: event.x, y: event.y, radius: event.radius });
+      this._sparks(event.x, event.y, ['#ffffff', '#ffe08a', '#ff9a1f', '#5a4a40'], 60, 12, 1.3, 3);
       this.decals.push({ kind: 'crater', t: 0, life: 7, x: event.x, y: event.y, r: event.radius * 0.45 });
     } else if (event.kind === 'heal' || event.kind === 'shield' || event.kind === 'rescue') {
       const [bx, by] = this.battle.path[this.battle.path.length - 1], x = bx + 0.5, y = by + 0.5;
@@ -2719,7 +2675,7 @@ export class Scene {
       } else if (e.kind === 'lob') {
         const x = at(e.x1 + (e.x2 - e.x1) * share);
         const y = at(e.y1 + (e.y2 - e.y1) * share) - Math.sin(share * Math.PI) * 22;
-        const image = e.fog ? mineSprite('grenade', true) : flaskSprite();
+        const image = e.fog ? grenadeSprite('grenade', true) : flaskSprite();
         sprite(ctx, image, x, y, share * Math.PI * 3, e.fog ? 1.2 : 1.6);
         if (e.black) {
           ctx.globalAlpha = 0.7;
@@ -2816,18 +2772,6 @@ export class Scene {
             ctx.fillRect(Math.round(x - 1), Math.round(y + 1 - h), 1, Math.max(0, Math.round(h - 2)));
           }
         });
-      } else if (e.kind === 'toss') {
-        const spot = e.mob.dead ? null : this.shown.get(e.mob.id);
-        if (spot) {
-          e.x2 = spot.x;
-          e.y2 = spot.y;
-        }
-        if (e.mine === 'nuke' || e.mine === 'fusion') this._nukeFlight(ctx, e, share);
-        else {
-          const x = at(e.x1 + (e.x2 - e.x1) * share);
-          const y = at(e.y1 + (e.y2 - e.y1) * share) - Math.sin(share * Math.PI) * 26;
-          sprite(ctx, mineSprite(e.mine, true), x, y, share * Math.PI * 4, 1.6);
-        }
       } else if (e.kind === 'chain') {
         ctx.globalAlpha = fade;
         for (const [width, color] of [[4, e.color || 'rgba(96, 165, 250, .6)'], [1.5, '#ffffff']]) {

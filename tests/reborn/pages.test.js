@@ -1,7 +1,6 @@
 import { SFX_GAPS, SOUNDS, measure } from '../../site/reborn/js/sound.js';
 import { CLASSES } from '../../site/reborn/js/classes.js';
 import { BOSSES, ELITES, LEVEL_MAX, xpForLevel } from '../../site/reborn/js/balance.js';
-import { NUKE_FLIGHT } from '../../site/reborn/js/battle.js';
 import { HERO_SIZE, MOB_KINDS, coinUrl, heroSprite, heroUrl, mobSprite, prizeUrl } from '../../site/reborn/js/sprites.js';
 import { PAGES } from '../../site/reborn/js/guide.js';
 import { DEFAULTS } from '../../site/reborn/js/config.js';
@@ -189,27 +188,6 @@ test('поле: стрелок заранее поворачивается к ц
   Object.assign(pose, { angle: 0, aim: 0, shooter: true });
   frames(scene, battle, 40);
   ok(aimed(pose, Math.atan2(-1.5, -1.5), 0.05), 'смотрит на моба до выстрела: ' + pose.angle);
-});
-
-test('страницы: ядерка — свист в полёте, взрыв со звуком, затемнение и тряска поля', async () => {
-  fresh();
-  const frame = await overlay('lobby=10&first_wave=5');
-  const w = frame.contentWindow, game = w.chatoborona.game, view = w.chatoborona.view;
-  await until(() => game.state === 'lobby', 'набор');
-  join(game, 'Аня');
-  game.members.get('аня').cls = 'miner';
-  game.next();
-  await until(() => game.state === 'placing', 'расстановка');
-  const battle = game.battle, tower = game.members.get('аня').tower;
-  const mob = battle._spawn({ type: 'normal', hp: 1e6 }, 3);
-  battle._event({ kind: 'toss', tower, mob, mine: 'nuke', time: NUKE_FLIGHT, radius: tower.s[2].radius });
-  await until(() => view.heard.includes('fall'), 'свист падающей бомбы');
-  no(element(w, 'blackout').classList.contains('on'));
-  battle._nuke(tower, mob.x, mob.y);
-  await until(() => view.heard.includes('nuke'), 'звук взрыва');
-  ok(element(w, 'blackout').classList.contains('on'), 'экран темнеет');
-  ok(element(w, 'board').classList.contains('shake'), 'поле трясёт');
-  frame.remove();
 });
 
 test('страницы: камень навыка — окно выбора по центру, игрок пишет цифру, навык в профиле', async () => {

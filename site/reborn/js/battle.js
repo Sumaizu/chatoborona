@@ -7,11 +7,9 @@ import { ASSIST_COINS, KILL_COINS } from './gacha.js';
 
 export const MOVE_PAUSE = 1;
 export const BITE_TIME = 1;
-export const NUKE_FLIGHT = 7;
 export const STREAK_GAP = 0.6;
 export const AMBUSH = 10;
 export const HEADWIND = 0.2;
-export const FUSION = { chance: 0.25, mul: 60, radius: 2, hold: 10, flight: 1.5 };
 export const THORN = { chance: 0.03, below: 0.3 };
 export const DISCHARGE = { mul: 18, hold: 5 };
 export const ROT = { share: 0.01, boss: 0.003, time: 5 };
@@ -38,10 +36,6 @@ const HEART_GAP = 1.6;
 const WALL_GAP = 0.5;
 const WALL_BITE = 0.125;
 const WALL_MARGIN = 2;
-const MINE_TOUCH = 0.45;
-const MINES_PER_CELL = 10;
-const MINE_SPREAD = { along: 0.6, side: 0.24 };
-const TOSS_FLIGHT = 0.6;
 const TRAP_TOUCH = 0.45;
 const WHIRL_REACH = 0.5;
 const PIERCE_WIDTH = 0.4;
@@ -49,10 +43,10 @@ const FAR_REACH = SIZE * 1.5;
 const MAD_BITE = 0.7;
 const STICKY_SLOW = 0.3;
 const EPIDEMIC = 1;
-const COOLDOWNS = ['nextActive', 'nextBear', 'nextBlaze', 'nextBless', 'nextCarpet', 'nextCheer', 'nextCleanse',
-  'nextCloud', 'nextEye', 'nextFar', 'nextField', 'nextGale', 'nextGrenade', 'nextInferno', 'nextLegion', 'nextLight',
-  'nextMind', 'nextMuse', 'nextPhoenix', 'nextPool', 'nextQuake', 'nextRift', 'nextSand', 'nextSticky', 'nextStorm',
-  'nextSwarm', 'nextTempest', 'nextTrap', 'nextTsunami', 'nextWall', 'nextWave'];
+const COOLDOWNS = ['nextActive', 'nextBear', 'nextBlaze', 'nextBless', 'nextCheer', 'nextCleanse', 'nextCloud',
+  'nextEye', 'nextFar', 'nextGale', 'nextInferno', 'nextLegion', 'nextLight', 'nextMind', 'nextMuse', 'nextPhoenix',
+  'nextPool', 'nextQuake', 'nextRift', 'nextSand', 'nextStorm', 'nextSwarm', 'nextTempest', 'nextTrap', 'nextTsunami',
+  'nextWall', 'nextWave'];
 const TRACE_TIME = 1;
 const WARD_AURA = 0.25;
 const FIREBALL_FLIGHT = 0.3;
@@ -98,9 +92,6 @@ export const MECH = { turret: { range: -1.5, interval: 1, mul: 0.3, count: 3, ga
   reload: 3 }, demo: { range: 0, interval: 3, mul: 1.6, radius: 1, flight: 0.6 },
   mortar: { interval: 2.4, mul: 1.1, radius: 0.8, flight: 0.7, pace: 0.06 } };
 const STEEL_BLAST = { radius: 1.5, mul: 8, stun: 1 };
-const ECHO_DELAY = 0.3;
-const ROCKET_FLIGHT = 0.6;
-export const SHELL_FLIGHT = 0.25;
 const METEOR_FLIGHT = 1.2;
 const FOG_FLIGHT = 0.6;
 const SPIKE_TOUCH = 0.55;
@@ -235,8 +226,6 @@ export class Battle {
     this.spawns = [];
     this.patches = [];
     this.walls = [];
-    this.mines = [];
-    this.tosses = [];
     this.puddles = [];
     this.fogs = [];
     this.zones = [];
@@ -328,7 +317,7 @@ export class Battle {
       web: 1, windUntil: 0, wind: 0, windBy: null, rider: false, host: null, leapUntil: 0, cocoon: 0, late: false,
       waveXp: 0, aim: null, ramp: 0, streak: -1e9, lastShot: -1e9, reloadUntil: 0, hot: false, berserk: false,
       charge: null,
-      nextActive: 0, nextTrap: 0, nextMine: 0, nextGrenade: 0, nextWall: 0, lastHit: this.time, pull: null,
+      nextActive: 0, nextTrap: 0, nextWall: 0, lastHit: this.time, pull: null,
       nextCheer: 0, nextCleanse: 0, nextMuse: 0, cheerUntil: 0, rallyUntil: 0, wardUntil: 0, muses: [], lift: 1,
       ownRange: 0, boost: { rate: 0, range: 0, damage: 0, crit: 0, wisdom: 0, cheer: false, muse: false },
       boostBy: new Set(),
@@ -444,7 +433,7 @@ export class Battle {
     if (at < 0) return;
     this.towers.splice(at, 1);
     if (!tower.rider) this.byCell.delete(tower.y * SIZE + tower.x);
-    for (const list of ['walls', 'mines', 'tosses', 'puddles', 'fogs', 'traps', 'whirls', 'patches', 'grounds',
+    for (const list of ['walls', 'puddles', 'fogs', 'traps', 'whirls', 'patches', 'grounds',
       'zones', 'phoenixes']) {
       this[list] = this[list].filter((item) => item.tower !== tower);
     }
@@ -837,8 +826,8 @@ export class Battle {
 
   _swallow(mob, power) {
     const close = (item) => near(item, mob.x, mob.y, power.reach);
-    const eaten = this.mines.filter(close).length + this.traps.filter(close).length + this.puddles.filter(close).length;
-    for (const list of ['mines', 'traps', 'puddles']) this[list] = this[list].filter((item) => !close(item));
+    const eaten = this.traps.filter(close).length + this.puddles.filter(close).length;
+    for (const list of ['traps', 'puddles']) this[list] = this[list].filter((item) => !close(item));
     this._event({ kind: 'swallow', mob, eaten });
   }
 
@@ -861,7 +850,7 @@ export class Battle {
     for (const t of this.towers) {
       if (!t.rider && burnt({ x: t.cx, y: t.cy })) this._daze(t, power.hold);
     }
-    for (const list of ['mines', 'traps', 'puddles']) this[list] = this[list].filter((item) => !burnt(item));
+    for (const list of ['traps', 'puddles']) this[list] = this[list].filter((item) => !burnt(item));
     this._event({ kind: 'breath', mob, x: mob.x + dx * power.length, y: mob.y + dy * power.length });
   }
 
@@ -1095,8 +1084,6 @@ export class Battle {
     if (this.zones.length) this._zones(dt, now);
     if (this.fogs.length) this._fogs(dt, now);
     if (this.puddles.length) this._puddles(dt, now);
-    if (this.mines.length) this._mines(now);
-    if (this.tosses.length) this._tosses(now);
     if (this.traps.length) this._traps(now);
     if (this.whirls.length) this._whirls(dt, now);
     if (this.grounds.length) this._grounds(dt, now);
@@ -1410,90 +1397,9 @@ export class Battle {
     this._poison(mob, t, t, t.skill * t.s[1].dps, t.s[1].time);
   }
 
-  _mines(now) {
-    const stepped = (mine) => this.mobs.some((mob) => !mob.dead && grounded(mob, now)
-      && near(mob, mine.x, mine.y, MINE_TOUCH));
-    const fired = this.mines.filter(stepped);
-    if (!fired.length) return;
-    const gone = new Set();
-    for (const first of fired) {
-      if (gone.has(first)) continue;
-      const t = first.tower, chain = open(t, 5) ? t.s[5] : null, queue = [first];
-      gone.add(first);
-      for (let k = 0; k < queue.length; k++) {
-        const mine = queue[k];
-        this._blow(mine, now, chain ? 1 + chain.bonus * k : 1);
-        if (!chain) continue;
-        for (const other of this.mines) {
-          if (gone.has(other) || other.tower !== t || !near(other, mine.x, mine.y, chain.radius)) continue;
-          gone.add(other);
-          queue.push(other);
-        }
-      }
-    }
-    this.mines = this.mines.filter((mine) => !gone.has(mine));
-  }
-
-  _blow(mine, now, mul) {
-    const t = mine.tower, strong = mine.kind === 'big', base = t.cls.base;
-    const radius = strong ? t.s[1].radius : base.touch, crit = this.random() < t.critChance;
-    const damage = (strong ? t.skill * t.s[1].bonus : t.damage) * base.mine * (crit ? t.critMul : 1) * mul;
-    this._event({ kind: 'mine', tower: t, x: mine.x, y: mine.y, radius, mine: mine.kind });
-    for (const mob of this.mobs.slice()) {
-      if (mob.dead || !grounded(mob, now) || !near(mob, mine.x, mine.y, radius)) continue;
-      this._hurt(mob, damage, t);
-      if (open(t, 3) && !mob.dead) this._hold(mob, t.s[3].stun, t);
-    }
-  }
-
-  _tosses(now) {
-    for (const toss of this.tosses) {
-      if (toss.mob.dead) continue;
-      toss.x = toss.mob.x;
-      toss.y = toss.mob.y;
-    }
-    const due = this.tosses.filter((toss) => toss.at <= now);
-    if (!due.length) return;
-    this.tosses = this.tosses.filter((toss) => toss.at > now);
-    for (const toss of due) {
-      const x = toss.x, y = toss.y, t = toss.tower;
-      if (toss.kind === 'nuke') this._nuke(t, x, y);
-      else if (toss.kind === 'fusion') this._fusion(t, x, y);
-      else {
-        const s = t.s[0], crit = this.random() < t.critChance;
-        this._event({ kind: 'mine', tower: t, x, y, radius: s.radius, mine: 'grenade' });
-        for (const other of this.mobs) {
-          if (!other.dead && near(other, x, y, s.radius)) {
-            this._hurt(other, t.skill * s.bonus * (crit ? t.critMul : 1), t);
-          }
-        }
-      }
-    }
-  }
-
-  _nuke(t, x, y) {
-    const radius = t.s[2].radius;
-    this._event({ kind: 'nuke', tower: t, x, y, radius });
-    for (const mob of this.mobs.slice()) {
-      if (!mob.dead && near(mob, x, y, radius)) this._execute(mob, t, t.skill * t.s[2].cap);
-    }
-  }
-
   _execute(mob, t, cap) {
     if (mob.hp <= cap) this._slay(mob, t);
     else this._hurt(mob, cap, t, null, true, ARMOR);
-  }
-
-  _fusion(t, x, y) {
-    this._event({ kind: 'nuke', tower: t, x, y, radius: FUSION.radius, small: true });
-    for (const mob of this.mobs.slice()) {
-      if (mob.dead || !near(mob, x, y, FUSION.radius)) continue;
-      this._hurt(mob, t.skill * FUSION.mul, t);
-      this._hold(mob, FUSION.hold, t);
-    }
-    for (const tower of this.towers) {
-      if (!tower.rider && near({ x: tower.cx, y: tower.cy }, x, y, FUSION.radius)) this._daze(tower, FUSION.hold);
-    }
   }
 
   _traps(now) {
@@ -2130,31 +2036,6 @@ export class Battle {
     return point;
   }
 
-  _plant(t, only = null, field = false) {
-    const base = t.cls.base, stock = t.runes.has('stock') ? 2 : 1, cap = base.cap * stock;
-    const own = this.mines.filter((mine) => mine.tower === t && mine.kind === 'mine');
-    const bigs = this.mines.filter((mine) => mine.tower === t && mine.kind === 'big');
-    if (field && own.length >= cap * 2) return;
-    const strong = !field && open(t, 1) && (own.length >= cap || this.random() < t.s[1].chance);
-    const range = strong ? t.s[1].range : t.range, cells = only || this._reach(range)[t.y * SIZE + t.x];
-    if (!cells.length) return;
-    if (strong && bigs.length >= t.s[1].cap * stock) this.mines.splice(this.mines.indexOf(bigs[0]), 1);
-    if (!field && !strong && own.length >= cap) this.mines.splice(this.mines.indexOf(own[0]), 1);
-    const count = new Map();
-    for (const mine of this.mines) count.set(mine.i, (count.get(mine.i) || 0) + 1);
-    const fewest = Math.min(...cells.map((i) => count.get(i) || 0));
-    const free = cells.filter((i) => (count.get(i) || 0) === fewest && fewest < MINES_PER_CELL);
-    if (!free.length) return;
-    const i = free[Math.floor(this.random() * free.length)], { r, d } = this._spot(i);
-    const along = d + (this.random() - 0.5) * MINE_SPREAD.along, side = (this.random() - 0.5) * MINE_SPREAD.side;
-    const at = this._roadPoint(r, along), ahead = this._roadPoint(r, along + 0.05);
-    const dx = ahead.x - at.x, dy = ahead.y - at.y, length = Math.hypot(dx, dy) || 1;
-    const mine = { tower: t, i, x: at.x - dy / length * side, y: at.y + dx / length * side,
-      kind: strong ? 'big' : 'mine' };
-    this.mines.push(mine);
-    this._event({ kind: 'plant', tower: t, x: mine.x, y: mine.y, mine: mine.kind });
-  }
-
   _targetable(t, mob, range = t.range, mode = t.cls.base.target) {
     if (mob.dead || hidden(mob, this.time) || immune(mob, t.cls.element) || !near(mob, t.cx, t.cy, range)
       || !this.sees(t, mob)) return false;
@@ -2762,18 +2643,6 @@ function sideShot(b, t, first) {
   return pool[0] || null;
 }
 
-function explode(b, t, x, y, crit, chance) {
-  const shrapnel = open(t, 3), radius = shrapnel ? Math.max(t.cls.base.splash, t.s[3].radius) : t.cls.base.splash;
-  b._blast(t, x, y, radius, t.damage * (crit ? t.critMul : 1), null, shrapnel ? ARMOR : 0);
-  if (open(t, 0)) {
-    const s = t.s[0], wide = t.runes.has('napalm') ? 2 : 1;
-    b.patches = b.patches.filter((patch) => patch.tower !== t || !near(patch, x, y, 0.2));
-    b.patches.push({ tower: t, x, y, radius: s.radius * wide, dps: t.skill * s.dps, until: b.time + s.time,
-      born: b.time });
-  }
-  if (open(t, 1) && b.random() < chance) b._later(ECHO_DELAY, () => explode(b, t, x, y, crit, chance / 2), t);
-}
-
 function bolt(b, t, target) {
   const crit = rollCrit(b, t), chain = t.runes.has('chain'), base = t.cls.base;
   const jumps = base.jumps + (chain ? 5 : 0), struck = new Set(), points = [[t.cx, t.cy]];
@@ -2951,73 +2820,6 @@ const SKILLS = {
       if (!open(t, 5) || !alive || now < (t.nextStorm || 0) || !b._target(t)) return;
       t.nextStorm = now + t.s[5].every;
       t.stormUntil = now + t.s[5].time;
-    },
-  },
-  bomber: {
-    fire(b, t, now) {
-      const target = b._target(t);
-      if (!target) return false;
-      const second = t.runes.has('cluster') ? b._target(t, { skip: target }) : null;
-      t.shells = (t.shells || 0) + 1;
-      if (open(t, 6) && t.shells % t.s[6].every === 0) {
-        const x = target.x, y = target.y, crit = rollCrit(b, t), s = t.s[6];
-        b._event({ kind: 'shot', tower: t, x, y, mob: target, time: SHELL_FLIGHT });
-        b._later(SHELL_FLIGHT, () => {
-          b._blast(t, x, y, s.radius, t.damage * s.bonus * (crit ? t.critMul : 1), null);
-          for (const mob of b._around(x, y, s.radius)) b._hold(mob, s.stun, t);
-        }, t);
-        return true;
-      }
-      for (const mob of second ? [target, second] : [target]) {
-        const x = mob.x, y = mob.y, crit = rollCrit(b, t);
-        b._event({ kind: 'shot', tower: t, x, y, mob, time: SHELL_FLIGHT });
-        b._later(SHELL_FLIGHT, () => explode(b, t, x, y, crit, open(t, 1) ? t.s[1].chance : 0), t);
-      }
-      return true;
-    },
-    every(b, t, now, alive) {
-      if (open(t, 4) && alive && now >= (t.nextSticky || 0)) {
-        const target = b._toughest(t), s = t.s[4];
-        if (target) {
-          t.nextSticky = now + s.every;
-          target.sticky = { by: t, until: now + s.fuse };
-          b._later(s.fuse, () => {
-            const x = target.x, y = target.y;
-            target.sticky = null;
-            b._blast(t, x, y, s.radius, t.skill * s.splash, target);
-            if (!target.dead) b._hurt(target, t.skill * s.bonus, t);
-          }, t);
-        }
-      }
-      if (open(t, 5) && alive && now >= (t.nextCarpet || 0)) {
-        const target = b._target(t), s = t.s[5];
-        if (target) {
-          t.nextCarpet = now + s.every;
-          for (let k = 0; k < s.count; k++) {
-            const at = b._roadPoint(target.r, Math.max(0, target.d + 1 - k));
-            b._later(k * s.gap, () => b._blast(t, at.x, at.y, s.radius, t.skill * s.bonus, null), t);
-          }
-        }
-      }
-      if (!open(t, 2) || !alive || t.charge || now < t.nextActive) return;
-      const target = b._closestBig(t);
-      if (!target) return;
-      t.nextActive = now + t.s[2].every;
-      b._charge(t, now, 'rpg', t.s[2].charge, target);
-    },
-    charged(b, t, now, charge) {
-      const target = charge.target && !charge.target.dead ? charge.target : b._closestBig(t);
-      if (!target) return;
-      const s = t.s[2], crit = rollCrit(b, t);
-      b._event({ kind: 'rocket', tower: t, mob: target, x: target.x, y: target.y, time: ROCKET_FLIGHT });
-      b._later(ROCKET_FLIGHT, () => {
-        const x = target.x, y = target.y;
-        b._event({ kind: 'boom', tower: t, x, y, radius: s.radius, rocket: true });
-        for (const mob of b._around(x, y, s.radius)) {
-          b._hurt(mob, t.skill * s.bonus * (crit ? t.critMul : 1), t);
-          b._hold(mob, s.stun, t);
-        }
-      }, t);
     },
   },
   thunder: {
@@ -3247,36 +3049,6 @@ const SKILLS = {
         loot += spare;
       }
       if (loot > 0) b._share(t, loot);
-    },
-  },
-  miner: {
-    every(b, t, now, alive) {
-      if (now >= t.nextMine) {
-        t.nextMine = now + t.interval;
-        b._plant(t);
-      }
-      if (open(t, 4) && alive && now >= (t.nextField || 0)) {
-        t.nextField = now + t.s[4].every;
-        for (let k = 0; k < t.s[4].count; k++) b._plant(t, null, true);
-      }
-      if (open(t, 0) && alive && now >= t.nextGrenade) {
-        const living = b.mobs.filter((mob) => !mob.dead && !hidden(mob, now) && !b.covered(mob.x, mob.y));
-        if (living.length) {
-          const mob = living[Math.floor(b.random() * living.length)];
-          const fusion = t.runes.has('fusion') && b.random() < FUSION.chance;
-          const time = fusion ? FUSION.flight : TOSS_FLIGHT;
-          t.nextGrenade = now + t.s[0].every;
-          b.tosses.push({ tower: t, mob, kind: fusion ? 'fusion' : 'grenade', at: now + time, x: mob.x, y: mob.y });
-          b._event({ kind: 'toss', tower: t, mob, mine: fusion ? 'fusion' : 'grenade', time,
-            radius: fusion ? FUSION.radius : t.s[0].radius });
-        }
-      }
-      if (!open(t, 2) || !alive || now < t.nextActive) return;
-      const s = t.s[2], target = b._target(t, { range: s.range, mode: 'any' });
-      if (!target) return;
-      t.nextActive = now + s.every;
-      b.tosses.push({ tower: t, mob: target, kind: 'nuke', at: now + NUKE_FLIGHT, x: target.x, y: target.y });
-      b._event({ kind: 'toss', tower: t, mob: target, mine: 'nuke', time: NUKE_FLIGHT, radius: s.radius });
     },
   },
   frost: {

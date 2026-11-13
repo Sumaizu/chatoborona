@@ -1,7 +1,7 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { BITE_TIME, Battle, CRIMSON, DISCHARGE, FUSION, HEADWIND, MECH, MOVE_PAUSE, NUKE_FLIGHT, OVERTIME, PLAGUE,
-  FIRE, PLANTED, PULSE, REACTIONS, ROT, SECOND, SHELL_FLIGHT, SHOT, SPLIT_TIME, THORN }
+import { BITE_TIME, Battle, CRIMSON, DISCHARGE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, PLAGUE,
+  FIRE, PLANTED, PULSE, REACTIONS, ROT, SECOND, SHOT, SPLIT_TIME, THORN }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
 import { AFFIXES, BOSSES, DIABLO, ELITES, FAMILIES, FAMILY_BY_ID, FINALE, LIVES, LOOKS, MIGHT, MIMIC, MOBS, POWERS,
@@ -765,53 +765,6 @@ test('охотник, навыки Реборна: кровопускание, �
   ok(hit(giant) >= h.skill * h.s[5].bonus, 'и бьёт ×50');
 });
 
-test('подрывник, навыки Реборна: шрапнель, липкая бомба, ковровая бомбардировка, мегабомба', () => {
-  const battle = makeBattle(), t = battle.place(player(), 'bomber', 10, 4);
-  battle.random = () => 0.99;
-  battle.setMods(t, { perks: [3] });
-  const target = walker(battle, 10, 1e9), side = walker(battle, 11.3, 1e9);
-  still(target, side);
-  side.armor = 0.5;
-  t.cooldown = 1e9;
-  battle._fire(t);
-  runFor(battle, 0.3);
-  near(hit(side), t.damage, 'шрапнель: задело в 1,3 клетки, броня не помогла');
-
-  const sticky = makeBattle(), s = sticky.place(player(), 'bomber', 10, 4);
-  sticky.random = () => 0.99;
-  sticky.setMods(s, { perks: [4] });
-  const big = walker(sticky, 10, 1e9), small = walker(sticky, 10.5, 1e8);
-  still(big, small);
-  sticky.step(TICK);
-  ok(big.sticky && big.sticky.by === s, 'бомба прилипла к самому крепкому');
-  const was = hit(big);
-  runFor(sticky, s.s[4].fuse);
-  ok(hit(big) - was >= s.skill * s.s[4].bonus, 'рванула');
-  ok(!big.sticky);
-
-  const carpet = makeBattle(), c = carpet.place(player(), 'bomber', 10, 4);
-  carpet.random = () => 0.99;
-  carpet.setMods(c, { perks: [5] });
-  const row = [walker(carpet, 9, 1e9), walker(carpet, 7, 1e9), walker(carpet, 5, 1e9)];
-  still(...row);
-  runFor(carpet, c.s[5].gap * c.s[5].count + 0.1);
-  ok(carpet.events.filter((e) => e.kind === 'boom').length >= c.s[5].count, 'серия взрывов');
-  ok(row.every((mob) => hit(mob) > 0), 'по всей дороге за целью');
-
-  const mega = makeBattle(), m = mega.place(player(), 'bomber', 10, 4);
-  mega.random = () => 0.99;
-  mega.setMods(m, { perks: [6] });
-  const one = walker(mega, 10, 1e9), two = walker(mega, 11.8, 1e9);
-  still(one, two);
-  m.cooldown = 1e9;
-  for (let i = 0; i < m.s[6].every; i++) {
-    mega._fire(m);
-    runFor(mega, 0.3);
-  }
-  ok(mega.events.some((e) => e.kind === 'boom' && e.radius === m.s[6].radius), 'восьмой — мегабомба');
-  ok([one, two].every((mob) => hit(mob) > 0 && mob.holdUntil > 0), 'задело в 1,8 клетки и оглушило');
-});
-
 test('пулемётчик: боссов не выделяет и не обходит', () => {
   const battle = makeBattle(), gun = battle.place(player(), 'gunner', 10, 4);
   const plain = walker(battle, 10, 1e9), boss = put(battle, special(battle, 'boss', 'crusher', 1e9), 12);
@@ -883,83 +836,6 @@ test('пулемётчик: с 30-го пуля отскакивает в сос
   runFor(battle, gun.s[2].after + 0.5);
   ok(gun.berserk, 'берсерк');
   ok(gun.ramp >= gun.cls.base.rampMax, 'на предельной скорости');
-});
-
-test('подрывник: взрыв — когда снаряд долетел — бьёт всех рядом одинаково; с 10-го горит земля, летучих не жжёт', () => {
-  const battle = makeBattle(), bomber = battle.place(level(10), 'bomber', 10, 4);
-  bomber.critChance = 0;
-  battle.random = () => 0.99;
-  const a = walker(battle, 11, 1e6), b = walker(battle, 11.6, 1e6), far = walker(battle, 14, 1e6);
-  const flyer = walker(battle, 11.3, 1e6, bat());
-  still(a, b, far, flyer);
-  battle._fire(bomber);
-  bomber.busy = 1e9;
-  eq(hit(a), 0, 'пока снаряд летит — урона нет');
-  for (let i = 0; i < 100 && !battle.events.some((e) => e.kind === 'boom'); i++) battle.step(TICK);
-  ok(Math.abs(battle.time - SHELL_FLIGHT) < TICK * 1.5, 'взрыв — когда снаряд долетел');
-  near(hit(flyer), bomber.damage, 'летучему — ровно взрыв');
-  near(hit(a), hit(b), 'стоящим — поровну');
-  ok(hit(a) >= bomber.damage - 1e-6 && hit(a) < bomber.damage * 1.5);
-  eq(far.hp, far.max);
-  eq(battle.patches.length, 1, 'земля горит');
-  const flown = hit(flyer), walked = hit(a);
-  runFor(battle, 1);
-  ok(hit(a) > walked, 'стоящие в огне горят');
-  eq(hit(flyer), flown, 'летучих не жжёт');
-});
-
-test('подрывник: с 30-го взрыв повторяется, и повтор может повториться — каждый раз вдвое реже', () => {
-  const battle = makeBattle(), bomber = battle.place(level(30), 'bomber', 10, 4), mob = walker(battle, 11, 1e9);
-  still(mob);
-  bomber.critChance = 0;
-  const chance = bomber.s[1].chance;
-  battle.random = () => chance * 0.4;
-  battle._fire(bomber);
-  bomber.busy = 1e9;
-  runFor(battle, 1.5);
-  eq(battle.events.filter((e) => e.kind === 'boom').length, 3, 'взрыв и два повтора');
-});
-
-test('подрывник: с 50-го две секунды заряжает РПГ и бьёт в ближайшего элитного — урон и оглушение вокруг', () => {
-  const battle = makeBattle(), bomber = battle.place(level(50), 'bomber', 10, 4);
-  battle.random = () => 0.99;
-  const elite = put(battle, special(battle, 'elite', 'vampire', 1e9), 3), side = walker(battle, 3.5, 1e9);
-  still(elite, side);
-  battle.step(TICK);
-  ok(bomber.charge && bomber.charge.kind === 'rpg' && bomber.charge.target === elite);
-  runFor(battle, bomber.s[2].charge + 0.8);
-  ok(battle.events.some((e) => e.kind === 'rocket'));
-  ok(battle.events.some((e) => e.kind === 'boom' && e.rocket));
-  ok(hit(elite) >= bomber.damage * bomber.s[2].bonus - 1e-6);
-  ok(elite.holdUntil > battle.time && side.holdUntil > battle.time, 'оглушены');
-});
-
-test('подрывник: ракета РПГ взрывается там, где цель была в последний момент, даже если та погибла в полёте', () => {
-  const battle = makeBattle(), bomber = battle.place(level(50), 'bomber', 10, 4);
-  battle.random = () => 0.99;
-  const elite = put(battle, special(battle, 'elite', 'vampire', 1e12), 7);
-  for (let i = 0; i < 400 && !battle.events.some((e) => e.kind === 'rocket'); i++) battle.step(TICK);
-  ok(battle.events.some((e) => e.kind === 'rocket'), 'ракета пущена');
-  const start = [elite.x, elite.y];
-  runFor(battle, 0.3);
-  const death = [elite.x, elite.y];
-  ok(Math.hypot(death[0] - start[0], death[1] - start[1]) > 0.1, 'цель успела сдвинуться');
-  battle._slay(elite, bomber);
-  runFor(battle, 0.5);
-  const boom = battle.events.filter((e) => e.kind === 'boom' && e.rocket).pop();
-  ok(boom && Math.hypot(boom.x - death[0], boom.y - death[1]) < 0.05, 'взрыв там, где цель погибла');
-});
-
-test('подрывник: руна «Кассетный выстрел» — два снаряда в разные цели, «Напалм» — огонь вдвое шире', () => {
-  const battle = makeBattle(), bomber = battle.place(level(10), 'bomber', 10, 4);
-  battle.setMods(bomber, { runes: ['cluster', 'napalm'] });
-  battle.random = () => 0.99;
-  const a = walker(battle, 9, 1e6), b = walker(battle, 13, 1e6);
-  still(a, b);
-  battle._fire(bomber);
-  runFor(battle, SHELL_FLIGHT + TICK);
-  ok(hit(a) > 0 && hit(b) > 0, 'оба');
-  near(battle.patches[0].radius, bomber.s[0].radius * 2);
 });
 
 test('громовержец: молния прыгает назад по дороге ещё на девять мобов, каждому на 10% меньше', () => {
@@ -1354,121 +1230,6 @@ test('паразит: руна «Бешенство» — кусает втро�
   const left = boss.hp;
   ATTACK(battle, bug, boss);
   ok(!boss.dead && left - boss.hp >= cap - 1e-6, 'слишком крепкий — получает урон, но жив');
-});
-
-test('минёр: не стреляет, ставит до 10 мин на дорогу рядом; мина рвётся под мобом, летучих не замечает', () => {
-  const battle = makeBattle(), miner = battle.place(level(5), 'miner', 10, 4), cap = miner.cls.base.cap;
-  ok(miner.cls.passive, 'не стреляет');
-  runFor(battle, 40);
-  eq(battle.mines.length, cap);
-  for (const mine of battle.mines) ok(Math.hypot(mine.x - miner.cx, mine.y - miner.cy) <= miner.range + 0.5);
-  miner.busy = 1e9;
-  const flyer = walker(battle, 0, 1e6, bat());
-  for (let i = 0; i < 600 && flyer.d < 18; i++) battle.step(TICK);
-  eq(battle.mines.length, cap, 'летучая прошла, мины целы');
-  const mob = walker(battle, 0, 1e6);
-  for (let i = 0; i < 600 && mob.d < 18; i++) battle.step(TICK);
-  ok(battle.mines.length < cap, 'мины сработали');
-  ok(mob.hp < mob.max);
-  ok(battle.events.some((e) => e.kind === 'mine'));
-});
-
-test('минёр: сверх предела новая мина заменяет самую старую', () => {
-  const battle = makeBattle(), miner = battle.place(level(5), 'miner', 10, 4);
-  runFor(battle, 40);
-  eq(battle.mines.length, miner.cls.base.cap);
-  const oldest = battle.mines[0];
-  runFor(battle, miner.interval + 0.1);
-  eq(battle.mines.length, miner.cls.base.cap);
-  no(battle.mines.includes(oldest), 'старая заменена новой');
-});
-
-test('минёр: с 10-го кидает гранату в случайного моба на любом конце поля, и в летучих тоже', () => {
-  const battle = makeBattle(), miner = battle.place(level(10), 'miner', 10, 4);
-  const far = walker(battle, 18, 1e6), flyer = walker(battle, 1, 1e6, bat());
-  still(far, flyer);
-  for (let i = 0; i < 1200 && (far.hp === far.max || flyer.hp === flyer.max); i++) battle.step(TICK);
-  ok(battle.events.some((e) => e.kind === 'toss' && e.mine === 'grenade'));
-  ok(hit(far) > 0, 'досталось дальнему');
-  ok(hit(flyer) > 0, 'граната задевает и летучих');
-});
-
-test('минёр: с 30-го иногда ставит усиленную мину далеко от себя, при полном запасе обычных — всегда', () => {
-  const battle = makeBattle(), miner = battle.place(level(30), 'miner', 10, 4);
-  battle.random = () => 0.99;
-  runFor(battle, 45);
-  const plain = battle.mines.filter((mine) => mine.kind === 'mine');
-  const big = battle.mines.filter((mine) => mine.kind === 'big');
-  eq(plain.length, miner.cls.base.cap);
-  eq(big.length, miner.s[1].cap, 'усиленных — до пяти');
-  ok(big.every((mine) => Math.hypot(mine.x - miner.cx, mine.y - miner.cy) <= miner.s[1].range + 0.5));
-});
-
-test('минёр: с 50-го, если моб ближе пяти клеток, — ядерка: убивает всех рядом, слишком крепких сильно ранит', () => {
-  const battle = makeBattle(), miner = battle.place(level(50), 'miner', 10, 4);
-  battle.random = () => 0.99;
-  const far = walker(battle, 17, 1e6);
-  still(far);
-  runFor(battle, 1);
-  no(battle.tosses.some((toss) => toss.kind === 'nuke'), 'далеко — не кидает');
-  const cap = miner.skill * miner.s[2].cap;
-  const boss = put(battle, special(battle, 'boss', 'crusher', 1e9), 12), close = walker(battle, 13, cap * 0.9);
-  still(boss, close);
-  battle.step(TICK);
-  const nuke = battle.tosses.find((toss) => toss.kind === 'nuke');
-  ok(nuke && Math.abs(nuke.at - battle.time - NUKE_FLIGHT) < TICK * 1.5, 'летит долго');
-  runFor(battle, NUKE_FLIGHT + TICK);
-  ok(close.dead, 'убила тех, кто слабее предела');
-  ok(!boss.dead && hit(boss) >= cap * 0.99, 'босса с огромным здоровьем — сильно ранила');
-  no(far.dead);
-  const nukes = () => battle.events.filter((e) => e.kind === 'nuke').length, count = nukes();
-  still(put(battle, special(battle, 'boss', 'crusher', 1e12), 12));
-  runFor(battle, 60);
-  eq(nukes(), count, 'следующая — не раньше, чем через две минуты');
-});
-
-test('минёр: ядерка взрывается там, где цель сейчас, а если цель умерла в полёте — там, где она умерла', () => {
-  const blastOf = (battle) => battle.events.filter((e) => e.kind === 'nuke').pop();
-  const live = makeBattle(), liveMiner = live.place(level(50), 'miner', 10, 4);
-  live.random = () => 0.99;
-  const runner = walker(live, 7, 1e12);
-  live.step(TICK);
-  ok(live.tosses.some((toss) => toss.kind === 'nuke' && toss.mob === runner), 'кинул в бегущего');
-  const start = [runner.x, runner.y];
-  runFor(live, NUKE_FLIGHT + TICK);
-  ok(!runner.dead && Math.hypot(runner.x - start[0], runner.y - start[1]) > 1, 'моб жив и успел убежать');
-  const blast = blastOf(live);
-  ok(blast && Math.hypot(blast.x - runner.x, blast.y - runner.y) < 0.3, 'взрыв у моба, а не там, где его выбрали');
-  no(liveMiner.dead);
-  const dying = makeBattle(), miner = dying.place(level(50), 'miner', 10, 4);
-  dying.random = () => 0.99;
-  const doomed = walker(dying, 7, 1e12), from = [doomed.x, doomed.y];
-  dying.step(TICK);
-  runFor(dying, NUKE_FLIGHT / 2);
-  const death = [doomed.x, doomed.y];
-  ok(Math.hypot(death[0] - from[0], death[1] - from[1]) > 0.5, 'до смерти моб отошёл');
-  dying._slay(doomed, miner);
-  runFor(dying, NUKE_FLIGHT);
-  const late = blastOf(dying);
-  ok(late && Math.hypot(late.x - death[0], late.y - death[1]) < 0.3, 'взрыв там, где моб умер');
-});
-
-test('минёр: руна «Большой запас» — мин вдвое больше, «Ядерный синтез» — граната бывает маленькой ядеркой', () => {
-  const battle = makeBattle(), miner = battle.place(level(10), 'miner', 10, 4);
-  battle.setMods(miner, { runes: ['stock', 'fusion'] });
-  battle.random = () => 0;
-  const ally = battle.place(player(), 'gunner', 5, 4), mob = walker(battle, 6, 1e9);
-  still(mob);
-  for (let i = 0; i < 200 && !battle.events.some((e) => e.kind === 'nuke'); i++) battle.step(TICK);
-  ok(battle.events.some((e) => e.kind === 'toss' && e.mine === 'fusion'));
-  ok(battle.events.some((e) => e.kind === 'nuke' && e.small));
-  ok(hit(mob) >= miner.damage * FUSION.mul - 1e-6, 'огромный урон');
-  ok(mob.holdUntil > battle.time + FUSION.hold - 1, 'моб оглушён');
-  ok(ally.stunUntil > battle.time + FUSION.hold - 1, 'и защитник рядом тоже');
-  const field = makeBattle(), stock = field.place(level(5), 'miner', 10, 4);
-  field.setMods(stock, { runes: ['stock'] });
-  runFor(field, 80);
-  eq(field.mines.length, stock.cls.base.cap * 2);
 });
 
 test('ледяной маг: буря вокруг бьёт льдом всех в радиусе', () => {
@@ -2160,25 +1921,6 @@ test('алхимик, навыки Реборна: кислота, зелье б
   eq(far.player.coins, a.s[5].coins, 'монеты — всем в отряде');
 });
 
-test('минёр, навыки Реборна: оглушающие мины, цепная реакция, минное поле', () => {
-  const battle = makeBattle(), m = battle.place(player(), 'miner', 10, 4);
-  battle.setMods(m, { perks: [3, 5] });
-  battle.random = () => 0.99;
-  const mob = walker(battle, 9, 1e9);
-  still(mob);
-  for (const x of [mob.x, mob.x + 1, mob.x + 2.1]) battle.mines.push({ tower: m, i: 0, x, y: mob.y, kind: 'mine' });
-  battle._mines(battle.time);
-  eq(battle.mines.length, 0, 'цепь подорвала все три');
-  eq(battle.events.filter((e) => e.kind === 'mine').length, 3);
-  ok(mob.holdUntil > battle.time, 'мина оглушает');
-
-  const field = makeBattle(), f = field.place(player(), 'miner', 10, 4);
-  field.setMods(f, { perks: [4] });
-  still(walker(field, 0, 1e9));
-  field.step(TICK);
-  ok(field.mines.filter((mine) => mine.tower === f).length >= f.s[4].count, 'минное поле: сразу пять мин');
-});
-
 test('паразит, навыки Реборна: липкий кокон, пожиратель, королева роя, захват разума', () => {
   const battle = makeBattle(), p = battle.place(player(), 'parasite', 10, 4);
   battle.setMods(p, { perks: [3] });
@@ -2351,7 +2093,7 @@ test('мудрец: искры в двух мобов, рядом с ним бо
 
 test('мудрец: с 10-го вдохновение, с 30-го озарение перезаряжает способность, руна «ученик» — двоим', () => {
   const battle = makeBattle(), sage = battle.place(level(30), 'sage', 10, 4);
-  const ally = battle.place(level(50), 'bomber', 11, 4), mob = walker(battle, 1, 1e9);
+  const ally = battle.place(level(50), 'hunter', 11, 4), mob = walker(battle, 1, 1e9);
   still(mob);
   ally.nextActive = 1e9;
   battle.random = () => 0;
@@ -2828,7 +2570,7 @@ test('новые элитные: зеркальщик отражает удар,
   eq(armadillo.hp, 800, 'свернувшись, неуязвим');
 });
 
-test('новые боссы: червь под землёй, вынырнув — глотает мины; дракон жжёт линию; матка опутывает', () => {
+test('новые боссы: червь под землёй, вынырнув — глотает капканы; дракон жжёт линию; матка опутывает', () => {
   const battle = makeBattle();
   const gun = battle.place(player(), 'gunner', 6, 4);
   const worm = special(battle, 'boss', 'worm', 1000);
@@ -2836,22 +2578,22 @@ test('новые боссы: червь под землёй, вынырнув �
   eq(battle._target(gun), null, 'под землёй');
   battle._hurt(worm, 100, gun);
   eq(worm.hp, 1000);
-  battle.mines.push({ tower: gun, i: 4, x: worm.x, y: worm.y, kind: 'mine' });
+  battle.traps.push({ tower: gun, i: 4, x: worm.x, y: worm.y });
   battle.step(TICK);
-  eq(battle.mines.length, 1, 'под землёй мины не рвёт');
+  eq(battle.traps.length, 1, 'под землёй капкан не ловит');
   worm.powerAt = battle.time;
   battle.step(TICK);
-  eq(battle.mines.length, 0, 'вынырнул — проглотил');
+  eq(battle.traps.length, 0, 'вынырнул — проглотил');
   ok(battle._target(gun) === worm);
   const sky = makeBattle(), a = sky.place(player(), 'gunner', 7, 4), b = sky.place(player(), 'gunner', 9, 3);
   const c = sky.place(player(), 'gunner', 2, 9), dragon = special(sky, 'boss', 'dragon', 1000);
   ok(dragon.flying);
-  sky.mines.push({ tower: a, i: 5, x: 6, y: 5, kind: 'mine' });
+  sky.traps.push({ tower: a, i: 5, x: 6, y: 5 });
   dragon.powerAt = sky.time;
   sky.step(TICK);
   ok(a.stunUntil > sky.time && b.stunUntil > sky.time, 'на линии оглушены');
   ok(c.stunUntil <= sky.time, 'в стороне — нет');
-  eq(sky.mines.length, 0, 'мина на линии сгорела');
+  eq(sky.traps.length, 0, 'капкан на линии сгорел');
   sky._hurt(dragon, 100, a, 'fire');
   near(hit(dragon), 50, 'огонь вдвое слабее');
   const lair = makeBattle();
@@ -2883,10 +2625,10 @@ function mapWith(marks = {}, biome = 'grass') {
   return new Battle({ path: STRAIGHT, branch: FORK, merge: 10, tiles, biome }, { random: seeded(7) });
 }
 
-test('мины и капканы на повороте ложатся на путь мобов, моб на повороте их задевает', () => {
+test('капканы на повороте ложатся на путь мобов', () => {
   const bent = Array.from({ length: 7 }, (_, x) => [x, 5]).concat(Array.from({ length: 10 }, (_, k) => [6, 6 + k]));
-  const battle = new Battle(bent, { random: seeded(3) }), corner = 6;
-  const miner = battle.place(level(30), 'miner', 5, 6), hunter = battle.place(level(10), 'hunter', 7, 4);
+  const battle = new Battle(bent, { random: seeded(3) });
+  const hunter = battle.place(level(10), 'hunter', 7, 4);
   const path = [];
   const probe = { r: 0, d: 0, x: 0, y: 0 };
   for (let d = 0; d <= battle.length; d += 0.02) {
@@ -2895,21 +2637,9 @@ test('мины и капканы на повороте ложатся на пу�
     path.push([probe.x, probe.y]);
   }
   const gap = (item) => Math.min(...path.map(([x, y]) => Math.hypot(item.x - x, item.y - y)));
-  for (let n = 0; n < 60; n++) {
-    battle.mines = [];
-    battle._plant(miner, [corner]);
-    ok(gap(battle.mines[0]) < 0.2, 'мина на пути: ' + gap(battle.mines[0]).toFixed(2));
-  }
   battle._setTrap(hunter);
+  ok(battle.traps.length > 0);
   for (const trap of battle.traps) ok(gap(trap) < 0.05, 'капкан на пути');
-  battle.remove(hunter);
-  battle.traps = [];
-  battle.mines = [];
-  battle._plant(miner, [corner]);
-  const mine = battle.mines[0], mob = walker(battle, corner - 1, 1e6);
-  runFor(battle, 3);
-  no(battle.mines.includes(mine), 'моб на повороте подорвался');
-  ok(mob.max - mob.hp > 0);
 });
 
 test('мясник: раз в 10 секунд крюк летит пару секунд и пару секунд тащит защитника на клетку рядом с собой', () => {

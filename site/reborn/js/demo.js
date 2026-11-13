@@ -7,7 +7,7 @@ import { effectOf } from './events.js';
 const PLAYERS = [['Ветерок', 34], ['kotoboy', 12], ['Mira_Lis', 57], ['Тихоня', 8], ['pixel_hunter', 23], ['Сова', 71],
   ['dr_Groove', 3], ['Лёша_К', 41], ['NightOwl77', 16], ['Марго', 29], ['bublik', 5], ['Gera', 88], ['Ёжик', 19],
   ['sunny_day', 46]];
-const CLASSES = [['Тихоня', 'earth'], ['kotoboy', 'miner'], ['bublik', 'parasite'], ['sunny_day', 'pyro'],
+const CLASSES = [['Тихоня', 'earth'], ['kotoboy', 'mechanic'], ['bublik', 'parasite'], ['sunny_day', 'pyro'],
   ['dr_Groove', 'frost'], ['NightOwl77', 'alchemist']];
 const WAVE = 8;
 const INTO_WAVE = 9;

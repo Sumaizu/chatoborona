@@ -1,6 +1,6 @@
 import { HERO_IDS, drawHero, drawPhoenix } from './models.js';
 import { MOB_IDS, drawMelt, drawMob, drawSplit, gooColor } from './monsters.js';
-import { drawClod, drawCocoon, drawCoinIcon, drawEmblem, drawFireball, drawHeart, drawMeteor, drawMine, drawMound,
+import { drawClod, drawCocoon, drawCoinIcon, drawEmblem, drawFireball, drawHeart, drawMeteor, drawGrenade, drawMound,
   drawNuke, drawVent, drawRocket, drawTrap, drawWall } from './props.js';
 
 const OUTLINE = '#15111d';
@@ -312,7 +312,7 @@ export const flaskSprite = () => remember('flask', () => {
   return p.outline().canvas();
 });
 
-export const mineSprite = (kind, lit) => remember('mine:' + kind + ':' + lit, () => drawMine(kind, lit));
+export const grenadeSprite = (kind, lit) => remember('grenade:' + kind + ':' + lit, () => drawGrenade(kind, lit));
 export const ventSprite = (lit, blue) => remember('vent:' + lit + blue, () => drawVent(lit, blue));
 const FLAPS = [1, 0.74, 0.5, 0.74];
 export const PHOENIX_FRAMES = FLAPS.length;

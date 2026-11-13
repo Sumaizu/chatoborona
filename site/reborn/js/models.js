@@ -784,23 +784,6 @@ const HEROES = {
       q.egg(16, 13.9, 15, 3.6, 1.2, 1, '#f97316', 0.6);
     },
   }),
-  bomber: (m) => hero(m, {
-    coat: '#9a3b16', dark: '#6e2a10', hands: [12.5, 11.5, 19.5, 12.5],
-    back: (q) => {
-      for (const x of [11, 14, 18, 21]) q.ball(x, 24, 5, 1.8, '#4d7c2f', 0.4);
-    },
-    weapon: (q) => {
-      q.limb(16, 16, 10.5, 16, 3.5, 10.5, 2.6, '#5b7330', 0.3);
-      q.limb(16, 4, 11, 16, 2.6, 11, 2.9, '#3d4f20');
-      q.dot(16, 2, '#1c1917');
-      q.dot(17, 12, '#ff7a1f');
-    },
-    head: (q) => {
-      q.egg(16, 17.5, 10.6, 6.2, 6, 1.4, '#c98316');
-      q.ball(16, 17.5, 11.8, 4.8, '#f5a524', 0.6);
-      q.dot(16, 14, '#fff3b0', 40);
-    },
-  }),
   alchemist: (m) => hero(m, {
     coat: '#a3acb8', dark: '#6b7280', boots: '#2f2a26', hands: [12, 11.5, 19.5, 13],
     chest: (q) => q.egg(16, 20.5, 9, 5, 4, 0.8, '#7c4a1e'),
@@ -883,22 +866,6 @@ const HEROES = {
       q.dot(16, 17, '#e9d5ff', 60);
     },
   }),
-  miner: (m) => hero(m, {
-    coat: '#3b4a6b', dark: '#28334d', sleeve: '#33405d', boots: '#2a2620', hands: [13.5, 11.5, 18.5, 11.5],
-    glove: '#6b4a2b',
-    chest: (q) => q.limb(11, 22, 9.2, 21, 22, 9.2, 0.8, '#f59e0b'),
-    weapon: (q) => {
-      q.egg(16, 10.5, 11, 3.6, 2.6, 2, '#c0392b', 0.4);
-      q.limb(16, 9, 13, 16, 6, 13.5, 0.6, METAL);
-      q.ball(16, 5.6, 14, 1, '#ef4444', 1);
-      q.dot(17, 11, '#ffd84a', 60);
-    },
-    head: (q) => {
-      q.egg(16, 17.4, 10.6, 6.4, 6, 1.3, '#c99a21');
-      q.ball(16, 17.4, 11.8, 4.8, '#e0b43a', 0.7);
-      q.ball(16, 13.2, 14, 1.4, '#fff3b0', 1);
-    },
-  }),
   parasite: (m) => {
     for (const s of [-1, 1]) {
       for (const [a, b] of [[6, 9], [7, 15], [6, 21]]) {
@@ -932,8 +899,8 @@ export const MUZZLES = {
   'sniper-scope': [[16, -7]], 'sniper-assault': [[16, -4.9]], 'sniper-marksman': [[16, -6]], gunner: [[16, 2.6]],
   mechanic: [[19.2, 6.8]], 'mechanic-ragged': [[19.2, 6.8]], 'mechanic-turret': [[19, 5.4]],
   'mechanic-demo': [[21.2, 1]], 'mechanic-mortar': [[26.4, 11.2]],
-  bomber: [[16, 2.2]], alchemist: [[12, 11.5]], hunter: [[16, 3]], banner: [[19, 11]], healer: [[16, 9]],
-  sage: [[16, 11.2]], miner: [[13.5, 11.5]], frost: STAFF, earth: STAFF, shaman: STAFF, thunder: STAFF,
+  alchemist: [[12, 11.5]], hunter: [[16, 3]], banner: [[19, 11]], healer: [[16, 9]],
+  sage: [[16, 11.2]], frost: STAFF, earth: STAFF, shaman: STAFF, thunder: STAFF,
 };
 
 export function drawHero(id) {

@@ -1,7 +1,6 @@
 import { GOLD, METAL, Model, STEEL } from './models.js';
 
 const BRASS = '#c99a2e';
-const LAMPS = { big: ['#ff3b3b', '#6b1414'], mine: ['#ffb020', '#6b4410'] };
 
 function around(count, turn, cx, cy, rx, ry, each) {
   for (let i = 0; i < count; i++) {
@@ -10,25 +9,7 @@ function around(count, turn, cx, cy, rx, ry, each) {
   }
 }
 
-const MINES = {
-  big(m, lit) {
-    m.ball(11, 12, 0, 6.2, '#4d535e', 0.5);
-    around(6, Math.PI / 6, 11, 12, 1, 0.86, (x, y, a) => {
-      const ex = 11 + Math.cos(a) * 8.2, ey = 12 + Math.sin(a) * 7;
-      m.limb(11 + (x - 11) * 4.8, 12 + (y - 12) * 4.8, 3, ex, ey, 3.4, 1.15, METAL, 0.5, 0.8);
-      m.ball(ex, ey, 3.6, 1.2, BRASS, 0.7);
-    });
-    m.egg(11, 12.4, 1.5, 6.5, 2, 4.6, '#3a3f48', 0.4);
-    m.ball(11, 9.4, 5.4, 2, BRASS, 0.8);
-    m.ball(11, 9, 6.8, 1.4, LAMPS.big[lit ? 0 : 1], 1);
-  },
-  mine(m, lit) {
-    m.egg(11, 12, 0, 9, 7.6, 2.4, '#5f6136');
-    around(16, 0, 11, 12, 8.2, 6.9, (x, y, a, i) => m.ball(x, y, 1.6, 0.95, i % 4 < 2 ? '#e0b43a' : '#2a2a20'));
-    m.egg(11, 11.6, 1.8, 5.2, 4.4, 1.4, '#8a8752');
-    around(3, -Math.PI / 2, 11, 11.6, 3.4, 2.8, (x, y) => m.ball(x, y, 3, 0.8, STEEL, 0.6));
-    m.egg(11, 11.6, 3, 1.6, 1.4, 0.8, LAMPS.mine[lit ? 0 : 1], 1);
-  },
+const GRENADES = {
   grenade(m, lit) {
     m.egg(11, 13, 0, 5.6, 6.8, 4.8, '#55642f', 0.3);
     for (let row = 0; row < 4; row++) {
@@ -41,9 +22,9 @@ const MINES = {
   },
 };
 
-export function drawMine(kind, lit) {
+export function drawGrenade(kind, lit) {
   const m = new Model(22, 1);
-  MINES[kind](m, lit);
+  GRENADES[kind](m, lit);
   return m.paint();
 }
 

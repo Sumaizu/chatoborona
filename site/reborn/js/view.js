@@ -40,10 +40,10 @@ const SOUND_PRIORITY = ['over', 'divine', 'relic', 'win', 'boss', 'wave', 'jackp
   'meh', 'void', 'level',
   'buff', 'debuff', 'spin', 'leak', 'card', 'tick'];
 const SFX_PER_FRAME = 4;
-const SHOTS = { sniper: 'crack', mechanic: 'gun', gunner: 'gun', bomber: 'launch', hunter: 'bolt', parasite: 'bite',
+const SHOTS = { sniper: 'crack', mechanic: 'gun', gunner: 'gun', hunter: 'bolt', parasite: 'bite',
   banner: 'hit', healer: 'holy' };
-const BATTLE_SOUNDS = { wall: 'build', crumble: 'crumble', plant: 'plant', mine: 'mine', leap: 'leap',
-  bite: 'chomp', toss: 'launch', flask: 'flask', splash: 'splash', trap: 'plant', snap: 'snap', nova: 'ice',
+const BATTLE_SOUNDS = { wall: 'build', crumble: 'crumble', leap: 'leap',
+  bite: 'chomp', flask: 'flask', splash: 'splash', trap: 'plant', snap: 'snap', nova: 'ice',
   spikes: 'rock', whirl: 'wind', clink: 'clink', treasure: 'treasure', rattle: 'rattle', rise: 'rise',
   hex: 'hex', blink: 'leap', burrow: 'burrow', leech: 'summon', steal: 'clink', loot: 'treasure', reflect: 'block',
   swallow: 'burrow', breath: 'flame', web: 'hex', ward: 'block', mirage: 'summon', dig: 'burrow', drop: 'summon',
@@ -500,7 +500,7 @@ export class View {
         glow: NEWCOMER_GLOW[look.element] || '#4ade80', boss: false, fresh: true };
       this._keys.herald = '';
       this._sound('growl');
-    } else if (kind === 'toss' && (event.mine === 'nuke' || event.mine === 'fusion') || kind === 'meteor') {
+    } else if (kind === 'mortar' && event.nuke || kind === 'meteor') {
       this._sound('fall', event.time);
     } else if (kind === 'quake') {
       this._sound('quake');
@@ -514,9 +514,9 @@ export class View {
       this._cue('buff');
       this.scene.say(MAGE_SAYS[kind][0], MAGE_SAYS[kind][1]);
     } else if (kind === 'nuke') {
-      this._sound(event.small ? 'mine' : 'nuke');
+      this._sound('nuke');
       const box = $('blackout'), board = $('board');
-      for (const [node, name] of event.small ? [[board, 'shake']] : [[box, 'on'], [board, 'shake']]) {
+      for (const [node, name] of [[box, 'on'], [board, 'shake']]) {
         node.classList.remove(name);
         void node.offsetWidth;
         node.classList.add(name);
