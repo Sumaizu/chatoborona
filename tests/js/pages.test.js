@@ -436,6 +436,7 @@ test('страницы: главная — без канала просит ка
   ok(element(w, 'settings').contains(element(w, 'reset')), 'сброс — в настройках');
   no(w.document.querySelector('.top').contains(element(w, 'reset')), 'а не в шапке');
   ok(text(w, 'news').includes('Чатоборона Реборн') && text(w, 'news').includes('ни один стример'));
+  ok(text(w, 'news').includes('готовы пока только 3 класса: маг огня, стрелок и механик'), 'что готово в Реборне');
   eq(w.document.querySelector('#news a').getAttribute('href'), 'reborn/', 'ссылка на Реборн');
   element(w, 'news-close').click();
   no(element(w, 'news').open, '«Понятно» закрывает новости');
