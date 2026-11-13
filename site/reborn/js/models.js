@@ -604,8 +604,142 @@ function marksman(m) {
   });
 }
 
+const TORSO = '#dfa97f';
+
+function surface(x, y) {
+  const q = 1 - ((x - 16) / 8.6) ** 2 - ((y - 18.5) / 6.2) ** 2;
+  return q > 0 ? 5 + 4.6 * Math.sqrt(q) : -1;
+}
+
+function pistol(q, x) {
+  q.limb(x, 12.6, 10.4, x, 11, 10.4, 0.8, '#3f444d');
+  q.limb(x, 11.6, 11.2, x, 7, 11.4, 0.85, '#4b5563', 0.7);
+  q.dot(x - 0.5, 6.8, '#cbd5e1', 40);
+}
+
+function wrench(m) {
+  hero(m, {
+    coat: TORSO, sleeve: SKIN, boots: '#b91c1c', slim: true, hands: [12.2, 13, 19.2, 11.6],
+    chest: (q) => {
+      q.egg(16, 24.8, 4.8, 7.2, 2.6, 2.8, '#b91c1c');
+      q.limb(9.6, 23.2, 7.4, 22.4, 23.2, 7.4, 0.8, '#7f1d1d');
+      for (const x of [13.2, 18.8]) q.egg(x, 15.2, 8.6, 2.6, 1.8, 1.2, '#d39a70');
+      for (const [x, y] of [[11.4, 19.6], [20.4, 17.4], [14.6, 21.4]]) q.dot(x, y, '#5b4a3a', surface(x, y) + 1);
+    },
+    weapon: (q) => {
+      q.limb(12.2, 14, 10.4, 10.2, 8.2, 10.8, 0.65, METAL, 0.6);
+      q.egg(9.8, 7, 11, 1.8, 1.5, 0.9, METAL, 0.6);
+      q.egg(9.4, 5.9, 11.7, 0.7, 0.8, 0.5, '#2a2f36');
+      pistol(q, 19.2);
+    },
+    head: (q) => {
+      q.ball(16, 17, 11.2, 4.4, SKIN);
+      q.egg(16, 16.9, 11.9, 4.6, 4.6, 4.1, '#2563eb');
+      q.limb(11.8, 14.2, 13.6, 20.2, 14.2, 13.6, 0.75, '#1e40af');
+      for (const [x, y] of [[14.2, 16.6], [17.8, 18], [15.4, 19.6], [18.2, 15.6]]) q.dot(x, y, '#dbeafe', 60);
+      q.ball(16, 21.6, 13, 1.1, '#1e40af');
+      q.limb(16, 21.8, 12.8, 14.8, 24, 11.6, 0.65, '#2563eb', 0, 0.4);
+      q.limb(16, 21.8, 12.8, 17.4, 23.8, 11.6, 0.65, '#1e40af', 0, 0.4);
+    },
+  });
+}
+
+function turreteer(m) {
+  hero(m, {
+    coat: '#f97316', dark: '#ea580c', sleeve: '#fb923c', boots: '#9a3412', glove: '#44403c', slim: true,
+    hands: [11.4, 15.4, 19, 12],
+    back: (q) => {
+      q.egg(16, 25, 4.6, 7.8, 5, 5.8, '#57534e');
+      q.egg(16, 27.8, 7.4, 6.4, 1.7, 2.8, '#44403c');
+      q.egg(16, 22.6, 9.6, 6.6, 1.4, 1.2, '#78716c');
+      q.limb(11.6, 24, 10.6, 9.8, 28.8, 11.4, 0.6, METAL, 0.6);
+      q.egg(9.6, 29.4, 11.6, 1.5, 1.2, 0.8, METAL, 0.6);
+      q.limb(15.4, 25.2, 11, 14.8, 29.6, 11.6, 0.5, '#facc15');
+      q.limb(19.4, 24.6, 10.8, 21.2, 28.6, 11.2, 0.75, '#a16207');
+      q.ball(21.4, 29, 11.4, 0.85, '#ef4444');
+    },
+    chest: (q) => {
+      for (const x of [12.6, 19.4]) q.limb(x, 12.8, 9.6, x - 0.4, 23, 8.2, 0.75, '#44403c');
+      q.dot(16, 14.4, '#fde68a', 30);
+    },
+    weapon: (q) => {
+      q.limb(19, 13.6, 10.6, 19, 8.6, 11, 1.05, '#2d323b');
+      q.limb(19.9, 11.2, 10, 21.8, 11.8, 9.2, 0.6, '#1f2937');
+      q.limb(19, 8.6, 11.4, 19, 5.6, 11.4, 0.5, METAL, 0.6);
+      q.dot(18.5, 9.6, '#facc15', 40);
+    },
+    head: (q) => {
+      q.ball(16, 17, 11.2, 4.4, SKIN);
+      q.ball(16, 18, 12.3, 3.8, '#f2c94c');
+      for (let i = 0; i < 9; i++) {
+        const a = -Math.PI * 0.95 + i * Math.PI * 1.9 / 8, length = 3.8 + (i % 3) * 0.5;
+        q.limb(16 + Math.cos(a) * 1.6, 18 + Math.sin(a) * 1.6, 14.4, 16 + Math.cos(a + 0.25) * length,
+          18 + Math.sin(a + 0.25) * length, 12.6, 0.9, i % 2 ? '#f2c94c' : '#d9a92a', 0, 0.35);
+      }
+    },
+  });
+}
+
+function demoman(m) {
+  seated(m, {
+    coat: '#3f3f46', dark: '#27272a', sleeve: '#52525b', legs: '#3f3f46', boots: '#18181b', glove: '#27272a',
+    kneel: true, hands: [20, 10.6, 20.8, 16.4],
+    weapon: (q) => {
+      q.limb(21.2, 26, 12.6, 21.2, 5.6, 12.8, 1.8, '#4d5a2a', 0.3);
+      q.limb(21.2, 25.4, 12.6, 21.2, 28.4, 12.6, 1.8, '#3f3f46', 0, 2.3);
+      q.ball(21.2, 28, 12.8, 1.25, '#111827');
+      for (const y of [20.4, 11.6]) q.limb(21.2, y, 12.8, 21.2, y - 1, 12.8, 2, '#3a4422');
+      q.limb(21.2, 5.8, 12.8, 21.2, 3.8, 12.8, 1.5, '#556b2f', 0.3, 1.7);
+      q.limb(21.2, 3.8, 12.8, 21.2, 1.2, 12.8, 1.7, '#6b7f3a', 0.3, 0.3);
+      q.limb(19.2, 14, 14, 19.2, 12.4, 14, 0.55, '#1f2937');
+      q.dot(18.7, 12, '#4ade80', 60);
+    },
+    head: (q) => {
+      q.egg(16, 21, 10.6, 5.2, 5, 1.2, '#374151');
+      q.egg(16, 21, 11, 4.5, 4.4, 3.2, '#4b5563', 0.4);
+      q.limb(11.2, 21, 13.4, 20.8, 21, 13.4, 0.7, '#1f2937');
+      for (const x of [11.2, 20.8]) q.egg(x, 21, 11.8, 1.4, 2, 1.8, '#111827', 0.5);
+    },
+  });
+}
+
+function stripes(q, color) {
+  for (const y of [13.6, 16.2, 18.8, 21.4, 24]) {
+    for (let x = 7.6; x <= 24.4; x += 0.5) {
+      const z = surface(x, y);
+      if (z > 0) q.ball(x, y, z - 0.25, 0.55, color);
+    }
+  }
+}
+
+function mortarman(m) {
+  hero(m, {
+    coat: '#f1f5f9', sleeve: SKIN, boots: '#9c8b5a', slim: true, hands: [12, 14.4, 21.6, 15.2],
+    chest: (q) => {
+      stripes(q, '#1d4ed8');
+      q.egg(16, 24.8, 4.8, 7, 2.4, 2.6, '#8a7a4c');
+    },
+    weapon: (q) => {
+      q.egg(26.4, 15.4, 0.4, 3.2, 2.6, 0.6, '#3a4426');
+      for (const side of [-1, 1]) q.limb(26.4, 12.6, 5.4, 26.4 + side * 2.6, 10.2, 0.4, 0.45, STEEL);
+      q.limb(26.4, 14.6, 1.6, 26.4, 11.4, 8.6, 1.5, '#4d6b2f', 0.4);
+      q.limb(26.4, 12.8, 5.6, 26.4, 12.2, 6.6, 1.75, '#3f5626');
+      q.ball(26.4, 11.2, 9.4, 1.05, '#151a10');
+    },
+    head: (q) => {
+      q.ball(16, 17, 11.2, 4.4, SKIN);
+      q.ball(16, 18.2, 12.1, 3.7, '#3b2a1a');
+    },
+  });
+}
+
 const SKINS = {
   pyro: ragged,
+  mechanic: wrench,
+  'mechanic-ragged': wrench,
+  'mechanic-turret': turreteer,
+  'mechanic-demo': demoman,
+  'mechanic-mortar': mortarman,
   sniper: recruit,
   'sniper-ragged': recruit,
   'sniper-scope': ghillie,
@@ -796,6 +930,8 @@ export const MUZZLES = {
   'pyro-fireball-twin-blue': PALMS, 'pyro-ignite': [[20.5, 7.5]], 'pyro-ignite-blue': [[20.5, 7.5]],
   'pyro-dragon': MOUTH, 'pyro-dragon-blue': MOUTH, sniper: PISTOL, 'sniper-ragged': PISTOL,
   'sniper-scope': [[16, -7]], 'sniper-assault': [[16, -4.9]], 'sniper-marksman': [[16, -6]], gunner: [[16, 2.6]],
+  mechanic: [[19.2, 6.8]], 'mechanic-ragged': [[19.2, 6.8]], 'mechanic-turret': [[19, 5.4]],
+  'mechanic-demo': [[21.2, 1]], 'mechanic-mortar': [[26.4, 11.2]],
   bomber: [[16, 2.2]], alchemist: [[12, 11.5]], hunter: [[16, 3]], banner: [[19, 11]], healer: [[16, 9]],
   sage: [[16, 11.2]], miner: [[13.5, 11.5]], frost: STAFF, earth: STAFF, shaman: STAFF, thunder: STAFF,
 };

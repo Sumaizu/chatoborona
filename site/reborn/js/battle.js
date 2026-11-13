@@ -94,6 +94,9 @@ export const SHOT = { scope: { mul: 5, aim: 2, reload: 3 }, assault: { range: -1
   gold: 2, mark: { bonus: 0.25, time: 4 }, ricochet: { share: 0.5, arc: 75, reach: 3 },
   burst: { count: 3, radius: 1, gap: 0.08 },
   flash: { every: 30, radius: 1, stun: 1.5 }, double: { arc: 30 }, air: 3 };
+export const MECH = { turret: { range: -1.5, interval: 1, mul: 0.3, count: 3, gap: 0.08, radius: 1, mag: 15,
+  reload: 3 }, demo: { range: 0, interval: 3, mul: 1.6, radius: 1, flight: 0.6 },
+  mortar: { interval: 2.4, mul: 1.1, radius: 0.8, flight: 0.7, pace: 0.06 } };
 const STEEL_BLAST = { radius: 1.5, mul: 8, stun: 1 };
 const ECHO_DELAY = 0.3;
 const ROCKET_FLIGHT = 0.6;
@@ -976,7 +979,7 @@ export class Battle {
     const boost = Math.max(FLOOR, 1 + (mods.damage || 0)) * tower.might / MIGHT.base;
     tower.damage = base.damage * boost;
     tower.skill = base.skill * boost;
-    const shot = cls.id === 'sniper' && SHOT[tower.style] || null;
+    const shot = cls.id === 'sniper' && SHOT[tower.style] || cls.id === 'mechanic' && MECH[tower.style] || null;
     if (shot) tower.damage *= shot.mul;
     tower.interval = (shot && shot.interval || base.interval) / (Math.max(FLOOR, 1 + (mods.rate || 0))
       * (tower.runes.has('frenzy') ? 3 : 1));
@@ -1001,8 +1004,9 @@ export class Battle {
     if (tower.style === 'fireball') return b.range + 1 + (tower.runes.has('giant') ? 0.5 : 0);
     if (tower.style === 'dragon') return (b.range - 0.5) * (tower.runes.has('lungs') ? 2 : 1);
     if (tower.style === 'ignite') return 0;
-    if (tower.style === 'scope') return FAR_REACH;
+    if (tower.style === 'scope' || tower.style === 'mortar') return FAR_REACH;
     if (tower.style === 'assault' || tower.style === 'marksman') return b.range + SHOT[tower.style].range;
+    if (tower.style === 'turret' || tower.style === 'demo') return b.range + MECH[tower.style].range;
     return b.range || 0;
   }
 
@@ -2161,6 +2165,7 @@ export class Battle {
 
   facing(t) {
     if (t.aim && this._targetable(t, t.aim)) return t.aim;
+    if (t.style === 'mortar') return this._leader();
     return t.cls.id === 'sniper' ? aimOf(this, t) : this._target(t);
   }
 
@@ -2692,7 +2697,7 @@ function shoot(b, t, target, { mul = 1, crit = false, heavy = '', from = null, r
 }
 
 function spend(b, t, now, count, target) {
-  const shot = SHOT[t.style];
+  const shot = SHOT[t.style] || MECH[t.style];
   if (!shot || !shot.mag) return;
   if (t.style === 'assault' && t.runes.has('flashbang')) {
     t.thrown = (t.thrown || 0) + count;
@@ -2705,6 +2710,36 @@ function spend(b, t, now, count, target) {
   if (t.bullets < shot.mag) return;
   t.bullets = 0;
   reload(t, now, shot.reload);
+}
+
+function volley(b, t, target, s, stick) {
+  const x = target.x, y = target.y;
+  const one = () => {
+    if (!b.towers.includes(t)) return;
+    if (stick && canShoot(b, t, target, Infinity)) {
+      shoot(b, t, target);
+      return;
+    }
+    const pool = b.mobs.filter((mob) => canShoot(b, t, mob, Infinity) && near(mob, x, y, s.radius));
+    if (pool.length) shoot(b, t, pool[Math.floor(b.random() * pool.length)]);
+  };
+  one();
+  for (let k = 1; k < s.count; k++) b._later(k * s.gap, one);
+}
+
+function rocket(b, t, target) {
+  const s = MECH.demo, crit = rollCrit(b, t);
+  b._event({ kind: 'rocket', tower: t, mob: target, x: target.x, y: target.y, time: s.flight, crit });
+  b._later(s.flight, () => b._blast(t, target.x, target.y, s.radius, t.damage * (crit ? t.critMul : 1), null));
+}
+
+function mortar(b, t) {
+  const s = MECH.mortar, target = b._leader();
+  if (!target) return false;
+  const crit = rollCrit(b, t), time = s.flight + Math.hypot(target.x - t.cx, target.y - t.cy) * s.pace;
+  b._event({ kind: 'mortar', tower: t, mob: target, x: target.x, y: target.y, time, crit });
+  b._later(time, () => b._blast(t, target.x, target.y, s.radius, t.damage * (crit ? t.critMul : 1), null));
+  return true;
 }
 
 function flashbang(b, t, target) {
@@ -2809,15 +2844,8 @@ const SKILLS = {
         return true;
       }
       if (t.style === 'assault' && t.runes.has('burstFire')) {
-        const s = SHOT.burst, x = target.x, y = target.y;
-        const volley = () => {
-          if (!b.towers.includes(t)) return;
-          const pool = b.mobs.filter((mob) => canShoot(b, t, mob, Infinity) && near(mob, x, y, s.radius));
-          if (pool.length) shoot(b, t, pool[Math.floor(b.random() * pool.length)]);
-        };
-        volley();
-        for (let k = 1; k < s.count; k++) b._later(k * s.gap, volley);
-        spend(b, t, now, s.count, target);
+        volley(b, t, target, SHOT.burst, false);
+        spend(b, t, now, SHOT.burst.count, target);
         return true;
       }
       shoot(b, t, target);
@@ -2831,6 +2859,20 @@ const SKILLS = {
       if (!target) return;
       shoot(b, t, target, { crit: t.runes.has('steady'), heavy: 'heavy' });
       reload(t, now, SHOT.scope.reload);
+    },
+  },
+  mechanic: {
+    fire(b, t, now) {
+      if (t.reloadUntil > now) return false;
+      if (t.style === 'mortar') return mortar(b, t);
+      const target = b._target(t);
+      if (!target) return false;
+      if (t.style === 'turret') {
+        volley(b, t, target, MECH.turret, true);
+        spend(b, t, now, MECH.turret.count, target);
+      } else if (t.style === 'demo') rocket(b, t, target);
+      else shoot(b, t, target);
+      return true;
     },
   },
   gunner: {

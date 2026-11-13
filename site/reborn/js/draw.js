@@ -23,6 +23,7 @@ const SHOT_WAIT = 0.5;
 const SHOT_QUEUE = 4;
 const LOOK_EVERY = 0.1;
 const FLIGHT_MIN = 0.05;
+const MORTAR_ARC = { base: 24, per: 9, max: 110 };
 const TURN_STEPS = 8;
 const KICK = 0.1;
 const FLASH = 0.06;
@@ -80,6 +81,7 @@ const MUTED = 'rgba(166, 162, 189, .85)';
 const DARK = '#100e1f';
 const BOLTS = {
   sniper: { look: 'tracer', color: '#fff3b0', width: 2, bullet: true },
+  mechanic: { look: 'tracer', color: '#ffe8a3', width: 1.5, bullet: true },
   gunner: { look: 'dot', color: '#ffd84a', size: 2 },
   bomber: { look: 'lob', color: '#5b7330', size: 4 },
   earth: { look: 'lob', color: '#9a8f80', size: 4 },
@@ -1383,8 +1385,17 @@ export class Scene {
   _vents(ctx, battle) {
     for (const vent of battle.vents) {
       const lit = Math.floor(this.clock * 3 + vent.x) % 2 === 0, x = at(vent.cx), y = at(vent.cy);
-      glow(ctx, x, y, 14, 'rgba(255, 120, 30, .9)', 0.25 + 0.1 * Math.sin(this.clock * 5 + vent.x));
-      sprite(ctx, ventSprite(lit), x, y, 0, 2);
+      const blue = vent.tower.runes.has('blue'), tones = blue ? BLUE_FLAME : FLAME;
+      glow(ctx, x, y, 22, blue ? 'rgba(74, 163, 255, .9)' : 'rgba(255, 120, 30, .9)',
+        0.3 + 0.1 * Math.sin(this.clock * 5 + vent.x));
+      sprite(ctx, ventSprite(lit, blue), x, y, 0, 2);
+      for (let i = 0; i < 4; i++) {
+        const rise = (this.clock * 0.7 + i / 4 + vent.x * 0.37) % 1;
+        ctx.globalAlpha = 1 - rise;
+        bit(ctx, x + Math.sin(rise * 5 + i * 1.7) * 3, y - 2 - rise * 18, 2, tones[i % 3],
+          i + Math.floor(this.clock * 5));
+      }
+      ctx.globalAlpha = 1;
     }
   }
 
@@ -2276,6 +2287,13 @@ export class Scene {
         add({ kind: 'rocket', life: Math.max(FLIGHT_MIN, event.time - late), x1: tip.x, y1: tip.y, x2, y2,
           mob: event.mob });
       });
+    } else if (event.kind === 'mortar') {
+      this._fire(t, event.x, event.y, event.mob, (x2, y2, late) => {
+        const tip = this._muzzle(t), far = Math.hypot(x2 - tip.x, y2 - tip.y);
+        add({ kind: 'mortar', life: Math.max(FLIGHT_MIN, event.time - late), x1: tip.x, y1: tip.y, x2, y2,
+          mob: event.mob, arc: Math.min(MORTAR_ARC.max, MORTAR_ARC.base + far * MORTAR_ARC.per) });
+        this._sparks(tip.x, tip.y, ['#e5e7eb', '#9ca3af', '#fff3b0'], 5, 1.2, 0.35, 2);
+      });
     } else if (event.kind === 'chain') {
       const [fx, fy] = event.points[1];
       this._fire(t, fx, fy, null, () => {
@@ -2397,8 +2415,9 @@ export class Scene {
     } else if (event.kind === 'phoenix') {
       this._sparks(event.x, event.y, (event.tower.runes.has('blue') ? BLUE_FLAME : FLAME).slice(0, 3), 22, 3, 0.6, 3);
     } else if (event.kind === 'vent') {
-      add({ kind: 'ring', life: 0.6, x: event.x, y: event.y, r: 0.8, color: '#f97316', width: 3 });
-      this._sparks(event.x, event.y, FLAME.slice(0, 3), 16, 2.4, 0.6, 3);
+      const blue = t.runes.has('blue');
+      add({ kind: 'ring', life: 0.6, x: event.x, y: event.y, r: 0.8, color: blue ? '#4aa3ff' : '#f97316', width: 3 });
+      this._sparks(event.x, event.y, (blue ? BLUE_FLAME : FLAME).slice(0, 3), 16, 2.4, 0.6, 3);
     } else if (event.kind === 'flight') {
       this._sparks(event.x1, event.y1, FLAME.slice(0, 3), 14, 2.4, 0.5, 3);
     } else if (event.kind === 'net') {
@@ -2721,6 +2740,28 @@ export class Scene {
         }
         glow(ctx, x + bx * 7, y + by * 7, 7, 'rgba(255, 160, 40, .95)', 0.85);
         sprite(ctx, rocketSprite(), x, y, angle, 1.6, 0, 64);
+      } else if (e.kind === 'mortar') {
+        const spot = e.mob.dead ? null : this.shown.get(e.mob.id);
+        if (spot) {
+          e.x2 = spot.x;
+          e.y2 = spot.y;
+        }
+        const ground = (k) => [at(e.x1 + (e.x2 - e.x1) * k), at(e.y1 + (e.y2 - e.y1) * k)];
+        const air = (k) => {
+          const [gx, gy] = ground(k);
+          return [gx, gy - Math.sin(k * Math.PI) * e.arc];
+        };
+        const [sx, sy] = ground(share), [x, y] = air(share), [nx, ny] = air(Math.min(1, share + 0.03));
+        ctx.fillStyle = 'rgba(0, 0, 0, .25)';
+        ctx.beginPath();
+        ctx.ellipse(sx, sy + 2, 4, 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        for (let i = 1; i <= 5; i++) {
+          const [px, py] = air(Math.max(0, share - i * 0.025));
+          glow(ctx, px, py, 2 + i, 'rgba(200, 196, 210, 1)', 0.35 * (1 - i / 6));
+        }
+        glow(ctx, x, y, 5, 'rgba(255, 160, 40, .95)', 0.7);
+        sprite(ctx, rocketSprite(), x, y, Math.atan2(nx - x, -(ny - y)), 1, 0, 64);
       } else if (e.kind === 'meteor') {
         const tx = at(e.x), ty = at(e.y), k = share * share, mx = tx - 150 * (1 - k), my = ty - 210 * (1 - k);
         ctx.save();

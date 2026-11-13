@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { BITE_TIME, Battle, CRIMSON, DISCHARGE, FUSION, HEADWIND, MOVE_PAUSE, NUKE_FLIGHT, OVERTIME, PLAGUE,
+import { BITE_TIME, Battle, CRIMSON, DISCHARGE, FUSION, HEADWIND, MECH, MOVE_PAUSE, NUKE_FLIGHT, OVERTIME, PLAGUE,
   FIRE, PLANTED, PULSE, REACTIONS, ROT, SECOND, SHELL_FLIGHT, SHOT, SPLIT_TIME, THORN }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
@@ -417,6 +417,101 @@ function shooter(battle, x, y, runes) {
   battle.random = () => 0.99;
   return t;
 }
+
+function mechanic(battle, x, y, runes) {
+  const t = battle.place(player(), 'mechanic', x, y);
+  battle.setMods(t, { runes });
+  t.critChance = 0;
+  t.cooldown = 1e9;
+  battle.random = () => 0.99;
+  return t;
+}
+
+const firedBy = (battle, kind) => {
+  const start = battle.events.length;
+  return () => battle.events.slice(start).filter((e) => e.kind === kind);
+};
+
+test('механик: без стиля — пистолет, по пуле в того, кто ближе к сердцу', () => {
+  const battle = makeBattle(), t = mechanic(battle, 10, 4, []);
+  eq(t.cls.name, 'Механик');
+  const back = walker(battle, 9, 1e9), front = walker(battle, 12, 1e9), shots = firedBy(battle, 'shot');
+  still(back, front);
+  ok(battle._fire(t));
+  eq(shots().length, 1);
+  near(hit(front), t.damage, 'в того, кто впереди');
+  eq(hit(back), 0);
+});
+
+test('механик-турельщик: очередь по 3 пули в одну цель, после 15 пуль — 3 секунды перезарядки', () => {
+  const battle = makeBattle(), t = mechanic(battle, 10, 4, ['turret']);
+  near(t.baseRange, t.cls.base.range + MECH.turret.range);
+  near(t.interval, MECH.turret.interval);
+  near(t.damage / baseOf(t.cls).damage, MECH.turret.mul);
+  const target = walker(battle, 12, 1e9), other = walker(battle, 11.6, 1e9), shots = firedBy(battle, 'shot');
+  still(target, other);
+  battle._fire(t);
+  eq(shots().length, 1, 'первая пуля — сразу');
+  runFor(battle, MECH.turret.gap + 0.01);
+  eq(shots().length, 2, 'вторая — чуть позже');
+  runFor(battle, MECH.turret.gap);
+  eq(shots().length, MECH.turret.count, 'очередь — три пули друг за другом');
+  ok(shots().every((e) => e.mob === target), 'все три — в одну цель');
+  near(hit(target), t.damage * MECH.turret.count);
+  for (let i = 1; i < MECH.turret.mag / MECH.turret.count; i++) ok(battle._fire(t));
+  ok(t.reloadUntil >= battle.time + MECH.turret.reload - 1e-9, '15-я пуля — перезарядка');
+  no(battle._fire(t), 'перезаряжается');
+  const lone = makeBattle(), u = mechanic(lone, 10, 4, ['turret']);
+  const first = walker(lone, 12, 1e9), next = walker(lone, 11.6, 1e9);
+  still(first, next);
+  lone._fire(u);
+  first.dead = true;
+  runFor(lone, MECH.turret.gap * 2 + 0.1);
+  near(hit(next), u.damage * (MECH.turret.count - 1), 'цель погибла — остаток очереди в соседа');
+});
+
+test('механик-подрывник: РПГ — снаряд долетает и взрывается, бьёт всех в клетке вокруг цели', () => {
+  const battle = makeBattle(), t = mechanic(battle, 10, 4, ['demo']);
+  near(t.damage / baseOf(t.cls).damage, MECH.demo.mul);
+  const target = walker(battle, 13, 1e9), close = walker(battle, 12.4, 1e9), far = walker(battle, 10, 1e9);
+  still(target, close, far);
+  const rockets = firedBy(battle, 'rocket');
+  battle._fire(t);
+  ok(rockets().some((e) => e.mob === target), 'снаряд пущен в того, кто впереди');
+  eq(hit(target), 0, 'пока летит — урона нет');
+  runFor(battle, MECH.demo.flight + 0.05);
+  near(hit(target), t.damage);
+  near(hit(close), t.damage, 'сосед в клетке задет');
+  eq(hit(far), 0, 'дальний цел');
+});
+
+test('механик-ракетчик: через всю карту в того, кто впереди всех; ракета догоняет цель и взрывается вокруг', () => {
+  const battle = makeBattle(), t = mechanic(battle, 1, 4, ['mortar']);
+  ok(t.range >= SIZE, 'вся карта');
+  near(t.interval, MECH.mortar.interval);
+  const lead = walker(battle, 14, 1e9), side = walker(battle, 13.4, 1e9), close = walker(battle, 2, 1e9);
+  still(side, close);
+  lead.power = null;
+  const shells = firedBy(battle, 'mortar');
+  ok(battle._fire(t));
+  const shell = shells()[0];
+  ok(shell && shell.mob === lead, 'в того, кто впереди всех, хоть он и далеко');
+  near(shell.time, MECH.mortar.flight + Math.hypot(lead.x - t.cx, lead.y - t.cy) * MECH.mortar.pace,
+    'чем дальше, тем дольше летит');
+  const from = lead.d;
+  runFor(battle, shell.time + 0.05);
+  ok(lead.d - from > MECH.mortar.radius, 'цель успела уйти: ' + (lead.d - from));
+  near(hit(lead), t.damage, 'ракета догнала цель');
+  eq(hit(side), 0, 'туда, где цель была, не упала');
+  eq(hit(close), 0);
+  const fall = makeBattle(), u = mechanic(fall, 1, 4, ['mortar']);
+  const doomed = walker(fall, 14, 1e9), buddy = walker(fall, 13.6, 1e9);
+  still(doomed, buddy);
+  fall._fire(u);
+  doomed.dead = true;
+  runFor(fall, MECH.mortar.flight + 1);
+  near(hit(buddy), u.damage, 'цель погибла — ракета упала там же и задела соседа');
+});
 
 test('стрелок: без стиля — редкий дальний выстрел в самого крепкого, дальше всех', () => {
   const battle = makeBattle(), t = battle.place(player(), 'sniper', 10, 4);

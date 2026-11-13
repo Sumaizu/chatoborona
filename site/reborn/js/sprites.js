@@ -313,7 +313,7 @@ export const flaskSprite = () => remember('flask', () => {
 });
 
 export const mineSprite = (kind, lit) => remember('mine:' + kind + ':' + lit, () => drawMine(kind, lit));
-export const ventSprite = (lit) => remember('vent:' + lit, () => drawVent(lit));
+export const ventSprite = (lit, blue) => remember('vent:' + lit + blue, () => drawVent(lit, blue));
 const FLAPS = [1, 0.74, 0.5, 0.74];
 export const PHOENIX_FRAMES = FLAPS.length;
 export const phoenixSprite = (blue, frame = 0) => remember('phoenix:' + blue + ':' + frame,

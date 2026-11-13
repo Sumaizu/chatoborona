@@ -191,9 +191,9 @@ test('с 91-й волны мобы крепчают спокойно — на 10
   }
 });
 
-test('классы: пятнадцать, у каждого оружие, свой склад и набор навыков; у стрелков — по плану Реборна', () => {
-  eq(CLASSES.length, 15);
-  eq(new Set(CLASSES.map((c) => c.id)).size, 15);
+test('классы: шестнадцать, у каждого оружие, свой склад и набор навыков; у стрелков — по плану Реборна', () => {
+  eq(CLASSES.length, 16);
+  eq(new Set(CLASSES.map((c) => c.id)).size, 16);
   eq(PERKS, [10, 30, 50]);
   const runes = CLASSES.flatMap((cls) => cls.runes.map((rune) => rune.id));
   eq(new Set(runes).size, runes.length, 'руны не повторяются');
@@ -223,6 +223,9 @@ test('классы: пятнадцать, у каждого оружие, сво
     'lastRound', 'spotter', 'goldRounds', 'endless'], 'у штурмовика — только свои усиления');
   eq(['sniper-ragged', 'sniper-scope', 'sniper-assault', 'sniper-marksman'],
     [[], ['scope'], ['assault'], ['marksman']].map((taken) => skinOf('sniper', taken)));
+  eq(names('mechanic'), ['Турельщик', 'Подрывник', 'Ракетчик']);
+  eq(['mechanic-ragged', 'mechanic-turret', 'mechanic-demo', 'mechanic-mortar'],
+    [[], ['turret'], ['demo'], ['mortar']].map((taken) => skinOf('mechanic', taken)));
   eq(names('gunner'), ['Перегрев', 'Длинная лента', 'Рикошет', 'Подавление', 'Берсерк', 'Шквал свинца', 'Трассеры']);
   eq(names('hunter'), ['Капканы', 'Сеть', 'Кровопускание', 'Добыча', 'Гроза чудовищ', 'Медвежий капкан']);
   eq(names('bomber'), ['Горящая земля', 'Шрапнель', 'Детонация', 'Кассетный выстрел', 'РПГ', 'Липкая бомба',

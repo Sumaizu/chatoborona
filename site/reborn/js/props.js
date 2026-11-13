@@ -78,14 +78,32 @@ export function drawFireball(blue, frame) {
   return canvas;
 }
 
-export function drawVent(lit) {
-  const m = new Model(24, 1);
-  m.egg(12, 12.5, 1.5, 10, 9.5, 3.4, '#57534e');
-  for (const [x, y, r] of [[4, 8, 2], [19, 6, 1.8], [20, 17, 2.2], [6, 18, 1.6]]) m.ball(x, y, 3, r, '#78716c');
-  m.egg(12, 12, 4.6, 6, 5.6, 1.4, '#292524');
-  m.egg(12, 12, 5.4, 4.2, 3.8, 0.8, lit ? '#f97316' : '#c2410c', 1);
-  m.ball(12, 11.6, 5.8, 1.7, lit ? '#fde047' : '#fb923c', 1);
-  m.dot(9, 9, '#fed7aa', 40);
+const LAVA = {
+  warm: ['#fff3b0', '#ffd84a', '#f97316', '#c2410c', '#7c2d12'],
+  blue: ['#e0f2ff', '#9bd5ff', '#3b82f6', '#1d4ed8', '#1e3a8a'],
+};
+
+export function drawVent(lit, blue) {
+  const m = new Model(44, 1.22), lava = LAVA[blue ? 'blue' : 'warm'], c = 22;
+  m.egg(c, c + 0.6, 0, 13.4, 12.4, 2.4, '#3b3430');
+  around(11, 0.3, c, c + 0.6, 12.4, 11.4, (x, y, a, i) => {
+    m.egg(x, y, 1, 2.3 - (i % 3) * 0.45, 1.9 - (i % 2) * 0.35, 1.6, i % 2 ? '#4f4741' : '#5f5650');
+  });
+  m.egg(c, c, 1, 10.4, 9.6, 5.2, '#4a413a');
+  around(6, 0.5, c, c, 1, 1, (x, y, a, i) => {
+    const bend = a + (i % 2 ? 0.2 : -0.15), reach = 11.6 + (i % 3) * 0.6;
+    const x0 = c + Math.cos(a) * 7, y0 = c + Math.sin(a) * 6.4;
+    const x1 = c + Math.cos(bend) * reach, y1 = c + Math.sin(bend) * reach * 0.93;
+    m.limb(x0, y0, 4.9, x1, y1, 1.8, 1.1, lava[lit ? 3 : 4], 0.2, 0.5);
+    m.limb(x0, y0, 5.3, (x0 * 2 + x1) / 3, (y0 * 2 + y1) / 3, 4.4, 0.55, lava[lit ? 1 : 2], 0.2, 0.3);
+  });
+  around(18, 0, c, c, 6.2, 5.7, (x, y) => m.ball(x, y, 5.2, 0.9, lava[3], 0.2));
+  around(14, 0.1, c, c, 7.5, 6.9, (x, y, a, i) => m.ball(x, y, 5, 1.6 - (i % 3) * 0.3, i % 2 ? '#5c544d' : '#433b35'));
+  m.egg(c, c, 5.6, 5.6, 5, 0.6, lava[lit ? 3 : 4], 0.2);
+  m.egg(c - 0.3, c - 0.2, 5.8, 4.3, 3.8, 0.5, lava[lit ? 2 : 3], 0.2);
+  m.egg(c - 0.6, c - 0.5, 6, 2.6, 2.2, 0.4, lava[lit ? 1 : 2], 0.2);
+  const [bx, by] = lit ? [c + 1.4, c - 1.2] : [c - 1.6, c + 1.2];
+  m.ball(bx, by, 6, lit ? 1.2 : 0.8, lava[0], 0.6);
   return m.paint();
 }
 

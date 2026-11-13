@@ -40,15 +40,15 @@ const SOUND_PRIORITY = ['over', 'divine', 'relic', 'win', 'boss', 'wave', 'jackp
   'meh', 'void', 'level',
   'buff', 'debuff', 'spin', 'leak', 'card', 'tick'];
 const SFX_PER_FRAME = 4;
-const SHOTS = { sniper: 'crack', gunner: 'gun', bomber: 'launch', hunter: 'bolt', parasite: 'bite', banner: 'hit',
-  healer: 'holy' };
+const SHOTS = { sniper: 'crack', mechanic: 'gun', gunner: 'gun', bomber: 'launch', hunter: 'bolt', parasite: 'bite',
+  banner: 'hit', healer: 'holy' };
 const BATTLE_SOUNDS = { wall: 'build', crumble: 'crumble', plant: 'plant', mine: 'mine', leap: 'leap',
   bite: 'chomp', toss: 'launch', flask: 'flask', splash: 'splash', trap: 'plant', snap: 'snap', nova: 'ice',
   spikes: 'rock', whirl: 'wind', clink: 'clink', treasure: 'treasure', rattle: 'rattle', rise: 'rise',
   hex: 'hex', blink: 'leap', burrow: 'burrow', leech: 'summon', steal: 'clink', loot: 'treasure', reflect: 'block',
   swallow: 'burrow', breath: 'flame', web: 'hex', ward: 'block', mirage: 'summon', dig: 'burrow', drop: 'summon',
   hook: 'chain', yank: 'yank', charge: 'charge', reload: 'reload', ricochet: 'ricochet', burst: 'mine',
-  rocket: 'launch', flash: 'flash', fogtoss: 'flask', fog: 'splash', ignite: 'ignite', oil: 'splash',
+  rocket: 'launch', mortar: 'launch', flash: 'flash', fogtoss: 'flask', fog: 'splash', ignite: 'ignite', oil: 'splash',
   oilfire: 'flame', net: 'snap', prey: 'prey', bounty: 'treasure', ambush: 'leap', cocoon: 'clink',
   hatch: 'hatch', heist: 'jackpot', share: 'treasure', shatter: 'freeze', snow: 'snow', gust: 'wind',
   wind: 'wind', cheer: 'rally', rally: 'rally', cleanse: 'heal', hallow: 'holy', muse: 'cast', expose: 'hex',
