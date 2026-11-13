@@ -35,7 +35,7 @@ const ROWS = { over: 5, pause: 10, pauseShort: 8, queue: 3, cards: 4, player: 22
 const CARD_GAP = 6;
 const REEL = { cells: 26, result: 21, width: 34 };
 const BIG_PRIZES = new Set(['epic', 'legendary']);
-const CYCLES = new Map([['rainbow', 2400], ['snow-glint', 6000]]);
+const CYCLES = new Map([['rainbow', 2400], ['snow-glint', 6000], ['glare', 3000]]);
 const SOUND_PRIORITY = ['over', 'divine', 'relic', 'win', 'boss', 'wave', 'jackpot', 'prize', 'upgrade', 'reward',
   'meh', 'void', 'level',
   'buff', 'debuff', 'spin', 'leak', 'card', 'tick'];

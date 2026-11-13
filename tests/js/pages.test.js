@@ -196,6 +196,7 @@ test('страницы: божественное оружие — плашка �
   const w = frame.contentWindow, game = w.chatoborona.game;
   await until(() => game.state === 'lobby', 'набор');
   join(game, 'higashi_vo');
+  join(game, 'Renozis');
   join(game, 'Аня');
   game.next();
   await until(() => game.state === 'placing', 'расстановка');
@@ -215,6 +216,8 @@ test('страницы: божественное оружие — плашка �
   await until(() => !w.document.querySelector('#cards .profile .relic').hidden, 'частица слева от монет');
   ok(text(w, 'cards').includes('Божественн'));
   await until(() => w.document.querySelector('#players .snow'), 'снежный ник higashi_vo');
+  await until(() => w.document.querySelector('#players .glare'), 'ник Renozis с бликом');
+  eq(w.getComputedStyle(w.document.querySelector('#players .glare')).animationName, 'glare');
   frame.remove();
 });
 
