@@ -702,11 +702,12 @@ function demoman(m) {
 const KHAKI = '#a08c5b';
 
 function mortarman(m) {
-  m.egg(16, 17.8, 0.5, 4, 3.4, 0.7, '#3a4426');
-  for (const side of [-1, 1]) m.limb(16, 12.6, 6, 16 + side * 3.2, 9.6, 0.4, 0.5, STEEL);
-  m.limb(16, 17.2, 2, 16, 8.4, 11.4, 1.95, '#4d6b2f', 0.5);
-  m.limb(16, 14.8, 4.8, 16, 14, 5.8, 2.25, '#3f5626');
-  m.ball(16, 8.2, 12, 1.45, '#151a10');
+  m.egg(16, 16.6, 0.5, 4.4, 3.8, 0.7, '#3a4426');
+  for (const side of [-1, 1]) m.limb(16, 14.2, 7, 16 + side * 3.4, 11.8, 0.4, 0.5, STEEL);
+  m.limb(16, 17, 1.6, 16, 12.8, 13.4, 2.2, '#4d6b2f', 0.5);
+  m.limb(16, 15.6, 5.4, 16, 15, 6.6, 2.5, '#3f5626');
+  m.egg(16, 12.6, 14, 2, 2, 0.4, '#5b7a3a', 0.4);
+  m.ball(16, 12.6, 14.2, 1.45, '#151a10');
   legs(m, 16, 30.2, '#2a2018', 0, 2.2, 1.6, 1.8);
   m.limb(10.6, 25, 7, 21.4, 25, 7, 2.1, SKIN);
   m.egg(16, 31, 4.6, 3.4, 1.6, 2.2, KHAKI);
@@ -917,7 +918,7 @@ export const MUZZLES = {
   'pyro-dragon': MOUTH, 'pyro-dragon-blue': MOUTH, sniper: PISTOL, 'sniper-ragged': PISTOL,
   'sniper-scope': [[16, -7]], 'sniper-assault': [[16, -4.9]], 'sniper-marksman': [[16, -6]],
   mechanic: [[19.2, 6.8]], 'mechanic-ragged': [[19.2, 6.8]], 'mechanic-turret': [[19.6, 6.4]],
-  'mechanic-demo': [[21.2, 1]], 'mechanic-mortar': [[16, 8.2]],
+  'mechanic-demo': [[21.2, 1]], 'mechanic-mortar': [[16, 12.6]],
   'mechanic-turret-giant': [[16, -6.6]],
   alchemist: [[12, 11.5]], hunter: [[16, 3]], banner: [[19, 11]], healer: [[16, 9]],
   sage: [[16, 11.2]], frost: STAFF, earth: STAFF, shaman: STAFF, thunder: STAFF,
