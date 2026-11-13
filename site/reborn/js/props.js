@@ -513,7 +513,20 @@ export function drawCoinIcon() {
 const HEART_GLINTS = new Set(['14,14', '13,14', '15,14', '14,13', '14,15', '14,12', '14,16', '12,14', '16,14',
   '31,12']);
 
-export function drawHeart() {
+function scaleAt(x, y) {
+  const w = 9, h = 6.2, radius = 6, row = Math.floor(y / h);
+  let best = null;
+  for (const r of [row - 1, row, row + 1]) {
+    const off = r % 2 ? w / 2 : 0, col = Math.round((x - off) / w), cy = r * h;
+    for (const k of [col - 1, col, col + 1]) {
+      const reach = Math.hypot(x - (k * w + off), (y - cy) * 1.15) / radius;
+      if (reach < 1 && (!best || cy < best.cy)) best = { cy, reach };
+    }
+  }
+  return best ? best.reach : 1;
+}
+
+export function drawHeart(armored = false) {
   const m = new Model(48, 1), side = m.side, shift = m.pad - 0.5;
   const inside = (px, py) => {
     const u = (px - shift - 24) / 17.5, v = (26 - (py - shift)) / 16.5, q = u * u + v * v - 1;
@@ -530,15 +543,17 @@ export function drawHeart() {
   for (const [px, py] of cells) {
     const d = Math.min(...rim.map(([x, y]) => Math.hypot(px - x, py - y)));
     const z = d <= 3.2 ? 3 + 1.8 * Math.sin(Math.PI * d / 3.2) : 2 + 8 * Math.pow((d - 3.2) / 10, 0.7);
-    height.set(py * side + px, [z, d]);
+    const reach = armored && d > 3.2 ? scaleAt(px - shift, py - shift) : 1;
+    height.set(py * side + px, [z + (reach < 1 ? 2.2 * Math.sqrt(1 - reach * reach) : 0), d, reach]);
   }
   const zAt = (px, py, z) => (height.has(py * side + px) ? height.get(py * side + px)[0] : z - 2);
   for (const [px, py] of cells) {
-    const [z, d] = height.get(py * side + px), gold = d <= 3.2;
+    const [z, d, reach] = height.get(py * side + px), gold = d <= 3.2;
     const dx = (zAt(px + 1, py, z) - zAt(px - 1, py, z)) / 2, dy = (zAt(px, py + 1, z) - zAt(px, py - 1, z)) / 2;
     const n = [-dx, -dy, 1], l = Math.hypot(n[0], n[1], n[2]);
-    if (HEART_GLINTS.has((px - m.pad) + ',' + (py - m.pad))) m.plot(px, py, z, '#fff1f2', [0, 0, 1], 1, 0);
-    else m.plot(px, py, z, gold ? GOLD : '#e11d48', [n[0] / l, n[1] / l, n[2] / l], 0, gold ? 0.8 : 0.7);
+    const face = gold ? GOLD : !armored ? '#e11d48' : reach > 0.86 ? '#3f4856' : '#aab5c3';
+    if (!armored && HEART_GLINTS.has((px - m.pad) + ',' + (py - m.pad))) m.plot(px, py, z, '#fff1f2', [0, 0, 1], 1, 0);
+    else m.plot(px, py, z, face, [n[0] / l, n[1] / l, n[2] / l], 0, gold || armored ? 0.8 : 0.7);
   }
   return m.paint();
 }

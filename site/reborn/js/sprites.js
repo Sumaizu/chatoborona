@@ -312,19 +312,6 @@ export const flaskSprite = () => remember('flask', () => {
   return p.outline().canvas();
 });
 
-export const bucklerSprite = () => remember('buckler', () => mapSprite([
-  '.OOOOOOO.',
-  'OWLLLMMDO',
-  'OLLLMMMDO',
-  'OLLLMMMDO',
-  'OLLMMMMDO',
-  'OLLMMMDDO',
-  '.OLMMMDO.',
-  '.OLMMDDO.',
-  '..OMMDO..',
-  '...OMO...',
-  '....O....',
-], { O: '#1e293b', W: '#f8fafc', L: '#dbe3ec', M: '#9aa8b8', D: '#5f6f82' }));
 export const droneSprite = (kind, frame) => remember('drone:' + kind + frame, () => drawDrone(kind, frame));
 export const grenadeSprite = (kind, lit) => remember('grenade:' + kind + ':' + lit, () => drawGrenade(kind, lit));
 export const ventSprite = (lit, blue) => remember('vent:' + lit + blue, () => drawVent(lit, blue));
@@ -650,7 +637,7 @@ function shape(p, inside, color, dark, light) {
   }
 }
 
-export const heartSprite = () => remember('heart', drawHeart);
+export const heartSprite = (armored = false) => remember('heart' + (armored ? ':armored' : ''), () => drawHeart(armored));
 
 
 const KIND_COLORS = { buff: '#4ade80', debuff: '#f87171', blessing: '#fbbf24', curse: '#c084fc', biome: '#7dd3fc',

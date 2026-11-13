@@ -3,7 +3,7 @@ import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintR
 import { FIRE, MECH, flightAt } from './battle.js';
 import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite, cocoonSprite,
   coinSprite, fireballSprite, flaskSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
-  meteorSprite, grenadeSprite, bucklerSprite, droneSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
+  meteorSprite, grenadeSprite, droneSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
   rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, trapSprite, ventSprite, wallSprite } from './sprites.js';
 import { SOILS } from './props.js';
 import { MUZZLES } from './models.js';
@@ -27,7 +27,6 @@ const COG = ['.#.#.', '#####', '##.##', '#####', '.#.#.'];
 const SHELL = ['oo', '##', '##', '##', '##'];
 const AURAS = { team: { glow: 'rgba(100, 116, 139, 1)', tones: ['#64748b', '#475569', '#7c8a9e'], shape: COG },
   tuning: { glow: 'rgba(250, 204, 21, 1)', tones: ['#facc15', '#eab308', '#d4a017'], shape: SHELL, tip: '#b45309' } };
-const BUCKLER = { radius: 22, speed: 1.1, margin: 9 };
 const BLAST_TONES = ['#fff3b0', '#ffd84a', '#ff9a1f', '#e2531f', '#6b5a50'];
 const DRONE_LIFT = 18;
 const AIRBURST = 22;
@@ -1458,17 +1457,6 @@ export class Scene {
     ctx.globalAlpha = 1;
   }
 
-  _bucklers(ctx, x, y, count, front) {
-    for (let i = 0; i < count; i++) {
-      const a = this.clock * BUCKLER.speed + i / count * Math.PI * 2;
-      if (Math.sin(a) >= 0 !== front) continue;
-      const inside = (v) => Math.max(EDGE + BUCKLER.margin, Math.min(BOARD - EDGE - BUCKLER.margin, v));
-      const bx = inside(x + Math.cos(a) * BUCKLER.radius), by = inside(y + Math.sin(a) * BUCKLER.radius * 0.85);
-      glow(ctx, bx, by, 8, 'rgba(191, 219, 254, 1)', 0.2 + 0.08 * Math.sin(this.clock * 4 + i));
-      sprite(ctx, bucklerSprite(), bx, by + Math.sin(this.clock * 3 + i), 0, 1.4);
-    }
-  }
-
   _mutedOn(ctx, x, y, size) {
     const tick = Math.floor(this.clock * 12);
     for (let i = 0; i < 3; i++) {
@@ -2210,8 +2198,7 @@ export class Scene {
     const hit = this._hurtAt !== undefined && this.clock - this._hurtAt < 0.35;
     const bitten = battle.mobs.some((mob) => mob.biting && !mob.dead);
     const shake = bitten ? Math.sin(this.clock * 40) * 1.2 : 0;
-    if (battle.steel > 0) this._bucklers(ctx, x, y, battle.steel, false);
-    const image = heartSprite(), scale = ZOOM / (image.fine || 1) * (1 + 0.08 * beat);
+    const image = heartSprite(battle.steel > 0), scale = ZOOM / (image.fine || 1) * (1 + 0.08 * beat);
     const w = image.width * scale, h = image.height * scale;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -2225,7 +2212,6 @@ export class Scene {
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
     }
-    if (battle.steel > 0) this._bucklers(ctx, x, y, battle.steel, true);
     ctx.font = '900 14px "Segoe UI", system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
