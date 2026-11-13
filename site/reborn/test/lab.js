@@ -74,7 +74,7 @@ const lab = {
     const pools = {};
     for (const cls of CLASSES) {
       pools[cls.id] = poolOf(cls.id).map((skill) => ({ id: skill.id, name: skill.name, kind: skill.kind,
-        style: skill.style || null }));
+        style: skill.style || null, max: skill.max || 1 }));
     }
     return {
       classes: CLASSES.map((cls) => ({ id: cls.id, name: cls.name, color: cls.color })), pools, types: TYPES, mobs,

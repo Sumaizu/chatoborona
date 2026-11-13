@@ -19,6 +19,7 @@
 .admin .state b { color: var(--ink); }
 .admin .skills { display: grid; gap: 3px; max-height: 260px; overflow-y: auto; padding-right: 4px; }
 .admin .skills label { display: flex; align-items: center; gap: 6px; }
+.admin .skills input[type='number'] { width: 44px; }
 .admin .skills small { color: var(--muted); }
 .admin .log { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; max-height: 180px; overflow-y: auto;
   font-size: 12.5px; }

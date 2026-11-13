@@ -703,34 +703,72 @@ function demoman(m) {
   });
 }
 
-function stripes(q, color) {
-  for (const y of [13.6, 16.2, 18.8, 21.4, 24]) {
-    for (let x = 7.6; x <= 24.4; x += 0.5) {
-      const z = surface(x, y);
-      if (z > 0) q.ball(x, y, z - 0.25, 0.55, color);
-    }
-  }
+const KHAKI = '#a08c5b';
+
+function lean(x, y) {
+  const q = 1 - ((x - 16) / 5.8) ** 2 - ((y - 19.4) / 5.2) ** 2;
+  return q > 0 ? 5 + 4.2 * Math.sqrt(q) : -1;
 }
 
 function mortarman(m) {
-  hero(m, {
-    coat: '#f1f5f9', sleeve: SKIN, boots: '#9c8b5a', slim: true, hands: [12, 14.4, 21.6, 15.2],
-    chest: (q) => {
-      stripes(q, '#1d4ed8');
-      q.egg(16, 24.8, 4.8, 7, 2.4, 2.6, '#8a7a4c');
-    },
-    weapon: (q) => {
-      q.egg(26.4, 15.4, 0.4, 3.2, 2.6, 0.6, '#3a4426');
-      for (const side of [-1, 1]) q.limb(26.4, 12.6, 5.4, 26.4 + side * 2.6, 10.2, 0.4, 0.45, STEEL);
-      q.limb(26.4, 14.6, 1.6, 26.4, 11.4, 8.6, 1.5, '#4d6b2f', 0.4);
-      q.limb(26.4, 12.8, 5.6, 26.4, 12.2, 6.6, 1.75, '#3f5626');
-      q.ball(26.4, 11.2, 9.4, 1.05, '#151a10');
-    },
-    head: (q) => {
-      q.ball(16, 17, 11.2, 4.4, SKIN);
-      q.ball(16, 18.2, 12.1, 3.7, '#3b2a1a');
-    },
-  });
+  for (const side of [-1, 1]) {
+    const x = 16 + side * 2.4;
+    m.limb(x, 23, 3.6, x + side * 0.3, 27.6, 2.2, 1.7, KHAKI, 0, 1.5);
+    m.egg(x + side * 0.7, 25.2, 3.9, 0.9, 1.3, 0.5, '#7a6a40');
+    m.egg(x + side * 0.3, 28.6, 1.6, 1.4, 1.6, 1.2, '#2a2018');
+  }
+  m.egg(16, 23.4, 4, 4.6, 2.2, 2.4, KHAKI);
+  m.egg(16, 19.4, 5, 5.8, 5.2, 4.2, '#f8fafc');
+  for (const y of [18.4, 20.6, 22.8]) {
+    for (let x = 9.6; x <= 22.4; x += 0.45) {
+      const z = lean(x, y);
+      if (z > 0) m.ball(x, y, z - 0.35, 0.85, '#1e3a8a');
+    }
+  }
+  m.limb(11, 24.4, 6.4, 21, 24.4, 6.4, 0.55, '#3b2c22');
+  m.egg(26.4, 14, 0.5, 3.8, 3.2, 0.7, '#3a4426');
+  for (const side of [-1, 1]) m.limb(26.4, 9.6, 6, 26.4 + side * 3, 6.6, 0.4, 0.5, STEEL);
+  m.limb(26.4, 13.4, 2, 26.4, 4.6, 11.4, 1.95, '#4d6b2f', 0.5);
+  m.limb(26.4, 11, 4.8, 26.4, 10.2, 5.8, 2.25, '#3f5626');
+  m.ball(26.4, 4.4, 12, 1.45, '#151a10');
+  m.limb(10.6, 17.4, 7.6, 9.8, 21.8, 7.4, 1.45, SKIN);
+  m.limb(21.4, 17.4, 7.6, 23.6, 13, 8.6, 1.45, SKIN);
+  for (const x of [10.6, 21.4]) m.ball(x, 17.2, 8, 1.8, SKIN);
+  m.limb(23.6, 13.4, 9.6, 23.6, 10.4, 9.8, 0.9, '#6b7f3a', 0.4);
+  m.ball(23.6, 10.2, 10, 0.85, '#d4a017', 0.8);
+  m.ball(9.8, 22, 8, 1.5, SKIN);
+  m.ball(23.6, 13, 9.6, 1.6, SKIN);
+  m.ball(16, 14.4, 10.6, 3.8, SKIN);
+  m.ball(16, 15.2, 11.6, 3.2, '#3b2a1a');
+}
+
+function giantTurret(m) {
+  m.egg(16, 17, 0, 11.5, 11, 2.2, '#3f4652');
+  for (let i = 0; i < 12; i++) {
+    const a = i * Math.PI / 6;
+    m.ball(16 + Math.cos(a) * 10, 17 + Math.sin(a) * 9.6, 1.8, 0.5, '#9ca3af');
+  }
+  m.egg(16, 17, 2, 8.6, 8.2, 1.4, '#5b6472', 0.4);
+  m.egg(16, 25.2, 3, 4.6, 2.4, 3.2, '#1f2937');
+  m.egg(16, 21.8, 5, 4.4, 3.4, 3.4, '#f97316');
+  for (const [sx, gx] of [[12.4, 13.4], [19.6, 18.6]]) {
+    m.limb(sx, 20.6, 7.4, gx, 15.2, 8.6, 1.4, '#fb923c');
+    m.ball(gx, 15, 9, 1.4, '#44403c');
+  }
+  m.limb(16, 17.4, 9, 16, 9.6, 9.4, 2.4, '#374151', 0.5);
+  m.egg(11, 12.6, 8, 2.2, 2.8, 2, '#4d5a2a');
+  m.limb(12.8, 12.4, 9.6, 14.6, 12.2, 9.8, 0.6, '#d4a017');
+  for (const side of [-1, 1]) m.limb(16 + side * 4.2, 10, 8.6, 16 + side * 3.2, 8.4, 11, 0.7, '#6b7280');
+  m.limb(16, 9.8, 9.6, 16, 1.2, 9.6, 1.45, '#1f2937', 0.4);
+  for (let y = 8; y > 2; y -= 1.6) m.dot(15.5, y, '#6b7280', 12);
+  m.limb(16, 1.4, 9.6, 16, -1.2, 9.6, 1.75, '#111827', 0.5);
+  m.ball(16, 22.4, 9.4, 3.6, SKIN);
+  m.ball(16, 23, 10.4, 3.2, '#f2c94c');
+  for (let i = 0; i < 7; i++) {
+    const a = -Math.PI * 0.9 + i * Math.PI * 1.8 / 6;
+    m.limb(16 + Math.cos(a) * 1.4, 23 + Math.sin(a) * 1.4, 12.6, 16 + Math.cos(a + 0.3) * 3.6,
+      23 + Math.sin(a + 0.3) * 3.4, 11, 0.8, i % 2 ? '#f2c94c' : '#d9a92a', 0, 0.3);
+  }
 }
 
 const SKINS = {
@@ -740,6 +778,7 @@ const SKINS = {
   'mechanic-turret': turreteer,
   'mechanic-demo': demoman,
   'mechanic-mortar': mortarman,
+  'mechanic-turret-giant': giantTurret,
   sniper: recruit,
   'sniper-ragged': recruit,
   'sniper-scope': ghillie,
@@ -898,7 +937,8 @@ export const MUZZLES = {
   'pyro-dragon': MOUTH, 'pyro-dragon-blue': MOUTH, sniper: PISTOL, 'sniper-ragged': PISTOL,
   'sniper-scope': [[16, -7]], 'sniper-assault': [[16, -4.9]], 'sniper-marksman': [[16, -6]], gunner: [[16, 2.6]],
   mechanic: [[19.2, 6.8]], 'mechanic-ragged': [[19.2, 6.8]], 'mechanic-turret': [[19, 5.4]],
-  'mechanic-demo': [[21.2, 1]], 'mechanic-mortar': [[26.4, 11.2]],
+  'mechanic-demo': [[21.2, 1]], 'mechanic-mortar': [[26.4, 4.4]],
+  'mechanic-turret-giant': [[16, -1.2]],
   alchemist: [[12, 11.5]], hunter: [[16, 3]], banner: [[19, 11]], healer: [[16, 9]],
   sage: [[16, 11.2]], frost: STAFF, earth: STAFF, shaman: STAFF, thunder: STAFF,
 };

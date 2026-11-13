@@ -376,6 +376,10 @@ export class Game {
 
   goTo(member, x, y) {
     if (!member || !this.movable || member.cls && CLASS_BY_ID.get(member.cls).rider) return false;
+    if (member.tower && member.skills.includes('giant')) {
+      this._note('fixed', member);
+      return false;
+    }
     if (member.tower && member.tower.x === x && member.tower.y === y) return true;
     if (member.tower) return this.battle.move(member.tower, x, y);
     return Boolean(this._place(member, { x, y }));

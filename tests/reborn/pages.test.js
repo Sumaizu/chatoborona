@@ -679,6 +679,13 @@ test('страницы: тестовый симулятор — вход по н
   await until(() => d.querySelector('[data-act="pick-0"]'), 'кнопки выбора');
   click('pick-0');
   eq(m.skills.length, 2);
+  frame.rebornLab.setClass(login, 'mechanic');
+  frame.rebornLab.setSkills(login, ['turret']);
+  const drones = await until(() => d.querySelector('#a-skills input[data-skill="droneAir"]'), 'дроны в списке');
+  eq(drones.type, 'number', 'дронов — числом, до трёх');
+  drones.value = '3';
+  drones.dispatchEvent(new w.Event('change'));
+  eq(game.members.get(login).skills.filter((id) => id === 'droneAir').length, 3);
   d.getElementById('a-nick').value = 'Проба';
   d.getElementById('a-text').value = 'гача';
   d.getElementById('a-chat').requestSubmit();

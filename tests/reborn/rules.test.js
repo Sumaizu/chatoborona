@@ -223,9 +223,19 @@ test('классы: четырнадцать, у каждого оружие, с
     'lastRound', 'spotter', 'goldRounds', 'endless'], 'у штурмовика — только свои усиления');
   eq(['sniper-ragged', 'sniper-scope', 'sniper-assault', 'sniper-marksman'],
     [[], ['scope'], ['assault'], ['marksman']].map((taken) => skinOf('sniper', taken)));
-  eq(names('mechanic'), ['Турельщик', 'Подрывник', 'Ракетчик']);
-  eq(['mechanic-ragged', 'mechanic-turret', 'mechanic-demo', 'mechanic-mortar'],
-    [[], ['turret'], ['demo'], ['mortar']].map((taken) => skinOf('mechanic', taken)));
+  eq(names('mechanic'), ['Турельщик', 'Подрывник', 'Ракетчик', 'Гигантская турель', 'Атакующий дрон', 'Лазерный дрон',
+    'Противовоздушный дрон', 'Кассетный снаряд', 'Большой калибр', 'Залп', 'Прицельный выстрел', 'Напалм',
+    'Корректировка', 'Шрапнель', 'Ядерка', 'Команда поддержки', 'ЭМИ-граната', 'Стальной щит', 'Тюнинг']);
+  eq(['mechanic-ragged', 'mechanic-turret', 'mechanic-turret-giant', 'mechanic-demo', 'mechanic-mortar'],
+    [[], ['turret'], ['turret', 'giant'], ['demo'], ['mortar']].map((taken) => skinOf('mechanic', taken)));
+  const drones = (taken) => choiceOf('mechanic', taken).find((option) => option.skill.id === 'droneAttack');
+  eq([drones(['turret']).count, drones(['turret']).state], [0, 'open']);
+  eq([drones(['turret', 'droneAttack', 'droneAttack']).count, drones(['turret', 'droneAttack', 'droneAttack']).state],
+    [2, 'open'], 'дрона можно взять ещё раз');
+  eq(drones(['turret', 'droneAttack', 'droneAttack', 'droneAttack']).state, 'taken', 'больше трёх — нельзя');
+  eq(choiceOf('mechanic', ['turret', 'giant']).find((option) => option.skill.id === 'giant').state, 'taken');
+  eq(describe('mechanic', ['turret', 'droneAir', 'droneAir']).skills.map((skill) => [skill.id, skill.count]),
+    [['turret', 1], ['droneAir', 2]], 'в профиле дрон один раз, с числом');
   eq(names('gunner'), ['Перегрев', 'Длинная лента', 'Рикошет', 'Подавление', 'Берсерк', 'Шквал свинца', 'Трассеры']);
   eq(names('hunter'), ['Капканы', 'Сеть', 'Кровопускание', 'Добыча', 'Гроза чудовищ', 'Медвежий капкан']);
   eq(names('alchemist'), ['Ядовитая лужа', 'Кислота', 'Отрава', 'Зелье безумия', 'Ядовитый туман', 'Чёрный мор',

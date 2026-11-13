@@ -89,13 +89,22 @@ export const CLASSES = [
     main: (b) => 'Редко стреляет из пистолета на ' + cells(b.range) + ' — в того, кто ближе к сердцу: урон ×'
       + num(b.damage),
     styles: [
-      { id: 'turret', name: 'Турельщик', text: 'пистолет-пулемёт бьёт очередями по 3 пули в одну цель; после 15 пуль '
-        + '— 3 секунды перезарядки' },
+      { id: 'turret', name: 'Турельщик', marks: ['giant'], text: 'пистолет-пулемёт бьёт очередями по 3 пули в одну '
+        + 'цель; после 15 пуль — 3 секунды перезарядки' },
       { id: 'demo', name: 'Подрывник', text: 'стреляет из РПГ: снаряд взрывается и бьёт всех в клетке вокруг цели' },
       { id: 'mortar', name: 'Ракетчик', text: 'бьёт из миномёта через всю карту по тому, кто впереди всех: ракета '
         + 'летит навесом, догоняет цель и взрывается, задевая всех рядом; цель погибла — ракета падает на землю там же' },
     ],
     upgrades: [
+      { id: 'giant', style: 'turret', name: 'Гигантская турель', text: 'садится за большую турель: очереди по 4 пули '
+        + 'без перезарядки, каждая следующая пуля — в другого моба не дальше 30 градусов от прошлого; сперва бьёт '
+        + 'летучих; переставить его на другую клетку больше нельзя' },
+      { id: 'droneAttack', style: 'turret', max: 3, name: 'Атакующий дрон', text: 'дрон летает по всей карте за тем, '
+        + 'кто впереди всех, и бьёт его очередями' },
+      { id: 'droneLaser', style: 'turret', max: 3, name: 'Лазерный дрон', text: 'дрон летает по всей карте за первым '
+        + 'элитным или боссом и бьёт лазером сквозь броню' },
+      { id: 'droneAir', style: 'turret', max: 3, name: 'Противовоздушный дрон', text: 'дрон летает по всей карте за '
+        + 'первым летучим и стреляет сетями: немного урона и сильное замедление' },
       { id: 'cluster', style: 'demo', name: 'Кассетный снаряд', text: 'после взрыва разлетаются ещё два осколка — в '
         + 'случайных мобов в клетке вокруг; каждый взрывается с половиной урона снаряда' },
       { id: 'caliber', style: 'demo', name: 'Большой калибр', text: 'взрыв вдвое шире и вдвое сильнее' },
@@ -113,10 +122,11 @@ export const CLASSES = [
     abilities: [
       { id: 'team', name: 'Команда поддержки', text: 'он и механики в клетке вокруг него стреляют быстрее: на 10% за '
         + 'каждого механика рядом, считая его самого; все подклассы считаются' },
-      { id: 'emp', name: 'ЭМИ-граната', text: 'раз в 8 секунд кидает навесом гранату в моба, до которого достаёт: все '
-        + 'на 2 клетки вокруг оглушены, а их способности на 4 секунды отключаются' },
-      { id: 'steel', name: 'Стальной щит', text: 'вокруг сердца стальной щит: за волну он принимает на себя один удар по '
-        + 'сердцу, сколько бы тот ни отнимал; щиты нескольких механиков складываются' },
+      { id: 'emp', name: 'ЭМИ-граната', text: 'раз в 8 секунд кидает навесом гранату в моба, до которого достаёт: '
+        + 'все на 2 клетки вокруг оглушены, а их способности на 4 секунды отключаются; если у него есть атакующие '
+        + 'или лазерные дроны, гранату сбрасывает под себя случайный дрон' },
+      { id: 'bulwark', name: 'Стальной щит', text: 'вокруг сердца стальной щит: за волну он принимает на себя один '
+        + 'удар по сердцу, сколько бы тот ни отнимал; щиты нескольких механиков складываются' },
       { id: 'tuning', name: 'Тюнинг', text: 'стрелки в клетке вокруг него стреляют на 30% быстрее' },
     ],
     skills: [],
@@ -699,13 +709,18 @@ export function poolOf(id) {
   return cls.pool ? cls.pool.map((key) => all.find((skill) => skill.id === key)) : all;
 }
 
+export const countOf = (taken, id) => taken.filter((item) => item === id).length;
+
 export function choiceOf(id, taken) {
   const pool = poolOf(id), style = pool.find((skill) => skill.kind === 'style' && taken.includes(skill.id));
   if (!style && pool.some((skill) => skill.kind === 'style')) {
-    return pool.filter((skill) => skill.kind === 'style').map((skill) => ({ skill, state: 'open' }));
+    return pool.filter((skill) => skill.kind === 'style').map((skill) => ({ skill, state: 'open', count: 0 }));
   }
   return pool.filter((skill) => skill.kind !== 'style' && (!skill.style || style && skill.style === style.id))
-    .map((skill) => ({ skill, state: taken.includes(skill.id) ? 'taken' : 'open' }));
+    .map((skill) => {
+      const count = countOf(taken, skill.id);
+      return { skill, count, state: count >= (skill.max || 1) ? 'taken' : 'open' };
+    });
 }
 
 export function styleOf(id, taken) {
@@ -729,5 +744,7 @@ export const stonesAt = (level) => STONES.filter((at) => level >= at).length;
 export function describe(id, skills = []) {
   const cls = CLASS_BY_ID.get(id), style = styleOf(id, skills);
   const main = style ? style.text[0].toUpperCase() + style.text.slice(1) : cls.main(cls.base);
-  return { main, skills: skills.map((skill) => skillOf(id, skill)).filter(Boolean) };
+  const unique = skills.filter((skill, i) => skills.indexOf(skill) === i);
+  return { main, skills: unique.map((skill) => skillOf(id, skill)).filter(Boolean)
+    .map((skill) => Object.assign({}, skill, { count: countOf(skills, skill.id) })) };
 }

@@ -3,8 +3,8 @@ import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintR
 import { FIRE, flightAt } from './battle.js';
 import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite, cocoonSprite,
   coinSprite, fireballSprite, flaskSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
-  meteorSprite, grenadeSprite, gearSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf, rocketSprite,
-  shellSprite, splitSprite, starSprite, tintSprite, trapSprite, ventSprite, wallSprite } from './sprites.js';
+  meteorSprite, grenadeSprite, gearSprite, droneSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
+  rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, trapSprite, ventSprite, wallSprite } from './sprites.js';
 import { SOILS } from './props.js';
 import { MUZZLES } from './models.js';
 import { gearColor } from './gacha.js';
@@ -25,7 +25,7 @@ const LOOK_EVERY = 0.1;
 const FLIGHT_MIN = 0.05;
 const LOB_ARC = 22;
 const AURA = { gears: { count: 6, radius: 0.85, speed: 0.7 }, bullets: { count: 8, radius: 1.15, speed: -0.9 } };
-const DROP_HEIGHT = 18;
+const DRONE_LIFT = 18;
 const AIRBURST = 22;
 const NUKE_ARC = 90;
 const SHARD_ARC = 12;
@@ -454,6 +454,7 @@ export class Scene {
     this.groundKey = '';
     this.shown = new Map();
     this.trails = new Map();
+    this.droneSpots = new WeakMap();
     this.poses = new Map();
     this.flights = new WeakMap();
     this.effects = [];
@@ -552,6 +553,7 @@ export class Scene {
     this._auras(ctx, battle);
     this._towers(ctx, battle, dt, highlight, still);
     this._onField(ctx, () => this._phoenixes(ctx, battle, step));
+    this._onField(ctx, () => this._drones(ctx, battle, step));
     this._charges(ctx, battle);
     this._hooks(ctx, battle);
     this._onField(ctx, () => {
@@ -1366,6 +1368,26 @@ export class Scene {
     ctx.ellipse(at(e.x1 + (e.x2 - e.x1) * share), at(e.y1 + (e.y2 - e.y1) * share) + 2, 4, 2, 0, 0, Math.PI * 2);
     ctx.fill();
     return { x, y, angle: Math.atan2(nx - x, -(ny - y)) };
+  }
+
+  _drones(ctx, battle, dt) {
+    for (const drone of battle.drones) {
+      let spot = this.droneSpots.get(drone);
+      if (!spot) {
+        spot = { x: drone.x, y: drone.y, angle: 0 };
+        this.droneSpots.set(drone, spot);
+      }
+      spot.x = ease(spot.x, drone.x, SMOOTH, dt);
+      spot.y = ease(spot.y, drone.y, SMOOTH, dt);
+      const target = drone.target;
+      if (target) spot.angle = turnToward(spot.angle, Math.atan2(target.x - spot.x, -(target.y - spot.y)), dt);
+      const x = at(spot.x), y = at(spot.y), lift = DRONE_LIFT + Math.sin(this.clock * 3 + drone.n * 1.7) * 2;
+      ctx.fillStyle = 'rgba(0, 0, 0, .25)';
+      ctx.beginPath();
+      ctx.ellipse(x, y + 3, 7, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      sprite(ctx, droneSprite(drone.kind, Math.floor(this.clock * 24) % 2), x, y - lift, spot.angle, 1.5, 0, 64);
+    }
   }
 
   _auras(ctx, battle) {
@@ -2318,7 +2340,8 @@ export class Scene {
       if (event.gold) bolt = Object.assign({}, bolt, { color: '#facc15' });
       const flight = event.time || TRAVEL * (bolt.look === 'lob' ? 2.5 : 1);
       const launch = (x2, y2, late = 0) => {
-        const tip = away ? { x: event.sx, y: event.sy } : this._muzzle(t, event.hand || 0);
+        const tip = away ? { x: event.sx, y: event.sy - (event.high ? DRONE_LIFT / CELL : 0) }
+          : this._muzzle(t, event.hand || 0);
         add({ kind: 'shot', life: Math.max(FLIGHT_MIN, flight - late), x1: tip.x, y1: tip.y, x2, y2, bolt,
           crit: event.crit, heavy: event.heavy });
         if (event.heavy) {
@@ -2495,8 +2518,11 @@ export class Scene {
       this._sparks(event.x, event.y, (blue ? BLUE_FLAME : FLAME).slice(0, 3), 16, 2.4, 0.6, 3);
     } else if (event.kind === 'flight') {
       this._sparks(event.x1, event.y1, FLAME.slice(0, 3), 14, 2.4, 0.5, 3);
+    } else if (event.kind === 'ray') {
+      add({ kind: 'ray', life: 0.18, x1: event.sx, y1: event.sy - DRONE_LIFT / CELL, x2: event.x, y2: event.y });
+      this._sparks(event.x, event.y, ['#ecfeff', '#22d3ee'], 4, 1.2, 0.25, 2);
     } else if (event.kind === 'net') {
-      const tip = this._muzzle(t);
+      const tip = event.sx === undefined ? this._muzzle(t) : { x: event.sx, y: event.sy - DRONE_LIFT / CELL };
       add({ kind: 'chain', life: 0.3, points: [[tip.x, tip.y], [event.mob.x, event.mob.y]],
         color: 'rgba(214, 180, 120, .7)' });
       this._sparks(event.mob.x, event.mob.y, ['#d6b478', '#8a6a3c'], 8, 1.6, 0.4, 2);
@@ -2836,8 +2862,20 @@ export class Scene {
         }
         glow(ctx, x, y, 5, 'rgba(255, 160, 40, .95)', 0.7);
         sprite(ctx, rocketSprite(), x, y, angle, 1, 0, 64);
+      } else if (e.kind === 'ray') {
+        ctx.save();
+        ctx.globalAlpha = fade;
+        for (const [width, color] of [[5, 'rgba(34, 211, 238, .45)'], [1.5, '#ecfeff']]) {
+          ctx.strokeStyle = color;
+          ctx.lineWidth = width;
+          ctx.beginPath();
+          ctx.moveTo(at(e.x1), at(e.y1));
+          ctx.lineTo(at(e.x2), at(e.y2));
+          ctx.stroke();
+        }
+        ctx.restore();
       } else if (e.kind === 'drop') {
-        const x = at(e.x), y = at(e.y) - DROP_HEIGHT * (1 - share * share);
+        const x = at(e.x), y = at(e.y) - DRONE_LIFT * (1 - share * share);
         ctx.fillStyle = 'rgba(0, 0, 0, .25)';
         ctx.beginPath();
         ctx.ellipse(at(e.x), at(e.y) + 2, 3, 1.5, 0, 0, Math.PI * 2);

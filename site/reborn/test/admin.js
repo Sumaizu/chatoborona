@@ -175,7 +175,7 @@ function fullSet() {
   const pool = catalog.pools[who.cls], styles = pool.filter((skill) => skill.kind === 'style');
   const style = styles.find((skill) => who.skills.includes(skill.id)) || styles[0] || null;
   return pool.filter((skill) => (skill.kind !== 'style' || skill === style)
-    && (!skill.style || style && skill.style === style.id)).map((skill) => skill.id);
+    && (!skill.style || style && skill.style === style.id)).flatMap((skill) => Array(skill.max).fill(skill.id));
 }
 
 function gachaSection() {
@@ -263,12 +263,16 @@ function drawSkills(who) {
   if (!who) return;
   const pool = catalog.pools[who.cls];
   for (const skill of pool) {
-    const check = el('input', { type: 'checkbox', checked: who.skills.includes(skill.id) });
+    const count = who.skills.filter((id) => id === skill.id).length;
+    const check = skill.max > 1 ? el('input', { type: 'number', min: 0, max: skill.max, value: count })
+      : el('input', { type: 'checkbox', checked: count > 0 });
     check.dataset.skill = skill.id;
     check.addEventListener('change', () => {
       const now = lab.info(), current = player(now);
       if (!current) return;
-      const next = current.skills.filter((id) => id !== skill.id).concat(check.checked ? [skill.id] : []);
+      const want = skill.max > 1 ? Math.max(0, Math.min(skill.max, Math.round(Number(check.value) || 0)))
+        : check.checked ? 1 : 0;
+      const next = current.skills.filter((id) => id !== skill.id).concat(Array(want).fill(skill.id));
       lab.setSkills(chosen, next);
       update();
     });

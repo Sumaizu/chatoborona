@@ -427,6 +427,8 @@ function mechanic(battle, x, y, runes) {
   return t;
 }
 
+const near1 = (drone, mob) => Math.hypot(drone.x - mob.x, drone.y - mob.y) < MECH.drone.hover + 0.2;
+
 const firedBy = (battle, kind) => {
   const start = battle.events.length;
   return () => battle.events.slice(start).filter((e) => e.kind === kind);
@@ -545,8 +547,8 @@ test('механик: тюнинг — стрелки в клетке вокру
 
 test('механик: стальной щит — за волну принимает один удар по сердцу, щиты механиков складываются', () => {
   const battle = makeBattle();
-  mechanic(battle, 10, 2, ['steel']);
-  mechanic(battle, 12, 2, ['demo', 'steel']);
+  mechanic(battle, 10, 2, ['bulwark']);
+  mechanic(battle, 12, 2, ['demo', 'bulwark']);
   battle.startWave(1, 2);
   eq(battle.steel, 2, 'два механика — два щита');
   battle.spawns = [];
@@ -569,7 +571,7 @@ test('механик: стальной щит — за волну принима
   const late = makeBattle();
   late.startWave(1, 1);
   eq(late.steel, 0);
-  mechanic(late, 10, 2, ['steel']);
+  mechanic(late, 10, 2, ['bulwark']);
   eq(late.steel, 1, 'взял навык посреди волны — щит сразу');
 });
 
@@ -681,6 +683,69 @@ test('механик-ракетчик: напалм, корректировка,
   near(hit(buddy), n.damage * MECH.nuke.mul, 'на 3 клетки вокруг');
   ok(buddy.holdUntil > bomb.time, 'оглушение');
   ok(buddy.marks && buddy.marks.has('poison'), 'метка яда для реакций');
+});
+
+test('механик-турельщик: гигантская турель — без перезарядки, очередь веером в разных мобов, сперва летучие', () => {
+  const battle = makeBattle(), t = mechanic(battle, 10, 4, ['turret', 'giant']);
+  const a = walker(battle, 12.5, 1e9), b = walker(battle, 11.9, 1e9), c = walker(battle, 11.3, 1e9);
+  still(a, b, c);
+  const shots = firedBy(battle, 'shot');
+  battle._fire(t);
+  runFor(battle, MECH.giant.gap * MECH.giant.count + 0.1);
+  eq(shots().length, MECH.giant.count, 'очередь из 4 пуль');
+  ok(shots().slice(1).every((e, i) => e.mob !== shots()[i].mob), 'каждая следующая — в другого');
+  for (let i = 0; i < 20; i++) battle._fire(t);
+  eq(t.reloadUntil, 0, 'без перезарядки');
+  const sky = makeBattle(), g = mechanic(sky, 10, 4, ['turret', 'giant']);
+  const ground = walker(sky, 13, 1e9), flyer = walker(sky, 9, 1e9, bat());
+  still(ground, flyer);
+  ok(sky._targetable(g, flyer), 'летучий в досягаемости');
+  const first = firedBy(sky, 'shot');
+  sky._fire(g);
+  eq(first()[0].mob, flyer, 'первая пуля — в летучего, хоть он и позади');
+  eq(sky.facing(g), flyer);
+});
+
+test('механик-турельщик: дроны — до трёх каждого вида, летают по всей карте и бьют своих целей', () => {
+  const battle = makeBattle(), t = mechanic(battle, 1, 4, ['turret', 'droneAttack', 'droneAttack', 'droneLaser',
+    'droneAir']);
+  const lead = walker(battle, 17, 1e9), elite = quiet(put(battle, special(battle, 'elite', 'vampire', 1e9), 12));
+  const flyer = walker(battle, 8, 1e9, bat());
+  still(lead, flyer);
+  elite.armor = 0.5;
+  battle.step(TICK);
+  eq(battle.drones.map((d) => d.kind).sort(), ['air', 'attack', 'attack', 'laser'], 'два атакующих, лазерный, ПВО');
+  runFor(battle, 6);
+  const of = (kind) => battle.drones.filter((d) => d.kind === kind);
+  ok(of('attack').every((d) => d.target === lead && near1(d, lead)), 'атакующие — у того, кто впереди всех');
+  ok(of('laser')[0].target === elite && near1(of('laser')[0], elite), 'лазерный — у элитного');
+  ok(of('air')[0].target === flyer, 'ПВО — у летучего');
+  ok(hit(lead) > 0, 'атакующие бьют');
+  ok(battle.events.some((e) => e.kind === 'ray' && e.mob === elite), 'лазер');
+  ok(hit(elite) >= t.damage * MECH.droneLaser.mul - 1e-6, 'лазер сквозь броню');
+  ok(flyer.slowUntil > battle.time && flyer.slow >= MECH.droneAir.slow * (1 - flyer.resist) - 1e-6, 'сеть замедляет');
+  ok(flyer.netUntil > battle.time);
+  battle.setMods(t, { runes: ['turret', 'droneAttack'] });
+  battle.step(TICK);
+  eq(battle.drones.length, 1, 'навыков меньше — дронов меньше');
+  battle.remove(t);
+  battle.step(TICK);
+  eq(battle.drones.length, 0, 'ушёл — и дроны с ним');
+});
+
+test('механик: ЭМИ-гранату сбрасывает дрон под себя, если у турельщика есть атакующие или лазерные дроны', () => {
+  const battle = makeBattle(), t = mechanic(battle, 1, 4, ['turret', 'droneAttack', 'emp']);
+  const lead = walker(battle, 15, 1e9);
+  still(lead);
+  t.nextEmp = 1e9;
+  runFor(battle, 5);
+  t.nextEmp = 0;
+  battle.step(TICK);
+  const drop = battle.events.find((e) => e.kind === 'grenade' && e.grenade === 'emp');
+  ok(drop && drop.drone && drop.drone.kind === 'attack', 'сбросил дрон');
+  ok(Math.hypot(drop.x - lead.x, drop.y - lead.y) < MECH.drone.hover + 0.3, 'под собой, у цели');
+  runFor(battle, MECH.emp.drop + 0.05);
+  ok(lead.muteUntil > battle.time, 'и сработала');
 });
 
 test('стрелок: без стиля — редкий дальний выстрел в самого крепкого, дальше всех', () => {

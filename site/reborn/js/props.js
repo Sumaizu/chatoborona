@@ -36,6 +36,25 @@ const GRENADES = {
   },
 };
 
+const DRONES = { attack: ['#57534e', '#f97316'], laser: ['#1e3a8a', '#22d3ee'], air: ['#3f6212', '#a3e635'] };
+
+export function drawDrone(kind, frame) {
+  const m = new Model(18, 1), [body, light] = DRONES[kind];
+  for (const [x, y] of [[3.6, 3.6], [14.4, 3.6], [3.6, 14.4], [14.4, 14.4]]) {
+    m.limb(9, 9, 3, x, y, 3.4, 0.7, '#3f3f46');
+    m.egg(x, y, 3.6, 2.9, 2.9, 0.3, '#6b7280');
+    const [ax, ay] = frame ? [2.6, 0] : [0, 2.6];
+    m.limb(x - ax, y - ay, 4.1, x + ax, y + ay, 4.1, 0.4, '#e5e7eb');
+    m.ball(x, y, 4.3, 0.6, '#27272a');
+  }
+  m.egg(9, 9.4, 3.4, 3.4, 4.2, 2.2, body, 0.5);
+  if (kind === 'attack') m.limb(9, 7, 3.6, 9, 2.6, 3.6, 0.55, '#1f2937', 0.5);
+  if (kind === 'laser') m.ball(9, 5.6, 4.4, 1.3, light, 1);
+  if (kind === 'air') m.egg(9, 12.4, 4.6, 2, 1.4, 1, '#d6b478');
+  m.ball(9, 7.4, 5.4, 0.8, light, 1);
+  return m.paint();
+}
+
 export function drawGear() {
   const m = new Model(16, 1);
   around(8, 0, 8, 8, 5.4, 5.4, (x, y) => m.ball(x, y, 2, 1.35, '#9ca3af', 0.6));

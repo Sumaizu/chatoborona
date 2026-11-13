@@ -149,6 +149,21 @@ test('игра: перебежка сразу — и во время волны,
   eq(say(game, 'Гена', cellName(free.x, free.y)), 'move', 'в подготовку тоже');
 });
 
+test('игра: механик с гигантской турелью на другую клетку не переходит', () => {
+  const { game } = makeGame();
+  game.open();
+  say(game, 'Гена', 'я тут');
+  toWave(game);
+  const member = game.members.get('гена'), tower = member.tower, from = [tower.x, tower.y];
+  member.cls = 'mechanic';
+  member.skills = ['turret', 'giant'];
+  game._refresh(member);
+  const spot = game.battle.bestCell(2.5);
+  eq(say(game, 'Гена', cellName(spot.x, spot.y)), null, 'турель стоит на месте');
+  eq([member.tower.x, member.tower.y], from);
+  ok(game.notes.some((note) => note.kind === 'fixed' && note.login === 'гена'), 'ему сказано почему');
+});
+
 test('игра: в лобби клетка ничего не двигает, но в отряд принимает', () => {
   const { game } = makeGame();
   game.open();

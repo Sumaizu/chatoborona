@@ -48,7 +48,8 @@ const BATTLE_SOUNDS = { wall: 'build', crumble: 'crumble', leap: 'leap',
   hex: 'hex', blink: 'leap', burrow: 'burrow', leech: 'summon', steal: 'clink', loot: 'treasure', reflect: 'block',
   swallow: 'burrow', breath: 'flame', web: 'hex', ward: 'block', mirage: 'summon', dig: 'burrow', drop: 'summon',
   hook: 'chain', yank: 'yank', charge: 'charge', reload: 'reload', ricochet: 'ricochet', burst: 'mine',
-  rocket: 'launch', mortar: 'launch', emp: 'zap', steel: 'block', airburst: 'boom', flash: 'flash', fogtoss: 'flask', fog: 'splash', ignite: 'ignite', oil: 'splash',
+  rocket: 'launch', mortar: 'launch', emp: 'zap', steel: 'block', airburst: 'boom', flash: 'flash', fogtoss: 'flask',
+  fog: 'splash', ignite: 'ignite', oil: 'splash',
   oilfire: 'flame', net: 'snap', prey: 'prey', bounty: 'treasure', ambush: 'leap', cocoon: 'clink',
   hatch: 'hatch', heist: 'jackpot', share: 'treasure', shatter: 'freeze', snow: 'snow', gust: 'wind',
   wind: 'wind', cheer: 'rally', rally: 'rally', cleanse: 'heal', hallow: 'holy', muse: 'cast', expose: 'hex',
@@ -57,7 +58,7 @@ const BATTLE_SOUNDS = { wall: 'build', crumble: 'crumble', leap: 'leap',
 const GOOD_EVENTS = new Set(['buff', 'blessing']);
 const COIN_FINDS = { handful: ' находит горстку монет', bag: ' находит мешок монет!',
   chest: ' открывает сундук монет!' };
-const NOTE_KINDS = new Set(['card', 'poor', 'bare', 'upgrade', 'queue', 'tip', 'divine', 'skill']);
+const NOTE_KINDS = new Set(['card', 'poor', 'bare', 'upgrade', 'queue', 'tip', 'divine', 'skill', 'fixed']);
 const NEWCOMER_GLOW = { fire: '#f97316', ice: '#67e8f9', storm: '#facc15', poison: '#a3e635' };
 const NICK_COLORS = ['#ff8f85', '#ffb547', '#f2dd6e', '#8fe3ae', '#7fd4ff', '#b7a6ff', '#ff9ad5', '#8fe0d2'];
 const STATUS = {
@@ -140,9 +141,11 @@ function mightOfMember(member) {
   return member.tower ? member.tower.might : mightOf(member.weapon ? member.weapon.power : 0, member.paragon || 0);
 }
 
+const stacked = (skill, count) => skill.name + (skill.max ? ' ' + count + '/' + skill.max : '');
+
 function skillLine(skill, brief) {
   const line = el('div', 'skill-line');
-  line.append(el('i', '', '◆'), ' ', el('b', '', skill.name));
+  line.append(el('i', '', '◆'), ' ', el('b', '', stacked(skill, skill.count)));
   if (!brief) line.append(': ' + skill.text);
   return line;
 }
@@ -778,9 +781,9 @@ export class View {
       list.textContent = '';
       list.style.setProperty('--own', cls.color);
       list.classList.toggle('many', options.length > 6);
-      options.forEach(({ skill, state }, i) => {
+      options.forEach(({ skill, state, count }, i) => {
         const item = el('li', state), text = el('div');
-        text.append(el('b', '', skill.name));
+        text.append(el('b', '', stacked(skill, count)));
         if (skill.kind !== 'style') {
           text.append(el('span', 'kind', skill.kind === 'upgrade' ? 'усиление' : 'способность'));
         }
@@ -1202,6 +1205,8 @@ export class View {
       node.append(nick, ': твои крутки ещё в очереди — дождись, пока они выпадут');
     } else if (note.kind === 'bare') {
       node.append(nick, ': улучшать нечего — сначала выбей оружие в гаче');
+    } else if (note.kind === 'fixed') {
+      node.append(nick, ': гигантская турель стоит на месте — переставить её нельзя');
     } else if (note.kind === 'tip') {
       node.className = 'note tip';
       const cls = CLASS_BY_ID.get(detail.cls);
