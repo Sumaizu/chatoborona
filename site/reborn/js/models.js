@@ -765,6 +765,134 @@ function mortarman(m) {
   m.ball(16, 16.3, 11.6, 3.1, '#3b2a1a');
 }
 
+const LEAVES = ['#4d7c0f', '#65a30d', '#3f6212', '#84cc16'];
+
+function bareBack(m, top, skin, shade) {
+  m.limb(10.6, top, 7, 21.4, top, 7, 2.1, skin);
+  [[top + 0.6, 4.6], [top + 2.2, 3.9], [top + 3.8, 3.2]].forEach(([y, half], i) => {
+    m.limb(16 - half, y, 8.4 - i * 0.5, 16 + half, y, 8.4 - i * 0.5, 1, i % 2 ? shade : skin);
+  });
+}
+
+function leafSkirt(m, cy) {
+  for (let i = 0; i < 11; i++) {
+    const a = Math.PI * (-0.15 + 1.3 * i / 10), x = 16 + Math.cos(a) * 4.4, y = cy + Math.sin(a) * 1.8;
+    m.limb(x, y, 5.6, x + Math.cos(a) * 1.6, y + Math.sin(a) * 1.4 + 0.8, 4.4, 1, LEAVES[i % 4], 0.3, 0.4);
+  }
+}
+
+function forester(m) {
+  legs(m, 16, 25.8, SKIN, 0, 2.2, 1.6, 1.8);
+  leafSkirt(m, 24.6);
+  bareBack(m, 19.8, SKIN, '#d39a70');
+  m.limb(12.4, 24, 7.2, 19.6, 24, 7.2, 0.5, '#3f6212');
+  m.limb(10.8, 20, 7.4, 15.2, 11.4, 8.8, 1.3, SKIN);
+  m.limb(21.2, 20, 7.4, 17.2, 15.4, 8.6, 1.3, SKIN);
+  m.limb(16, 10.8, 9.2, 12.6, 11.6, 9.4, 0.8, '#8a5a2e');
+  m.limb(12.6, 11.6, 9.4, 10.4, 13.8, 9.2, 0.7, '#7a4e26', 0, 0.5);
+  m.limb(16, 10.8, 9.2, 19.2, 11.4, 9.4, 0.8, '#8a5a2e');
+  m.limb(19.2, 11.4, 9.4, 20.6, 11.6, 9.4, 0.6, '#a0703e', 0, 0.45);
+  m.limb(20.6, 11.6, 9.4, 21.8, 13.8, 9.2, 0.6, '#7a4e26', 0, 0.4);
+  m.ball(20.4, 11.6, 9.8, 0.55, '#3f2a18');
+  for (const [x, y] of [[10.4, 13.8], [21.8, 13.8]]) m.limb(x, y, 9.2, 16.8, 15.4, 9.6, 0.22, '#e7e5e4');
+  m.limb(16.6, 15.2, 10, 16.2, 6.8, 10.2, 0.35, '#c8a26a');
+  m.ball(16.1, 6.4, 10.2, 0.6, '#9ca3af', 0.6);
+  for (const side of [-1, 1]) m.limb(16.6, 14.6, 10, 16.6 + side * 0.9, 15.4, 10, 0.3, side < 0 ? '#ef4444' : '#f5f5f4');
+  m.ball(15.2, 11.2, 9.6, 1.25, SKIN);
+  m.ball(17.2, 15.4, 9.8, 1.25, SKIN);
+  m.ball(16, 18.2, 10.6, 3.6, SKIN);
+  m.ball(16, 18.9, 11.6, 3.1, '#4a3524');
+  for (const [x, y, c] of [[14.4, 17.6, LEAVES[1]], [17.8, 19.6, LEAVES[0]]]) m.egg(x, y, 14.4, 1, 0.6, 0.4, c);
+}
+
+function druid(m) {
+  robed(m, {
+    robe: '#5b4a2e', dark: '#3f2f1c', sleeve: '#4d6b2f', trim: '#3f6212', hands: [11.6, 15, 21, 12.6],
+    weapon: (q) => {
+      q.limb(21, 13, 6, 21.4, 10.4, 15.6, 0.75, '#6b4a2b');
+      q.limb(21.4, 10.4, 15.6, 22.8, 8.8, 16.6, 0.65, '#7a5a35');
+      q.limb(22.8, 8.8, 16.6, 22.2, 7, 17, 0.6, '#6b4a2b');
+      q.limb(22.2, 7, 17, 20.6, 7.4, 16.8, 0.55, '#7a5a35');
+      q.ball(21.6, 8.8, 17, 1.2, '#86efac', 1);
+      for (const [x, y] of [[20.6, 8.2], [22.2, 9.6], [21.2, 9.8]]) q.egg(x, y, 17.4, 0.6, 0.4, 0.3, '#bbf7d0');
+    },
+    head: (q) => {
+      q.ball(16, 17, 11.2, 4.2, SKIN);
+      q.ball(16, 18, 12.2, 3.5, '#5b4a2e');
+      for (let i = 0; i < 10; i++) {
+        const a = i * Math.PI / 5;
+        q.egg(16 + Math.cos(a) * 3.6, 17.6 + Math.sin(a) * 3.4, 13.4, 1.1, 0.7, 0.5, LEAVES[i % 4]);
+      }
+    },
+  });
+  for (let i = 0; i < 9; i++) {
+    const a = Math.PI * (0.1 + 0.8 * i / 8), x = 16 + Math.cos(a) * 7.6, y = 22 + Math.sin(a) * 6.6;
+    m.egg(x, y, 4.6, 1.2, 0.8, 0.5, LEAVES[i % 4]);
+  }
+  for (const [ax, ay, bx, by] of [[11, 25, 9.6, 28.6], [16, 27, 16.4, 30.6], [21, 25, 22.6, 28.4]]) {
+    m.limb(ax, ay, 2.6, bx, by, 1, 0.5, '#3f2a18', 0, 0.25);
+  }
+}
+
+function crossbowman(m) {
+  legs(m, 16, 25.6, '#3b2a1a', 0, 2.2, 1.6, 1.8);
+  m.limb(10.6, 20, 7, 21.4, 20, 7, 2.1, '#6b4423');
+  [[20.6, 4.6], [22.2, 3.9], [23.8, 3.2]].forEach(([y, half], i) => {
+    m.limb(16 - half, y, 8.4 - i * 0.5, 16 + half, y, 8.4 - i * 0.5, 1, i % 2 ? '#5a3a1e' : '#7a4f29');
+  });
+  m.limb(16, 20.4, 9, 16, 24, 7.4, 0.3, '#3b2a1a');
+  m.limb(12.4, 24.6, 6.6, 19.6, 24.6, 6.6, 0.5, '#2a1d12');
+  const [lx, ly, rx, ry] = reloadHands(m, [15.2, 8.6, 16.8, 13.8]);
+  m.limb(10.8, 20.2, 7.4, lx, ly, 8.6, 1.3, '#6b4423');
+  m.limb(21.2, 20.2, 7.4, rx, ry, 8.6, 1.3, '#6b4423');
+  const q = swing(m, rx, ry);
+  q.limb(16, 17, 9.6, 16, 3.4, 9.8, 1, '#5c3d22');
+  q.limb(16, 16.4, 10.4, 16, 12.8, 10.4, 0.6, '#3b2a1a');
+  for (const side of [-1, 1]) {
+    q.limb(16, 4.4, 10, 16 + side * 4.6, 5.2, 10, 0.75, '#2d323b', 0.5);
+    q.limb(16 + side * 4.6, 5.2, 10, 16 + side * 7.2, 6.8, 9.8, 0.6, '#2d323b', 0.5, 0.4);
+    q.ball(16 + side * 7.2, 6.8, 9.8, 0.55, METAL, 0.7);
+    q.limb(16 + side * 7.2, 6.8, 10.2, 16, m.reload < 0 ? 10.4 : 6.2, 10.6, 0.2, '#e7e5e4');
+  }
+  q.limb(16, 4.6, 10.6, 16, 2.4, 10.6, 0.5, METAL, 0.6);
+  q.limb(15, 2.6, 10, 17, 2.6, 10, 0.35, METAL, 0.6);
+  if (m.reload < 0) {
+    q.limb(16, 10.2, 11, 16, 3.4, 11, 0.32, '#a16207');
+    q.ball(16, 3, 11, 0.5, '#cbd5e1', 0.8);
+  }
+  q.limb(16.8, 13.4, 9.6, 17.4, 14.6, 9.2, 0.35, '#111827');
+  if (m.reload >= 0) {
+    m.limb(lx - 0.3, ly + 1.6, 10.4, lx + 0.3, ly - 2, 10.6, 0.32, '#a16207');
+    m.ball(lx + 0.3, ly - 2.3, 10.8, 0.5, '#cbd5e1', 0.8);
+  }
+  m.ball(lx, ly, 9.6, 1.2, '#3b2a1a');
+  m.ball(rx, ry, 9.6, 1.2, '#3b2a1a');
+  m.ball(16, 18.4, 10.6, 3.6, SKIN);
+  m.egg(16, 18.8, 11.4, 3.9, 3.8, 3.1, '#3f2a18', 0.2);
+  m.limb(16, 21.2, 12, 16, 24.6, 9.8, 1.4, '#3f2a18', 0, 0.4);
+  m.limb(13, 15.8, 13.6, 19, 15.8, 13.6, 0.45, '#5a3a1e');
+}
+
+function witch(m) {
+  robed(m, {
+    robe: '#6b21a8', dark: '#4c1d95', sleeve: '#7e22ce', trim: '#84cc16', hands: [11.6, 15, 20.6, 12],
+    weapon: (q) => {
+      q.ball(20.6, 10.6, 11.4, 1.6, '#22c55e', 1);
+      q.ball(20.4, 9.4, 12.4, 1.2, '#a3e635', 1);
+      q.ball(20.8, 8.4, 13.2, 0.7, '#ecfccb', 1);
+    },
+    head: (q) => {
+      q.ball(16, 17, 11.2, 4.2, '#c4e7a8');
+      q.egg(16, 17.6, 12.2, 6.4, 6, 0.6, '#4c1d95');
+      q.egg(16, 17.6, 12.6, 4.2, 4, 0.5, '#84cc16');
+      q.limb(16, 17.8, 13, 16.6, 19.6, 15.6, 2.7, '#6b21a8', 0, 1.9);
+      q.limb(16.6, 19.6, 15.6, 18, 21.6, 17.4, 1.9, '#7e22ce', 0, 1.1);
+      q.limb(18, 21.6, 17.4, 19.8, 22.4, 17.8, 1.1, '#6b21a8', 0, 0.45);
+      q.egg(15.2, 18.6, 15.8, 0.9, 0.7, 0.4, '#84cc16');
+    },
+  });
+}
+
 function giantTurret(m) {
   m.egg(16, 20, 0, 8.6, 8, 1.6, '#2f353f');
   m.egg(16, 20, 1, 7.4, 6.9, 1.2, '#4b5361', 0.4);
@@ -811,6 +939,11 @@ function giantTurret(m) {
 
 const SKINS = {
   pyro: ragged,
+  forester,
+  'forester-ragged': forester,
+  'forester-druid': druid,
+  'forester-hunter': crossbowman,
+  'forester-witch': witch,
   mechanic: wrench,
   'mechanic-ragged': wrench,
   'mechanic-turret': turreteer,
@@ -951,6 +1084,8 @@ export const MUZZLES = {
   'pyro-fireball-twin-blue': PALMS, 'pyro-ignite': [[20.5, 7.5]], 'pyro-ignite-blue': [[20.5, 7.5]],
   'pyro-dragon': MOUTH, 'pyro-dragon-blue': MOUTH, sniper: PISTOL, 'sniper-ragged': PISTOL,
   'sniper-scope': [[16, -7]], 'sniper-assault': [[16, -4.9]], 'sniper-marksman': [[16, -6]],
+  forester: [[16.1, 6.4]], 'forester-ragged': [[16.1, 6.4]], 'forester-druid': [[21.6, 8.8]],
+  'forester-hunter': [[16, 2.4]], 'forester-witch': [[20.6, 8.6]],
   mechanic: [[19.2, 6.8]], 'mechanic-ragged': [[19.2, 6.8]], 'mechanic-turret': [[19.6, 6.4]],
   'mechanic-demo': [[21.2, 1]], 'mechanic-mortar': [[16, 8.6]],
   'mechanic-turret-giant': [[16, -6.6]],

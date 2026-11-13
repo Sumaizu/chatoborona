@@ -80,7 +80,7 @@ export const FIRE = { styled: 1.5, giant: 1.5, splash: 1, wide: 1.5, breath: 0.6
   ring: { radius: 2, mul: 0.5, grow: 1, max: 4 },
   wall: { mul: 1.5, reach: 0.7 }, black: { chance: 1, damage: 0.2, max: 5 },
   phoenix: { every: 15, speed: 8, mul: 10, reach: 0.9, step: 0.25 } };
-const TORCH_USERS = new Set(['sniper', 'mechanic', 'hunter']);
+const TORCH_USERS = new Set(['sniper', 'mechanic', 'hunter', 'forester']);
 const LOFTY = new Set(['scope', 'mortar']);
 export const SHOT = { scope: { mul: 5, aim: 2, reload: 3 }, assault: { range: -1, interval: 0.55, mul: 0.35,
   crit: 0.25, mag: 30, reload: 3 }, marksman: { range: 1.5, interval: 2.2, mul: 1.6, crit: 0.25, mag: 5, reload: 3 },
@@ -100,6 +100,10 @@ export const MECH = { turret: { range: -1.5, interval: 1, mul: 0.3, count: 3, ga
   droneAttack: { every: 1.2, count: 3, gap: 0.08, mul: 0.35 }, droneLaser: { every: 1.5, mul: 1 },
   droneAir: { every: 1.5, mul: 0.2, slow: 0.6, time: 2 } };
 const DRONE_KINDS = [['droneAttack', 'attack'], ['droneLaser', 'laser'], ['droneAir', 'air']];
+export const WOOD = { hunter: { range: 2, interval: 0.4, mul: 3.4, reload: 2.4 }, witch: { range: 0, interval: 1.8,
+  mul: 1.3 }, bird: { every: 0.9, mul: 0.45, speed: 5 } };
+const STYLE_ELEMENTS = { witch: 'poison' };
+const DRONE_SHOTS = { attack: MECH.droneAttack, laser: MECH.droneLaser, air: MECH.droneAir, bird: WOOD.bird };
 const STEEL_BLAST = { radius: 1.5, mul: 8, stun: 1 };
 const METEOR_FLIGHT = 1.2;
 const FOG_FLIGHT = 0.6;
@@ -1000,7 +1004,9 @@ export class Battle {
     const boost = Math.max(FLOOR, 1 + (mods.damage || 0)) * tower.might / MIGHT.base;
     tower.damage = base.damage * boost;
     tower.skill = base.skill * boost;
-    const shot = cls.id === 'sniper' && SHOT[tower.style] || cls.id === 'mechanic' && MECH[tower.style] || null;
+    tower.element = cls.element || STYLE_ELEMENTS[tower.style] || null;
+    const shot = cls.id === 'sniper' && SHOT[tower.style] || cls.id === 'mechanic' && MECH[tower.style]
+      || cls.id === 'forester' && WOOD[tower.style] || null;
     if (shot) tower.damage *= shot.mul;
     tower.interval = (shot && shot.interval || base.interval) / (Math.max(FLOOR, 1 + (mods.rate || 0))
       * (tower.runes.has('frenzy') ? 3 : 1));
@@ -1032,6 +1038,7 @@ export class Battle {
     if (tower.style === 'scope' || tower.style === 'mortar') return FAR_REACH;
     if (tower.style === 'assault' || tower.style === 'marksman') return b.range + SHOT[tower.style].range;
     if (tower.style === 'turret' || tower.style === 'demo') return b.range + MECH[tower.style].range;
+    if (tower.style === 'hunter' || tower.style === 'witch') return b.range + WOOD[tower.style].range;
     return b.range || 0;
   }
 
@@ -1587,27 +1594,31 @@ export class Battle {
     this._event({ kind: 'mad', mob, tower: t });
   }
 
+  _crew(t) {
+    if (t.cocoon) return [];
+    if (t.cls.id === 'forester' && t.style === 'druid') return [['bird', 'bird', 1]];
+    if (t.cls.id !== 'mechanic' || t.style !== 'turret') return [];
+    return DRONE_KINDS.map(([rune, kind]) => [rune, kind, t.stacks.get(rune) || 0]);
+  }
+
   _drones(dt, now) {
     for (const t of this.towers) {
-      if (t.cls.id !== 'mechanic' || t.style !== 'turret') continue;
-      for (const [rune, kind] of DRONE_KINDS) {
-        const want = t.cocoon ? 0 : t.stacks.get(rune) || 0;
+      for (const [rune, kind, want] of this._crew(t)) {
         const own = this.drones.filter((drone) => drone.tower === t && drone.kind === kind).length;
         for (let n = own; n < want; n++) {
           this.drones.push({ tower: t, kind, rune, n, x: t.cx, y: t.cy, target: null, next: now });
         }
       }
     }
-    this.drones = this.drones.filter((drone) => this.towers.includes(drone.tower) && drone.tower.style === 'turret'
-      && drone.n < (drone.tower.stacks.get(drone.rune) || 0));
+    const wanted = (drone) => (this._crew(drone.tower).find(([rune]) => rune === drone.rune) || [0, 0, 0])[2];
+    this.drones = this.drones.filter((drone) => this.towers.includes(drone.tower) && drone.n < wanted(drone));
     this._assign();
     for (const drone of this.drones) this._pilot(drone, dt, now);
   }
 
   _assign() {
-    for (const [, kind] of DRONE_KINDS) {
+    for (const kind of new Set(this.drones.map((drone) => drone.kind))) {
       const crew = this.drones.filter((drone) => drone.kind === kind);
-      if (!crew.length) continue;
       const pool = this.mobs.filter((mob) => this._droneCan(crew[0], mob))
         .sort((a, b) => this.ahead(b) - this.ahead(a));
       const front = new Set(pool.slice(0, crew.length)), kept = new Set(), idle = [];
@@ -1628,15 +1639,14 @@ export class Battle {
 
   _pilot(drone, dt, now) {
     const s = MECH.drone, t = drone.tower;
-    const goal = drone.target || { x: t.cx, y: t.cy }, a = now * s.spin + drone.n * 2.1 + DRONE_KINDS
-      .findIndex(([rune]) => rune === drone.rune) * 0.7;
+    const shot = DRONE_SHOTS[drone.kind], goal = drone.target || { x: t.cx, y: t.cy };
+    const a = now * s.spin + drone.n * 2.1 + DRONE_KINDS.findIndex(([rune]) => rune === drone.rune) * 0.7;
     const dx = goal.x + Math.cos(a) * s.hover - drone.x, dy = goal.y + Math.sin(a) * s.hover - drone.y;
-    const gap = Math.hypot(dx, dy), step = s.speed * dt;
+    const gap = Math.hypot(dx, dy), step = (shot.speed || s.speed) * dt;
     drone.x += gap <= step ? dx : dx / gap * step;
     drone.y += gap <= step ? dy : dy / gap * step;
     const target = drone.target;
     if (!target || now < drone.next || !near(target, drone.x, drone.y, s.reach)) return;
-    const shot = MECH[drone.rune];
     drone.next = now + shot.every;
     const from = () => ({ x: drone.x, y: drone.y, high: true });
     if (drone.kind === 'attack') {
@@ -1646,6 +1656,10 @@ export class Battle {
       };
       one();
       for (let k = 1; k < shot.count; k++) this._later(k * shot.gap, one);
+    } else if (drone.kind === 'bird') {
+      this._event({ kind: 'peck', tower: t, mob: target, x: target.x, y: target.y });
+      this._hurt(target, t.damage * shot.mul, t);
+      this._torchHit(t, target, t.damage * shot.mul);
     } else if (drone.kind === 'laser') {
       this._event({ kind: 'ray', tower: t, sx: drone.x, sy: drone.y, x: target.x, y: target.y, mob: target });
       this._hurt(target, t.damage * shot.mul, t, null, false, ARMOR);
@@ -1894,7 +1908,7 @@ export class Battle {
   }
 
   _fly(t, now) {
-    const lead = this._leader((mob) => !immune(mob, t.cls.element));
+    const lead = this._leader((mob) => !immune(mob, t.element));
     if (!lead) return;
     const cx = Math.floor(lead.x), cy = Math.floor(lead.y);
     let best = null;
@@ -2190,16 +2204,18 @@ export class Battle {
   }
 
   _targetable(t, mob, range = t.range, mode = t.cls.base.target) {
-    if (mob.dead || hidden(mob, this.time) || immune(mob, t.cls.element) || !near(mob, t.cx, t.cy, range)
+    if (mob.dead || hidden(mob, this.time) || immune(mob, t.element) || !near(mob, t.cx, t.cy, range)
       || !this.sees(t, mob)) return false;
     if (mode === 'potion' && (mob.flying || mob.undead && !t.runes.has('plague'))) return false;
     if (mode === 'land' && mob.flying) return false;
+    if (mode === 'toxic' && mob.undead && !t.runes.has('plague')) return false;
     return true;
   }
 
   facing(t) {
     if (t.style === 'mortar') return leading(this, t);
     if (t.style === 'turret' && t.runes.has('giant')) return skyFirst(this, t);
+    if (t.cls.id === 'forester') return woodTarget(this, t);
     return t.cls.id === 'sniper' ? aimOf(this, t) : this._target(t);
   }
 
@@ -2251,7 +2267,7 @@ export class Battle {
     return this.mobs.filter((mob) => mob !== skip && !mob.dead && !hidden(mob, this.time) && near(mob, x, y, radius));
   }
 
-  _hurt(mob, amount, t, element = t.cls.element || null, dot = false, pierce = 0, deep = false) {
+  _hurt(mob, amount, t, element = t.element || null, dot = false, pierce = 0, deep = false) {
     if (mob.dead || amount <= 0 || underground(mob, this.time) && !t.deep && !deep) return;
     if (!dot && !t.rider && !t.cls.through && this.covered(mob.x, mob.y)) return;
     const now = this.time;
@@ -2621,7 +2637,7 @@ function fireball(b, t, target, from = null, hand = 0) {
   if (from) Object.assign(event, { sx: from.x, sy: from.y });
   b._event(event);
   b._later(FIREBALL_FLIGHT, () => {
-    if (radius) b._event({ kind: 'boom', tower: t, x, y, radius, blue: t.runes.has('blue') });
+    if (radius) b._event({ kind: 'boom', tower: t, x, y, radius, blue: t.runes.has('blue'), fireball: true });
     const hit = radius ? b._around(x, y, radius) : target.dead ? [] : [target];
     for (const mob of hit) scorch(b, t, mob, damage);
   }, t);
@@ -2656,7 +2672,7 @@ const monster = (t, mob) => (open(t, 4) && big(mob) ? 1 + t.s[4].bonus : 1);
 
 const rollCrit = (b, t) => b.random() < 1 - (1 - t.critChance) * (1 - t.boost.crit);
 
-const canShoot = (b, t, mob, range = t.range) => !mob.dead && !immune(mob, t.cls.element)
+const canShoot = (b, t, mob, range = t.range) => !mob.dead && !immune(mob, t.element)
   && !b.covered(mob.x, mob.y) && (t.deep || !hidden(mob, b.time)) && near(mob, t.cx, t.cy, range)
   && b.sees(t, mob);
 
@@ -2686,7 +2702,7 @@ function reload(t, now, time) {
 function behind(b, t, target, ux, uy) {
   const s = SHOT.ricochet, cos = Math.cos(s.arc * Math.PI / 180);
   const pool = b.mobs.filter((mob) => {
-    if (mob === target || mob.dead || immune(mob, t.cls.element) || b.covered(mob.x, mob.y)) return false;
+    if (mob === target || mob.dead || immune(mob, t.element) || b.covered(mob.x, mob.y)) return false;
     if (!t.deep && hidden(mob, b.time)) return false;
     const dx = mob.x - target.x, dy = mob.y - target.y, far = Math.hypot(dx, dy);
     return far > 0 && far <= s.reach && (dx * ux + dy * uy) / far >= cos;
@@ -2745,6 +2761,11 @@ function spend(b, t, now, count, target) {
   if (t.bullets < shot.mag) return;
   t.bullets = 0;
   reload(t, now, shot.reload);
+}
+
+function woodTarget(b, t) {
+  if (t.style === 'druid') return null;
+  return b._target(t, { mode: t.style === 'hunter' ? 'bigFirst' : t.style === 'witch' ? 'toxic' : '' });
 }
 
 function bend(a, b) {
@@ -3046,6 +3067,22 @@ const SKILLS = {
       if (!target) return;
       shoot(b, t, target, { crit: t.runes.has('steady'), heavy: 'heavy' });
       reload(t, now, SHOT.scope.reload);
+    },
+  },
+  forester: {
+    fire(b, t, now) {
+      if (t.style === 'druid' || t.reloadUntil > now) return false;
+      const target = woodTarget(b, t);
+      if (!target) return false;
+      if (t.style === 'witch') {
+        const crit = rollCrit(b, t);
+        b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target });
+        b._hurt(target, t.damage * (crit ? t.critMul : 1), t, 'poison');
+        return true;
+      }
+      shoot(b, t, target);
+      if (t.style === 'hunter') reload(t, now, WOOD.hunter.reload);
+      return true;
     },
   },
   mechanic: {

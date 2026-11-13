@@ -56,6 +56,22 @@ export function drawDrone(kind, frame) {
 }
 
 
+export function drawBird(frame) {
+  const m = new Model(16, 1), spread = [5.6, 4.2, 2.4][frame], lift = [0, 0.8, 1.6][frame];
+  for (const side of [-1, 1]) {
+    m.limb(8 + side * 1, 8.4, 3, 8 + side * spread, 7.6 + lift * 1.6, 3.4 + lift, 1.2, '#7c4a22', 0, 0.5);
+    m.limb(8 + side * (spread - 0.6), 7.8 + lift * 1.6, 3.6 + lift, 8 + side * (spread + 0.6), 8.6 + lift * 1.6,
+      3.4 + lift, 0.4, '#3f2a18');
+  }
+  m.limb(8, 10.6, 2.6, 8, 13.4, 2.6, 0.9, '#5a3a1e', 0, 0.5);
+  m.egg(8, 8.6, 3, 2.1, 3, 1.6, '#8b5a2b', 0.3);
+  m.egg(8, 8, 3.8, 1.3, 1.8, 0.8, '#e7c9a0');
+  m.ball(8, 5.8, 4, 1.6, '#6b4423');
+  m.limb(8, 4.4, 4, 8, 3.2, 4, 0.4, '#f59e0b', 0, 0.2);
+  for (const side of [-1, 1]) m.dot(8 + side * 0.8, 5.4, '#111827', 30);
+  return m.paint();
+}
+
 export function drawGrenade(kind, lit) {
   const m = new Model(22, 1);
   GRENADES[kind](m, lit);

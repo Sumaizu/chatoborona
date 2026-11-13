@@ -191,9 +191,9 @@ test('с 91-й волны мобы крепчают спокойно — на 10
   }
 });
 
-test('классы: тринадцать, у каждого оружие, свой склад и набор навыков; у стрелков — по плану Реборна', () => {
-  eq(CLASSES.length, 13);
-  eq(new Set(CLASSES.map((c) => c.id)).size, 13);
+test('классы: четырнадцать, у каждого оружие, свой склад и набор навыков; у стрелков — по плану Реборна', () => {
+  eq(CLASSES.length, 14);
+  eq(new Set(CLASSES.map((c) => c.id)).size, 14);
   eq(PERKS, [10, 30, 50]);
   const runes = CLASSES.flatMap((cls) => cls.runes.map((rune) => rune.id));
   eq(new Set(runes).size, runes.length, 'руны не повторяются');
@@ -211,7 +211,8 @@ test('классы: тринадцать, у каждого оружие, сво
         : skill.id === 'perk' + skill.perk);
     }
     if (!cls.pool && !cls.styles) eq(pool.length, 5, cls.id);
-    const chosen = [pool[2].id, pool[pool.length - 1].id], info = describe(cls.id, chosen.concat('чужое'));
+    const chosen = Array.from(new Set([pool[2].id, pool[pool.length - 1].id]));
+    const info = describe(cls.id, chosen.concat('чужое'));
     ok(info.main && !/undefined|NaN/.test(info.main), cls.id);
     eq(info.skills.map((skill) => skill.id), chosen, cls.id);
   }
@@ -223,6 +224,9 @@ test('классы: тринадцать, у каждого оружие, сво
     'lastRound', 'spotter', 'goldRounds', 'endless'], 'у штурмовика — только свои усиления');
   eq(['sniper-ragged', 'sniper-scope', 'sniper-assault', 'sniper-marksman'],
     [[], ['scope'], ['assault'], ['marksman']].map((taken) => skinOf('sniper', taken)));
+  eq(names('forester'), ['Друид', 'Охотник', 'Ведьма']);
+  eq(['forester-ragged', 'forester-druid', 'forester-hunter', 'forester-witch'],
+    [[], ['druid'], ['hunter'], ['witch']].map((taken) => skinOf('forester', taken)));
   eq(names('mechanic'), ['Турельщик', 'Подрывник', 'Ракетчик', 'Гигантская турель', 'Атакующий дрон', 'Лазерный дрон',
     'Противовоздушный дрон', 'Кассетный снаряд', 'Большой калибр', 'Залп', 'Прицельный выстрел', 'Напалм',
     'Корректировка', 'Шрапнель', 'Ядерка', 'Команда поддержки', 'ЭМИ-граната', 'Стальной щит', 'Тюнинг']);

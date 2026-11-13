@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { AIM, BITE_TIME, Battle, CRIMSON, DISCHARGE, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, PLAGUE,
+import { AIM, BITE_TIME, Battle, CRIMSON, WOOD, DISCHARGE, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, PLAGUE,
   FIRE, PLANTED, PULSE, REACTIONS, ROT, SECOND, SHOT, SPLIT_TIME, THORN }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
@@ -853,6 +853,66 @@ test('механик-подрывник: прицельный выстрел —
   eq(shots().length, 1, 'после выстрела отсчёт заново');
   runFor(far, 0.7);
   eq(shots().length, 2);
+});
+
+function forester(battle, x, y, runes) {
+  const t = battle.place(player(), 'forester', x, y);
+  battle.setMods(t, { runes });
+  t.critChance = 0;
+  t.cooldown = 1e9;
+  battle.random = () => 0.99;
+  return t;
+}
+
+test('лесник: без стиля — лук, стрела в того, кто ближе к сердцу', () => {
+  const battle = makeBattle(), t = forester(battle, 10, 4, []);
+  eq(t.cls.name, 'Лесник');
+  const back = walker(battle, 9, 1e9), front = walker(battle, 12, 1e9);
+  still(back, front);
+  ok(battle._fire(t));
+  near(hit(front), t.damage);
+  eq(hit(back), 0);
+});
+
+test('лесник-друид: сам не стреляет, птица летит через всю карту и клюёт того, кто впереди', () => {
+  const battle = makeBattle(), t = forester(battle, 1, 4, ['druid']);
+  const lead = walker(battle, 17, 1e9), close = walker(battle, 2, 1e9);
+  still(lead, close);
+  no(battle._fire(t), 'друид сам не атакует');
+  battle.step(TICK);
+  const bird = battle.drones.find((d) => d.tower === t);
+  ok(bird && bird.kind === 'bird', 'рядом птица');
+  ok(bird.target === lead, 'летит к тому, кто впереди всех');
+  runFor(battle, 5);
+  ok(Math.hypot(bird.x - lead.x, bird.y - lead.y) < MECH.drone.hover + 0.3, 'долетела');
+  ok(hit(lead) > 0 && battle.events.some((e) => e.kind === 'peck'), 'клюёт');
+  eq(hit(close), 0, 'ближнего друид не трогает');
+});
+
+test('лесник-охотник: тяжёлый арбалет — далеко, очень сильно, сперва элитные и боссы, после выстрела перезарядка', () => {
+  const battle = makeBattle(), t = forester(battle, 10, 4, ['hunter']);
+  near(t.baseRange, t.cls.base.range + WOOD.hunter.range);
+  near(t.damage / baseOf(t.cls).damage, WOOD.hunter.mul);
+  const plain = walker(battle, 14, 1e9), elite = quiet(put(battle, special(battle, 'elite', 'vampire', 1e9), 11));
+  still(plain);
+  ok(battle._fire(t));
+  ok(hit(elite) > 0 && hit(plain) === 0, 'сперва элитный, хоть обычный и впереди');
+  ok(t.reloadUntil >= battle.time + WOOD.hunter.reload - 1e-9, 'перезарядка');
+  no(battle._fire(t), 'пока перезаряжается — не стреляет');
+});
+
+test('лесник-ведьма: ядовитые шары — урон ядом, без меток для реакций; нежить и неуязвимых к яду не трогает', () => {
+  const battle = makeBattle(), t = forester(battle, 10, 4, ['witch']);
+  eq(t.element, 'poison');
+  const bone = walker(battle, 13, 1e9), mob = walker(battle, 11, 1e9);
+  bone.undead = true;
+  still(bone, mob);
+  ok(battle._fire(t));
+  ok(hit(mob) > 0, 'бьёт живого');
+  eq(hit(bone), 0, 'нежить не трогает');
+  no(mob.marks && mob.marks.has('poison'), 'без метки яда для реакций');
+  mob.dead = true;
+  no(battle._fire(t), 'остался только скелет — ждёт');
 });
 
 test('стрелок: без стиля — редкий дальний выстрел в самого крепкого, дальше всех', () => {

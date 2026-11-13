@@ -3,7 +3,7 @@ import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintR
 import { FIRE, MECH, flightAt } from './battle.js';
 import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite, cocoonSprite,
   coinSprite, fireballSprite, flaskSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
-  meteorSprite, grenadeSprite, droneSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
+  meteorSprite, grenadeSprite, droneSprite, birdSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
   rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, trapSprite, ventSprite, wallSprite } from './sprites.js';
 import { SOILS } from './props.js';
 import { MUZZLES, RELOAD_FRAMES } from './models.js';
@@ -27,11 +27,13 @@ const COG = ['.#.#.', '#####', '##.##', '#####', '.#.#.'];
 const SHELL = ['oo', '##', '##', '##', '##'];
 const AURAS = { team: { glow: 'rgba(100, 116, 139, 1)', tones: ['#64748b', '#475569', '#7c8a9e'], shape: COG },
   tuning: { glow: 'rgba(250, 204, 21, 1)', tones: ['#facc15', '#eab308', '#d4a017'], shape: SHELL, tip: '#b45309' } };
-const BLAST_TONES = ['#fff3b0', '#ffd84a', '#ff9a1f', '#e2531f', '#6b5a50'];
+const BLAST_TONES = { warm: ['#fff3b0', '#ffd84a', '#ff9a1f', '#e2531f', '#6b5a50'],
+  blue: ['#f0f9ff', '#bae6fd', '#4aa3ff', '#2563eb', '#4b5563'] };
 const DRONE_LIFT = 18;
 const AIRBURST = 22;
 const NUKE_ARC = 90;
 const SHARD_ARC = 12;
+const LEAF_TONES = ['#86efac', '#4ade80', '#bbf7d0'];
 const SMOG = ['rgba(122, 140, 98, 1)', 'rgba(150, 160, 120, 1)', 'rgba(96, 112, 80, 1)', 'rgba(132, 150, 90, 1)'];
 const ARC = { base: 24, per: 9, max: 110 };
 const TURN_STEPS = 8;
@@ -82,9 +84,12 @@ const SNOWFLAKES = 90;
 const INK = '#f4f0e8';
 const MUTED = 'rgba(166, 162, 189, .85)';
 const DARK = '#100e1f';
+const STYLE_BOLTS = { hunter: { look: 'bolt', color: '#e7e5e4', width: 3 },
+  witch: { look: 'orb', color: '#84cc16', size: 4 } };
 const BOLTS = {
   sniper: { look: 'tracer', color: '#fff3b0', width: 2, bullet: true },
   mechanic: { look: 'tracer', color: '#ffe8a3', width: 1.5, bullet: true },
+  forester: { look: 'bolt', color: '#c8a26a', width: 2 },
   earth: { look: 'lob', color: '#9a8f80', size: 4 },
   alchemist: { look: 'dot', color: '#9be22d', size: 3 },
   hunter: { look: 'bolt', color: '#e8d9b5', width: 2 },
@@ -1330,13 +1335,14 @@ export class Scene {
       const k = spot - j;
       return (0.55 + 0.45 * noise(j, e.seed)) * (1 - k) + (0.55 + 0.45 * noise((j + 1) % 7, e.seed)) * k;
     };
-    glow(ctx, x, y, r * grow, BOOM.heat, fade * 0.6);
+    const tones = BLAST_TONES[e.blue ? 'blue' : 'warm'];
+    glow(ctx, x, y, r * grow, e.blue ? HEAT.blue[1] : BOOM.heat, fade * 0.6);
     for (let i = 0, count = Math.round(30 + 28 * e.r); i < count; i++) {
       const a = i * 2.39 + e.seed, k = Math.sqrt(noise(i, e.seed + 3)), reach = r * grow * k * lobe(a);
-      const tone = Math.min(BLAST_TONES.length - 1, Math.floor(k * 2.2 + share * 3));
+      const tone = Math.min(tones.length - 1, Math.floor(k * 2.2 + share * 3));
       ctx.globalAlpha = fade * (1 - k * 0.25);
       bit(ctx, x + Math.cos(a) * reach, y + Math.sin(a) * reach * 0.9 - share * 5 * k, k < 0.5 ? 4 : 3,
-        BLAST_TONES[tone], i + e.seed);
+        tones[tone], i + e.seed);
     }
     if (share > 0.35) {
       for (let i = 0; i < 8; i++) {
@@ -1425,7 +1431,9 @@ export class Scene {
       ctx.beginPath();
       ctx.ellipse(x, y + 3, 7, 3, 0, 0, Math.PI * 2);
       ctx.fill();
-      sprite(ctx, droneSprite(drone.kind, Math.floor(this.clock * 24) % 2), x, y - lift, spot.angle, 1.5, 0, 64);
+      const image = drone.kind === 'bird' ? birdSprite(Math.floor(this.clock * 12) % 3)
+        : droneSprite(drone.kind, Math.floor(this.clock * 24) % 2);
+      sprite(ctx, image, x, y - lift, spot.angle, drone.kind === 'bird' ? 1.3 : 1.5, 0, 64);
     }
   }
 
@@ -1455,6 +1463,15 @@ export class Scene {
         look.tip);
     }
     ctx.globalAlpha = 1;
+  }
+
+  _leafGlow(ctx, t) {
+    const tip = this._muzzle(t), x = at(tip.x), y = at(tip.y);
+    glow(ctx, x, y, 9, 'rgba(134, 239, 172, 1)', 0.4 + 0.15 * Math.sin(this.clock * 3 + t.x));
+    for (let i = 0; i < 3; i++) {
+      const a = this.clock * 2 + i * Math.PI * 2 / 3;
+      bit(ctx, x + Math.cos(a) * 4, y + Math.sin(a) * 3, 2, LEAF_TONES[i], i + Math.floor(this.clock * 6));
+    }
   }
 
   _mutedOn(ctx, x, y, size) {
@@ -2017,6 +2034,7 @@ export class Scene {
         square(ctx, fx, fy, 3, '#ffffff');
       }
       ctx.globalAlpha = 1;
+      if (t.style === 'druid' && !t.cocoon) this._leafGlow(ctx, t);
       if (t.webUntil > now) this._webOn(ctx, x, y);
       if (t.stunUntil > now) stars(ctx, x, y - 16, 9, this.clock * 5);
       else if (t.napUntil > now) {
@@ -2282,7 +2300,7 @@ export class Scene {
         return;
       }
       const away = event.sx !== undefined;
-      let bolt = BOLTS[t.cls.id] || { look: 'dot', color: t.cls.color, size: 2 };
+      let bolt = STYLE_BOLTS[t.style] || BOLTS[t.cls.id] || { look: 'dot', color: t.cls.color, size: 2 };
       if (event.size) bolt = Object.assign({}, bolt, { size: event.size });
       if (event.blue) bolt = Object.assign({}, bolt, { color: '#4aa3ff', blue: true });
       if (event.heavy) {
@@ -2357,9 +2375,11 @@ export class Scene {
         add({ kind: 'chain', life: 0.2, points });
         for (const [x, y] of event.points.slice(1)) this._sparks(x, y, ['#bfdbfe', '#ffffff'], 3, 1.6, 0.25);
       });
-    } else if (event.kind === 'boom' && t && t.style === 'demo') {
-      add({ kind: 'blast', life: 0.55, x: event.x, y: event.y, r: event.radius, seed: Math.floor(Math.random() * 97) });
-      this._sparks(event.x, event.y, ['#ffd84a', '#ff8a1f', '#e2531f', '#5a4a40'], 12, event.radius * 4.5, 0.45, 3);
+    } else if (event.kind === 'boom' && (event.fireball || t && t.style === 'demo')) {
+      add({ kind: 'blast', life: 0.55, x: event.x, y: event.y, r: event.radius, seed: Math.floor(Math.random() * 97),
+        blue: event.blue });
+      this._sparks(event.x, event.y, event.blue ? BLUE_FLAME.slice(0, 4) : ['#ffd84a', '#ff8a1f', '#e2531f', '#5a4a40'], 12,
+        event.radius * 4.5, 0.45, 3);
       this.decals.push({ kind: 'scorch', t: 0, life: 3, x: event.x, y: event.y, r: Math.min(1, event.radius * 0.6) });
     } else if (event.kind === 'boom') {
       const big = event.rocket || event.meteor;
@@ -2470,6 +2490,8 @@ export class Scene {
       this._sparks(event.x, event.y, (blue ? BLUE_FLAME : FLAME).slice(0, 3), 16, 2.4, 0.6, 3);
     } else if (event.kind === 'flight') {
       this._sparks(event.x1, event.y1, FLAME.slice(0, 3), 14, 2.4, 0.5, 3);
+    } else if (event.kind === 'peck') {
+      this._sparks(event.x, event.y, ['#8b5a2b', '#e7c9a0', '#ffffff'], 4, 1.2, 0.3, 2);
     } else if (event.kind === 'ray') {
       add({ kind: 'ray', life: 0.18, x1: event.sx, y1: event.sy - DRONE_LIFT / CELL, x2: event.x, y2: event.y });
       this._sparks(event.x, event.y, ['#ecfeff', '#22d3ee'], 4, 1.2, 0.25, 2);
@@ -2754,6 +2776,17 @@ export class Scene {
           ctx.moveTo(x - dx / len * 7, y - dy / len * 7);
           ctx.lineTo(x, y);
           ctx.stroke();
+        } else if (b.look === 'orb') {
+          glow(ctx, x, y, 9, 'rgba(132, 204, 22, 1)', 0.65);
+          for (let i = 1; i <= 4; i++) {
+            const back = Math.max(0, share - i * 0.07);
+            ctx.globalAlpha = 1 - i / 5;
+            bit(ctx, at(e.x1 + (e.x2 - e.x1) * back), at(e.y1 + (e.y2 - e.y1) * back), 2,
+              i % 2 ? '#84cc16' : '#4d7c0f', i + Math.floor(this.clock * 9));
+          }
+          ctx.globalAlpha = 1;
+          square(ctx, x, y, b.size + 2, '#365314');
+          square(ctx, x, y, b.size, '#bef264');
         } else if (b.look === 'lob') {
           const arc = Math.sin(share * Math.PI) * 10;
           square(ctx, x, y - arc, b.size + 2, '#15111d');
