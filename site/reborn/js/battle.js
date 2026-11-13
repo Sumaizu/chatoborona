@@ -2565,13 +2565,13 @@ function scorch(b, t, mob, damage) {
   b._ignite(mob, t, t.damage * FIRE.smolder * flame(t), FIRE.burn * (t.runes.has('blue') ? FIRE.blueBurn : 1));
 }
 
-function fireball(b, t, target, from = null) {
+function fireball(b, t, target, from = null, hand = 0) {
   const styled = t.style === 'fireball', giant = styled && t.runes.has('giant');
   const crit = rollCrit(b, t), damage = t.damage * (styled ? FIRE.styled : 1) * (giant ? FIRE.giant : 1)
     * (crit ? t.critMul : 1);
   const radius = styled ? FIRE.splash * (giant ? FIRE.wide : 1) : 0, x = target.x, y = target.y;
   const event = { kind: 'shot', tower: t, x, y, crit, mob: target.dead ? null : target, time: FIREBALL_FLIGHT,
-    size: giant ? 13 : styled ? 10 : 7, blue: t.runes.has('blue') };
+    size: giant ? 13 : styled ? 10 : 7, blue: t.runes.has('blue'), hand };
   if (from) Object.assign(event, { sx: from.x, sy: from.y });
   b._event(event);
   b._later(FIREBALL_FLIGHT, () => {
@@ -3046,7 +3046,7 @@ const SKILLS = {
       fireball(b, t, target);
       if (t.runes.has('twin')) {
         const other = b._target(t, { skip: target, mode: 'any' });
-        if (other) fireball(b, t, other);
+        if (other) fireball(b, t, other, null, 1);
       }
       return true;
     },

@@ -262,8 +262,8 @@ export const CLASSES = [
     summary: 'Огненные шары; первый камень даёт стиль: огненный шар, дракон или возгорание',
     main: (b) => 'Бросает огненные шары на ' + cells(b.range) + ', урон огнём ×' + num(b.damage),
     styles: [
-      { id: 'fireball', name: 'Огненный шар', text: 'шары крупнее, летят дальше и бьют сильнее, а у цели взрываются на '
-        + 'клетку вокруг' },
+      { id: 'fireball', name: 'Огненный шар', marks: ['twin'], text: 'шары крупнее, летят дальше и бьют '
+        + 'сильнее, а у цели взрываются на клетку вокруг' },
       { id: 'dragon', name: 'Дракон', text: 'маг становится драконом: вместо шаров дышит струёй пламени — раз в тик '
         + 'жжёт всех в конусе' },
       { id: 'ignite', name: 'Возгорание', text: 'не стреляет, зато каждый тик любой моб на карте может вспыхнуть от '
@@ -753,7 +753,9 @@ export function skinOf(id, taken = []) {
   const cls = CLASS_BY_ID.get(id);
   if (!cls || !cls.styles) return id;
   const style = cls.styles.find((item) => taken.includes(item.id));
-  return style ? id + '-' + style.id + (taken.includes('blue') ? '-blue' : '') : id + '-ragged';
+  if (!style) return id + '-ragged';
+  const marks = (style.marks || []).filter((mark) => taken.includes(mark)).map((mark) => '-' + mark).join('');
+  return id + '-' + style.id + marks + (taken.includes('blue') ? '-blue' : '');
 }
 
 export const skillOf = (cls, id) => poolOf(cls).find((skill) => skill.id === id) || null;

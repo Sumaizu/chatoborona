@@ -306,11 +306,12 @@ function ragged(m) {
   }
 }
 
-function fireballMage(m, fire, core) {
+function fireballMage(m, fire, core, twin) {
   robed(m, {
-    robe: '#b91c1c', dark: '#7f1d1d', sleeve: '#c42828', trim: '#f59e0b', hands: [11.5, 12, 20.5, 12],
+    robe: '#b91c1c', dark: '#7f1d1d', sleeve: '#c42828', trim: '#f59e0b',
+    hands: twin ? [11.5, 12, 20.5, 12] : [12.5, 14.5, 20.5, 12],
     weapon: (q) => {
-      for (const [x, y] of [[11.5, 11], [20.5, 11]]) {
+      for (const [x, y] of twin ? [[11.5, 11], [20.5, 11]] : [[20.5, 11]]) {
         q.ball(x, y, 12, 2.5, fire, 1);
         q.ball(x - 0.3, y - 0.5, 13.6, 1.3, core, 1);
       }
@@ -602,8 +603,10 @@ const SKINS = {
   'sniper-assault': assault,
   'sniper-marksman': marksman,
   'pyro-ragged': ragged,
-  'pyro-fireball': (m) => fireballMage(m, '#f97316', '#fde047'),
-  'pyro-fireball-blue': (m) => fireballMage(m, '#3b82f6', '#e0f2ff'),
+  'pyro-fireball': (m) => fireballMage(m, '#f97316', '#fde047', false),
+  'pyro-fireball-blue': (m) => fireballMage(m, '#3b82f6', '#e0f2ff', false),
+  'pyro-fireball-twin': (m) => fireballMage(m, '#f97316', '#fde047', true),
+  'pyro-fireball-twin-blue': (m) => fireballMage(m, '#3b82f6', '#e0f2ff', true),
   'pyro-dragon': (m) => dragon(m, DRAGONS.red),
   'pyro-dragon-blue': (m) => dragon(m, DRAGONS.blue),
   'pyro-dragon-fly': (m) => dragonFly(m, DRAGONS.red, 1),
@@ -771,6 +774,22 @@ const HEROES = {
 
 Object.assign(HEROES, MAGES, SKINS);
 export const HERO_IDS = Object.keys(HEROES);
+
+const STAFF = [[12.5, 3]];
+const PISTOL = [[16, 6.8]];
+const STICK = [[12.4, 3]];
+const PALM = [[20.5, 10.6]];
+const PALMS = [[20.5, 10.6], [11.5, 10.6]];
+const MOUTH = [[16, 2.7]];
+
+export const MUZZLES = {
+  pyro: STICK, 'pyro-ragged': STICK, 'pyro-fireball': PALM, 'pyro-fireball-blue': PALM, 'pyro-fireball-twin': PALMS,
+  'pyro-fireball-twin-blue': PALMS, 'pyro-ignite': [[20.5, 7.5]], 'pyro-ignite-blue': [[20.5, 7.5]],
+  'pyro-dragon': MOUTH, 'pyro-dragon-blue': MOUTH, sniper: PISTOL, 'sniper-ragged': PISTOL,
+  'sniper-scope': [[16, -7]], 'sniper-assault': [[16, -4.9]], 'sniper-marksman': [[16, -6]], gunner: [[16, 2.6]],
+  bomber: [[16, 2.2]], alchemist: [[12, 11.5]], hunter: [[16, 3]], banner: [[19, 11]], healer: [[16, 9]],
+  sage: [[16, 11.2]], miner: [[13.5, 11.5]], frost: STAFF, earth: STAFF, shaman: STAFF, thunder: STAFF,
+};
 
 export function drawHero(id) {
   const m = new Model(32, 1.08);

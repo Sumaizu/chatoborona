@@ -1,11 +1,12 @@
 import { LETTERS, SIZE } from './field.js';
 import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintRoof } from './terrain.js';
 import { FIRE, flightAt } from './battle.js';
-import { FIREBALL_FRAMES, HERO_SIZE, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite, cocoonSprite,
+import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite, cocoonSprite,
   coinSprite, fireballSprite, flaskSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
   meteorSprite, mineSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf, rocketSprite,
   shellSprite, splitSprite, starSprite, tintSprite, trapSprite, ventSprite, wallSprite } from './sprites.js';
 import { SOILS } from './props.js';
+import { MUZZLES } from './models.js';
 import { gearColor } from './gacha.js';
 
 export const BOARD = EDGE * 2 + CELL * SIZE;
@@ -18,7 +19,7 @@ const TURN_STEPS = 8;
 const KICK = 0.1;
 const FLASH = 0.06;
 const TRAVEL = 0.1;
-const JAWS = 14;
+const MODEL_UNIT = 1.08;
 const LASER = { life: 0.45, layers: [[11, 4, 0.55], [8, 3, 0.9], [5, 2, 1], [2.5, 0, 1]] };
 const WALK = 7;
 const BEAT = 1.1;
@@ -979,6 +980,15 @@ export class Scene {
     ctx.globalAlpha = 1;
   }
 
+  _muzzle(t, hand = 0) {
+    const pose = this._pose(t), points = MUZZLES[t.look] || MUZZLES[t.cls.id] || [[16, 4]];
+    const [mx, my] = points[Math.min(hand, points.length - 1)];
+    const a = turnOf(pose.angle, HERO_TURN_STEPS) * (Math.PI * 2 / HERO_TURN_STEPS);
+    const dx = (mx - 16) * MODEL_UNIT, dy = (my - 16) * MODEL_UNIT;
+    return { x: pose.x + (dx * Math.cos(a) - dy * Math.sin(a)) / CELL,
+      y: pose.y + (dx * Math.sin(a) + dy * Math.cos(a) - (pose.lift || 0)) / CELL };
+  }
+
   _fireball(ctx, e, share, dt) {
     const b = e.bolt, zoom = b.size / 8, cx = e.x1 + (e.x2 - e.x1) * share, cy = e.y1 + (e.y2 - e.y1) * share;
     const x = at(cx), y = at(cy), tones = b.blue ? BLUE_FLAME : FLAME;
@@ -990,7 +1000,8 @@ export class Scene {
 
   _laser(ctx, e, share) {
     const pose = this._pose(e.tower), a = pose.angle, tones = e.blue ? BLUE_FLAME : FLAME;
-    const x1 = at(pose.x) + Math.sin(a) * JAWS, y1 = at(pose.y) - (pose.lift || 0) - Math.cos(a) * JAWS;
+    const mouth = this._muzzle(e.tower);
+    const x1 = at(mouth.x), y1 = at(mouth.y);
     const spot = e.mob && !e.mob.dead ? this.shown.get(e.mob.id) || e.mob : null;
     const x2 = spot ? at(spot.x) : at(e.x2), y2 = spot ? at(spot.y) - (spot.lift || 0) : at(e.y2);
     const power = Math.min(1, share / 0.15, (1 - share) / 0.4) * (1 + 0.2 * Math.sin(this.clock * 70));
@@ -1883,13 +1894,15 @@ export class Scene {
         }
         ctx.globalAlpha = 1;
       }
-      if (t.hot && firing) this._muzzleFire(ctx, x, y, pose.angle);
+      if (t.hot && firing) {
+        const tip = this._muzzle(t);
+        this._muzzleFire(ctx, at(tip.x), at(tip.y));
+      }
       if (t.reloadUntil > now) {
         this._progress(ctx, x, y - 2, 1 - (t.reloadUntil - now) / (t.reloadSpan || t.cls.base.reload), '#e5e7eb');
       }
       if (pose.flash > 0 && !t.rider && !t.cocoon) {
-        const a = pose.angle, d = HERO_SIZE * ZOOM / 2 + 1;
-        const fx = x + Math.sin(a) * d, fy = y - Math.cos(a) * d;
+        const tip = this._muzzle(t), fx = at(tip.x), fy = at(tip.y);
         glow(ctx, fx, fy, 7, 'rgba(255, 236, 160, .95)', 0.9);
         square(ctx, fx, fy, 3, '#ffffff');
       }
@@ -1906,8 +1919,7 @@ export class Scene {
     }
   }
 
-  _muzzleFire(ctx, x, y, angle) {
-    const d = HERO_SIZE * ZOOM / 2 + 2, fx = x + Math.sin(angle) * d, fy = y - Math.cos(angle) * d;
+  _muzzleFire(ctx, fx, fy) {
     glow(ctx, fx, fy, 8, 'rgba(255, 120, 30, .95)', 0.7);
     for (let i = 0; i < 5; i++) {
       const rise = (this.clock * 6 + i / 5) % 1;
@@ -1941,8 +1953,7 @@ export class Scene {
       const look = CHARGES[charge.kind], pose = this._pose(t), x = at(pose.x), y = at(pose.y);
       const target = charge.target && !charge.target.dead ? charge.target : null;
       if (target) pose.aim = Math.atan2(target.x - t.cx, -(target.y - t.cy));
-      const d = charge.kind === 'beam' ? JAWS : HERO_SIZE * ZOOM / 2 + 2;
-      const fx = x + Math.sin(pose.angle) * d, fy = y - Math.cos(pose.angle) * d;
+      const tip = this._muzzle(t), fx = at(tip.x), fy = at(tip.y);
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       glow(ctx, fx, fy, 4 + 9 * share, look.glow, 0.45 + 0.45 * share);
@@ -2175,11 +2186,12 @@ export class Scene {
           color: event.blue ? '#9bd5ff' : t.cls.id === 'pyro' ? '#ff9a1f' : '#ffffff' });
       } else if (event.hot) bolt = Object.assign({}, bolt, { color: '#ff9a1f', size: 3 });
       if (event.gold) bolt = Object.assign({}, bolt, { color: '#facc15' });
-      add({ kind: 'shot', life: event.time || TRAVEL * (bolt.look === 'lob' ? 2.5 : 1), x1: away ? event.sx : t.cx,
-        y1: away ? event.sy : t.cy, x2: event.x, y2: event.y, bolt, crit: event.crit, heavy: event.heavy });
+      const tip = away ? { x: event.sx, y: event.sy } : this._muzzle(t, event.hand || 0);
+      add({ kind: 'shot', life: event.time || TRAVEL * (bolt.look === 'lob' ? 2.5 : 1), x1: tip.x, y1: tip.y,
+        x2: event.x, y2: event.y, bolt, crit: event.crit, heavy: event.heavy });
       if (event.heavy) {
         this._pose(t).flash = FLASH * 3;
-        this._sparks(t.cx, t.cy, CHARGES.heavy.sparks, event.heavy === 'mega' ? 14 : 8, 2.4, 0.35);
+        this._sparks(tip.x, tip.y, CHARGES.heavy.sparks, event.heavy === 'mega' ? 14 : 8, 2.4, 0.35);
       }
     } else if (event.kind === 'beam') {
       const pose = this._pose(t);
@@ -2199,18 +2211,20 @@ export class Scene {
       add({ kind: 'boom', life: 0.3, x: event.x, y: event.y, r: event.radius, ring: '#e5e7eb' });
       this._sparks(event.x, event.y, ['#e5e7eb', '#9ca3af', '#fff3b0', '#d6a72e'], 14, event.radius * 5, 0.35, 2);
     } else if (event.kind === 'charge') {
-      this._sparks(t.cx, t.cy, CHARGES[event.charge].sparks, 6, 1.4, 0.4);
+      const tip = this._muzzle(t);
+      this._sparks(tip.x, tip.y, CHARGES[event.charge].sparks, 6, 1.4, 0.4);
     } else if (event.kind === 'reload') {
       this._sparks(t.cx, t.cy, ['#d6a72e', '#a37a1a', '#fff3b0'], 5, 1.2, 0.5, 2);
     } else if (event.kind === 'rocket') {
       this._aim(t, event.x, event.y);
-      add({ kind: 'rocket', life: event.time, x1: t.cx, y1: t.cy, x2: event.x, y2: event.y, mob: event.mob });
+      const tip = this._muzzle(t);
+      add({ kind: 'rocket', life: event.time, x1: tip.x, y1: tip.y, x2: event.x, y2: event.y, mob: event.mob });
     } else if (event.kind === 'chain') {
       this._aim(t, event.points[1][0], event.points[1][1]);
-      const points = [];
-      event.points.forEach(([x, y], i) => {
+      const tip = this._muzzle(t), points = [], route = [[tip.x, tip.y]].concat(event.points.slice(1));
+      route.forEach(([x, y], i) => {
         if (i) {
-          const [px, py] = event.points[i - 1];
+          const [px, py] = route[i - 1];
           for (let k = 1; k < 4; k++) {
             points.push([px + (x - px) * k / 4 + (Math.random() - 0.5) * 0.35,
               py + (y - py) * k / 4 + (Math.random() - 0.5) * 0.35]);
@@ -2329,7 +2343,8 @@ export class Scene {
     } else if (event.kind === 'flight') {
       this._sparks(event.x1, event.y1, FLAME.slice(0, 3), 14, 2.4, 0.5, 3);
     } else if (event.kind === 'net') {
-      add({ kind: 'chain', life: 0.3, points: [[t.cx, t.cy], [event.mob.x, event.mob.y]],
+      const tip = this._muzzle(t);
+      add({ kind: 'chain', life: 0.3, points: [[tip.x, tip.y], [event.mob.x, event.mob.y]],
         color: 'rgba(214, 180, 120, .7)' });
       this._sparks(event.mob.x, event.mob.y, ['#d6b478', '#8a6a3c'], 8, 1.6, 0.4, 2);
     } else if (event.kind === 'prey') {
@@ -2417,15 +2432,17 @@ export class Scene {
           y: event.y + (Math.random() - 0.5) * 0.9, size: 2 + Math.floor(Math.random() * 3), color: '#8a7f70' });
       }
     } else if (event.kind === 'toss') {
-      add({ kind: 'toss', life: event.time, x1: t.cx, y1: t.cy, x2: event.mob.x, y2: event.mob.y, mob: event.mob,
+      const tip = this._muzzle(t);
+      add({ kind: 'toss', life: event.time, x1: tip.x, y1: tip.y, x2: event.mob.x, y2: event.mob.y, mob: event.mob,
         mine: event.mine, radius: event.radius });
     } else if (event.kind === 'immune') {
       const spot = this.shown.get(event.mob.id) || event.mob;
       add({ kind: 'ring', life: 0.35, x: spot.x, y: spot.y, r: 0.55, color: 'rgba(226, 232, 240, .8)', width: 1.5 });
     } else if (event.kind === 'flask' || event.kind === 'fogtoss') {
       this._aim(t, event.x, event.y);
-      add({ kind: 'lob', life: event.time, x1: t.cx, y1: t.cy, x2: event.x, y2: event.y, fog: event.kind === 'fogtoss',
-        black: t.runes.has('plague') });
+      const tip = this._muzzle(t);
+      add({ kind: 'lob', life: event.time, x1: tip.x, y1: tip.y, x2: event.x, y2: event.y,
+        fog: event.kind === 'fogtoss', black: t.runes.has('plague') });
     } else if (event.kind === 'splash') {
       this._sparks(event.x, event.y, t.runes.has('plague') ? ['#a78bfa', '#4c1d95', '#17141f']
         : ['#d9f99d', '#84cc16', '#3f6212'], 8, 2, 0.35, 2);
@@ -2543,8 +2560,8 @@ export class Scene {
       if (!flame || flame.until <= this.clock) continue;
       const fade = Math.min(1, (flame.until - this.clock) / 0.12), spread = t.cone || 0.4;
       const tones = flame.blue ? BLUE_FLAME : FLAME;
-      const nozzle = HERO_SIZE * ZOOM / 2, ox = at(t.cx) + Math.cos(flame.angle) * nozzle;
-      const oy = at(t.cy) + Math.sin(flame.angle) * nozzle, reach = t.range * CELL - nozzle;
+      const mouth = this._muzzle(t), ox = at(mouth.x), oy = at(mouth.y);
+      const reach = t.range * CELL - Math.hypot(ox - at(t.cx), oy - at(t.cy));
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       glow(ctx, ox + Math.cos(flame.angle) * reach * 0.35, oy + Math.sin(flame.angle) * reach * 0.35, reach * 0.55,

@@ -389,8 +389,9 @@ test('маг огня: первый камень — только стиль; д
   eq(choiceOf('pyro', ['ignite', 'torch']).map((option) => [option.skill.id, option.state]),
     [['flameRing', 'open'], ['fireWall', 'open'], ['amaterasu', 'open'], ['phoenix', 'open'], ['smolder', 'open'],
       ['fireReact', 'open'], ['torch', 'taken'], ['blue', 'open']]);
-  eq([skinOf('pyro', []), skinOf('pyro', ['dragon']), skinOf('pyro', ['fireball', 'blue'])],
-    ['pyro-ragged', 'pyro-dragon', 'pyro-fireball-blue']);
+  eq([skinOf('pyro', []), skinOf('pyro', ['dragon']), skinOf('pyro', ['fireball', 'blue']),
+    skinOf('pyro', ['twin', 'fireball', 'blue'])], ['pyro-ragged', 'pyro-dragon', 'pyro-fireball-blue',
+    'pyro-fireball-twin-blue'], 'двойной каст — второй шар во второй руке');
   eq(skinOf('gunner', ['perk0']), 'gunner');
   eq(styleOf('pyro', ['twin', 'fireball']).name, 'Огненный шар');
   eq(choiceOf('gunner', []).length, poolOf('gunner').length, 'у классов без стилей — сразу навыки');
