@@ -26,6 +26,9 @@ const FLIGHT_MIN = 0.05;
 const LOB_ARC = 22;
 const AURA = { gears: { count: 6, radius: 0.85, speed: 0.7 }, bullets: { count: 8, radius: 1.15, speed: -0.9 } };
 const DROP_HEIGHT = 18;
+const AIRBURST = 22;
+const NUKE_ARC = 90;
+const SHARD_ARC = 12;
 const ARC = { base: 24, per: 9, max: 110 };
 const TURN_STEPS = 8;
 const KICK = 0.1;
@@ -1429,8 +1432,12 @@ export class Scene {
   }
 
   _nukeFlight(ctx, e, share) {
-    const small = e.mine === 'fusion', height = small ? 50 : 90;
-    const point = (s) => [at(e.x1 + (e.x2 - e.x1) * s), at(e.y1 + (e.y2 - e.y1) * s) - Math.sin(s * Math.PI) * height];
+    const spot = e.mob && !e.mob.dead ? this.shown.get(e.mob.id) : null;
+    if (spot) {
+      e.x2 = spot.x;
+      e.y2 = spot.y;
+    }
+    const point = (s) => [at(e.x1 + (e.x2 - e.x1) * s), at(e.y1 + (e.y2 - e.y1) * s) - Math.sin(s * Math.PI) * e.arc];
     const [x, y] = point(share), [nx, ny] = point(Math.min(1, share + 0.02)), tx = at(e.x2), ty = at(e.y2);
     const pulse = 0.5 + 0.5 * Math.sin(this.clock * 12);
     ctx.save();
@@ -1455,7 +1462,7 @@ export class Scene {
         0.35 * (1 - i / 9));
     }
     glow(ctx, x, y - 12, 10, 'rgba(255, 216, 74, .9)', 0.25 + 0.2 * pulse);
-    sprite(ctx, nukeSprite(), x, y, Math.atan2(-(nx - x), ny - y + 1e-6), small ? 1.3 : 2.2, 0, 64);
+    sprite(ctx, nukeSprite(), x, y, Math.atan2(-(nx - x), ny - y + 1e-6), 2.2, 0, 64);
   }
 
   _vents(ctx, battle) {
@@ -2346,13 +2353,20 @@ export class Scene {
       this._fire(t, event.x, event.y, event.mob, (x2, y2, late) => {
         const tip = this._muzzle(t);
         add({ kind: 'rocket', life: Math.max(FLIGHT_MIN, event.time - late), x1: tip.x, y1: tip.y, x2, y2,
-          mob: event.mob });
+          mob: event.mob, big: event.big });
       });
+    } else if (event.kind === 'shard') {
+      add({ kind: 'shard', life: event.time, x1: event.sx, y1: event.sy, x2: event.x, y2: event.y, mob: event.mob,
+        arc: SHARD_ARC });
+    } else if (event.kind === 'airburst') {
+      add({ kind: 'airburst', life: event.time, x: event.x, y: event.y, points: event.points });
+      this._sparks(event.x, event.y - AIRBURST / CELL, ['#e5e7eb', '#9ca3af', '#fff3b0'], 10, 2, 0.35, 2);
     } else if (event.kind === 'mortar') {
       this._fire(t, event.x, event.y, event.mob, (x2, y2, late) => {
         const tip = this._muzzle(t);
         add({ kind: 'mortar', life: Math.max(FLIGHT_MIN, event.time - late), x1: tip.x, y1: tip.y, x2, y2,
-          mob: event.mob, arc: arcOf(tip.x, tip.y, x2, y2) });
+          mob: event.mob, arc: event.nuke ? NUKE_ARC : arcOf(tip.x, tip.y, x2, y2), nuke: event.nuke,
+          radius: event.radius, shrapnel: event.shrapnel });
         this._sparks(tip.x, tip.y, ['#e5e7eb', '#9ca3af', '#fff3b0'], 5, 1.2, 0.35, 2);
       });
     } else if (event.kind === 'chain') {
@@ -2799,9 +2813,23 @@ export class Scene {
             'rgba(200, 196, 210, 1)', 0.4 * (1 - i / 8));
         }
         glow(ctx, x + bx * 7, y + by * 7, 7, 'rgba(255, 160, 40, .95)', 0.85);
-        sprite(ctx, rocketSprite(), x, y, angle, 1.6, 0, 64);
+        sprite(ctx, rocketSprite(), x, y, angle, e.big ? 2.4 : 1.6, 0, 64);
+      } else if (e.kind === 'mortar' && e.nuke) {
+        this._nukeFlight(ctx, e, share);
+      } else if (e.kind === 'shard') {
+        const { x, y } = this._lofted(ctx, e, share);
+        glow(ctx, x, y, 4, 'rgba(255, 160, 40, .95)', 0.6);
+        square(ctx, x, y, 3, '#3f3f46');
+      } else if (e.kind === 'airburst') {
+        const top = at(e.y) - AIRBURST;
+        glow(ctx, at(e.x), top, 14 * (1 - share) + 4, 'rgba(214, 211, 209, 1)', 0.6 * (1 - share));
+        for (const [px, py] of e.points) {
+          const k = share * share, x = at(e.x + (px - e.x) * share), y = top + (at(py) - top) * k;
+          square(ctx, x, y, 2, '#52525b');
+          glow(ctx, x, y, 3, 'rgba(255, 200, 120, 1)', 0.4);
+        }
       } else if (e.kind === 'mortar') {
-        const { x, y, angle } = this._lofted(ctx, e, share);
+        const { x, y: high, angle } = this._lofted(ctx, e, share), y = high - (e.shrapnel ? share * AIRBURST : 0);
         for (let i = 1; i <= 5; i++) {
           const [px, py] = this._arcAt(e, Math.max(0, share - i * 0.025));
           glow(ctx, px, py, 2 + i, 'rgba(200, 196, 210, 1)', 0.35 * (1 - i / 6));

@@ -477,9 +477,12 @@ test('механик-подрывник: РПГ — снаряд долетае�
   still(target, close, far);
   const rockets = firedBy(battle, 'rocket');
   battle._fire(t);
-  ok(rockets().some((e) => e.mob === target), 'снаряд пущен в того, кто впереди');
+  const shell = rockets()[0];
+  ok(shell && shell.mob === target, 'снаряд пущен в того, кто впереди');
+  near(shell.time, MECH.demo.flight + Math.hypot(target.x - t.cx, target.y - t.cy) * MECH.demo.pace,
+    'чем дальше, тем дольше летит');
   eq(hit(target), 0, 'пока летит — урона нет');
-  runFor(battle, MECH.demo.flight + 0.05);
+  runFor(battle, shell.time + 0.05);
   near(hit(target), t.damage);
   near(hit(close), t.damage, 'сосед в клетке задет');
   eq(hit(far), 0, 'дальний цел');
@@ -587,6 +590,97 @@ test('механик: ЭМИ-граната — навесом в моба, ог
     ok(mob.muteUntil > battle.time + MECH.emp.mute - 1, 'способности отключены');
   }
   no(far.muteUntil > battle.time, 'дальше 2 клеток — нет');
+});
+
+test('механик-подрывник: снаряд наводится на цель — догоняет её, куда бы она ни ушла', () => {
+  const battle = makeBattle(), t = mechanic(battle, 10, 4, ['demo']);
+  const target = walker(battle, 13, 1e9), shells = firedBy(battle, 'rocket');
+  target.power = null;
+  battle._fire(t);
+  const from = target.d;
+  runFor(battle, shells()[0].time + 0.05);
+  ok(target.d - from > MECH.demo.radius * 0.3, 'цель сдвинулась: ' + (target.d - from));
+  near(hit(target), t.damage, 'снаряд догнал');
+});
+
+test('механик-подрывник: кассетный снаряд, большой калибр, залп, прицельный выстрел', () => {
+  const battle = makeBattle(), t = mechanic(battle, 10, 4, ['demo', 'cluster']);
+  const target = walker(battle, 13, 1e9), close = walker(battle, 13.6, 1e9);
+  still(target, close);
+  const shards = firedBy(battle, 'shard');
+  battle._fire(t);
+  runFor(battle, MECH.demo.flight + 3 * MECH.demo.pace + 0.1);
+  eq(shards().length, MECH.cluster.count, 'два осколка');
+  ok(shards().every((e) => e.mob === target || e.mob === close), 'в мобов рядом');
+  runFor(battle, MECH.cluster.flight + 0.05);
+  near(hit(target) + hit(close), t.damage * 2 + t.damage * MECH.cluster.share * MECH.cluster.count * 2,
+    'каждый осколок — половина урона по всем рядом');
+  const heavy = makeBattle(), h = mechanic(heavy, 10, 4, ['demo', 'caliber']);
+  const aim = walker(heavy, 13, 1e9), wide = walker(heavy, 11.4, 1e9);
+  still(aim, wide);
+  heavy._fire(h);
+  runFor(heavy, 1);
+  near(hit(aim), h.damage * MECH.caliber, 'вдвое сильнее');
+  near(hit(wide), h.damage * MECH.caliber, 'и вдвое шире: задел того, кто в полутора клетках');
+  const twice = makeBattle(), s = mechanic(twice, 10, 4, ['demo', 'salvo']), shot = firedBy(twice, 'rocket');
+  still(walker(twice, 13, 1e9));
+  twice.random = () => 0;
+  twice._fire(s);
+  runFor(twice, MECH.salvo.gap + 0.05);
+  eq(shot().length, 2, 'залп: вдогонку второй снаряд');
+  const far = makeBattle(), a = mechanic(far, 1, 4, ['demo', 'aimed']), shots = firedBy(far, 'rocket');
+  const lead = walker(far, 17, 1e9);
+  still(lead);
+  a.cooldown = 0;
+  far.step(TICK);
+  eq(shots().length, 0, 'до цели не достаёт и ещё не заскучал');
+  runFor(far, MECH.aimed.idle + 0.2);
+  ok(shots().some((e) => e.mob === lead), 'прицельный выстрел через всю карту');
+});
+
+test('механик-ракетчик: напалм, корректировка, шрапнель, ядерка', () => {
+  const battle = makeBattle(), t = mechanic(battle, 1, 4, ['mortar', 'napalm']);
+  const mob = walker(battle, 10, 1e9);
+  still(mob);
+  battle._fire(t);
+  runFor(battle, MECH.mortar.flight + 10 * MECH.mortar.pace + 0.1);
+  const fire = battle.patches.find((patch) => patch.tower === t);
+  ok(fire && fire.mark, 'напалм: земля горит');
+  ok(fire.until - battle.time <= MECH.napalm.time + 1e-9);
+  const before = hit(mob);
+  runFor(battle, 0.5);
+  ok(hit(mob) > before, 'огонь жжёт');
+  ok(mob.marks && mob.marks.has('fire'), 'метка огня для реакций');
+  const pick = makeBattle(), p = mechanic(pick, 1, 4, ['mortar', 'adjust']), shells = firedBy(pick, 'mortar');
+  const front = walker(pick, 15, 1e9), elite = quiet(put(pick, special(pick, 'elite', 'vampire', 1e9), 9));
+  still(front);
+  pick._fire(p);
+  ok(shells()[0].mob === elite, 'корректировка: сперва элитный, хоть он и позади');
+  const rain = makeBattle(), r = mechanic(rain, 1, 4, ['mortar', 'shrapnel', 'napalm']);
+  const bursts = firedBy(rain, 'airburst'), aim = walker(rain, 10, 1e9), side = walker(rain, 11.5, 1e9);
+  still(aim, side);
+  rain._fire(r);
+  runFor(rain, MECH.mortar.flight + 10 * MECH.mortar.pace + 0.1);
+  const burst = bursts()[0];
+  ok(burst && burst.points.length === MECH.shrapnel.count, 'рвётся в воздухе на осколки');
+  ok(burst.points.every(([x, y]) => Math.hypot(x - burst.x, y - burst.y) <= MECH.shrapnel.spread + 1e-9));
+  runFor(rain, MECH.shrapnel.fall + 0.05);
+  eq(rain.patches.filter((patch) => patch.tower === r).length, MECH.shrapnel.count, 'каждый осколок поджёг землю');
+  ok(rain.patches.every((patch) => patch.radius === MECH.shrapnel.fire));
+  const bomb = makeBattle(), n = mechanic(bomb, 1, 4, ['mortar', 'nuke']), launched = firedBy(bomb, 'mortar');
+  const mole = walker(bomb, 13.5, 1e9), buddy = walker(bomb, 12, 1e9);
+  still(mole, buddy);
+  mole.underUntil = 1e9;
+  bomb.step(TICK);
+  const big = launched().find((e) => e.nuke);
+  ok(big && big.mob === mole, 'ядерка — и в того, кто под землёй');
+  ok(n.nextNuke > bomb.time + MECH.nuke.every - 1, 'следующая — через 20 секунд');
+  runFor(bomb, big.time + 0.05);
+  ok(bomb.events.some((e) => e.kind === 'nuke' && e.radius === MECH.nuke.radius));
+  near(hit(mole), n.damage * MECH.nuke.mul, 'огромный урон и под землёй');
+  near(hit(buddy), n.damage * MECH.nuke.mul, 'на 3 клетки вокруг');
+  ok(buddy.holdUntil > bomb.time, 'оглушение');
+  ok(buddy.marks && buddy.marks.has('poison'), 'метка яда для реакций');
 });
 
 test('стрелок: без стиля — редкий дальний выстрел в самого крепкого, дальше всех', () => {

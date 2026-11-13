@@ -45,7 +45,7 @@ const STICKY_SLOW = 0.3;
 const EPIDEMIC = 1;
 const COOLDOWNS = ['nextActive', 'nextBear', 'nextBlaze', 'nextBless', 'nextCheer', 'nextCleanse', 'nextCloud',
   'nextEye', 'nextFar', 'nextGale', 'nextInferno', 'nextLegion', 'nextLight', 'nextMind', 'nextMuse', 'nextPhoenix',
-  'nextPool', 'nextEmp', 'nextQuake', 'nextRift', 'nextSand', 'nextStorm', 'nextSwarm', 'nextTempest', 'nextTrap', 'nextTsunami',
+  'nextPool', 'nextEmp', 'nextNuke', 'nextQuake', 'nextRift', 'nextSand', 'nextStorm', 'nextSwarm', 'nextTempest', 'nextTrap', 'nextTsunami',
   'nextWall', 'nextWave'];
 const TRACE_TIME = 1;
 const WARD_AURA = 0.25;
@@ -89,10 +89,14 @@ export const SHOT = { scope: { mul: 5, aim: 2, reload: 3 }, assault: { range: -1
   burst: { count: 3, radius: 1, gap: 0.08 },
   flash: { every: 30, radius: 1, stun: 1.5 }, double: { arc: 30 }, air: 3 };
 export const MECH = { turret: { range: -1.5, interval: 1, mul: 0.3, count: 3, gap: 0.08, radius: 1, mag: 15,
-  reload: 3 }, demo: { range: 0, interval: 3, mul: 1.6, radius: 1, flight: 0.6 },
+  reload: 3 }, demo: { range: 0, interval: 3, mul: 1.6, radius: 1, flight: 0.25, pace: 0.12 },
   mortar: { interval: 2.4, mul: 1.1, radius: 0.8, flight: 0.7, pace: 0.06 },
   team: { radius: 1.5, per: 0.1 }, tuning: { radius: 1.5, haste: 0.3 },
-  emp: { every: 8, radius: 2, stun: 1.5, mute: 4, drop: 0.35 } };
+  emp: { every: 8, radius: 2, stun: 1.5, mute: 4, drop: 0.35 },
+  cluster: { count: 2, share: 0.5, reach: 1, radius: 0.6, flight: 0.35 }, caliber: 2, salvo: { chance: 0.3, gap: 0.25 },
+  aimed: { idle: 3 }, napalm: { radius: 0.8, time: 2, dps: 0.5, mark: 2 },
+  shrapnel: { count: 8, spread: 2, mul: 0.35, hit: 0.4, fall: 0.3, fire: 0.35 },
+  nuke: { every: 20, radius: 3, mul: 12, stun: 2, poison: 5, flight: 1.8 } };
 const STEEL_BLAST = { radius: 1.5, mul: 8, stun: 1 };
 const METEOR_FLIGHT = 1.2;
 const FOG_FLIGHT = 0.6;
@@ -1085,6 +1089,7 @@ export class Battle {
       for (const mob of this.mobs) {
         if (!mob.dead && grounded(mob, now) && near(mob, patch.x, patch.y, patch.radius)) {
           this._hurt(mob, patch.dps * dt, patch.tower, 'fire', true);
+          if (patch.mark && !immune(mob, 'fire')) this._mark(mob, 'fire', patch.tower, patch.mark);
         }
       }
     }
@@ -1150,11 +1155,11 @@ export class Battle {
     }
   }
 
-  _mark(mob, element, t) {
+  _mark(mob, element, t, time = MARK_TIME) {
     if (mob.dead) return;
     if (!mob.marks) mob.marks = new Map();
     if (!mob.marks.has(element)) mob.marks.set(element, new Map());
-    mob.marks.get(element).set(t, this.time + MARK_TIME);
+    mob.marks.get(element).set(t, this.time + time);
   }
 
   state(mob, name) {
@@ -2090,7 +2095,7 @@ export class Battle {
 
   facing(t) {
     if (t.aim && this._targetable(t, t.aim)) return t.aim;
-    if (t.style === 'mortar') return this._leader();
+    if (t.style === 'mortar') return leading(this, t);
     return t.cls.id === 'sniper' ? aimOf(this, t) : this._target(t);
   }
 
@@ -2142,8 +2147,8 @@ export class Battle {
     return this.mobs.filter((mob) => mob !== skip && !mob.dead && !hidden(mob, this.time) && near(mob, x, y, radius));
   }
 
-  _hurt(mob, amount, t, element = t.cls.element || null, dot = false, pierce = 0) {
-    if (mob.dead || amount <= 0 || underground(mob, this.time) && !t.deep) return;
+  _hurt(mob, amount, t, element = t.cls.element || null, dot = false, pierce = 0, deep = false) {
+    if (mob.dead || amount <= 0 || underground(mob, this.time) && !t.deep && !deep) return;
     if (!dot && !t.rider && !t.cls.through && this.covered(mob.x, mob.y)) return;
     const now = this.time;
     if (element === 'poison') {
@@ -2653,18 +2658,109 @@ function volley(b, t, target, s, stick) {
 }
 
 function rocket(b, t, target) {
-  const s = MECH.demo, crit = rollCrit(b, t);
-  b._event({ kind: 'rocket', tower: t, mob: target, x: target.x, y: target.y, time: s.flight, crit });
-  b._later(s.flight, () => b._blast(t, target.x, target.y, s.radius, t.damage * (crit ? t.critMul : 1), null));
+  const s = MECH.demo, crit = rollCrit(b, t), size = t.runes.has('caliber') ? MECH.caliber : 1;
+  const time = s.flight + Math.hypot(target.x - t.cx, target.y - t.cy) * s.pace;
+  t.lastFire = b.time;
+  b._event({ kind: 'rocket', tower: t, mob: target, x: target.x, y: target.y, time, crit, big: size > 1 });
+  b._later(time, () => {
+    const x = target.x, y = target.y, damage = t.damage * size * (crit ? t.critMul : 1);
+    b._blast(t, x, y, s.radius * size, damage, null);
+    if (t.runes.has('cluster')) cluster(b, t, x, y, damage);
+  });
+}
+
+function cluster(b, t, x, y, damage) {
+  const s = MECH.cluster, pool = b._around(x, y, s.reach);
+  for (let k = 0; k < s.count; k++) {
+    const a = b.random() * Math.PI * 2, mob = pool.length ? pool[Math.floor(b.random() * pool.length)] : null;
+    const spot = mob || { x: x + Math.cos(a) * s.reach, y: y + Math.sin(a) * s.reach };
+    b._event({ kind: 'shard', tower: t, sx: x, sy: y, x: spot.x, y: spot.y, mob, time: s.flight });
+    b._later(s.flight, () => b._blast(t, spot.x, spot.y, s.radius, damage * s.share, null));
+  }
+}
+
+function aimed(b, t, now) {
+  const target = b._leader();
+  if (!target) return;
+  rocket(b, t, target);
+  t.cooldown = b._intervalOf(t, now);
+}
+
+function leading(b, t, deep = false) {
+  const pick = (only) => {
+    let best = null;
+    for (const mob of b.mobs) {
+      if (mob.dead || b.covered(mob.x, mob.y) || !deep && hidden(mob, b.time) || only && !big(mob)) continue;
+      if (!best || b.ahead(mob) > b.ahead(best)) best = mob;
+    }
+    return best;
+  };
+  return t.runes.has('adjust') && pick(true) || pick(false);
 }
 
 function mortar(b, t) {
-  const s = MECH.mortar, target = b._leader();
+  const s = MECH.mortar, target = leading(b, t);
   if (!target) return false;
   const crit = rollCrit(b, t), time = s.flight + Math.hypot(target.x - t.cx, target.y - t.cy) * s.pace;
-  b._event({ kind: 'mortar', tower: t, mob: target, x: target.x, y: target.y, time, crit });
-  b._later(time, () => b._blast(t, target.x, target.y, s.radius, t.damage * (crit ? t.critMul : 1), null));
+  const shards = t.runes.has('shrapnel');
+  b._event({ kind: 'mortar', tower: t, mob: target, x: target.x, y: target.y, time, crit, shrapnel: shards });
+  b._later(time, () => {
+    const x = target.x, y = target.y, damage = t.damage * (crit ? t.critMul : 1);
+    if (shards) {
+      scatter(b, t, x, y, damage);
+      return;
+    }
+    b._blast(t, x, y, s.radius, damage, null);
+    if (t.runes.has('napalm')) burn(b, t, x, y, MECH.napalm.radius);
+  });
   return true;
+}
+
+function burn(b, t, x, y, radius) {
+  const s = MECH.napalm;
+  b.patches.push({ tower: t, x, y, radius, dps: t.damage * s.dps, until: b.time + s.time, born: b.time, mark: s.mark });
+}
+
+function scatter(b, t, x, y, damage) {
+  const s = MECH.shrapnel, points = [];
+  for (let k = 0; k < s.count; k++) {
+    const a = b.random() * Math.PI * 2, r = Math.sqrt(b.random()) * s.spread;
+    points.push([x + Math.cos(a) * r, y + Math.sin(a) * r]);
+  }
+  b._event({ kind: 'airburst', tower: t, x, y, points, time: s.fall });
+  b._later(s.fall, () => {
+    for (const [px, py] of points) {
+      let hit = null, gap = Infinity;
+      for (const mob of b._around(px, py, s.hit)) {
+        const d = Math.hypot(mob.x - px, mob.y - py);
+        if (d < gap) {
+          gap = d;
+          hit = mob;
+        }
+      }
+      if (hit) b._hurt(hit, damage * s.mul, t);
+      if (t.runes.has('napalm')) burn(b, t, px, py, s.fire);
+    }
+  });
+}
+
+function nuke(b, t, now) {
+  const s = MECH.nuke, target = leading(b, t, true);
+  if (!target) return;
+  t.nextNuke = now + s.every;
+  const time = s.flight + Math.hypot(target.x - t.cx, target.y - t.cy) * MECH.mortar.pace;
+  b._event({ kind: 'mortar', tower: t, mob: target, x: target.x, y: target.y, time, nuke: true, radius: s.radius });
+  b._later(time, () => {
+    const x = target.x, y = target.y;
+    b._event({ kind: 'nuke', tower: t, x, y, radius: s.radius });
+    for (const mob of b.mobs.slice()) {
+      if (mob.dead || !near(mob, x, y, s.radius)) continue;
+      b._hurt(mob, t.damage * s.mul, t, null, false, 0, true);
+      if (mob.dead) continue;
+      b._hold(mob, s.stun, t);
+      b._mark(mob, 'poison', t, s.poison);
+    }
+  });
 }
 
 function lob(b, t, target, grenade, land) {
@@ -2812,15 +2908,28 @@ const SKILLS = {
       if (t.style === 'mortar') return mortar(b, t);
       const target = b._target(t);
       if (!target) return false;
+      t.lastFire = now;
       if (t.style === 'turret') {
         volley(b, t, target, MECH.turret, true);
         spend(b, t, now, MECH.turret.count, target);
-      } else if (t.style === 'demo') rocket(b, t, target);
-      else shoot(b, t, target);
+      } else if (t.style === 'demo') {
+        rocket(b, t, target);
+        if (t.runes.has('salvo') && b.random() < MECH.salvo.chance) {
+          b._later(MECH.salvo.gap, () => {
+            const next = !target.dead ? target : b._target(t);
+            if (next && b.towers.includes(t)) rocket(b, t, next);
+          });
+        }
+      } else shoot(b, t, target);
       return true;
     },
     every(b, t, now, alive) {
-      if (t.runes.has('emp') && alive && now >= (t.nextEmp || 0)) emp(b, t, now);
+      if (t.lastFire === undefined) t.lastFire = now;
+      if (!alive) return;
+      if (t.runes.has('emp') && now >= (t.nextEmp || 0)) emp(b, t, now);
+      if (t.style === 'mortar' && t.runes.has('nuke') && now >= (t.nextNuke || 0)) nuke(b, t, now);
+      if (t.style === 'demo' && t.runes.has('aimed') && t.reloadUntil <= now
+        && now - t.lastFire >= MECH.aimed.idle) aimed(b, t, now);
     },
   },
   gunner: {
