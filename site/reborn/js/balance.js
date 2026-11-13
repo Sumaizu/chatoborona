@@ -136,7 +136,6 @@ export const AFFIXES = [
 export const silverChance = (wave) => (wave < SILVER.from ? 0 : Math.min(SILVER.max, SILVER.chance + SILVER.step
   * (wave - SILVER.from)));
 
-export const affixText = (affix) => affix.text || POWERS[affix.power].text;
 
 export const MIMIC = { id: 'mimic', name: 'Мимик', power: 'treasure', glow: '#facc15', treasure: true, hp: 1.6,
   chance: 0.05, from: 3, coins: 20, coinsStep: 1 };

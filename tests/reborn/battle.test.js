@@ -39,15 +39,15 @@ test('бой: мобы без защиты доходят до базы и от�
 
 test('бой: дорогу и чужую клетку занять нельзя', () => {
   const battle = makeBattle();
-  no(battle.place(player(), 'gunner', 3, 5), 'дорога');
-  ok(battle.place(player(), 'gunner', 3, 4));
-  no(battle.place(player(), 'gunner', 3, 4), 'занято');
-  no(battle.place(player(), 'gunner', 20, 4), 'за полем');
+  no(battle.place(player(), 'mechanic', 3, 5), 'дорога');
+  ok(battle.place(player(), 'mechanic', 3, 4));
+  no(battle.place(player(), 'mechanic', 3, 4), 'занято');
+  no(battle.place(player(), 'mechanic', 20, 4), 'за полем');
 });
 
 test('бой: защитник у дороги убивает, получает опыт, монеты и убийства', () => {
-  const battle = makeBattle(), hero = level(40), earn = CLASS_BY_ID.get('gunner').earn;
-  battle.place(hero, 'gunner', 2, 4);
+  const battle = makeBattle(), hero = level(40), earn = CLASS_BY_ID.get('mechanic').earn;
+  battle.setMods(battle.place(hero, 'mechanic', 2, 4), { runes: ['turret'] });
   battle.startWave(1, 1);
   finish(battle);
   eq(battle.lives, LIVES);
@@ -58,8 +58,8 @@ test('бой: защитник у дороги убивает, получает 
 });
 
 test('бой: опыт и монеты за помощь, убийство — добившему', () => {
-  const battle = makeBattle(), a = level(20), b = level(20), earn = CLASS_BY_ID.get('gunner').earn;
-  const ta = battle.place(a, 'gunner', 2, 4), tb = battle.place(b, 'gunner', 2, 6);
+  const battle = makeBattle(), a = level(20), b = level(20), earn = CLASS_BY_ID.get('frost').earn;
+  const ta = battle.place(a, 'frost', 2, 4), tb = battle.place(b, 'frost', 2, 6);
   battle.startWave(1, 2);
   finish(battle);
   const count = waveSpawns(1).length;
@@ -83,8 +83,8 @@ test('бой: у каждого класса свой множитель опы�
 });
 
 test('мощь: от уровня не растёт; урон и способности — в мощь раз, скорость, крит и дальность — свои у класса', () => {
-  const battle = makeBattle(), cls = CLASS_BY_ID.get('gunner'), base = baseOf(cls);
-  const young = battle.place(player(), 'gunner', 2, 4), old = battle.place(level(100), 'gunner', 4, 4);
+  const battle = makeBattle(), cls = CLASS_BY_ID.get('mechanic'), base = baseOf(cls);
+  const young = battle.place(player(), 'mechanic', 2, 4), old = battle.place(level(100), 'mechanic', 4, 4);
   eq([old.might, old.damage, old.interval, old.critChance], [young.might, young.damage, young.interval,
     young.critChance], 'уровень мощь не меняет');
   eq(young.might, MIGHT.base);
@@ -92,7 +92,7 @@ test('мощь: от уровня не растёт; урон и способн�
   near(young.skill, base.skill);
   near(young.interval, base.interval);
   near(young.critChance, base.crit);
-  const strong = battle.place(player(), 'gunner', 6, 4);
+  const strong = battle.place(player(), 'mechanic', 6, 4);
   battle.setMods(strong, { power: 50 });
   eq(strong.might, 150);
   near(strong.damage, young.damage * 1.5, 'урон — в полтора раза');
@@ -113,7 +113,7 @@ test('мощь: баффы саппортов растут от мощи мяг�
 
 test('закалка: каждые 10 волн контроль и уязвимость действуют на мобов слабее, но не до нуля', () => {
   const effect = (wave) => {
-    const battle = makeBattle(), t = battle.place(player(), 'gunner', 2, 4);
+    const battle = makeBattle(), t = battle.place(player(), 'mechanic', 2, 4);
     battle.wave = wave;
     const mob = walker(battle, 6, 1e9);
     battle._hold(mob, 2, t);
@@ -155,7 +155,7 @@ test('бой: шаман не отбросит моба дальше преде�
 });
 
 test('бой: после перехода на другую клетку защитник секунду не стреляет', () => {
-  const battle = makeBattle(), hero = level(30), tower = battle.place(hero, 'gunner', 1, 4);
+  const battle = makeBattle(), hero = level(30), tower = battle.place(hero, 'mechanic', 1, 4);
   no(battle.move(tower, 1, 5), 'на дорогу');
   ok(battle.move(tower, 4, 4));
   eq(battle.byCell.has(4 * 20 + 1), false);
@@ -167,7 +167,7 @@ test('бой: после перехода на другую клетку защ�
 });
 
 test('бой: прибавки событий меняют урон, дальность и скорость', () => {
-  const battle = makeBattle(), tower = battle.place(player(), 'gunner', 2, 4);
+  const battle = makeBattle(), tower = battle.place(player(), 'mechanic', 2, 4);
   const damage = tower.damage, range = tower.range, interval = tower.interval;
   battle.setMods(tower, { damage: 1, rate: 1, range: 1, crit: 0, xp: 0, coins: 0 });
   eq(Math.round(tower.damage * 1000), Math.round(damage * 2000));
@@ -187,7 +187,7 @@ test('бой: проклятие врагу делает мобов крепче
 
 test('бой: уровень растёт прямо в бою и открывает способности на 10, 30 и 50', () => {
   const battle = makeBattle(), hero = player(0);
-  const tower = battle.place(hero, 'gunner', 2, 4);
+  const tower = battle.place(hero, 'mechanic', 2, 4);
   eq(tower.level, 1);
   hero.xp = xpForLevel(12);
   battle._grant(tower, 0);
@@ -200,7 +200,7 @@ test('бой: каждый класс без ошибок отбивает во�
     const battle = makeBattle();
     const tower = battle.place(level(100), cls.id, 3, 4);
     battle.place(level(100), cls.id, 3, 6);
-    battle.place(level(100), 'gunner', 4, 4);
+    battle.place(level(100), 'mechanic', 4, 4);
     for (let wave = 1; wave <= 12; wave++) {
       battle.startWave(wave, 3);
       finish(battle);
@@ -217,7 +217,7 @@ test('бой: с обеими рунами каждый класс без оши
     const tower = battle.place(level(100), cls.id, 3, 4);
     battle.setMods(tower, { runes });
     if (tower.cocoon) battle._hatch(tower);
-    battle.place(level(100), 'gunner', 4, 4);
+    battle.place(level(100), 'mechanic', 4, 4);
     for (let wave = 8; wave <= 11; wave++) {
       battle.startWave(wave, 2);
       finish(battle);
@@ -264,7 +264,7 @@ test('мобы: босс объявляется всегда, золотой э�
 });
 
 test('мобы: броня режет урон, щит не пускает урон совсем', () => {
-  const battle = makeBattle(), t = battle.place(player(), 'gunner', 2, 4);
+  const battle = makeBattle(), t = battle.place(player(), 'mechanic', 2, 4);
   const knight = special(battle, 'elite', 'knight');
   battle._hurt(knight, 100, t);
   eq(Math.round(knight.max - knight.hp), Math.round(100 * (1 - POWERS.armor.cut)));
@@ -399,7 +399,7 @@ test('виды волн: у каждого вида с его первой во�
   const mother = slime._spawn({ type: 'boss', kind: BOSSES.find((kind) => kind.id === 'slimemother'), hp: 100 }, 4);
   runFor(slime, 2.5);
   ok(slime.mobs.some((mob) => mob.look === 'slime1'), 'праматерь выпускает слизнят');
-  slime._hurt(mother, 1e9, slime.place(player(), 'gunner', 2, 4));
+  slime._hurt(mother, 1e9, slime.place(player(), 'mechanic', 2, 4));
   runFor(slime, SPLIT_TIME + TICK);
   ok(slime.mobs.filter((mob) => mob.look === 'slime2').length >= 2, 'и распадается на слизней');
 });
@@ -520,7 +520,7 @@ test('механик-ракетчик: через всю карту в того,
 
 test('механик: команда поддержки — механики рядом стреляют быстрее, тем быстрее, чем их больше', () => {
   const battle = makeBattle(), lead = mechanic(battle, 10, 2, ['team']), mate = mechanic(battle, 11, 2, ['turret']);
-  const far = mechanic(battle, 14, 2, []), gun = battle.place(player(), 'gunner', 10, 3);
+  const far = mechanic(battle, 14, 2, []), gun = battle.place(player(), 'hunter', 10, 3);
   battle.step(TICK);
   near(lead.boost.rate, MECH.team.per * 2, 'двое механиков — каждому по двойной прибавке');
   near(mate.boost.rate, MECH.team.per * 2);
@@ -536,7 +536,7 @@ test('механик: команда поддержки — механики р�
 test('механик: тюнинг — стрелки в клетке вокруг стреляют быстрее, другие классы — нет', () => {
   const battle = makeBattle(), tuner = mechanic(battle, 10, 2, ['tuning']);
   const near1 = battle.place(player(), 'sniper', 11, 3), far = battle.place(player(), 'sniper', 14, 2);
-  const gun = battle.place(player(), 'gunner', 9, 2);
+  const gun = battle.place(player(), 'hunter', 9, 2);
   battle.step(TICK);
   near(near1.boost.rate, MECH.tuning.haste);
   ok(near1.boostBy.has(tuner));
@@ -678,23 +678,23 @@ test('механик-ракетчик: напалм, корректировка,
   ok(big && big.mob === mole, 'ядерка — и в того, кто под землёй');
   ok(n.nextNuke > bomb.time + MECH.nuke.every - 1, 'следующая — через 20 секунд');
   runFor(bomb, big.time + 0.05);
-  ok(bomb.events.some((e) => e.kind === 'nuke' && e.radius === MECH.nuke.radius));
+  ok(bomb.events.some((e) => e.kind === 'nuke' && e.radius === MECH.nuke.radius && e.poison === MECH.nuke.poison),
+    'ядовитое облако на всё время яда');
   near(hit(mole), n.damage * MECH.nuke.mul, 'огромный урон и под землёй');
   near(hit(buddy), n.damage * MECH.nuke.mul, 'на 3 клетки вокруг');
   ok(buddy.holdUntil > bomb.time, 'оглушение');
   ok(buddy.marks && buddy.marks.has('poison'), 'метка яда для реакций');
 });
 
-test('механик-турельщик: гигантская турель — без перезарядки, очередь веером в разных мобов, сперва летучие', () => {
+test('механик-турельщик: гигантская турель — строчит без перерывов и перезарядки, веером по разным мобам', () => {
   const battle = makeBattle(), t = mechanic(battle, 10, 4, ['turret', 'giant']);
+  near(t.interval, MECH.giant.gap, 'пуля за пулей, без пауз между очередями');
   const a = walker(battle, 12.5, 1e9), b = walker(battle, 11.9, 1e9), c = walker(battle, 11.3, 1e9);
   still(a, b, c);
   const shots = firedBy(battle, 'shot');
-  battle._fire(t);
-  runFor(battle, MECH.giant.gap * MECH.giant.count + 0.1);
-  eq(shots().length, MECH.giant.count, 'очередь из 4 пуль');
+  for (let i = 0; i < 40; i++) ok(battle._fire(t));
+  eq(shots().length, 40);
   ok(shots().slice(1).every((e, i) => e.mob !== shots()[i].mob), 'каждая следующая — в другого');
-  for (let i = 0; i < 20; i++) battle._fire(t);
   eq(t.reloadUntil, 0, 'без перезарядки');
   const sky = makeBattle(), g = mechanic(sky, 10, 4, ['turret', 'giant']);
   const ground = walker(sky, 13, 1e9), flyer = walker(sky, 9, 1e9, bat());
@@ -702,8 +702,26 @@ test('механик-турельщик: гигантская турель — �
   ok(sky._targetable(g, flyer), 'летучий в досягаемости');
   const first = firedBy(sky, 'shot');
   sky._fire(g);
-  eq(first()[0].mob, flyer, 'первая пуля — в летучего, хоть он и позади');
-  eq(sky.facing(g), flyer);
+  ok(first()[0].mob === flyer, 'первая пуля — в летучего, хоть он и позади');
+  ok(sky.facing(g) === flyer);
+});
+
+test('механик-турельщик: дроны ПВО держат каждый своего летучего; вырвался вперёд — к нему летит тот, кто держал последнего', () => {
+  const battle = makeBattle(), t = mechanic(battle, 1, 4, ['turret', 'droneAir', 'droneAir']);
+  const front = walker(battle, 14, 1e9, bat()), back = walker(battle, 10, 1e9, bat()), last = walker(battle, 6, 1e9, bat());
+  still(front, back, last);
+  battle.step(TICK);
+  const guards = battle.drones.filter((d) => d.kind === 'air');
+  eq(guards.map((d) => d.target.id).sort((m, n) => m - n), [front.id, back.id].sort((m, n) => m - n),
+    'двое передних — у каждого свой дрон');
+  const holder = guards.find((d) => d.target === back), keeper = guards.find((d) => d.target === front);
+  last.d = 17;
+  battle._locate(last);
+  battle.step(TICK);
+  ok(holder.target === last, 'дрон отставшего полетел к вырвавшемуся');
+  ok(keeper.target === front, 'второй остался при своём');
+  runFor(battle, 4);
+  for (const mob of [front, last]) ok(mob.slowUntil > battle.time, 'оба держатся сетями');
 });
 
 test('механик-турельщик: дроны — до трёх каждого вида, летают по всей карте и бьют своих целей', () => {
@@ -746,6 +764,49 @@ test('механик: ЭМИ-гранату сбрасывает дрон под
   ok(Math.hypot(drop.x - lead.x, drop.y - lead.y) < MECH.drone.hover + 0.3, 'под собой, у цели');
   runFor(battle, MECH.emp.drop + 0.05);
   ok(lead.muteUntil > battle.time, 'и сработала');
+});
+
+const offRoad = (battle, x, y) => {
+  let best = Infinity;
+  for (let d = 0; d <= battle.length; d += 0.05) {
+    const point = battle._roadPoint(0, d);
+    best = Math.min(best, Math.hypot(point.x - x, point.y - y));
+  }
+  return best;
+};
+
+test('механик: осколки кассетного снаряда и шрапнели падают на дорогу, а не мимо неё', () => {
+  const battle = makeBattle(), t = mechanic(battle, 10, 4, ['demo', 'cluster']), lone = walker(battle, 13, 1e9);
+  still(lone);
+  const shards = firedBy(battle, 'shard');
+  battle._fire(t);
+  runFor(battle, 1.2);
+  eq(shards().length, MECH.cluster.count);
+  ok(shards().every((e) => offRoad(battle, e.x, e.y) < 0.05), 'рядом мобов нет — осколки на дорогу');
+  const rain = makeBattle(), r = mechanic(rain, 1, 4, ['mortar', 'shrapnel']), aim = walker(rain, 10, 1e9);
+  still(aim);
+  const bursts = firedBy(rain, 'airburst');
+  rain._fire(r);
+  runFor(rain, MECH.mortar.flight + 10 * MECH.mortar.pace + 0.1);
+  const points = bursts()[0].points;
+  ok(points.every(([x, y]) => offRoad(rain, x, y) <= MECH.shrapnel.side + 0.05), 'шрапнель — вдоль дороги');
+  runFor(rain, MECH.shrapnel.fall + 0.05);
+  ok(hit(aim) > 0, 'и попадает');
+});
+
+test('механик-подрывник: прицельный выстрел — после 5 секунд без стрельбы, и отсчёт идёт заново', () => {
+  const far = makeBattle(), a = mechanic(far, 1, 4, ['demo', 'aimed']), shots = firedBy(far, 'rocket');
+  still(walker(far, 17, 1e9));
+  a.cooldown = 0;
+  far.step(TICK);
+  runFor(far, MECH.aimed.idle - 0.3);
+  eq(shots().length, 0, 'раньше 5 секунд — нет');
+  runFor(far, 0.5);
+  eq(shots().length, 1, 'через 5 секунд — выстрел');
+  runFor(far, MECH.aimed.idle - 0.5);
+  eq(shots().length, 1, 'после выстрела отсчёт заново');
+  runFor(far, 0.7);
+  eq(shots().length, 2);
 });
 
 test('стрелок: без стиля — редкий дальний выстрел в самого крепкого, дальше всех', () => {
@@ -935,7 +996,7 @@ test('стрелок: последний патрон, наводчик, зол�
   battle._fire(t);
   ok(boss.dead, 'осталось меньше, чем снял выстрел, — гибнет даже босс');
   ok(battle.events.some((e) => e.kind === 'shot' && e.gold), 'трассеры золотые');
-  const mob = walker(battle, 12, 1e9), gun = battle.place(player(), 'gunner', 16, 6);
+  const mob = walker(battle, 12, 1e9), gun = battle.place(player(), 'mechanic', 16, 6);
   still(mob);
   t.reloadUntil = 0;
   battle._fire(t);
@@ -943,36 +1004,6 @@ test('стрелок: последний патрон, наводчик, зол�
   const before = hit(mob);
   battle._hurt(mob, 100, gun, null);
   near(hit(mob) - before, 100 * (1 + SHOT.mark.bonus), 'меченого бьют сильнее и союзники');
-});
-
-test('пулемётчик, навыки Реборна: длинная лента, подавление, шквал свинца, трассеры', () => {
-  const battle = makeBattle(), gun = battle.place(player(), 'gunner', 10, 4);
-  battle.random = () => 0.99;
-  battle.setMods(gun, { perks: [3, 4, 6] });
-  const a = walker(battle, 10, 1e9), b = walker(battle, 11, 1e9);
-  still(a, b);
-  for (let i = 0; i < 30; i++) {
-    battle.time += 0.1;
-    battle._fire(gun, battle.time);
-  }
-  near(gun.ramp, gun.s[3].max, 'разгон до +150%');
-  near(gun.aim.slow, gun.s[4].max, 'подавление — до 40%');
-  ok(gun.aim.mark === gun.s[6].mark && gun.aim.markUntil > battle.time, 'цель подсвечена');
-  const first = gun.aim;
-  first.dead = true;
-  battle.time += 0.1;
-  battle._fire(gun, battle.time);
-  ok(gun.aim !== first, 'новая цель');
-  near(gun.ramp, gun.s[3].max, 'разгон не сбросился');
-
-  const storm = makeBattle(), g = storm.place(player(), 'gunner', 10, 4);
-  storm.random = () => 0.99;
-  storm.setMods(g, { perks: [5] });
-  const mobs = [walker(storm, 9, 1e9), walker(storm, 10, 1e9), walker(storm, 11.5, 1e9)];
-  still(...mobs);
-  storm.step(TICK);
-  ok(mobs.every((mob) => hit(mob) > 0), 'веер бьёт всех в радиусе');
-  ok(g.stormUntil > storm.time, 'шквал идёт');
 });
 
 test('охотник, навыки Реборна: кровопускание, гроза чудовищ, медвежий капкан', () => {
@@ -1005,79 +1036,6 @@ test('охотник, навыки Реборна: кровопускание, �
   ok(hit(giant) >= h.skill * h.s[5].bonus, 'и бьёт ×50');
 });
 
-test('пулемётчик: боссов не выделяет и не обходит', () => {
-  const battle = makeBattle(), gun = battle.place(player(), 'gunner', 10, 4);
-  const plain = walker(battle, 10, 1e9), boss = put(battle, special(battle, 'boss', 'crusher', 1e9), 12);
-  still(plain, boss);
-  ok(battle._target(gun) === boss, 'бьёт первого по дороге, хоть это и босс');
-});
-
-test('пулемётчик: держит одну цель и разгоняется на ней, через 7 секунд стрельбы — перезарядка', () => {
-  const battle = makeBattle(), gun = battle.place(player(), 'gunner', 10, 4);
-  battle.random = () => 0.99;
-  const a = walker(battle, 10, 1e9), b = walker(battle, 12, 1e9);
-  still(a, b);
-  runFor(battle, 1);
-  const first = gun.aim;
-  ok(first === b && gun.ramp > 0, 'разгоняется на цели');
-  const c = walker(battle, 12.8, 1e9);
-  still(c);
-  runFor(battle, 1);
-  ok(gun.aim === first, 'цель не меняет, пока она в радиусе');
-  eq(c.hp, c.max);
-  runFor(battle, gun.cls.base.burst - 1.8);
-  ok(gun.reloadUntil > battle.time, 'перезарядка');
-  ok(battle.events.some((e) => e.kind === 'reload'));
-  eq(gun.ramp, 0, 'разгон сбросился');
-  const hp = first.hp;
-  runFor(battle, gun.cls.base.reload - 0.5);
-  eq(first.hp, hp, 'пока перезаряжает — не стреляет');
-});
-
-test('пулемётчик: руна «Бесконечный барабан» — без перезарядки', () => {
-  const battle = makeBattle(), gun = battle.place(player(), 'gunner', 10, 4), mob = walker(battle, 11, 1e9);
-  still(mob);
-  battle.setMods(gun, { runes: ['drum'] });
-  runFor(battle, 15);
-  no(battle.events.some((e) => e.kind === 'reload'));
-});
-
-test('пулемётчик: с 10-го через три секунды стрельбы ствол раскаляется, плазменные пули пробивают щит', () => {
-  const battle = makeBattle(), gun = battle.place(level(10), 'gunner', 10, 4), mob = walker(battle, 11, 1e9);
-  still(mob);
-  battle.random = () => 0.99;
-  runFor(battle, gun.s[0].after - 0.5);
-  no(gun.hot);
-  runFor(battle, 1);
-  ok(gun.hot && battle.events.some((e) => e.kind === 'shot' && e.hot), 'огненные пули');
-  const shielded = (runes) => {
-    const field = makeBattle(), t = field.place(level(10), 'gunner', 10, 4);
-    field.setMods(t, { runes });
-    const warden = put(field, special(field, 'boss', 'warden', 1e9), 11);
-    still(warden);
-    warden.powerAt = 1e9;
-    warden.powerUntil = 1e9;
-    runFor(field, t.s[0].after + 1);
-    return hit(warden);
-  };
-  eq(shielded([]), 0, 'щит держит');
-  ok(shielded(['plasma']) > 0, 'плазма пробивает');
-});
-
-test('пулемётчик: с 30-го пуля отскакивает в соседа цели, с 50-го — берсерк после пяти секунд стрельбы', () => {
-  const battle = makeBattle(), gun = battle.place(level(50), 'gunner', 10, 4);
-  gun.critChance = 0;
-  battle.random = () => 0.01;
-  const a = walker(battle, 11, 1e9), b = walker(battle, 12, 1e9);
-  still(a, b);
-  battle._fire(gun);
-  ok(hit(a) > 0 && hit(b) > 0, 'досталось обоим');
-  ok(battle.events.some((e) => e.kind === 'ricochet'));
-  runFor(battle, gun.s[2].after + 0.5);
-  ok(gun.berserk, 'берсерк');
-  ok(gun.ramp >= gun.cls.base.rampMax, 'на предельной скорости');
-});
-
 test('громовержец: молния прыгает назад по дороге ещё на девять мобов, каждому на 10% меньше', () => {
   const battle = makeBattle(), thunder = battle.place(player(), 'thunder', 10, 4);
   thunder.critChance = 0;
@@ -1108,7 +1066,7 @@ test('громовержец: руна «Цепная молния» — без 
 
 test('громовержец: с 10-го задетые заряжены и получают больше от всех; с 30-го — вспышка вокруг', () => {
   const battle = makeBattle(), thunder = battle.place(level(30), 'thunder', 10, 4);
-  const gun = battle.place(player(), 'gunner', 18, 0);
+  const gun = battle.place(player(), 'mechanic', 18, 0);
   thunder.critChance = 0;
   battle.random = () => 0;
   const target = walker(battle, 13, 1e6), side = walker(battle, 13.6, 1e6);
@@ -1251,7 +1209,7 @@ test('охотник: из арбалета бьёт всех, элитных и
 
 test('охотник: с 10-го ставит до трёх капканов; попавший стоит и получает больше урона', () => {
   const battle = makeBattle(), hunter = battle.place(level(10), 'hunter', 10, 4);
-  const gun = battle.place(player(), 'gunner', 18, 0);
+  const gun = battle.place(player(), 'mechanic', 18, 0);
   runFor(battle, 12);
   eq(battle.traps.length, hunter.s[0].count);
   hunter.busy = 1e9;
@@ -1279,7 +1237,7 @@ test('охотник: с 30-го иногда набрасывает сеть �
 
 test('охотник: с 50-го метит добычу — все бьют её первой; убили вовремя — награда охотнику, остальным половина', () => {
   const battle = makeBattle(), hunter = battle.place(level(50), 'hunter', 2, 1);
-  const gun = battle.place(player(), 'gunner', 10, 4);
+  const gun = battle.place(player(), 'mechanic', 10, 4);
   battle.random = () => 0.99;
   const elite = put(battle, special(battle, 'elite', 'vampire', 1e9), 10), runner = walker(battle, 12, 1e9);
   still(elite, runner);
@@ -1308,7 +1266,7 @@ test('охотник: руна «Засада» — без дела 10 секу�
 
 test('паразит: первые 10 волн — кокон на клетке: не кусает, за волну 1–500 монет и опыт наравне с отрядом', () => {
   const battle = makeBattle(), larva = player(), bug = battle.place(larva, 'parasite', 3, 4);
-  battle.place(level(30), 'gunner', 2, 6);
+  battle.place(level(30), 'mechanic', 2, 6);
   eq(bug.cocoon, CLASS_BY_ID.get('parasite').base.cocoon);
   ok(battle.towerAt(3, 4) === bug, 'занимает клетку');
   no(battle.move(bug, 5, 4), 'с места не сходит');
@@ -1367,7 +1325,7 @@ test('паразит: с 10-го крит оглушает и отнимает �
 
 test('паразит: с 30-го «Заражение» — моб, в которого он вгрызся, получает больше урона от всех', () => {
   const battle = makeBattle(), bug = battle.placeRider(level(30), 'parasite');
-  const gun = battle.place(level(30), 'gunner', 2, 4);
+  const gun = battle.place(level(30), 'mechanic', 2, 4);
   const weak = walker(battle, 5, 1e6), host = walker(battle, 6, 1e9);
   still(weak, host);
   for (let i = 0; i < 100 && !(bug.host === host && battle.time > bug.leapUntil + TICK); i++) battle.step(TICK);
@@ -1388,7 +1346,7 @@ test('паразит: с 30-го «Заражение» — моб, в кото�
 
 test('паразит: с 50-го раз в 30 с забирает монеты богатого союзника и раздаёт их всем, свои держит до 1000', () => {
   const battle = makeBattle(), bug = battle.placeRider(level(50), 'parasite');
-  const rich = battle.place(player(), 'gunner', 2, 4), poor = battle.place(player(), 'gunner', 2, 6);
+  const rich = battle.place(player(), 'mechanic', 2, 4), poor = battle.place(player(), 'mechanic', 2, 6);
   eq(bug.s[2].every, 30);
   bug.player.coins = 600;
   rich.player.coins = 2000;
@@ -1406,7 +1364,7 @@ test('паразит: с 50-го раз в 30 с забирает монеты �
   eq(rich.player.coins, 5000, 'раньше 30 секунд не прыгает');
   runFor(battle, 6);
   eq(battle.events.filter((e) => e.kind === 'heist').length, 2, 'через 30 секунд — снова');
-  const field = makeBattle(), alone = field.placeRider(level(50), 'parasite'), mate = field.place(player(), 'gunner',
+  const field = makeBattle(), alone = field.placeRider(level(50), 'parasite'), mate = field.place(player(), 'mechanic',
     2, 4);
   alone.player.coins = 1500;
   field.step(TICK);
@@ -1522,7 +1480,7 @@ test('ледяной маг: с 50-го снег по всему полю под
 });
 
 test('ледяной маг: руна «Хрупкость» — замороженный иногда гибнет от любого удара любого игрока', () => {
-  const battle = makeBattle(), frost = battle.place(level(30), 'frost', 10, 4), gun = battle.place(player(), 'gunner',
+  const battle = makeBattle(), frost = battle.place(level(30), 'frost', 10, 4), gun = battle.place(player(), 'mechanic',
     2, 4);
   battle.setMods(frost, { runes: ['brittle'] });
   const cap = gun.skill * RUNE_CAPS.shatter, mob = walker(battle, 6, cap * 0.8), big = walker(battle, 7, 1e9);
@@ -1576,7 +1534,7 @@ test('серебряные элитные: обычный моб с шансом
     }
   }
   ok(silvers > 0 && plain > silvers * 3, 'серебряных меньшинство: ' + silvers + ' из ' + (silvers + plain));
-  const battle = makeBattle(), t = battle.place(player(), 'gunner', 3, 4);
+  const battle = makeBattle(), t = battle.place(player(), 'mechanic', 3, 4);
   t.busy = 1e9;
   const affix = (id) => AFFIXES.find((a) => a.id === id);
   const swift = battle._spawn({ type: 'normal', look: lookOf('zombie'), hp: 100, silver: affix('swift') }, 5);
@@ -1606,7 +1564,7 @@ test('серебряные элитные: обычный моб с шансом
 
 test('новые боссы: банши оглушает, шатун ускоряет зверей, владыка стихий меняет стихию, привратник и вождь призывают', () => {
   const kind = (id) => BOSSES.find((k) => k.id === id);
-  const banshee = makeBattle(), tower = banshee.place(player(), 'gunner', 5, 4), far = banshee.place(player(), 'gunner', 18, 8);
+  const banshee = makeBattle(), tower = banshee.place(player(), 'mechanic', 5, 4), far = banshee.place(player(), 'mechanic', 18, 8);
   const wail = banshee._spawn({ type: 'boss', kind: kind('banshee'), hp: 1e9 }, 6);
   wail.speed = 0;
   runFor(banshee, 2.2);
@@ -1622,7 +1580,7 @@ test('новые боссы: банши оглушает, шатун ускор�
   const first = elem.element;
   runFor(lord, 2.2);
   ok(elem.element && elem.element !== first, 'сменил стихию');
-  const t = lord.place(player(), 'gunner', 5, 4), hp = elem.hp;
+  const t = lord.place(player(), 'mechanic', 5, 4), hp = elem.hp;
   lord._hurt(elem, 100, t, elem.element);
   eq(elem.hp, hp, 'своя стихия его не берёт');
   for (const [id, look] of [['gatekeeper', 'hellhound'], ['warlord', 'goblin']]) {
@@ -1648,7 +1606,7 @@ test('орда: в волне орды мобов больше, чем у дру
 
 test('знаменосец: под знаменем бьют быстрее и дальше, два знамени не складываются, за добычу под знаменем — помощь', () => {
   const battle = makeBattle(), flag = battle.place(player(), 'banner', 4, 4), b = flag.cls.base;
-  const ally = battle.place(player(), 'gunner', 5, 4), far = battle.place(player(), 'gunner', 14, 4);
+  const ally = battle.place(player(), 'mechanic', 5, 4), far = battle.place(player(), 'mechanic', 14, 4);
   const range = far.range;
   battle.step(TICK);
   near(ally.range, range * (1 + b.reach), 'дальше');
@@ -1667,7 +1625,7 @@ test('знаменосец: под знаменем бьют быстрее и �
 
 test('знаменосец: с 10-го боевой клич, с 30-го натиск, с 50-го знамя победы на весь отряд', () => {
   const battle = makeBattle(), flag = battle.place(level(50), 'banner', 4, 4);
-  const ally = battle.place(player(), 'sniper', 5, 4), far = battle.place(player(), 'gunner', 16, 6);
+  const ally = battle.place(player(), 'sniper', 5, 4), far = battle.place(player(), 'mechanic', 16, 6);
   const mob = walker(battle, 19, 1e9);
   still(mob);
   runFor(battle, 2 * TICK);
@@ -1697,7 +1655,7 @@ test('знаменосец: с 10-го боевой клич, с 30-го нат�
 test('знаменосец: руны — багровый стяг ускоряет под кличем, знамя в землю дольше и отбрасывает', () => {
   const battle = makeBattle(), flag = battle.place(level(50), 'banner', 4, 4);
   battle.setMods(flag, { runes: ['crimson', 'planted'] });
-  const ally = battle.place(player(), 'gunner', 5, 4), mob = walker(battle, 5, 1e9);
+  const ally = battle.place(player(), 'mechanic', 5, 4), mob = walker(battle, 5, 1e9);
   still(mob);
   runFor(battle, 2 * TICK);
   near(ally.boost.rate, flag.cls.base.haste + CRIMSON + flag.s[2].haste);
@@ -1879,7 +1837,7 @@ test('маг огня: тление, огненная реакция, факел
   ok(hit(mob) > was, 'горит каждый тик');
 
   const torch = makeBattle(), p = torch.place(player(), 'pyro', 10, 4), s = torch.place(player(), 'sniper', 11, 4);
-  const far = torch.place(player(), 'gunner', 2, 4);
+  const far = torch.place(player(), 'mechanic', 2, 4);
   torch.setMods(p, { runes: ['torch', 'fireReact'] });
   still(walker(torch, 0, 1e6));
   torch.step(TICK);
@@ -2283,7 +2241,7 @@ test('лекарь: руна «второй шанс» — раз за игру 
 
 test('лекарь: с 30-го очищение будит оглушённых и усыплённых, и потом их не оглушить', () => {
   const battle = makeBattle(), healer = battle.place(level(30), 'healer', 4, 4);
-  const ally = battle.place(player(), 'gunner', 5, 4), mob = walker(battle, 19, 1e9);
+  const ally = battle.place(player(), 'mechanic', 5, 4), mob = walker(battle, 19, 1e9);
   still(mob);
   battle._daze(ally, 10);
   ally.napUntil = battle.time + 10;
@@ -2320,7 +2278,7 @@ test('мудрец: искры в двух мобов, рядом с ним бо
   battle._fire(sage);
   near(hit(a), sage.damage);
   near(hit(b), sage.damage);
-  const ally = battle.place(player(), 'gunner', 11, 4), far = battle.place(player(), 'gunner', 2, 6);
+  const ally = battle.place(player(), 'mechanic', 11, 4), far = battle.place(player(), 'mechanic', 2, 6);
   battle.step(TICK);
   near(ally.boost.wisdom, sage.cls.base.wisdom);
   eq(far.boost.wisdom, 0);
@@ -2348,8 +2306,8 @@ test('мудрец: с 10-го вдохновение, с 30-го озарени
   runFor(battle, sage.s[0].time + 0.1);
   const other = makeBattle(), wise = other.place(level(10), 'sage', 10, 4);
   other.setMods(wise, { runes: ['pupil'] });
-  other.place(player(), 'gunner', 11, 4);
-  other.place(player(), 'gunner', 9, 4);
+  other.place(player(), 'mechanic', 11, 4);
+  other.place(player(), 'mechanic', 9, 4);
   still(walker(other, 1, 1e9));
   other.step(TICK);
   eq(other.events.filter((e) => e.kind === 'muse').length, 2, 'двоим сразу');
@@ -2364,7 +2322,7 @@ test('мудрец: с 50-го слабое место — сперва босс
   sage.busy = 0;
   battle._shoot(0, battle.time);
   ok(battle.events.some((e) => e.kind === 'expose' && e.mob === boss), 'метит босса');
-  const gunner = battle.place(player(), 'gunner', 16, 4);
+  const gunner = battle.place(player(), 'mechanic', 16, 4);
   gunner.critChance = 0;
   battle._hurt(boss, 100, gunner);
   near(hit(boss), 100 * (1 + sage.s[2].vuln), 'урон больше');
@@ -2376,7 +2334,7 @@ test('мудрец: с 50-го слабое место — сперва босс
 
 test('шаман: с 50-го ветер ускоряет союзников рядом, самого шамана — вдвое', () => {
   const battle = makeBattle(), shaman = battle.place(level(50), 'shaman', 10, 4);
-  const ally = battle.place(player(), 'gunner', 11, 4), far = battle.place(player(), 'gunner', 2, 4);
+  const ally = battle.place(player(), 'mechanic', 11, 4), far = battle.place(player(), 'mechanic', 2, 4);
   const mob = walker(battle, 18, 1e9);
   still(mob);
   const plain = battle._intervalOf(ally, battle.time);
@@ -2503,7 +2461,7 @@ test('маг земли: с 50-го метеорит — урон землёй �
 
 test('элементали: своя стихия их не берёт, остальное — как обычно', () => {
   const battle = makeBattle();
-  const pyro = battle.place(level(10), 'pyro', 3, 4), gunner = battle.place(player(), 'gunner', 3, 6);
+  const pyro = battle.place(level(10), 'pyro', 3, 4), gunner = battle.place(player(), 'mechanic', 3, 6);
   const frost = battle.place(level(10), 'frost', 5, 4), alchemist = battle.place(player(), 'alchemist', 5, 6);
   const thunder = battle.place(player(), 'thunder', 7, 4);
   const ember = creature(battle, 'ember'), ice = creature(battle, 'frostling'), sludge = creature(battle, 'sludge');
@@ -2528,7 +2486,7 @@ test('элементали: своя стихия их не берёт, оста
 });
 
 test('слизни: большой делится на двух средних, те — на маленьких; король — на двух больших; деление видно', () => {
-  const battle = makeBattle(), t = battle.place(player(), 'gunner', 3, 4);
+  const battle = makeBattle(), t = battle.place(player(), 'mechanic', 3, 4);
   battle.startWave(30, 3);
   battle.spawns = [];
   t.busy = 1e9;
@@ -2581,7 +2539,8 @@ test('мобы: огненный бес разгоняет соседей, ар�
 });
 
 test('скелеты: встают после смерти с полным здоровьем, второй раз — нет', () => {
-  const battle = makeBattle(), gun = battle.place(player(), 'gunner', 2, 4);
+  const battle = makeBattle(), gun = battle.place(player(), 'mechanic', 2, 4);
+  gun.busy = 1e9;
   const skeleton = creature(battle, 'skeleton', 6, 100);
   battle._hurt(skeleton, 1e6, gun);
   battle.step(TICK);
@@ -2597,7 +2556,7 @@ test('скелеты: встают после смерти с полным зд�
 
 test('мимик: за убийство — золото всем, кто бил; дошёл до сердца — зарылся без урона', () => {
   const battle = makeBattle(), a = player(), b = player();
-  const ta = battle.place(a, 'gunner', 2, 4), tb = battle.place(b, 'gunner', 2, 6);
+  const ta = battle.place(a, 'mechanic', 2, 4), tb = battle.place(b, 'mechanic', 2, 6);
   const mimic = battle._spawn({ type: 'elite', kind: MIMIC, hp: 1000 }, 6);
   ok(mimic.treasure);
   battle._hurt(mimic, 10, tb);
@@ -2649,7 +2608,7 @@ test('элитные: тень пропадает из прицелов, гол�
 });
 
 test('элитные: вампир лечится, когда рядом гибнут, прыгун скачет вперёд', () => {
-  const battle = makeBattle(), gun = battle.place(player(), 'gunner', 2, 4);
+  const battle = makeBattle(), gun = battle.place(player(), 'mechanic', 2, 4);
   const vampire = special(battle, 'elite', 'vampire', 1000), victim = walker(battle, 5, 10);
   vampire.hp = 500;
   battle._hurt(victim, 100, gun);
@@ -2705,7 +2664,7 @@ test('затянувшаяся волна: через две минуты пос
 test('новые мобы: воришка крадёт монеты, добивший забирает украденное', () => {
   const battle = makeBattle();
   const rich = battle.place(player(), 'frost', 6, 4);
-  const gun = battle.place(player(), 'gunner', 2, 6);
+  const gun = battle.place(player(), 'mechanic', 2, 6);
   rich.player.coins = 50;
   const thief = creature(battle, 'thief', 4, 1e9);
   runFor(battle, 3);
@@ -2718,7 +2677,7 @@ test('новые мобы: воришка крадёт монеты, добив�
 });
 
 test('новые мобы: крот под землёй — не виден, не ранится, проходит под стеной', () => {
-  const battle = makeBattle(), gun = battle.place(player(), 'gunner', 6, 4), mole = creature(battle, 'mole', 5);
+  const battle = makeBattle(), gun = battle.place(player(), 'mechanic', 6, 4), mole = creature(battle, 'mole', 5);
   mole.underUntil = 1e9;
   mole.burrowAt = 1e9;
   eq(battle._target(gun), null);
@@ -2730,7 +2689,7 @@ test('новые мобы: крот под землёй — не виден, н�
 });
 
 test('новые мобы: призрак бесплотен — урон вдвое слабее', () => {
-  const battle = makeBattle(), gun = battle.place(player(), 'gunner', 3, 4), ghost = creature(battle, 'ghost', 5);
+  const battle = makeBattle(), gun = battle.place(player(), 'mechanic', 3, 4), ghost = creature(battle, 'ghost', 5);
   ok(ghost.undead);
   ghost.phaseUntil = 1e9;
   battle._hurt(ghost, 100, gun);
@@ -2739,8 +2698,8 @@ test('новые мобы: призрак бесплотен — урон вдв
 
 test('новые мобы: щитоносец держит удар спереди, сбоку и сзади — полный урон', () => {
   const battle = makeBattle();
-  const ahead = battle.place(player(), 'gunner', 9, 4);
-  const behind = battle.place(player(), 'gunner', 2, 4);
+  const ahead = battle.place(player(), 'mechanic', 9, 4);
+  const behind = battle.place(player(), 'mechanic', 2, 4);
   const knight = creature(battle, 'shieldbearer', 6);
   battle._hurt(knight, 100, ahead);
   ok(Math.abs(1e6 - knight.hp - 40) < 1e-6, 'спереди — 40%');
@@ -2750,7 +2709,7 @@ test('новые мобы: щитоносец держит удар сперед
 });
 
 test('новые мобы: гарпия летает и оглушает ближайшего защитника', () => {
-  const battle = makeBattle(), gun = battle.place(player(), 'gunner', 5, 4), harpy = creature(battle, 'harpy', 5);
+  const battle = makeBattle(), gun = battle.place(player(), 'mechanic', 5, 4), harpy = creature(battle, 'harpy', 5);
   ok(harpy.flying && harpy.power.id === 'swoop');
   harpy.powerAt = battle.time;
   battle.step(TICK);
@@ -2758,7 +2717,7 @@ test('новые мобы: гарпия летает и оглушает бли�
 });
 
 test('новые мобы: мираж от первого удара распадается, копии пустые и сердцу не вредят', () => {
-  const battle = makeBattle(), gun = battle.place(player(), 'gunner', 3, 4), mirage = creature(battle, 'mirage', 6);
+  const battle = makeBattle(), gun = battle.place(player(), 'mechanic', 3, 4), mirage = creature(battle, 'mirage', 6);
   battle._hurt(mirage, 1, gun);
   battle.step(TICK);
   const copies = battle.mobs.filter((m) => m.fake);
@@ -2777,7 +2736,7 @@ test('новые мобы: мираж от первого удара распа�
 });
 
 test('новые элитные: гоблин-шаман даёт щит, огр роняет гоблинов', () => {
-  const battle = makeBattle(), gun = battle.place(player(), 'gunner', 3, 4);
+  const battle = makeBattle(), gun = battle.place(player(), 'mechanic', 3, 4);
   const shaman = special(battle, 'elite', 'goblinshaman', 1000), other = walker(battle, 5, 1000);
   shaman.powerAt = battle.time;
   battle.step(TICK);
@@ -2785,7 +2744,7 @@ test('новые элитные: гоблин-шаман даёт щит, огр
   const hp = other.hp;
   battle._hurt(other, other.ward / 2, gun);
   eq(other.hp, hp, 'щит принял удар');
-  const field = makeBattle(), axe = field.place(player(), 'gunner', 3, 4), ogre = special(field, 'elite', 'ogre', 1000);
+  const field = makeBattle(), axe = field.place(player(), 'mechanic', 3, 4), ogre = special(field, 'elite', 'ogre', 1000);
   field._hurt(ogre, 300, axe);
   field.step(TICK);
   eq(field.mobs.filter((m) => m.look === 'goblin').length, 1, 'потерял четверть — уронил одного');
@@ -2795,7 +2754,7 @@ test('новые элитные: гоблин-шаман даёт щит, огр
 });
 
 test('новые элитные: зеркальщик отражает удар, броненосец сворачивается', () => {
-  const battle = makeBattle(), gun = battle.place(player(), 'gunner', 3, 4);
+  const battle = makeBattle(), gun = battle.place(player(), 'mechanic', 3, 4);
   const knight = special(battle, 'elite', 'mirrorknight', 1000);
   knight.powerUntil = battle.time + 2;
   battle._hurt(knight, 100, gun);
@@ -2812,7 +2771,7 @@ test('новые элитные: зеркальщик отражает удар,
 
 test('новые боссы: червь под землёй, вынырнув — глотает капканы; дракон жжёт линию; матка опутывает', () => {
   const battle = makeBattle();
-  const gun = battle.place(player(), 'gunner', 6, 4);
+  const gun = battle.place(player(), 'mechanic', 6, 4);
   const worm = special(battle, 'boss', 'worm', 1000);
   eq(worm.leak, 10);
   eq(battle._target(gun), null, 'под землёй');
@@ -2825,8 +2784,9 @@ test('новые боссы: червь под землёй, вынырнув �
   battle.step(TICK);
   eq(battle.traps.length, 0, 'вынырнул — проглотил');
   ok(battle._target(gun) === worm);
-  const sky = makeBattle(), a = sky.place(player(), 'gunner', 7, 4), b = sky.place(player(), 'gunner', 9, 3);
-  const c = sky.place(player(), 'gunner', 2, 9), dragon = special(sky, 'boss', 'dragon', 1000);
+  const sky = makeBattle(), a = sky.place(player(), 'mechanic', 7, 4), b = sky.place(player(), 'mechanic', 9, 3);
+  const c = sky.place(player(), 'mechanic', 2, 9), dragon = special(sky, 'boss', 'dragon', 1000);
+  for (const t of [a, b, c]) t.busy = 1e9;
   ok(dragon.flying);
   sky.traps.push({ tower: a, i: 5, x: 6, y: 5 });
   dragon.powerAt = sky.time;
@@ -2837,7 +2797,7 @@ test('новые боссы: червь под землёй, вынырнув �
   sky._hurt(dragon, 100, a, 'fire');
   near(hit(dragon), 50, 'огонь вдвое слабее');
   const lair = makeBattle();
-  const web = lair.place(player(), 'gunner', 5, 4);
+  const web = lair.place(player(), 'mechanic', 5, 4);
   const queen = special(lair, 'boss', 'spiderqueen', 1000);
   queen.powerAt = lair.time;
   lair.step(TICK);
@@ -2883,7 +2843,7 @@ test('капканы на повороте ложатся на путь мобо
 });
 
 test('мясник: раз в 10 секунд крюк летит пару секунд и пару секунд тащит защитника на клетку рядом с собой', () => {
-  const battle = makeBattle(), far = battle.place(player(), 'gunner', 15, 1);
+  const battle = makeBattle(), far = battle.place(player(), 'mechanic', 15, 1);
   const butcher = put(battle, special(battle, 'boss', 'butcher', 1e9), 4);
   butcher.speed = 0;
   eq(butcher.skill.id, 'hook');
@@ -2941,7 +2901,7 @@ test('карта: волна идёт сразу из обоих входов, �
 test('карта: гора закрывает выстрел, в тоннеле моба не достать; на горы, озёра, реки и тоннели не встать', () => {
   const battle = mapWith({ mountain: [[3, 4]], tunnel: [[0, 5], [1, 5]], lake: [[7, 4]], river: [[9, 3], [9, 4]],
     bridge: [[9, 5]] });
-  const gun = battle.place(player(), 'gunner', 3, 3);
+  const gun = battle.place(player(), 'mechanic', 3, 3);
   gun.range = 4;
   for (const [x, y] of [[3, 4], [7, 4], [0, 5], [9, 4]]) no(battle.free(x, y), 'занято: ' + x + ',' + y);
   const hidden = walker(battle, 4, 1e6), open = walker(battle, 7, 1e6);
@@ -2952,13 +2912,13 @@ test('карта: гора закрывает выстрел, в тоннеле 
   put(battle, hidden, 30);
   const deep = walker(battle, 1.6, 1e6);
   deep.holdUntil = 1e9;
-  const close = battle.place(player(), 'gunner', 1, 4);
+  const close = battle.place(player(), 'mechanic', 1, 4);
   eq(battle._target(close), null, 'в тоннеле не видно');
 });
 
 test('карта: с вышки видно поверх гор, но моба в тоннеле не достать ничем — ни выстрелом, ни взрывом рядом', () => {
   const battle = mapWith({ watch: [[2, 4]], tunnel: [[0, 5], [1, 5]] });
-  const tower = battle.place(player(), 'gunner', 2, 4);
+  const tower = battle.place(player(), 'mechanic', 2, 4);
   ok(battle.onWatch(tower));
   const deep = walker(battle, 1.6, 1e6), outside = walker(battle, 3.5, 1e6);
   still(deep, outside);
@@ -2995,13 +2955,13 @@ test('карта: в снегах на льду озёр и рек стоять 
 test('карта: руины, круг камней и склеп закрывают выстрел, как гора; расщелина, кратер и кости — нет', () => {
   for (const [tile, hides] of [['ruin', true], ['stones', true], ['crypt', true], ['chasm', false], ['crater', false],
     ['bones', false]]) {
-    const battle = mapWith({ [tile]: [[3, 4]] }), gun = battle.place(player(), 'gunner', 3, 3);
+    const battle = mapWith({ [tile]: [[3, 4]] }), gun = battle.place(player(), 'mechanic', 3, 3);
     gun.range = 4;
     const mob = walker(battle, 4, 1e6);
     still(mob);
     eq(battle._target(gun) === mob, !hides, tile);
   }
-  const battle = mapWith({ ruin: [[3, 4]], watch: [[3, 3]] }), tower = battle.place(player(), 'gunner', 3, 3);
+  const battle = mapWith({ ruin: [[3, 4]], watch: [[3, 3]] }), tower = battle.place(player(), 'mechanic', 3, 3);
   const mob = walker(battle, 4, 1e6);
   still(mob);
   ok(battle._target(tower) === mob, 'с вышки видно и поверх руин');
@@ -3010,7 +2970,7 @@ test('карта: руины, круг камней и склеп закрыва
 test('карта: буря ледяного мага бьёт сквозь горы и мобов в тоннеле, обычный выстрел — нет', () => {
   const battle = mapWith({ mountain: [[14, 4]], tunnel: [[13, 5]] }), frost = battle.place(player(), 'frost', 14, 3);
   battle.setMods(frost, { perks: [0] });
-  const gun = battle.place(player(), 'gunner', 15, 3);
+  const gun = battle.place(player(), 'mechanic', 15, 3);
   gun.range = 4;
   battle.random = () => 0.99;
   const hidden = walker(battle, 14, 1e6), behind = walker(battle, 15, 1e6);
@@ -3025,7 +2985,7 @@ test('карта: буря ледяного мага бьёт сквозь го�
 
 test('карта: с холма бьют поверх руин, круга камней и склепа, но не поверх гор', () => {
   for (const [tile, hides] of [['ruin', false], ['stones', false], ['crypt', false], ['mountain', true]]) {
-    const battle = mapWith({ [tile]: [[3, 4]], hill: [[3, 3]] }), gun = battle.place(player(), 'gunner', 3, 3);
+    const battle = mapWith({ [tile]: [[3, 4]], hill: [[3, 3]] }), gun = battle.place(player(), 'mechanic', 3, 3);
     gun.range = 4;
     const mob = walker(battle, 4, 1e6);
     still(mob);
@@ -3050,7 +3010,7 @@ test('серебряные — тоже элитные: охотник бьёт 
 
 test('карта: с холма бьют дальше', () => {
   const battle = mapWith({ hill: [[6, 4]] });
-  const flat = battle.place(player(), 'gunner', 2, 4), high = battle.place(player(), 'gunner', 6, 4);
+  const flat = battle.place(player(), 'mechanic', 2, 4), high = battle.place(player(), 'mechanic', 6, 4);
   ok(Math.abs(high.range - flat.range - TERRAIN.hill) < 1e-9);
   battle.move(flat, 6, 3);
   battle.move(high, 7, 3);
@@ -3088,7 +3048,7 @@ test('биомы: в болоте ходячие медленнее и их бо
 });
 
 test('биомы: на кладбище павший с телом встаёт скелетом, бестелесный и уже вставший — нет', () => {
-  const battle = mapWith({}, 'graveyard'), gun = battle.place(player(), 'gunner', 18, 0);
+  const battle = mapWith({}, 'graveyard'), gun = battle.place(player(), 'mechanic', 18, 0);
   const zombie = walker(battle, 4, 10), slime = walker(battle, 5, 10, LOOKS.normal.find((l) => l.id === 'slime2'));
   battle._hurt(zombie, 100, gun);
   battle._hurt(slime, 100, gun);
@@ -3100,7 +3060,7 @@ test('биомы: на кладбище павший с телом встаёт 
   runFor(battle, 3);
   eq(battle.mobs.filter((mob) => mob.look === 'skeleton').length, 0, 'второй раз не встаёт');
   const plain = mapWith(), mob = walker(plain, 4, 10);
-  plain._hurt(mob, 100, plain.place(player(), 'gunner', 3, 4));
+  plain._hurt(mob, 100, plain.place(player(), 'mechanic', 3, 4));
   runFor(plain, 3);
   eq(plain.mobs.length, 0, 'на других картах не встают');
 });

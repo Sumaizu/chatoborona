@@ -1,9 +1,9 @@
 import { LETTERS, SIZE } from './field.js';
 import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintRoof } from './terrain.js';
-import { FIRE, flightAt } from './battle.js';
+import { FIRE, MECH, flightAt } from './battle.js';
 import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite, cocoonSprite,
   coinSprite, fireballSprite, flaskSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
-  meteorSprite, grenadeSprite, gearSprite, droneSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
+  meteorSprite, grenadeSprite, bucklerSprite, droneSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
   rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, trapSprite, ventSprite, wallSprite } from './sprites.js';
 import { SOILS } from './props.js';
 import { MUZZLES } from './models.js';
@@ -24,11 +24,16 @@ const SHOT_QUEUE = 4;
 const LOOK_EVERY = 0.1;
 const FLIGHT_MIN = 0.05;
 const LOB_ARC = 22;
-const AURA = { gears: { count: 6, radius: 0.85, speed: 0.7 }, bullets: { count: 8, radius: 1.15, speed: -0.9 } };
+const COG = ['.#.#.', '#####', '##.##', '#####', '.#.#.'];
+const SHELL = ['oo', '##', '##', '##', '##'];
+const AURAS = { team: { glow: 'rgba(100, 116, 139, 1)', tones: ['#64748b', '#475569', '#7c8a9e'], shape: COG },
+  tuning: { glow: 'rgba(250, 204, 21, 1)', tones: ['#facc15', '#eab308', '#d4a017'], shape: SHELL, tip: '#b45309' } };
+const BUCKLER = { radius: 27, speed: 1.1 };
 const DRONE_LIFT = 18;
 const AIRBURST = 22;
 const NUKE_ARC = 90;
 const SHARD_ARC = 12;
+const SMOG = ['rgba(122, 140, 98, 1)', 'rgba(150, 160, 120, 1)', 'rgba(96, 112, 80, 1)', 'rgba(132, 150, 90, 1)'];
 const ARC = { base: 24, per: 9, max: 110 };
 const TURN_STEPS = 8;
 const KICK = 0.1;
@@ -81,7 +86,6 @@ const DARK = '#100e1f';
 const BOLTS = {
   sniper: { look: 'tracer', color: '#fff3b0', width: 2, bullet: true },
   mechanic: { look: 'tracer', color: '#ffe8a3', width: 1.5, bullet: true },
-  gunner: { look: 'dot', color: '#ffd84a', size: 2 },
   earth: { look: 'lob', color: '#9a8f80', size: 4 },
   alchemist: { look: 'dot', color: '#9be22d', size: 3 },
   hunter: { look: 'bolt', color: '#e8d9b5', width: 2 },
@@ -154,6 +158,17 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.arcTo(x, y + h, x, y, r);
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
+}
+
+function pixels(ctx, x, y, shape, color, tip = color) {
+  const left = Math.round(x - shape[0].length / 2), top = Math.round(y - shape.length / 2);
+  shape.forEach((row, dy) => {
+    for (let dx = 0; dx < row.length; dx++) {
+      if (row[dx] === '.') continue;
+      ctx.fillStyle = row[dx] === 'o' ? tip : color;
+      ctx.fillRect(left + dx, top + dy, 1, 1);
+    }
+  });
 }
 
 function square(ctx, x, y, size, color) {
@@ -1393,55 +1408,36 @@ export class Scene {
   _auras(ctx, battle) {
     for (const t of battle.towers) {
       if (t.cls.id !== 'mechanic' || t.cocoon || t.rider) continue;
-      const pose = this._pose(t), x = at(pose.x), y = at(pose.y) - (pose.lift || 0), seed = t.x * 1.7 + t.y;
-      if (t.runes.has('team')) this._orbit(ctx, gearSprite(), x, y, AURA.gears, seed, true);
-      if (t.runes.has('tuning')) this._orbit(ctx, bulletSprite(), x, y, AURA.bullets, seed, false);
+      for (const id of ['team', 'tuning']) if (t.runes.has(id)) this._aura(ctx, t, AURAS[id], MECH[id].radius);
     }
   }
 
-  _orbit(ctx, image, x, y, ring, seed, spin) {
-    const r = ring.radius * CELL;
-    ctx.globalAlpha = 0.8;
-    for (let i = 0; i < ring.count; i++) {
-      const a = this.clock * ring.speed + i / ring.count * Math.PI * 2 + seed;
-      const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r * 0.85, way = Math.sign(ring.speed);
-      const turn = spin ? this.clock * 3 * way + i : Math.atan2(-Math.sin(a) * way, -Math.cos(a) * way);
-      sprite(ctx, image, px, py, turn, 1.3, 0, 64);
+  _aura(ctx, t, look, radius) {
+    const pose = this._pose(t), x = at(pose.x), y = at(pose.y), zone = radius * CELL, seed = (t.x * 7 + t.y * 13) % 9;
+    glow(ctx, x, y, zone, look.glow, 0.22 + 0.05 * Math.sin(this.clock * 3 + seed));
+    for (let i = 0; i < 14; i++) {
+      const a = i / 14 * Math.PI * 2 + this.clock * 0.35, d = zone * (0.74 + 0.18 * noise(i, seed));
+      const rise = (this.clock * 0.9 + noise(i + 5, seed)) % 1;
+      ctx.globalAlpha = 1 - rise;
+      pixels(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8 - rise * 12, look.shape, look.tones[i % 3], look.tip);
+    }
+    for (let i = 0; i < 9; i++) {
+      const a = i / 9 * Math.PI * 2, d = CELL * (0.46 + 0.1 * noise(i + 9, seed));
+      const rise = (this.clock * 1.4 + noise(i + 2, seed)) % 1;
+      ctx.globalAlpha = 1 - rise * 0.8;
+      pixels(ctx, x + Math.cos(a) * d, y + 5 + Math.sin(a) * d * 0.7 - rise * 16, look.shape, look.tones[i % 3],
+        look.tip);
     }
     ctx.globalAlpha = 1;
   }
 
-  _steel(ctx, x, y, count) {
-    const pulse = 0.5 + 0.5 * Math.sin(this.clock * 3);
-    ctx.save();
-    ctx.globalAlpha = 0.85;
-    for (const [width, color] of [[6, '#334155'], [3, '#cbd5e1']]) {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = width;
-      ctx.beginPath();
-      for (let i = 0; i <= 8; i++) {
-        const a = i / 8 * Math.PI * 2 - Math.PI / 8;
-        if (i) ctx.lineTo(x + Math.cos(a) * 27, y + Math.sin(a) * 27);
-        else ctx.moveTo(x + Math.cos(a) * 27, y + Math.sin(a) * 27);
-      }
-      ctx.stroke();
-    }
-    for (let i = 0; i < 8; i++) {
-      const a = i / 8 * Math.PI * 2 - Math.PI / 8;
-      ctx.fillStyle = '#f8fafc';
-      ctx.fillRect(Math.round(x + Math.cos(a) * 27) - 1, Math.round(y + Math.sin(a) * 27) - 1, 2, 2);
-    }
-    ctx.restore();
-    glow(ctx, x, y, 30, 'rgba(203, 213, 225, .9)', 0.15 + 0.1 * pulse);
-    if (count > 1) {
-      ctx.font = '900 11px "Segoe UI", system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = '#0f172a';
-      ctx.strokeText('×' + count, x + 22, y + 22);
-      ctx.fillStyle = '#e2e8f0';
-      ctx.fillText('×' + count, x + 22, y + 22);
+  _bucklers(ctx, x, y, count, front) {
+    for (let i = 0; i < count; i++) {
+      const a = this.clock * BUCKLER.speed + i / count * Math.PI * 2;
+      if (Math.sin(a) >= 0 !== front) continue;
+      const bx = x + Math.cos(a) * BUCKLER.radius, by = y + Math.sin(a) * BUCKLER.radius * 0.8 - 4;
+      glow(ctx, bx, by, 9, 'rgba(191, 219, 254, 1)', 0.25 + 0.1 * Math.sin(this.clock * 4 + i));
+      sprite(ctx, bucklerSprite(), bx, by + Math.sin(this.clock * 3 + i) * 1.5, 0, 1.2);
     }
   }
 
@@ -1995,28 +1991,10 @@ export class Scene {
       if (lit) glow(ctx, x, y, 22, 'rgba(255, 255, 255, .9)', 0.5);
       if (t.boost.cheer) glow(ctx, x, y, 20, 'rgba(255, 70, 140, .95)', 0.3 + 0.15 * Math.sin(this.clock * 7));
       if (t.boost.muse) glow(ctx, x, y, 20, 'rgba(168, 85, 247, .95)', 0.3 + 0.12 * Math.sin(this.clock * 5));
-      const firing = now - t.lastShot < 0.4;
-      if (t.berserk && firing) glow(ctx, x, y, 22, 'rgba(239, 68, 68, .95)', 0.45 + 0.2 * Math.sin(this.clock * 14));
       ctx.globalAlpha = t.busy > now && !t.perch && look === t.look ? 0.5 : 1;
       const lift = pose.kick > 0 ? Math.round(pose.kick / KICK * 2) : 0;
       if (t.cocoon) sprite(ctx, cocoonSprite(Math.floor(this.clock * 1.6 + t.x) % 2), x, y, 0, ZOOM, 0);
       else sprite(ctx, heroSprite(look), x, y, pose.angle, ZOOM, lift, HERO_TURN_STEPS);
-      if (t.berserk && firing) {
-        ctx.globalAlpha = 0.35 + 0.2 * Math.sin(this.clock * 14);
-        sprite(ctx, tintSprite(heroSprite(t.look), '#ff2a2a'), x, y, pose.angle, ZOOM, lift, HERO_TURN_STEPS);
-        ctx.globalAlpha = 1;
-        for (let i = 0; i < 6; i++) {
-          const rise = (this.clock * 2.2 + i / 6) % 1, a = i * 1.05 + t.x;
-          ctx.globalAlpha = 1 - rise;
-          bit(ctx, x + Math.cos(a) * 12, y + Math.sin(a) * 9 - rise * 12, 2, i % 2 ? '#ff4d4d' : '#ffb020',
-            i + this.clock * 9);
-        }
-        ctx.globalAlpha = 1;
-      }
-      if (t.hot && firing) {
-        const tip = this._muzzle(t);
-        this._muzzleFire(ctx, at(tip.x), at(tip.y));
-      }
       if (t.reloadUntil > now) {
         this._progress(ctx, x, y - 2, 1 - (t.reloadUntil - now) / (t.reloadSpan || t.cls.base.reload), '#e5e7eb');
       }
@@ -2035,15 +2013,6 @@ export class Scene {
       }
       this._stamp(ctx, this._badge(t), x - BADGE_HALF, y + 8);
       if (t.player.pendingMove) this._pending(ctx, t, x, y);
-    }
-  }
-
-  _muzzleFire(ctx, fx, fy) {
-    glow(ctx, fx, fy, 8, 'rgba(255, 120, 30, .95)', 0.7);
-    for (let i = 0; i < 5; i++) {
-      const rise = (this.clock * 6 + i / 5) % 1;
-      bit(ctx, fx + Math.sin(i * 2.3 + this.clock * 9) * 2, fy - rise * 9, rise < 0.4 ? 3 : 2,
-        FLAME[Math.min(FLAME.length - 1, Math.floor(rise * FLAME.length))], i + this.clock * 9);
     }
   }
 
@@ -2235,7 +2204,7 @@ export class Scene {
     const hit = this._hurtAt !== undefined && this.clock - this._hurtAt < 0.35;
     const bitten = battle.mobs.some((mob) => mob.biting && !mob.dead);
     const shake = bitten ? Math.sin(this.clock * 40) * 1.2 : 0;
-    if (battle.steel > 0) this._steel(ctx, x, y, battle.steel);
+    if (battle.steel > 0) this._bucklers(ctx, x, y, battle.steel, false);
     const image = heartSprite(), scale = ZOOM / (image.fine || 1) * (1 + 0.08 * beat);
     const w = image.width * scale, h = image.height * scale;
     ctx.save();
@@ -2250,6 +2219,7 @@ export class Scene {
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
     }
+    if (battle.steel > 0) this._bucklers(ctx, x, y, battle.steel, true);
     ctx.font = '900 14px "Segoe UI", system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -2336,7 +2306,7 @@ export class Scene {
       if (event.heavy) {
         bolt = Object.assign({}, bolt, { width: event.heavy === 'mega' ? 5 : 3.5,
           color: event.blue ? '#9bd5ff' : t.cls.id === 'pyro' ? '#ff9a1f' : '#ffffff' });
-      } else if (event.hot) bolt = Object.assign({}, bolt, { color: '#ff9a1f', size: 3 });
+      }
       if (event.gold) bolt = Object.assign({}, bolt, { color: '#facc15' });
       const flight = event.time || TRAVEL * (bolt.look === 'lob' ? 2.5 : 1);
       const launch = (x2, y2, late = 0) => {
@@ -2349,17 +2319,13 @@ export class Scene {
           this._sparks(tip.x, tip.y, CHARGES.heavy.sparks, event.heavy === 'mega' ? 14 : 8, 2.4, 0.35);
         }
       };
-      if (away || event.spray) launch(event.x, event.y);
+      if (away) launch(event.x, event.y);
       else this._fire(t, event.x, event.y, event.mob, launch);
     } else if (event.kind === 'beam') {
       this._fire(t, event.x, event.y, event.mob, (x2, y2) => {
         add({ kind: 'laser', life: LASER.life, tower: t, mob: event.mob, x2, y2, blue: event.blue });
         this._sparks(x2, y2, (event.blue ? BLUE_FLAME : FLAME).slice(0, 3), 18, 3, 0.45, 3);
       }, LASER.life);
-    } else if (event.kind === 'ricochet') {
-      const bolt = event.hot ? { look: 'dot', color: '#ff9a1f', size: 3 } : BOLTS.gunner;
-      add({ kind: 'shot', life: TRAVEL, x1: event.x, y1: event.y, x2: event.mob.x, y2: event.mob.y, bolt });
-      this._sparks(event.x, event.y, ['#ffffff', '#ffd84a'], 3, 1.6, 0.2);
     } else if (event.kind === 'flashbang') {
       add({ kind: 'ring', life: 0.4, x: event.x, y: event.y, r: event.radius, color: '#ffffff', width: 3 });
       add({ kind: 'pulse', life: 0.5, x: event.x, y: event.y, r: event.radius * 1.3, color: '#fef9c3', width: 2 });
@@ -2709,6 +2675,7 @@ export class Scene {
       this._sparks(event.mob.x, event.mob.y, ['#dc2626', '#fca5a5'], 6, 1.2, 0.4, 2);
     } else if (event.kind === 'nuke') {
       add({ kind: 'nuke', life: NUKE_LIFE, x: event.x, y: event.y, radius: event.radius });
+      if (event.poison) add({ kind: 'smog', life: event.poison, x: event.x, y: event.y, r: event.radius });
       this._sparks(event.x, event.y, ['#ffffff', '#ffe08a', '#ff9a1f', '#5a4a40'], 60, 12, 1.3, 3);
       this.decals.push({ kind: 'crater', t: 0, life: 7, x: event.x, y: event.y, r: event.radius * 0.45 });
     } else if (event.kind === 'heal' || event.kind === 'shield' || event.kind === 'rescue') {
@@ -2862,6 +2829,14 @@ export class Scene {
         }
         glow(ctx, x, y, 5, 'rgba(255, 160, 40, .95)', 0.7);
         sprite(ctx, rocketSprite(), x, y, angle, 1, 0, 64);
+      } else if (e.kind === 'smog') {
+        const time = share * e.life, fade = Math.min(1, time / 0.6, (e.life - time) / 1.2), r = e.r * CELL;
+        for (let i = 0; i < 14; i++) {
+          const a = i * 2.39 + this.clock * 0.25 * (i % 2 ? 1 : -1), d = r * 0.75 * Math.sqrt(noise(i, 31));
+          const px = at(e.x) + Math.cos(a) * d, py = at(e.y) + Math.sin(a) * d * 0.85;
+          glow(ctx, px, py, r * (0.35 + 0.2 * noise(i, 37)), SMOG[i % SMOG.length],
+            fade * (0.32 + 0.08 * Math.sin(this.clock * 1.5 + i)));
+        }
       } else if (e.kind === 'ray') {
         ctx.save();
         ctx.globalAlpha = fade;

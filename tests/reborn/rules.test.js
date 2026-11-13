@@ -191,9 +191,9 @@ test('с 91-й волны мобы крепчают спокойно — на 10
   }
 });
 
-test('классы: четырнадцать, у каждого оружие, свой склад и набор навыков; у стрелков — по плану Реборна', () => {
-  eq(CLASSES.length, 14);
-  eq(new Set(CLASSES.map((c) => c.id)).size, 14);
+test('классы: тринадцать, у каждого оружие, свой склад и набор навыков; у стрелков — по плану Реборна', () => {
+  eq(CLASSES.length, 13);
+  eq(new Set(CLASSES.map((c) => c.id)).size, 13);
   eq(PERKS, [10, 30, 50]);
   const runes = CLASSES.flatMap((cls) => cls.runes.map((rune) => rune.id));
   eq(new Set(runes).size, runes.length, 'руны не повторяются');
@@ -236,11 +236,10 @@ test('классы: четырнадцать, у каждого оружие, с
   eq(choiceOf('mechanic', ['turret', 'giant']).find((option) => option.skill.id === 'giant').state, 'taken');
   eq(describe('mechanic', ['turret', 'droneAir', 'droneAir']).skills.map((skill) => [skill.id, skill.count]),
     [['turret', 1], ['droneAir', 2]], 'в профиле дрон один раз, с числом');
-  eq(names('gunner'), ['Перегрев', 'Длинная лента', 'Рикошет', 'Подавление', 'Берсерк', 'Шквал свинца', 'Трассеры']);
   eq(names('hunter'), ['Капканы', 'Сеть', 'Кровопускание', 'Добыча', 'Гроза чудовищ', 'Медвежий капкан']);
   eq(names('alchemist'), ['Ядовитая лужа', 'Кислота', 'Отрава', 'Зелье безумия', 'Ядовитый туман', 'Чёрный мор',
     'Философский камень', 'Ядовитая реакция']);
-  for (const id of ['bomber', 'miner']) no(CLASS_BY_ID.has(id), 'старого класса больше нет: ' + id);
+  for (const id of ['bomber', 'miner', 'gunner']) no(CLASS_BY_ID.has(id), 'старого класса больше нет: ' + id);
   eq(names('parasite'), ['Шок', 'Липкий кокон', 'Заражение', 'Налёт', 'Пожиратель', 'Королева роя', 'Захват разума']);
   eq(names('banner'), ['Боевой клич', 'Стяг стойкости', 'Натиск', 'Длинное древко', 'Знамя победы', 'Легион',
     'Знамя героя']);
@@ -402,9 +401,9 @@ test('маг огня: первый камень — только стиль; д
   eq([skinOf('pyro', []), skinOf('pyro', ['dragon']), skinOf('pyro', ['fireball', 'blue']),
     skinOf('pyro', ['twin', 'fireball', 'blue'])], ['pyro-ragged', 'pyro-dragon', 'pyro-fireball-blue',
     'pyro-fireball-twin-blue'], 'двойной каст — второй шар во второй руке');
-  eq(skinOf('gunner', ['perk0']), 'gunner');
+  eq(skinOf('alchemist', ['perk0']), 'alchemist');
   eq(styleOf('pyro', ['twin', 'fireball']).name, 'Огненный шар');
-  eq(choiceOf('gunner', []).length, poolOf('gunner').length, 'у классов без стилей — сразу навыки');
+  eq(choiceOf('alchemist', []).length, poolOf('alchemist').length, 'у классов без стилей — сразу навыки');
   for (const option of choiceOf('pyro', [])) ok(option.skill.text.length < 140, 'коротко: ' + option.skill.name);
 });
 

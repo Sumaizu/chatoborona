@@ -6,8 +6,8 @@ import { EXTRA_SLOTS, OUTCOMES, PRICE, RARITIES, SLOTS, SPIN_TIME, UPGRADE_PRICE
   outcomeOf, rarityOf, weaponName, weaponTitle } from './gacha.js';
 import { ASCEND_TIME } from './engine.js';
 import { effectOf } from './events.js';
-import { BIOME_RULES, LEVEL_MAX, LIVES, MIGHT, affixText, levelOf, resistOf } from './balance.js';
-import { SIZE, cellName } from './field.js';
+import { BIOME_RULES, LEVEL_MAX, LIVES, MIGHT, levelOf, resistOf } from './balance.js';
+import { cellName } from './field.js';
 import { SFX_GAPS, play } from './sound.js';
 import { PAGES, pageAt } from './guide.js';
 import { RULES_TITLE, renderRules } from './rules.js';
@@ -16,7 +16,6 @@ const STAGE_WIDTH = 1280, STAGE_HEIGHT = 720;
 const PAINT_EVERY = 0.15;
 const NAME_TIME = 6;
 const RANGE_TIME = 30;
-const HERALD_TIME = 10;
 const CHEER_TIME = 7;
 const CONFETTI = ['#ff6b6b', '#ffd43b', '#69db7c', '#4dabf7', '#da77f2', '#ffa94d', '#ffffff'];
 const GOLD = ['#ffcd38', '#fff2a8', '#ffe08a', '#ffffff', '#ff8fa3', '#f5b82e'];
@@ -26,8 +25,6 @@ const FLASHES = [[2.4, 1], [2.9, 0.7], [3.3, 0.85]];
 const BOARD_SIZE = 640;
 const BIOME_GLOW = { grass: '#4ade80', volcano: '#fb923c', swamp: '#a3e635', snow: '#bae6fd', desert: '#fbbf24',
   graveyard: '#c4b5fd' };
-const MAP_TIPS = 'Мобы выходят из двух тоннелей. Горы и руины закрывают выстрел: с холма бьют дальше и поверх руин, '
-  + 'с вышки — ещё дальше и поверх всего; на горы, руины, в воду и расщелины не встать'
 const LOW_LIVES = 5;
 const BOSS_EVERY = 10;
 const FINAL_SECONDS = 3;
@@ -40,7 +37,7 @@ const SOUND_PRIORITY = ['over', 'divine', 'relic', 'win', 'boss', 'wave', 'jackp
   'meh', 'void', 'level',
   'buff', 'debuff', 'spin', 'leak', 'card', 'tick'];
 const SFX_PER_FRAME = 4;
-const SHOTS = { sniper: 'crack', mechanic: 'gun', gunner: 'gun', hunter: 'bolt', parasite: 'bite',
+const SHOTS = { sniper: 'crack', mechanic: 'gun', hunter: 'bolt', parasite: 'bite',
   banner: 'hit', healer: 'holy' };
 const BATTLE_SOUNDS = { wall: 'build', crumble: 'crumble', leap: 'leap',
   bite: 'chomp', flask: 'flask', splash: 'splash', trap: 'plant', snap: 'snap', nova: 'ice',
@@ -59,7 +56,6 @@ const GOOD_EVENTS = new Set(['buff', 'blessing']);
 const COIN_FINDS = { handful: ' находит горстку монет', bag: ' находит мешок монет!',
   chest: ' открывает сундук монет!' };
 const NOTE_KINDS = new Set(['card', 'poor', 'bare', 'upgrade', 'queue', 'tip', 'divine', 'skill', 'fixed']);
-const NEWCOMER_GLOW = { fire: '#f97316', ice: '#67e8f9', storm: '#facc15', poison: '#a3e635' };
 const NICK_COLORS = ['#ff8f85', '#ffb547', '#f2dd6e', '#8fe3ae', '#7fd4ff', '#b7a6ff', '#ff9ad5', '#8fe0d2'];
 const STATUS = {
   lobby: 'Набор в отряд',
@@ -236,8 +232,6 @@ export class View {
     this._tickAt = null;
     this._sfx = [];
     this._sfxAt = new Map();
-    this._herald = null;
-    this._mapSeen = null;
     this._cheers = [];
     this._cheer = null;
     this._bits = [];
@@ -295,13 +289,6 @@ export class View {
     stage.hidden = !game || game.state === 'stopped';
     if (stage.hidden) return;
     if (!still) this._listen(game);
-    if (game.battle && game.battle !== this._mapSeen && game.state === 'placing') {
-      const rules = BIOME_RULES[game.battle.biome], text = rules.text.charAt(0).toUpperCase() + rules.text.slice(1);
-      this._mapSeen = game.battle;
-      this._herald = { id: 'map', left: HERALD_TIME, title: 'Карта', name: rules.name,
-        glow: BIOME_GLOW[game.battle.biome], text: text + '. ' + MAP_TIPS, boss: false };
-      this._keys.herald = '';
-    }
     for (const timers of [this._names, this._ranges]) {
       for (const [login, left] of timers) {
         if (left - dt <= 0) timers.delete(login);
@@ -318,7 +305,6 @@ export class View {
     for (const event of fresh) this._battleEvent(event);
     if (this.scene.impacts) this._sound('hit');
     this._paintCheer(dt, game);
-    this._paintHerald(dt);
     this._paintAscend(game, dt, still);
     this._paintConfetti(dt);
     this._turnReels(game);
@@ -481,27 +467,10 @@ export class View {
       this._sound('kill');
     } else if (kind === 'arrive') {
       this._sound(event.mob.info.boss ? 'roar' : 'growl');
-      const mob = event.mob;
-      const skill = mob.skill ? '. ' + mob.skill.name + ': ' + mob.skill.text : '';
-      this._herald = { mob, left: HERALD_TIME, title: mob.kind.title || (mob.info.boss ? 'Босс' : 'Элитный'),
-        name: mob.kind.name, text: mob.power.name + ': ' + mob.power.text + skill, glow: mob.kind.glow,
-        boss: mob.info.boss };
-      this._keys.herald = '';
     } else if (kind === 'wild') {
       this._sound('roar');
       this.scene.say('Мобы рассвирепели: бегут быстрее, сквозь стены и оковы', '#ef4444');
-    } else if (kind === 'silver') {
-      if (this._herald && this._herald.left > HERALD_TIME / 2 && !this._herald.fresh) return;
-      this._herald = { mob: event.mob, left: HERALD_TIME, title: 'Серебряный элитный', name: event.affix.name,
-        text: affixText(event.affix), glow: '#e2e8f0', boss: false, fresh: true };
-      this._keys.herald = '';
-      this._sound('growl');
-    } else if (kind === 'newcomer') {
-      if (this._herald && this._herald.left > HERALD_TIME / 2 && !this._herald.fresh) return;
-      const look = event.look;
-      this._herald = { mob: event.mob, left: HERALD_TIME, title: 'Новый враг', name: look.name, text: look.text,
-        glow: NEWCOMER_GLOW[look.element] || '#4ade80', boss: false, fresh: true };
-      this._keys.herald = '';
+    } else if (kind === 'silver' || kind === 'newcomer') {
       this._sound('growl');
     } else if (kind === 'mortar' && event.nuke || kind === 'meteor') {
       this._sound('fall', event.time);
@@ -530,34 +499,6 @@ export class View {
     } else if (BATTLE_SOUNDS[kind]) {
       this._sound(BATTLE_SOUNDS[kind]);
     }
-  }
-
-  _paintHerald(dt) {
-    const box = $('herald'), herald = this._herald;
-    if (herald) herald.left -= dt;
-    const state = this._game ? this._game.state : '';
-    if (!herald || herald.left <= 0 || state !== 'wave' && !(herald.id && state === 'placing')) {
-      this._herald = null;
-      box.hidden = true;
-      return;
-    }
-    if (this._cheer) {
-      box.hidden = true;
-      this._keys.herald = '';
-      return;
-    }
-    this._once('herald', herald.id || String(herald.mob.id), () => {
-      const mob = herald.mob || { y: SIZE / 2 };
-      box.hidden = false;
-      const battle = this._game.battle, base = battle.path[battle.path.length - 1][1] + 0.5;
-      const band = (y) => (y < SIZE / 3 ? 0 : y < SIZE * 2 / 3 ? 1 : 2);
-      const free = [0, 2, 1].find((b) => b !== band(mob.y) && b !== band(base));
-      const place = ['', ' middle', ' low'][free === undefined ? 0 : free];
-      box.className = 'herald' + (herald.boss ? ' boss' : '') + place;
-      box.style.setProperty('--glow', herald.glow);
-      box.textContent = '';
-      box.append(el('span', 'what', herald.title), el('b', '', herald.name), el('span', 'power', herald.text));
-    });
   }
 
   _paintCheer(dt, game) {

@@ -126,7 +126,7 @@ test('страницы: оверлей сам открывает набор, ч�
 function arena() {
   const scene = new Scene(document.createElement('canvas')), battle = makeBattle();
   scene.resize(1);
-  const t = battle.place(player(), 'gunner', 10, 3);
+  const t = battle.place(player(), 'mechanic', 10, 3);
   scene.draw(battle, 0);
   return { scene, battle, t, pose: scene._pose(t) };
 }
@@ -200,7 +200,7 @@ test('страницы: камень навыка — окно выбора по
   await until(() => game.state === 'placing', 'расстановка');
   const anya = game.members.get('аня');
   anya.xp = xpForLevel(30);
-  anya.cls = 'gunner';
+  anya.cls = 'alchemist';
   const slot = { id: 97, login: 'аня', outcome: { kind: 'stone' }, phase: 'spin', left: 0 };
   game.slots[0] = slot;
   game._apply(slot);
