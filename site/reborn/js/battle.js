@@ -96,7 +96,7 @@ export const MECH = { turret: { range: -1.5, interval: 1, mul: 0.3, count: 3, ga
   droneAttack: { every: 1.2, count: 3, gap: 0.08, mul: 0.35 }, droneLaser: { every: 1.5, mul: 1 },
   droneAir: { every: 1.5, mul: 0.2, slow: 0.6, time: 2 } };
 const DRONE_KINDS = [['droneAttack', 'attack'], ['droneLaser', 'laser'], ['droneAir', 'air']];
-export const WOOD = { bow: { reload: 0.8 }, hunter: { range: 2, interval: 0.4, mul: 3.4, reload: 2.4 },
+export const WOOD = { bow: { reload: 0.8 }, grace: { radius: 2.5, haste: 0.15 }, hunter: { range: 2, interval: 0.4, mul: 3.4, reload: 2.4 },
   witch: { range: 0, interval: 1.8, mul: 1.3, flight: FIREBALL_FLIGHT }, bird: { every: 0.9, mul: 0.45, speed: 5 } };
 const STYLE_ELEMENTS = { witch: 'poison' };
 const DRONE_SHOTS = { attack: MECH.droneAttack, laser: MECH.droneLaser, air: MECH.droneAir, bird: WOOD.bird };
@@ -539,6 +539,7 @@ export class Battle {
       }
     }
     this.spawns.sort((a, b) => a.at - b.at);
+    this._eyes();
     if (this.branch.length) {
       this.spawns.forEach((spawn, i) => {
         spawn.r = i % 2;
@@ -552,6 +553,14 @@ export class Battle {
       wall.hp = max * wall.hp / wall.max;
       wall.max = max;
     }
+  }
+
+  _eyes() {
+    const eyes = this.towers.filter((t) => t.cls.id === 'forester' && !t.cocoon && t.runes.has('eye'));
+    const prey = this.spawns.slice().sort((a, b) => b.hp - a.hp);
+    eyes.forEach((t, i) => {
+      if (prey[i]) prey[i].eyed = t;
+    });
   }
 
   get cleared() {
@@ -628,15 +637,18 @@ export class Battle {
     }
   }
 
-  _later(delay, run) {
-    this.delayed.push({ at: this.time + delay, run });
+  _later(delay, run, t = null) {
+    this.delayed.push({ at: this.time + delay, run, tower: t, striking: t ? t.striking : false });
   }
 
   _jobs(now) {
     if (!this.delayed.some((job) => job.at <= now)) return;
     const due = this.delayed.filter((job) => job.at <= now);
     this.delayed = this.delayed.filter((job) => job.at > now);
-    for (const job of due) job.run();
+    for (const job of due) {
+      if (job.tower) job.tower.striking = job.striking;
+      job.run();
+    }
   }
 
   _event(event) {
@@ -660,7 +672,7 @@ export class Battle {
         || 0, ward: 0, cargo: power && power.cargo || 0, leak: kind && kind.leak || info.leak,
       fireproof: kind && kind.fireproof || 0, curlReady: 0, fatal: Boolean(kind && kind.fatal),
       element: shape && shape.element || silver && silver.element || null, slime: shape && shape.slime || 0,
-      immuneAt: 0, silver, undead: Boolean(shape && shape.undead),
+      immuneAt: 0, silver, undead: Boolean(shape && shape.undead), eyed: spawn.eyed || null,
       armor: Math.max(shape && shape.armor || 0, silver && silver.armor || 0),
       revive: shape && shape.revive || power && power.revive || 0, treasure: Boolean(kind && kind.treasure),
       clinkAt: 0, rattleAt: this.time + RATTLE.min, wild: this.wild, hitAt: -1e9,
@@ -985,6 +997,7 @@ export class Battle {
     tower.damage = base.damage * boost;
     tower.skill = base.skill * boost;
     tower.element = cls.element || STYLE_ELEMENTS[tower.style] || null;
+    if (cls.id === 'forester' && tower.element !== 'poison') tower.react = null;
     const shot = cls.id === 'sniper' && SHOT[tower.style] || cls.id === 'mechanic' && MECH[tower.style]
       || cls.id === 'forester' && WOOD[tower.style] || null;
     if (shot) tower.damage *= shot.mul;
@@ -1492,23 +1505,32 @@ export class Battle {
     this._event({ kind: 'mad', mob, tower: t });
   }
 
-  _crew(t) {
+  _pets(t) {
     if (t.cocoon) return [];
-    if (t.cls.id === 'forester' && t.style === 'druid') return [['bird', 'bird', 1]];
+    if (t.cls.id === 'forester' && t.style === 'druid') return [['bird', 'bird', 1, null]];
     if (t.cls.id !== 'mechanic' || t.style !== 'turret') return [];
-    return DRONE_KINDS.map(([rune, kind]) => [rune, kind, t.stacks.get(rune) || 0]);
+    return DRONE_KINDS.map(([rune, kind]) => [rune, kind, t.stacks.get(rune) || 0, null]);
+  }
+
+  _crew(t) {
+    const own = this._pets(t);
+    if (t.cocoon || t.cls.id !== 'forester' || !t.runes.has('call')) return own;
+    const others = this.towers.filter((o) => o !== t && o.cls.id === 'forester');
+    return own.concat(others.flatMap((o) => this._pets(o).map(([rune, kind, want]) => [rune, kind, want, o])));
   }
 
   _drones(dt, now) {
     for (const t of this.towers) {
-      for (const [rune, kind, want] of this._crew(t)) {
-        const own = this.drones.filter((drone) => drone.tower === t && drone.kind === kind).length;
+      for (const [rune, kind, want, source] of this._crew(t)) {
+        const own = this.drones.filter((drone) => drone.tower === t && drone.rune === rune
+          && drone.source === source).length;
         for (let n = own; n < want; n++) {
-          this.drones.push({ tower: t, kind, rune, n, x: t.cx, y: t.cy, target: null, next: now });
+          this.drones.push({ tower: t, source, kind, rune, n, x: t.cx, y: t.cy, target: null, next: now });
         }
       }
     }
-    const wanted = (drone) => (this._crew(drone.tower).find(([rune]) => rune === drone.rune) || [0, 0, 0])[2];
+    const wanted = (drone) => (this._crew(drone.tower).find(([rune, , , source]) => rune === drone.rune
+      && source === drone.source) || [0, 0, 0])[2];
     this.drones = this.drones.filter((drone) => this.towers.includes(drone.tower) && drone.n < wanted(drone));
     this._assign();
     for (const drone of this.drones) this._pilot(drone, dt, now);
@@ -1546,6 +1568,7 @@ export class Battle {
     const target = drone.target;
     if (!target || now < drone.next || !near(target, drone.x, drone.y, s.reach)) return;
     drone.next = now + shot.every;
+    t.striking = false;
     const from = () => ({ x: drone.x, y: drone.y, high: true });
     if (drone.kind === 'attack') {
       const one = () => {
@@ -1555,9 +1578,10 @@ export class Battle {
       one();
       for (let k = 1; k < shot.count; k++) this._later(k * shot.gap, one);
     } else if (drone.kind === 'bird') {
+      const peck = (drone.source || t).damage * shot.mul;
       this._event({ kind: 'peck', tower: t, mob: target, x: target.x, y: target.y });
-      this._hurt(target, t.damage * shot.mul, t);
-      this._torchHit(t, target, t.damage * shot.mul);
+      this._hurt(target, peck, t);
+      this._torchHit(t, target, peck);
     } else if (drone.kind === 'laser') {
       this._event({ kind: 'ray', tower: t, sx: drone.x, sy: drone.y, x: target.x, y: target.y, mob: target });
       this._hurt(target, t.damage * shot.mul, t, null, false, ARMOR);
@@ -1638,7 +1662,7 @@ export class Battle {
   }
 
   _buffs(now) {
-    const banners = [], sages = [], winds = [], pyros = [], mechanics = [], teams = [], tuners = [];
+    const banners = [], sages = [], winds = [], pyros = [], mechanics = [], teams = [], tuners = [], graces = [];
     for (const t of this.towers) {
       if (t.cocoon || t.rider) continue;
       if (t.cls.id === 'mechanic') {
@@ -1646,6 +1670,7 @@ export class Battle {
         if (t.runes.has('team')) teams.push(t);
         if (t.runes.has('tuning')) tuners.push(t);
       }
+      if (t.cls.id === 'forester' && t.runes.has('grace')) graces.push(t);
       if (t.cls.id === 'banner') banners.push(t);
       else if (t.cls.id === 'sage') sages.push(t);
       else if (t.cls.id === 'shaman' && open(t, 3)) winds.push(t);
@@ -1710,6 +1735,11 @@ export class Battle {
           boost.rate += MECH.team.per * crew;
           if (lead !== t) by.add(lead);
         }
+      }
+      const grace = t.rider ? null : graces.find((g) => close(g, t, WOOD.grace.radius));
+      if (grace) {
+        boost.rate += WOOD.grace.haste;
+        by.add(grace);
       }
       const tuner = t.cls.id === 'sniper' && !t.rider ? tuners.find((m) => close(m, t, MECH.tuning.radius)) : null;
       if (tuner) {
@@ -2180,6 +2210,7 @@ export class Battle {
       * (1 + FIRE.black.damage * stacksOf(mob, t));
     const cut = Math.max(power && power.cut || 0, mob.armor) - (this.state(mob, 'disease') ? REACTIONS.disease.armor : 0);
     if (cut && !pierce) dealt *= 1 - cut;
+    if (mob.eyed && !dot && !t.striking) dealt *= t.critMul;
     if (mob.front && !dot && !t.rider && !pierce && this._facing(mob, t)) dealt *= 1 - mob.front;
     if (ghostly(mob, now) && element !== 'holy') dealt *= GHOST_CUT;
     if (element === 'fire' && mob.fireproof) dealt *= 1 - mob.fireproof;
@@ -2499,7 +2530,10 @@ function closestPrey(b, t) {
 }
 
 
-const rollCrit = (b, t) => b.random() < 1 - (1 - t.critChance) * (1 - t.boost.crit);
+function rollCrit(b, t) {
+  t.striking = b.random() < 1 - (1 - t.critChance) * (1 - t.boost.crit);
+  return t.striking;
+}
 
 const canShoot = (b, t, mob, range = t.range) => !mob.dead && !immune(mob, t.element)
   && !b.covered(mob.x, mob.y) && (t.deep || !hidden(mob, b.time)) && near(mob, t.cx, t.cy, range)
@@ -2541,6 +2575,7 @@ function behind(b, t, target, ux, uy) {
 
 function shoot(b, t, target, { mul = 1, crit = false, heavy = '', from = null, relay = false } = {}) {
   const head = crit || rollCrit(b, t), damage = t.damage * mul * (head ? t.critMul : 1);
+  t.striking = head;
   const ox = from ? from.x : t.cx, oy = from ? from.y : t.cy, tx = target.x, ty = target.y;
   const length = Math.hypot(tx - ox, ty - oy) || 1, ux = (tx - ox) / length, uy = (ty - oy) / length;
   const through = !from && t.style === 'marksman' && t.runes.has('pierce');
@@ -2651,7 +2686,7 @@ function rocket(b, t, target) {
     const x = target.x, y = target.y, damage = t.damage * size * (crit ? t.critMul : 1);
     b._blast(t, x, y, s.radius * size, damage, null);
     if (t.runes.has('cluster')) cluster(b, t, target, damage);
-  });
+  }, t);
 }
 
 function alongRoad(b, mob, offset, side = 0) {
@@ -2667,7 +2702,7 @@ function cluster(b, t, target, damage) {
     const mob = pool.length ? pool[Math.floor(b.random() * pool.length)] : null;
     const spot = mob || alongRoad(b, target, (k % 2 ? 1 : -1) * s.reach * (0.5 + b.random() * 0.5));
     b._event({ kind: 'shard', tower: t, sx: x, sy: y, x: spot.x, y: spot.y, mob, time: s.flight });
-    b._later(s.flight, () => b._blast(t, spot.x, spot.y, s.radius, damage * s.share, null));
+    b._later(s.flight, () => b._blast(t, spot.x, spot.y, s.radius, damage * s.share, null), t);
   }
 }
 
@@ -2704,7 +2739,7 @@ function mortar(b, t) {
     }
     b._blast(t, x, y, s.radius, damage, null);
     if (t.runes.has('napalm')) burn(b, t, x, y, MECH.napalm.radius);
-  });
+  }, t);
   return true;
 }
 
@@ -2737,13 +2772,14 @@ function scatter(b, t, target, damage) {
       }
       if (t.runes.has('napalm')) burn(b, t, px, py, s.fire);
     }
-  });
+  }, t);
 }
 
 function nuke(b, t, now) {
   const s = MECH.nuke, target = leading(b, t, true);
   if (!target) return;
   t.nextNuke = now + s.every;
+  t.striking = false;
   const time = s.flight + Math.hypot(target.x - t.cx, target.y - t.cy) * MECH.mortar.pace;
   b._event({ kind: 'mortar', tower: t, mob: target, x: target.x, y: target.y, time, nuke: true, radius: s.radius });
   b._later(time, () => {
@@ -2756,7 +2792,7 @@ function nuke(b, t, now) {
       b._hold(mob, s.stun, t);
       b._mark(mob, 'poison', t, s.poison);
     }
-  });
+  }, t);
 }
 
 function lob(b, t, target, grenade, land) {

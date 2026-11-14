@@ -224,7 +224,8 @@ test('классы: двенадцать, у каждого оружие, сво
     'lastRound', 'spotter', 'goldRounds', 'endless'], 'у штурмовика — только свои усиления');
   eq(['sniper-ragged', 'sniper-scope', 'sniper-assault', 'sniper-marksman'],
     [[], ['scope'], ['assault'], ['marksman']].map((taken) => skinOf('sniper', taken)));
-  eq(names('forester'), ['Друид', 'Охотник', 'Ведьма']);
+  eq(names('forester'), ['Друид', 'Охотник', 'Ведьма', 'Ядовитая реакция', 'Зов природы', 'Зоркий глаз',
+    'Природная ловкость']);
   eq(['forester-ragged', 'forester-druid', 'forester-hunter', 'forester-witch'],
     [[], ['druid'], ['hunter'], ['witch']].map((taken) => skinOf('forester', taken)));
   eq(names('mechanic'), ['Турельщик', 'Подрывник', 'Ракетчик', 'Гигантская турель', 'Атакующий дрон', 'Лазерный дрон',

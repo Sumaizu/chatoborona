@@ -891,6 +891,67 @@ test('лесник-друид: сам не стреляет, птица лети
   eq(hit(close), 0, 'ближнего друид не трогает');
 });
 
+test('лесник, ядовитая реакция: метит ядом только ядовитые атаки — шары ведьмы', () => {
+  const battle = makeBattle(), witch = forester(battle, 10, 4, ['witch', 'poisonReact']);
+  const bow = forester(battle, 10, 2, ['poisonReact']);
+  eq([witch.react, bow.react], ['poison', null], 'у лука яда нет');
+  const mob = walker(battle, 11, 1e9);
+  still(mob);
+  ok(battle._fire(witch));
+  runFor(battle, WOOD.witch.flight + 0.05);
+  ok(mob.marks && mob.marks.has('poison'), 'метка яда для реакций');
+});
+
+test('лесник, зов природы: копии питомцев других лесников — с их силой; ушёл хозяин — пропала копия', () => {
+  const battle = makeBattle(), druid = forester(battle, 1, 4, ['druid']), caller = forester(battle, 3, 4, ['call']);
+  druid.damage = 50;
+  const mob = walker(battle, 17, 1e9);
+  still(mob);
+  battle.step(TICK);
+  const copy = battle.drones.find((drone) => drone.tower === caller);
+  ok(copy && copy.kind === 'bird' && copy.source === druid, 'копия птицы друида');
+  eq(battle.drones.filter((drone) => drone.tower === druid).length, 1, 'у друида своя птица осталась');
+  runFor(battle, 6);
+  ok(caller.run.damage > 0, 'копия клюёт — урон засчитан ему');
+  const pecks = battle.events.filter((e) => e.kind === 'peck' && e.tower === caller).length;
+  ok(pecks > 0);
+  near(caller.run.damage / pecks, druid.damage * WOOD.bird.mul, 'с силой друида');
+  battle.remove(druid);
+  battle.step(TICK);
+  no(battle.drones.some((drone) => drone.tower === caller), 'друида нет — и копии нет');
+});
+
+test('лесник, зоркий глаз: перед волной метит самого живучего, удары по нему — критические, у двух лесников — двоих', () => {
+  const battle = makeBattle(), one = forester(battle, 10, 4, ['eye']), two = forester(battle, 12, 4, ['eye']);
+  battle.startWave(20, 3);
+  const order = battle.spawns.slice().sort((a, b) => b.hp - a.hp);
+  ok(order[0].eyed === one && order[1].eyed === two, 'по живучести, по одному на лесника');
+  eq(battle.spawns.filter((spawn) => spawn.eyed).length, 2);
+  const mob = battle._spawn(order[0], 5);
+  ok(mob.eyed === one, 'выходит уже с прицелом');
+  const gun = mechanic(battle, 6, 4, []);
+  still(mob);
+  battle._fire(gun);
+  near(hit(mob), gun.damage * gun.critMul, 'обычный выстрел — критический');
+  const other = walker(battle, 5, 1e9);
+  still(other);
+  gun.aimMob = null;
+  battle._hurt(other, 10, gun);
+  near(hit(other), 10, 'по другим — как обычно');
+});
+
+test('лесник, природная ловкость: союзники в 2 клетках вокруг атакуют быстрее', () => {
+  const battle = makeBattle(), grace = forester(battle, 10, 2, ['grace']);
+  const ally = battle.place(player(), 'frost', 12, 2), corner = battle.place(player(), 'frost', 12, 4);
+  const far = battle.place(player(), 'frost', 14, 2);
+  battle.step(TICK);
+  near(ally.boost.rate, WOOD.grace.haste);
+  near(corner.boost.rate, 0, 'угол 2×2 — уже дальше двух клеток');
+  ok(ally.boostBy.has(grace), 'помощь засчитана леснику');
+  near(grace.boost.rate, WOOD.grace.haste, 'и сам тоже');
+  eq(far.boost.rate, 0, 'дальний — без прибавки');
+});
+
 test('лесник-охотник: тяжёлый арбалет — далеко, очень сильно, сперва элитные и боссы, после выстрела перезарядка', () => {
   const battle = makeBattle(), t = forester(battle, 10, 4, ['hunter']);
   near(t.baseRange, t.cls.base.range + WOOD.hunter.range);

@@ -1,6 +1,6 @@
 import { LETTERS, SIZE } from './field.js';
 import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintRoof } from './terrain.js';
-import { FIRE, MECH, flightAt } from './battle.js';
+import { FIRE, MECH, WOOD, flightAt } from './battle.js';
 import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite, cocoonSprite,
   coinSprite, fireballSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
   meteorSprite, grenadeSprite, droneSprite, birdSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
@@ -24,8 +24,11 @@ const SHOT_QUEUE = 4;
 const FLIGHT_MIN = 0.05;
 const COG = ['.#.#.', '#####', '##.##', '#####', '.#.#.'];
 const SHELL = ['oo', '##', '##', '##', '##'];
+const LEAF = ['.#', '##', '#o', 'o.'];
 const AURAS = { team: { glow: 'rgba(100, 116, 139, 1)', tones: ['#64748b', '#475569', '#7c8a9e'], shape: COG },
-  tuning: { glow: 'rgba(250, 204, 21, 1)', tones: ['#facc15', '#eab308', '#d4a017'], shape: SHELL, tip: '#b45309' } };
+  tuning: { glow: 'rgba(250, 204, 21, 1)', tones: ['#facc15', '#eab308', '#d4a017'], shape: SHELL, tip: '#b45309' },
+  grace: { glow: 'rgba(132, 204, 22, 1)', tones: ['#84cc16', '#65a30d', '#a3e635'], shape: LEAF, tip: '#3f6212' } };
+const RETICLES = { red: { line: '#b91c1c', dot: '#fca5a5' }, green: { line: '#16a34a', eye: true } };
 const BLAST_TONES = { warm: ['#fff3b0', '#ffd84a', '#ff9a1f', '#e2531f', '#6b5a50'],
   blue: ['#f0f9ff', '#bae6fd', '#4aa3ff', '#2563eb', '#4b5563'] };
 const DRONE_LIFT = 18;
@@ -344,12 +347,12 @@ function stars(ctx, x, y, r, spin) {
   }
 }
 
-function reticle(ctx, x, y, r, alpha, turn = 0) {
+function reticle(ctx, x, y, r, alpha, turn = 0, tone = RETICLES.red) {
   ctx.save();
   ctx.translate(Math.round(x), Math.round(y));
   ctx.rotate(turn);
   ctx.globalAlpha = alpha;
-  ctx.strokeStyle = '#b91c1c';
+  ctx.strokeStyle = tone.line;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.arc(0, 0, r, 0, Math.PI * 2);
@@ -361,11 +364,35 @@ function reticle(ctx, x, y, r, alpha, turn = 0) {
     ctx.lineTo(Math.cos(a) * r * 1.2, Math.sin(a) * r * 1.2);
     ctx.stroke();
   }
-  ctx.fillStyle = '#fca5a5';
-  ctx.beginPath();
-  ctx.arc(0, 0, 1, 0, Math.PI * 2);
-  ctx.fill();
+  if (tone.eye) eye(ctx, alpha);
+  else {
+    ctx.fillStyle = tone.dot;
+    ctx.beginPath();
+    ctx.arc(0, 0, 1, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
+}
+
+function eye(ctx, alpha) {
+  ctx.globalAlpha = Math.min(1, alpha + 0.3);
+  ctx.fillStyle = '#dcfce7';
+  ctx.strokeStyle = '#15803d';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-4.5, 0);
+  ctx.quadraticCurveTo(0, -3.8, 4.5, 0);
+  ctx.quadraticCurveTo(0, 3.8, -4.5, 0);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#22c55e';
+  ctx.beginPath();
+  ctx.arc(0, 0, 1.8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#14532d';
+  ctx.beginPath();
+  ctx.arc(0, 0, 0.8, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function burst(ctx, x, y, r, count, spin, arm, color) {
@@ -1353,7 +1380,9 @@ export class Scene {
 
   _auras(ctx, battle) {
     for (const t of battle.towers) {
-      if (t.cls.id !== 'mechanic' || t.cocoon || t.rider) continue;
+      if (t.cocoon || t.rider) continue;
+      if (t.cls.id === 'forester' && t.runes.has('grace')) this._aura(ctx, t, AURAS.grace, WOOD.grace.radius, 0);
+      if (t.cls.id !== 'mechanic') continue;
       const own = ['team', 'tuning'].filter((id) => t.runes.has(id));
       own.forEach((id, n) => this._aura(ctx, t, AURAS[id], MECH[id].radius, n));
     }
@@ -1598,10 +1627,11 @@ export class Scene {
         square(ctx, x + size * 0.32, top + 2, bag + 1, '#8f6b3a');
         square(ctx, x + size * 0.32, top + 1, bag, '#facc15');
       }
-      if (mob.markUntil > now) {
+      if (mob.markUntil > now || mob.eyed) {
         const side = 13 * Math.max(2, Math.round(size / 13 + 0.4))
           + 2 * Math.round(Math.sin(this.clock * 6 + mob.id) + 1);
-        reticle(ctx, x, y - lift, side / 2, 0.55 + 0.1 * Math.sin(this.clock * 6));
+        const tone = mob.eyed ? RETICLES.green : RETICLES.red;
+        reticle(ctx, x, y - lift, side / 2, 0.55 + 0.1 * Math.sin(this.clock * 6), 0, tone);
       }
       if (mob.charge && mob.charge.until > now) this._chargedOn(ctx, mob, x, y - lift, size);
       if (mob.netUntil > now) this._netOn(ctx, x, y - lift, size);
