@@ -230,7 +230,7 @@ test('страницы: камень навыка — окно выбора по
   await until(() => game.state === 'placing', 'расстановка');
   const anya = game.members.get('аня');
   anya.xp = xpForLevel(30);
-  anya.cls = 'alchemist';
+  anya.cls = 'frost';
   const slot = { id: 97, login: 'аня', outcome: { kind: 'stone' }, phase: 'spin', left: 0 };
   game.slots[0] = slot;
   game._apply(slot);
@@ -276,7 +276,7 @@ test('страницы: Реборн — своё хранилище и метк
   const pw = page.contentWindow;
   await until(() => pw.document.getElementById('news').open, 'при открытии — плашка о ранней альфе');
   ok(pw.document.getElementById('news').textContent.includes('не сбалансирована'));
-  ok(pw.document.getElementById('news').textContent.includes('Готовы пока только 3 класса: маг огня, стрелок и механик'));
+  ok(pw.document.getElementById('news').textContent.includes('Готовы пока только 4 класса: маг огня, стрелок, механик и лесник'));
   ok(pw.document.getElementById('news').textContent.includes('Лимиты на реролл сняты'));
   ok(pw.document.getElementById('settings').contains(pw.document.getElementById('reset')), 'сброс — в настройках');
   no(pw.document.querySelector('.top').contains(pw.document.getElementById('reset')), 'а не в шапке');

@@ -184,10 +184,14 @@ function legs(m, cx, y, color, f, spread = 3.4, rx = 2.5, ry = 3.2) {
 const RELOAD = { frames: 3, tilt: [0.3, 0.55, 0.7], reach: 4.4, belt: [-6, 8.4] };
 
 function swing(m, cx, cy) {
-  if (m.reload < 0) return m;
-  const c = Math.cos(RELOAD.tilt[m.reload]), s = Math.sin(RELOAD.tilt[m.reload]);
+  return m.reload < 0 ? m : turned(m, cx, cy, RELOAD.tilt[m.reload]);
+}
+
+function turned(m, cx, cy, angle) {
+  const c = Math.cos(angle), s = Math.sin(angle);
   const turn = (x, y) => [cx + (x - cx) * c - (y - cy) * s, cy + (x - cx) * s + (y - cy) * c];
   return {
+    at: turn,
     egg: (x, y, ...rest) => m.egg(...turn(x, y), ...rest),
     ball: (x, y, ...rest) => m.ball(...turn(x, y), ...rest),
     limb: (x0, y0, z0, x1, y1, ...rest) => m.limb(...turn(x0, y0), z0, ...turn(x1, y1), ...rest),
@@ -781,25 +785,52 @@ function leafSkirt(m, cy) {
   }
 }
 
+const BOW = { tilt: -0.35, nock: [[21.4, 18.6], [19.6, 16.8], [17.8, 14.2]] };
+
+function arrow(m, tail, head, z) {
+  m.limb(tail[0], tail[1], z, head[0], head[1], z + 0.2, 0.35, '#c8a26a');
+  m.ball(head[0], head[1], z + 0.2, 0.6, '#9ca3af', 0.6);
+  const len = Math.hypot(head[0] - tail[0], head[1] - tail[1]), ux = (head[0] - tail[0]) / len;
+  const uy = (head[1] - tail[1]) / len;
+  for (const side of [-1, 1]) {
+    m.limb(tail[0] + ux * 0.6, tail[1] + uy * 0.6, z, tail[0] - uy * side * 0.9, tail[1] + ux * side * 0.9, z, 0.3,
+      side < 0 ? '#ef4444' : '#f5f5f4');
+  }
+}
+
 function forester(m) {
+  const drawn = m.reload < 0, hand = drawn ? [17.2, 15.4] : BOW.nock[m.reload];
   legs(m, 16, 25.8, SKIN, 0, 2.2, 1.6, 1.8);
   leafSkirt(m, 24.6);
+  m.limb(19.2, 25, 5.4, 21.4, 19.6, 8, 1.1, '#7a4e26', 0.3, 0.9);
+  m.limb(21.2, 20.2, 8.2, 21.6, 19.2, 8.4, 1, '#5c3a1c');
+  for (const [x, y, c] of [[21.2, 18.4, '#ef4444'], [22.2, 18.9, '#f5f5f4'], [21.9, 17.9, '#f5f5f4']]) {
+    m.egg(x, y, 8.8, 0.6, 0.4, 0.3, c);
+  }
   bareBack(m, 19.8, SKIN, '#d39a70');
+  m.limb(11.8, 19, 8.9, 19.6, 21.6, 8.5, 0.3, '#5c3a1c');
   m.limb(12.4, 24, 7.2, 19.6, 24, 7.2, 0.5, '#3f6212');
   m.limb(10.8, 20, 7.4, 15.2, 11.4, 8.8, 1.3, SKIN);
-  m.limb(21.2, 20, 7.4, 17.2, 15.4, 8.6, 1.3, SKIN);
-  m.limb(16, 10.8, 9.2, 12.6, 11.6, 9.4, 0.8, '#8a5a2e');
-  m.limb(12.6, 11.6, 9.4, 10.4, 13.8, 9.2, 0.7, '#7a4e26', 0, 0.5);
-  m.limb(16, 10.8, 9.2, 19.2, 11.4, 9.4, 0.8, '#8a5a2e');
-  m.limb(19.2, 11.4, 9.4, 20.6, 11.6, 9.4, 0.6, '#a0703e', 0, 0.45);
-  m.limb(20.6, 11.6, 9.4, 21.8, 13.8, 9.2, 0.6, '#7a4e26', 0, 0.4);
-  m.ball(20.4, 11.6, 9.8, 0.55, '#3f2a18');
-  for (const [x, y] of [[10.4, 13.8], [21.8, 13.8]]) m.limb(x, y, 9.2, 16.8, 15.4, 9.6, 0.22, '#e7e5e4');
-  m.limb(16.6, 15.2, 10, 16.2, 6.8, 10.2, 0.35, '#c8a26a');
-  m.ball(16.1, 6.4, 10.2, 0.6, '#9ca3af', 0.6);
-  for (const side of [-1, 1]) m.limb(16.6, 14.6, 10, 16.6 + side * 0.9, 15.4, 10, 0.3, side < 0 ? '#ef4444' : '#f5f5f4');
+  m.limb(21.2, 20, 7.4, hand[0], hand[1], 8.6, 1.3, SKIN);
+  const q = turned(m, 16, 10.6, BOW.tilt);
+  q.limb(16, 10.6, 9.4, 12.2, 11.2, 9.6, 0.9, '#8a5a2e', 0.2, 0.75);
+  q.limb(12.2, 11.2, 9.6, 9.2, 13.6, 9.4, 0.75, '#7a4e26', 0.2, 0.45);
+  q.limb(16, 10.6, 9.4, 19.4, 11.2, 9.6, 0.9, '#8a5a2e', 0.2, 0.75);
+  q.limb(19.4, 11.2, 9.6, 20.9, 11.6, 9.6, 0.7, '#b07d45', 0, 0.6);
+  q.limb(20.9, 11.6, 9.6, 22.8, 13.6, 9.4, 0.6, '#7a4e26', 0.2, 0.4);
+  q.ball(20.2, 11.4, 10.2, 0.6, '#3f2a18');
+  const tips = [q.at(9.2, 13.6), q.at(22.8, 13.6)];
+  const rest = [(tips[0][0] + tips[1][0]) / 2, (tips[0][1] + tips[1][1]) / 2];
+  if (drawn) {
+    for (const [x, y] of tips) m.limb(x, y, 9.2, 16.8, 15.4, 9.6, 0.22, '#e7e5e4');
+    arrow(m, [16.6, 15.2], [16.1, 6.4], 10);
+  } else {
+    m.limb(tips[0][0], tips[0][1], 9.2, tips[1][0], tips[1][1], 9.2, 0.22, '#e7e5e4');
+    if (m.reload === 1) arrow(m, hand, [hand[0] - 2.6, hand[1] - 7.6], 10.2);
+    if (m.reload === 2) arrow(m, rest, [16.1, 6.4], 10);
+  }
   m.ball(15.2, 11.2, 9.6, 1.25, SKIN);
-  m.ball(17.2, 15.4, 9.8, 1.25, SKIN);
+  m.ball(hand[0], hand[1], 9.8, 1.25, SKIN);
   m.ball(16, 18.2, 10.6, 3.6, SKIN);
   m.ball(16, 18.9, 11.6, 3.1, '#4a3524');
   for (const [x, y, c] of [[14.4, 17.6, LEAVES[1]], [17.8, 19.6, LEAVES[0]]]) m.egg(x, y, 14.4, 1, 0.6, 0.4, c);
@@ -971,41 +1002,6 @@ const SKINS = {
 };
 
 const HEROES = {
-  alchemist: (m) => hero(m, {
-    coat: '#a3acb8', dark: '#6b7280', boots: '#2f2a26', hands: [12, 11.5, 19.5, 13],
-    chest: (q) => q.egg(16, 20.5, 9, 5, 4, 0.8, '#7c4a1e'),
-    weapon: (q) => {
-      q.limb(12, 10, 11.5, 12, 7.4, 11.5, 0.9, '#e8eef4');
-      q.ball(12, 11.5, 11.6, 2.3, '#84cc16', 1);
-      q.ball(19.5, 14.5, 10.5, 1.5, '#a855f7', 1);
-    },
-    head: (q) => {
-      q.ball(16, 17, 11.4, 4.6, '#d6a77a');
-      q.egg(16, 18.6, 12, 4.4, 2.8, 2.2, '#5b4636');
-      q.limb(11.6, 15.6, 13.5, 20.4, 15.6, 13.5, 0.7, '#3a3d44');
-      q.ball(14, 14.8, 14.6, 1.4, '#84cc16', 1);
-      q.ball(18, 14.8, 14.6, 1.4, '#84cc16', 1);
-    },
-  }),
-  hunter: (m) => hero(m, {
-    coat: '#7c4a1e', dark: '#5b3414', boots: '#3b2a1e', hands: [13, 12, 19, 12],
-    back: (q) => {
-      q.limb(19, 26, 5, 22, 19, 9, 1.6, '#6b4423');
-      for (const x of [21, 22.5]) q.limb(x, 19, 10, x + 0.6, 16.5, 10, 0.5, '#e7e5e4');
-    },
-    weapon: (q) => {
-      q.limb(16, 15, 10.5, 16, 5, 10.5, 1.2, WOOD);
-      q.limb(10.5, 7.5, 11, 21.5, 7.5, 11, 0.9, '#6e4524');
-      q.limb(10.5, 7.5, 11.2, 16, 10.5, 11.2, 0.35, '#f5f5f4');
-      q.limb(21.5, 7.5, 11.2, 16, 10.5, 11.2, 0.35, '#f5f5f4');
-      q.dot(16, 3, METAL);
-    },
-    head: (q) => {
-      q.egg(16, 17.5, 11, 7, 6.4, 1.2, '#5b3a1e');
-      q.ball(16, 17.5, 12.4, 3.8, '#6e4524');
-      q.limb(19, 15, 14, 22, 12.5, 14, 0.5, '#dc2626');
-    },
-  }),
   banner: (m) => hero(m, {
     coat: '#b3175f', dark: METAL, sleeve: '#9b1452', boots: '#4a2238', hands: [19, 11, 19.5, 14],
     chest: (q) => q.egg(16, 18.5, 8.6, 5.2, 4, 1.6, '#d4dae1', 0.6),
@@ -1089,7 +1085,7 @@ export const MUZZLES = {
   mechanic: [[19.2, 6.8]], 'mechanic-ragged': [[19.2, 6.8]], 'mechanic-turret': [[19.6, 6.4]],
   'mechanic-demo': [[21.2, 1]], 'mechanic-mortar': [[16, 8.6]],
   'mechanic-turret-giant': [[16, -6.6]],
-  alchemist: [[12, 11.5]], hunter: [[16, 3]], banner: [[19, 11]], healer: [[16, 9]],
+  banner: [[19, 11]], healer: [[16, 9]],
   sage: [[16, 11.2]], frost: STAFF, earth: STAFF, shaman: STAFF, thunder: STAFF,
 };
 

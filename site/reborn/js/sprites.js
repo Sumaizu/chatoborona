@@ -1,7 +1,7 @@
 import { HERO_IDS, drawHero, drawPhoenix } from './models.js';
 import { MOB_IDS, drawMelt, drawMob, drawSplit, gooColor } from './monsters.js';
 import { drawClod, drawCocoon, drawBird, drawCoinIcon, drawDrone, drawEmblem, drawFireball, drawGrenade, drawHeart,
-  drawMeteor, drawMound, drawNuke, drawVent, drawRocket, drawTrap, drawWall } from './props.js';
+  drawMeteor, drawMound, drawNuke, drawVent, drawRocket, drawWall } from './props.js';
 
 const OUTLINE = '#15111d';
 
@@ -302,15 +302,7 @@ export const moundSprite = (biome, frame, claws) => remember('mound:' + biome + 
 
 export const clodSprite = (biome, seed) => remember('clod:' + biome + ':' + seed, () => drawClod(biome, seed));
 
-export const trapSprite = (closed) => remember('trap:' + closed, () => drawTrap(closed));
 export const nukeSprite = () => remember('nuke', () => drawNuke());
-
-export const flaskSprite = () => remember('flask', () => {
-  const p = new Pix(7, 9);
-  p.box(3, 0, 1, 2, '#e8eef4');
-  p.ball(3.5, 5, 2.4, '#9be22d', '#5b9a12', '#d9ff8f');
-  return p.outline().canvas();
-});
 
 export const droneSprite = (kind, frame) => remember('drone:' + kind + frame, () => drawDrone(kind, frame));
 export const birdSprite = (frame) => remember('bird:' + frame, () => drawBird(frame));

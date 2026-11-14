@@ -129,10 +129,6 @@ const RECIPES = {
     s.whistle(at, 2600, 420, length, 0.18);
     s.swish(at + length * 0.3, 2400, 600, length * 0.7, 0.07);
   },
-  plant(s, at) {
-    s.pop(at, 900, 700, 0.02, 0.08);
-    s.pop(at + 0.06, 2200, 2200, 0.03, 0.05);
-  },
   build(s, at) {
     s.swish(at, 150, 900, 0.3, 0.25);
     s.thump(at + 0.25, 110, 45, 0.25, 0.4);
@@ -218,10 +214,6 @@ const RECIPES = {
   zap(s, at) {
     s.swish(at, 4000, 1500, 0.12, 0.18);
     s.pop(at, 1600, 300, 0.1, 0.12);
-  },
-  flask(s, at) {
-    s.bell(at, A6, 0.15, 0.1, 2.1, 0.5);
-    s.pop(at + 0.02, 500, 900, 0.05, 0.08);
   },
   flame(s, at) {
     s.swish(at, 450, 1200, 0.45, 0.1);
@@ -350,10 +342,6 @@ const RECIPES = {
     s.swish(at, 200, 1600, 0.3, 0.2);
     s.thump(at, 140, 60, 0.25, 0.25);
   },
-  prey(s, at) {
-    s.horn(at, D4, 0.5, 0.08, 0);
-    s.horn(at + 0.25, A4, 0.6, 0.07, 0);
-  },
   hatch(s, at) {
     s.crunch(at, 0.2, 0.14);
     s.pop(at + 0.05, 600, 1400, 0.1, 0.14);
@@ -377,11 +365,11 @@ const RECIPES = {
 
 export const SFX_GAPS = {
   gun: 0.07, hit: 0.05, kill: 0.07, crack: 0.15, launch: 0.12, rock: 0.12, boom: 0.12, mine: 0.15, zap: 0.12,
-  flask: 0.1, flame: 0.3, bolt: 0.08, ice: 0.1, wind: 0.2, cast: 0.12, crit: 0.15, freeze: 0.25, stun: 0.2,
-  storm: 0.3, rally: 0.5, heal: 0.5, block: 0.3, roar: 1, growl: 0.8, summon: 0.4, plant: 0.3, build: 0.4,
+  flame: 0.3, bolt: 0.08, ice: 0.1, wind: 0.2, cast: 0.12, crit: 0.15, freeze: 0.25, stun: 0.2,
+  storm: 0.3, rally: 0.5, heal: 0.5, block: 0.3, roar: 1, growl: 0.8, summon: 0.4, build: 0.4,
   crumble: 0.4, bite: 0.15, leap: 0.3, chomp: 0.25, nuke: 2, fall: 1, join: 0.4, card: 0.3, holy: 0.12, splash: 0.15,
   snap: 0.15, execute: 0.3, clink: 0.2, treasure: 1, rattle: 1, rise: 0.4, hex: 0.4, burrow: 0.5, chain: 1, yank: 1,
-  charge: 0.5, reload: 0.3, ricochet: 0.1, ignite: 0.2, prey: 1, hatch: 0.5, snow: 2, flash: 0.15, quake: 0.5,
+  charge: 0.5, reload: 0.3, ricochet: 0.1, ignite: 0.2, hatch: 0.5, snow: 2, flash: 0.15, quake: 0.5,
 };
 
 export const SOUNDS = Object.keys(RECIPES);

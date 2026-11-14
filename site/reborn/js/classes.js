@@ -204,53 +204,6 @@ export const CLASSES = [
     ],
   },
   {
-    id: 'alchemist',
-    name: 'Алхимик',
-    color: '#84cc16',
-    element: 'poison',
-    primary: 'int',
-    earn: { xp: 1.3, coins: 1.35 },
-    weapon: 'флакон',
-    stats: { str: 'low', agi: 'mid', int: 'mid' },
-    base: { damage: 1.9, interval: 1.6, range: 3.5, target: 'potion', flight: 0.5 },
-    summary: 'Кидает ядовитые зелья, оставляет лужи яда',
-    main: (b) => 'Кидает ядовитые зелья на ' + cells(b.range) + ': урон ядом ×' + num(b.damage)
-      + '. Летучих не бьёт, нежить яд не берёт',
-    skills: [
-      { name: 'Ядовитая лужа', v: { time: 4, dps: 1.8, radius: 0.9 }, scale: { time: 'time', dps: 'dmg' },
-        text: (v) => 'зелье оставляет лужу на ' + sec(v.time) + ': кто в ней, травится, урон ядом ×' + num(v.dps)
-          + ' в секунду; летучих не травит' },
-      { name: 'Отрава', v: { chance: 0.25, time: 5, dps: 0.9 },
-        scale: { chance: 'luck', time: 'time', dps: 'dmg' },
-        text: (v) => 'с шансом ' + pct(v.chance) + ' яд въедается: ещё ' + sec(v.time) + ', урон ×' + num(v.dps)
-          + ' в секунду' },
-      { name: 'Ядовитый туман', v: { every: 20, radius: 1.5, time: 5, dps: 2.4 },
-        scale: { every: 'haste', radius: 'power', dps: 'dmg' },
-        text: (v) => 'раз в ' + sec(v.every) + ' кидает гранату: туман ' + around(v.radius) + ' на ' + sec(v.time)
-          + ' глушит все навыки мобов и травит, урон ×' + num(v.dps) + ' в секунду' },
-      { name: 'Кислота', v: { cut: 0.3, time: 5 }, scale: { time: 'time' },
-        text: (v) => 'зелье разъедает броню на ' + sec(v.time) + ': брони у задетых на ' + pct(v.cut) + ' меньше, а у '
-          + 'кого её нет — урон по ним на столько же больше' },
-      { name: 'Зелье безумия', v: { chance: 0.1, time: 3, bite: 1.5 }, scale: { chance: 'luck', time: 'time' },
-        text: (v) => 'с шансом ' + pct(v.chance) + ' задетый сходит с ума на ' + sec(v.time) + ': идёт назад и кусает '
-          + 'своих — урон ×' + num(v.bite) + ' в секунду; боссам нипочём' },
-      { name: 'Философский камень', v: { chance: 0.15, coins: 3 }, scale: { chance: 'luck' },
-        text: (v) => 'моб, погибший отравленным, с шансом ' + pct(v.chance) + ' рассыпается золотом: каждому в '
-          + 'отряде +' + v.coins + ' монеты' },
-      { name: 'Ядовитая реакция', v: {},
-        text: () => 'его удары накладывают на мобов стихию яда — для реакций с другими стихиями' },
-    ],
-    pool: ['perk0', 'perk3', 'perk1', 'perk4', 'perk2', 'epidemic', 'perk5', 'perk6'],
-    react: { skill: 'perk6', element: 'poison' },
-    runes: [
-      { id: 'epidemic', name: 'Чёрный мор', text: 'яд чернеет: берёт и нежить, пробивает броню и щиты, бьёт на 25% '
-        + 'сильнее; отравленный, умирая, заражает соседей на клетку вокруг' },
-      { id: 'infection', name: 'Инфекция', text: 'отравленные гниют ещё 5 с после яда: теряют 1% здоровья в секунду '
-        + '(боссы — 0,3%), но не больше урона ×' + num(RUNE_CAPS.rot) + ' в секунду' },
-      { id: 'plague', name: 'Чума', text: 'яд чернеет: берёт и нежить, пробивает броню и бьёт на 25% сильнее' },
-    ],
-  },
-  {
     id: 'pyro',
     name: 'Маг огня',
     color: '#ef4444',
@@ -300,7 +253,7 @@ export const CLASSES = [
         + 'каждый тик' },
       { id: 'fireReact', name: 'Огненная реакция', text: 'его огонь накладывает на мобов стихию огня — для реакций с '
         + 'другими стихиями' },
-      { id: 'torch', name: 'Факел', text: 'стрелок, механик и охотник в клетке от мага добавляют к ударам огонь, '
+      { id: 'torch', name: 'Факел', text: 'стрелок, механик и лесник в клетке от мага добавляют к ударам огонь, '
         + 'а с «Огненной реакцией» — и стихию огня' },
       { id: 'blue', name: 'Синее пламя', text: 'его огонь синеет: бьёт сильнее, горит дольше, а реакции с его огнём '
         + 'сильнее' },
@@ -308,45 +261,6 @@ export const CLASSES = [
     react: { skill: 'fireReact', element: 'fire' },
     skills: [],
     runes: [],
-  },
-  {
-    id: 'hunter',
-    name: 'Охотник',
-    color: '#b45309',
-    primary: 'agi',
-    earn: { xp: 1.1, coins: 1.04 },
-    weapon: 'арбалет',
-    stats: { str: 'mid', agi: 'mid', int: 'low' },
-    base: { damage: 1, interval: 1, range: 3.5, target: 'bigFirst', big: 5 },
-    summary: 'Бьёт крупную дичь первой, ставит капканы, метит добычу',
-    main: (b) => 'Из арбалета на ' + cells(b.range) + ' слабо бьёт всех, а элитных и боссов — первыми и с уроном ×'
-      + num(b.big),
-    skills: [
-      { name: 'Капканы', v: { count: 3, every: 4, hold: 1.5, bonus: 0.5 }, scale: { hold: 'time', bonus: 'power' },
-        text: (v) => 'ставит до ' + v.count + ' капканов в своём радиусе: попавший стоит ' + sec(v.hold)
-          + ' и получает +' + pct(v.bonus) + ' урона' },
-      { name: 'Сеть', v: { chance: 0.12, time: 2, bonus: 0.4 }, scale: { chance: 'luck', bonus: 'power' },
-        text: (v) => 'с шансом ' + pct(v.chance) + ' набрасывает сеть: моб — даже босс — стоит ' + sec(v.time)
-          + ' и получает +' + pct(v.bonus) + ' урона' },
-      { name: 'Добыча', v: { every: 30, time: 10, bounty: 40, window: 10 },
-        scale: { every: 'haste', time: 'time', bounty: 'power' },
-        text: (v) => 'раз в ' + sec(v.every) + ' метит ближайшего босса или элитного на ' + sec(v.time)
-          + ': все бьют его первым. Убьют за ' + sec(v.window) + ' — охотнику ' + Math.round(v.bounty)
-          + ' монет, остальным вдвое меньше' },
-      { name: 'Кровопускание', v: { share: 0.04, boss: 0.01, time: 5, cap: 0.6 },
-        text: (v) => 'болт по элитному или боссу открывает рану: за ' + sec(v.time) + ' она отнимает ' + pct(v.share)
-          + ' здоровья (у босса ' + pct(v.boss) + '), но не больше урона ×' + num(v.cap) + ' в секунду' },
-      { name: 'Гроза чудовищ', v: { bonus: 0.6 }, scale: { bonus: 'power' },
-        text: (v) => 'по боссам и элитным все его удары на ' + pct(v.bonus) + ' сильнее' },
-      { name: 'Медвежий капкан', v: { every: 40, hold: 4, bonus: 50 }, scale: { every: 'haste', hold: 'time' },
-        text: (v) => 'раз в ' + sec(v.every) + ' кидает медвежий капкан под самого крепкого моба на земле в радиусе: '
-          + 'тот стоит ' + sec(v.hold) + ' — даже босс — и получает урон ×' + num(v.bonus) },
-    ],
-    pool: ['perk0', 'perk1', 'perk3', 'perk2', 'perk4', 'perk5'],
-    runes: [
-      { id: 'ambush', name: 'Засада', text: 'никого не бьёт 10 с — прыгает к первому мобу на дороге' },
-      { id: 'master', name: 'Мастер ловушек', text: 'капканов вдвое больше, капканы и сеть действуют вдвое сильнее' },
-    ],
   },
   {
     id: 'parasite',

@@ -7,12 +7,10 @@ import { ASSIST_COINS, KILL_COINS } from './gacha.js';
 
 export const MOVE_PAUSE = 1;
 export const BITE_TIME = 1;
-export const AMBUSH = 10;
 export const HEADWIND = 0.2;
 export const THORN = { chance: 0.03, below: 0.3 };
 export const DISCHARGE = { mul: 18, hold: 5 };
 export const ROT = { share: 0.01, boss: 0.003, time: 5 };
-export const PLAGUE = 0.25;
 export const BRITTLE = 0.005;
 export const PLANTED = { time: 3, radius: 1, push: 1 };
 export const CRIMSON = 0.2;
@@ -35,17 +33,15 @@ const HEART_GAP = 1.6;
 const WALL_GAP = 0.5;
 const WALL_BITE = 0.125;
 const WALL_MARGIN = 2;
-const TRAP_TOUCH = 0.45;
 const WHIRL_REACH = 0.5;
 const PIERCE_WIDTH = 0.4;
 const FAR_REACH = SIZE * 1.5;
 const MAD_BITE = 0.7;
 const STICKY_SLOW = 0.3;
-const EPIDEMIC = 1;
-const COOLDOWNS = ['nextActive', 'nextBear', 'nextBlaze', 'nextBless', 'nextCheer', 'nextCleanse', 'nextCloud',
-  'nextEye', 'nextFar', 'nextGale', 'nextInferno', 'nextLegion', 'nextLight', 'nextMind', 'nextMuse', 'nextPhoenix',
-  'nextPool', 'nextEmp', 'nextNuke', 'nextQuake', 'nextRift', 'nextSand', 'nextStorm', 'nextSwarm', 'nextTempest',
-  'nextTrap', 'nextTsunami', 'nextWall', 'nextWave'];
+const COOLDOWNS = ['nextActive', 'nextBlaze', 'nextBless', 'nextCheer', 'nextCleanse', 'nextCloud', 'nextEye',
+  'nextFar', 'nextGale', 'nextInferno', 'nextLegion', 'nextLight', 'nextMind', 'nextMuse', 'nextPhoenix', 'nextPool',
+  'nextEmp', 'nextNuke', 'nextQuake', 'nextRift', 'nextSand', 'nextStorm', 'nextSwarm', 'nextTempest', 'nextTsunami',
+  'nextWall', 'nextWave'];
 const WARD_AURA = 0.25;
 const FIREBALL_FLIGHT = 0.3;
 const ZONE_PULSE = 0.5;
@@ -80,7 +76,7 @@ export const FIRE = { styled: 1.5, giant: 1.5, splash: 1, wide: 1.5, breath: 0.6
   ring: { radius: 2, mul: 0.5, grow: 1, max: 4 },
   wall: { mul: 1.5, reach: 0.7 }, black: { chance: 1, damage: 0.2, max: 5 },
   phoenix: { every: 15, speed: 8, mul: 10, reach: 0.9, step: 0.25 } };
-const TORCH_USERS = new Set(['sniper', 'mechanic', 'hunter', 'forester']);
+const TORCH_USERS = new Set(['sniper', 'mechanic', 'forester']);
 const LOFTY = new Set(['scope', 'mortar']);
 export const SHOT = { scope: { mul: 5, aim: 2, reload: 3 }, assault: { range: -1, interval: 0.55, mul: 0.35,
   crit: 0.25, mag: 30, reload: 3 }, marksman: { range: 1.5, interval: 2.2, mul: 1.6, crit: 0.25, mag: 5, reload: 3 },
@@ -100,13 +96,12 @@ export const MECH = { turret: { range: -1.5, interval: 1, mul: 0.3, count: 3, ga
   droneAttack: { every: 1.2, count: 3, gap: 0.08, mul: 0.35 }, droneLaser: { every: 1.5, mul: 1 },
   droneAir: { every: 1.5, mul: 0.2, slow: 0.6, time: 2 } };
 const DRONE_KINDS = [['droneAttack', 'attack'], ['droneLaser', 'laser'], ['droneAir', 'air']];
-export const WOOD = { hunter: { range: 2, interval: 0.4, mul: 3.4, reload: 2.4 }, witch: { range: 0, interval: 1.8,
-  mul: 1.3 }, bird: { every: 0.9, mul: 0.45, speed: 5 } };
+export const WOOD = { bow: { reload: 0.8 }, hunter: { range: 2, interval: 0.4, mul: 3.4, reload: 2.4 },
+  witch: { range: 0, interval: 1.8, mul: 1.3 }, bird: { every: 0.9, mul: 0.45, speed: 5 } };
 const STYLE_ELEMENTS = { witch: 'poison' };
 const DRONE_SHOTS = { attack: MECH.droneAttack, laser: MECH.droneLaser, air: MECH.droneAir, bird: WOOD.bird };
 const STEEL_BLAST = { radius: 1.5, mul: 8, stun: 1 };
 const METEOR_FLIGHT = 1.2;
-const FOG_FLIGHT = 0.6;
 export const AIM = { turn: 8, slack: Math.PI / 12, hold: 0.15 };
 export const GRENADE = { flight: 0.5, pace: 0.05 };
 const SPIKE_TOUCH = 0.55;
@@ -240,20 +235,16 @@ export class Battle {
     this.spawns = [];
     this.patches = [];
     this.walls = [];
-    this.puddles = [];
-    this.fogs = [];
     this.zones = [];
     this.vents = [];
     this.phoenixes = [];
     this.drones = [];
     this.steel = 0;
     this.pulseAt = 0;
-    this.traps = [];
     this.whirls = [];
     this.grounds = [];
     this.births = [];
     this.delayed = [];
-    this.prey = null;
     this.headwind = false;
     this.brittle = false;
     this.treasures = 0;
@@ -333,7 +324,7 @@ export class Battle {
       web: 1, windUntil: 0, wind: 0, windBy: null, rider: false, host: null, leapUntil: 0, cocoon: 0, late: false,
       waveXp: 0, reloadUntil: 0, angle: this._homeAngle(x, y), aimMob: null, aimHold: 0,
       charge: null,
-      nextActive: 0, nextTrap: 0, nextWall: 0, lastHit: this.time, pull: null,
+      nextActive: 0, nextWall: 0, pull: null,
       nextCheer: 0, nextCleanse: 0, nextMuse: 0, cheerUntil: 0, rallyUntil: 0, wardUntil: 0, muses: [], lift: 1,
       ownRange: 0, boost: { rate: 0, range: 0, damage: 0, crit: 0, wisdom: 0, cheer: false, muse: false },
       boostBy: new Set(),
@@ -464,11 +455,10 @@ export class Battle {
     if (at < 0) return;
     this.towers.splice(at, 1);
     if (!tower.rider) this.byCell.delete(tower.y * SIZE + tower.x);
-    for (const list of ['walls', 'puddles', 'fogs', 'traps', 'whirls', 'patches', 'grounds',
+    for (const list of ['walls', 'whirls', 'patches', 'grounds',
       'zones', 'phoenixes', 'drones']) {
       this[list] = this[list].filter((item) => item.tower !== tower);
     }
-    if (this.prey && this.prey.by === tower) this.prey = null;
     for (const t of this.towers) if (t.perch && t.perch.tower === tower) t.perch = null;
     this._flags();
   }
@@ -735,7 +725,6 @@ export class Battle {
         }
         if (power.id === 'hex' || power.id === 'swoop') this._hex(mob, power);
         if (power.id === 'ward') this._ward(mob, power);
-        if (power.id === 'tunnel') this._swallow(mob, power);
         if (power.id === 'breath') this._breathe(mob, power);
         if (power.id === 'web') this._web(mob, power);
         if (power.id === 'wail') this._wail(mob, power);
@@ -858,13 +847,6 @@ export class Battle {
     this._event({ kind: 'ward', mob });
   }
 
-  _swallow(mob, power) {
-    const close = (item) => near(item, mob.x, mob.y, power.reach);
-    const eaten = this.traps.filter(close).length + this.puddles.filter(close).length;
-    for (const list of ['traps', 'puddles']) this[list] = this[list].filter((item) => !close(item));
-    this._event({ kind: 'swallow', mob, eaten });
-  }
-
   _breathe(mob, power) {
     let target = null, best = power.length * power.length;
     for (const t of this.towers) {
@@ -884,7 +866,6 @@ export class Battle {
     for (const t of this.towers) {
       if (!t.rider && burnt({ x: t.cx, y: t.cy })) this._daze(t, power.hold);
     }
-    for (const list of ['traps', 'puddles']) this[list] = this[list].filter((item) => !burnt(item));
     this._event({ kind: 'breath', mob, x: mob.x + dx * power.length, y: mob.y + dy * power.length });
   }
 
@@ -996,7 +977,6 @@ export class Battle {
     tower.runes = new Set(mods.runes || []);
     tower.stacks = new Map();
     for (const id of mods.runes || []) tower.stacks.set(id, (tower.stacks.get(id) || 0) + 1);
-    if (tower.runes.has('epidemic')) tower.runes.add('plague');
     tower.look = mods.look || cls.id;
     tower.style = cls.styles ? (cls.styles.find((item) => tower.runes.has(item.id)) || {}).id || null : null;
     tower.react = cls.react && (cls.react.skill.startsWith('perk') ? open(tower, Number(cls.react.skill.slice(4)))
@@ -1081,12 +1061,6 @@ export class Battle {
     mob.vulnUntil = Math.max(mob.vulnUntil, this.time + seconds);
   }
 
-  _poison(mob, tower, key, dps, seconds) {
-    if (mob.dead || immune(mob, 'poison') || mob.undead && !tower.runes.has('plague')) return;
-    if (!mob.poison) mob.poison = new Map();
-    mob.poison.set(key, { tower, dps, until: this.time + seconds });
-  }
-
   _ignite(mob, tower, dps, seconds) {
     if (mob.dead || immune(mob, 'fire')) return;
     if (!mob.burn) mob.burn = new Map();
@@ -1126,28 +1100,12 @@ export class Battle {
     }
     if (this.phoenixes.length) this._phoenixes(now);
     if (this.zones.length) this._zones(dt, now);
-    if (this.fogs.length) this._fogs(dt, now);
-    if (this.puddles.length) this._puddles(dt, now);
-    if (this.traps.length) this._traps(now);
     if (this.whirls.length) this._whirls(dt, now);
     if (this.grounds.length) this._grounds(dt, now);
     if (this.walls.length) this._mend(dt);
     for (const mob of this.mobs) {
       if (mob.dead) continue;
-      if (mob.poison) {
-        for (const [key, dose] of mob.poison) {
-          if (dose.until <= now) {
-            mob.poison.delete(key);
-            continue;
-          }
-          this._hurt(mob, dose.dps * dt, dose.tower, 'poison', true);
-          if (mob.dead) break;
-        }
-        if (!mob.dead && !mob.poison.size) mob.poison = null;
-      }
       if (mob.rot && !mob.dead && mob.rot.until <= now) mob.rot = null;
-      if (mob.wound && !mob.dead && mob.wound.until <= now) mob.wound = null;
-      if (mob.wound && !mob.dead) this._hurt(mob, mob.wound.dps * dt, mob.wound.by, null, true, SHIELDS);
       if (mob.rot && !mob.dead) {
         const share = mob.info.boss ? ROT.boss : ROT.share;
         const rot = Math.min(mob.max * share, mob.rot.by.skill * RUNE_CAPS.rot);
@@ -1410,65 +1368,9 @@ export class Battle {
     }
   }
 
-  _fogs(dt, now) {
-    this.fogs = this.fogs.filter((fog) => fog.until > now);
-    for (const fog of this.fogs) {
-      for (const mob of this.mobs) {
-        if (mob.dead || !near(mob, fog.x, fog.y, fog.radius)) continue;
-        mob.muteUntil = Math.max(mob.muteUntil, now + MUTE_HOLD);
-        this._hurt(mob, fog.dps * dt, fog.tower, 'poison', true);
-      }
-    }
-  }
-
-  _puddles(dt, now) {
-    this.puddles = this.puddles.filter((puddle) => puddle.until > now);
-    for (const puddle of this.puddles) {
-      const t = puddle.tower;
-      for (const mob of this.mobs) {
-        if (mob.dead || !grounded(mob, now) || !near(mob, puddle.x, puddle.y, puddle.radius)) continue;
-        this._hurt(mob, puddle.dps * dt, t, 'poison', true);
-        if (!mob.dead && now >= mob.rollAt) {
-          mob.rollAt = now + ROLL_EVERY;
-          this._toxin(t, mob);
-        }
-      }
-    }
-  }
-
-  _toxin(t, mob) {
-    if (!open(t, 1) || this.random() >= t.s[1].chance) return;
-    this._poison(mob, t, t, t.skill * t.s[1].dps, t.s[1].time);
-  }
-
   _execute(mob, t, cap) {
     if (mob.hp <= cap) this._slay(mob, t);
     else this._hurt(mob, cap, t, null, true, ARMOR);
-  }
-
-  _traps(now) {
-    const left = [];
-    for (const trap of this.traps) {
-      const victim = this.mobs.find((mob) => !mob.dead && grounded(mob, now) && near(mob, trap.x, trap.y, TRAP_TOUCH));
-      if (!victim) {
-        left.push(trap);
-        continue;
-      }
-      const t = trap.tower, s = t.s[0], twice = t.runes.has('master') ? 2 : 1;
-      this._event({ kind: 'snap', tower: t, x: trap.x, y: trap.y, radius: TRAP_TOUCH });
-      this._hold(victim, s.hold * twice, t);
-      this._vulnerable(victim, s.bonus * twice, s.hold * twice);
-      victim.helpers.add(t);
-    }
-    this.traps = left;
-  }
-
-  _net(t, mob) {
-    const s = t.s[1], twice = t.runes.has('master') ? 2 : 1, time = s.time * twice;
-    this._hold(mob, time, t, true);
-    this._vulnerable(mob, s.bonus * twice, time);
-    mob.netUntil = this.time + time;
-    this._event({ kind: 'net', tower: t, mob });
   }
 
   _whirls(dt, now) {
@@ -1494,10 +1396,6 @@ export class Battle {
     const met = this.mobs.filter((mob) => !mob.dead && touch(mob, 0));
     if (this.patches.some((patch) => touch(patch, patch.radius)) || met.some((mob) => mob.burn)) {
       whirl.elements.add('fire');
-    }
-    const toxic = this.puddles.concat(this.fogs);
-    if (toxic.some((cloud) => touch(cloud, cloud.radius)) || met.some((mob) => mob.poison)) {
-      whirl.elements.add('poison');
     }
     if (this.towers.some((t) => t.cls.id === 'frost' && open(t, 0) && !t.cocoon && near(at, t.cx, t.cy, t.range))) {
       whirl.elements.add('ice');
@@ -2185,18 +2083,6 @@ export class Battle {
     return i < this.path.length ? { r: 0, d: i + 1 } : { r: 1, d: i - this.path.length + 1 };
   }
 
-  _setTrap(t) {
-    const cap = t.s[0].count * (t.runes.has('master') ? 2 : 1);
-    const own = this.traps.filter((trap) => trap.tower === t);
-    if (own.length >= cap) this.traps.splice(this.traps.indexOf(own[0]), 1);
-    const taken = new Set(this.traps.map((trap) => trap.i));
-    const cells = this._reach(t.range)[t.y * SIZE + t.x].filter((i) => !taken.has(i) && i > 0);
-    if (!cells.length) return;
-    const i = cells[Math.floor(this.random() * cells.length)], { r, d } = this._spot(i), at = this._roadPoint(r, d);
-    this.traps.push({ tower: t, i, x: at.x, y: at.y });
-    this._event({ kind: 'trap', tower: t, x: at.x, y: at.y });
-  }
-
   _roadPoint(r, d) {
     const point = { r, d, x: 0, y: 0 };
     this._onRoute(point);
@@ -2206,9 +2092,8 @@ export class Battle {
   _targetable(t, mob, range = t.range, mode = t.cls.base.target) {
     if (mob.dead || hidden(mob, this.time) || immune(mob, t.element) || !near(mob, t.cx, t.cy, range)
       || !this.sees(t, mob)) return false;
-    if (mode === 'potion' && (mob.flying || mob.undead && !t.runes.has('plague'))) return false;
     if (mode === 'land' && mob.flying) return false;
-    if (mode === 'toxic' && mob.undead && !t.runes.has('plague')) return false;
+    if (mode === 'toxic' && mob.undead) return false;
     return true;
   }
 
@@ -2224,8 +2109,6 @@ export class Battle {
       const host = t.host;
       return host && !host.dead && this.time >= t.leapUntil && !this.covered(host.x, host.y) ? host : null;
     }
-    const prey = this.prey && this.prey.until > this.time ? this.prey.mob : null;
-    if (prey && prey !== skip && this._targetable(t, prey, range, mode)) return prey;
     let best = null, bestScore = -Infinity;
     for (const mob of this.mobs) {
       if (mob === skip || !this._targetable(t, mob, range, mode)) continue;
@@ -2271,13 +2154,7 @@ export class Battle {
     if (mob.dead || amount <= 0 || underground(mob, this.time) && !t.deep && !deep) return;
     if (!dot && !t.rider && !t.cls.through && this.covered(mob.x, mob.y)) return;
     const now = this.time;
-    if (element === 'poison') {
-      if (mob.undead && !t.runes.has('plague')) return;
-      if (t.runes.has('plague')) {
-        amount *= 1 + PLAGUE;
-        pierce = SHIELDS;
-      }
-    }
+    if (element === 'poison' && mob.undead) return;
     amount *= this._weak(element);
     if (immune(mob, element)) {
       mob.helpers.add(t);
@@ -2301,8 +2178,7 @@ export class Battle {
       * (1 - mob.resist);
     let dealt = amount * (1 + vulnerable) * (1 + t.boost.damage) * this._frailty(mob, element)
       * (1 + FIRE.black.damage * stacksOf(mob, t));
-    const cut = Math.max(power && power.cut || 0, mob.armor) - (mob.acidUntil > now ? mob.acid : 0)
-      - (this.state(mob, 'disease') ? REACTIONS.disease.armor : 0);
+    const cut = Math.max(power && power.cut || 0, mob.armor) - (this.state(mob, 'disease') ? REACTIONS.disease.armor : 0);
     if (cut && !pierce) dealt *= 1 - cut;
     if (mob.front && !dot && !t.rider && !pierce && this._facing(mob, t)) dealt *= 1 - mob.front;
     if (ghostly(mob, now) && element !== 'holy') dealt *= GHOST_CUT;
@@ -2375,7 +2251,6 @@ export class Battle {
     if (killer && killer.cls.id === 'parasite' && open(killer, 4)) {
       killer.feast = (killer.feast || 0) + killer.s[4].bonus;
     }
-    if (mob.poison) this._alchemy(mob);
     const insight = mob.weakUntil > this.time && mob.weakBy && open(mob.weakBy, 2) ? mob.weakBy.s[2].xp : 1;
     const prize = mob.silver ? SILVER.xp : 1, purse = mob.silver ? SILVER.coins : 1;
     const killers = new Set(mob.party || [killer]);
@@ -2395,7 +2270,6 @@ export class Battle {
       }
     }
     this._event({ kind: 'kill', mob, by: killer });
-    if (this.prey && this.prey.mob === mob) this._bounty();
     if (mob.stolen && killer) {
       killer.player.coins += mob.stolen;
       killer.run.coins += mob.stolen;
@@ -2461,26 +2335,6 @@ export class Battle {
     }
   }
 
-  _alchemy(mob) {
-    const seen = new Set();
-    for (const dose of mob.poison.values()) {
-      const t = dose.tower;
-      if (seen.has(t) || t.cls.id !== 'alchemist' || !this.towers.includes(t)) continue;
-      seen.add(t);
-      if (open(t, 5) && this.random() < t.s[5].chance) {
-        for (const ally of this.towers) {
-          ally.player.coins += t.s[5].coins;
-          ally.run.coins += t.s[5].coins;
-        }
-        this._event({ kind: 'gold', mob, tower: t, coins: t.s[5].coins });
-      }
-      if (!t.runes.has('epidemic')) continue;
-      for (const other of this._around(mob.x, mob.y, EPIDEMIC, mob)) {
-        this._poison(other, t, t, t.skill * t.s[1].dps, t.s[1].time);
-      }
-    }
-  }
-
   _shield(mob) {
     let best = null;
     for (const t of this.towers) {
@@ -2504,18 +2358,6 @@ export class Battle {
     this.spawns = [];
     this.births = [];
     this._event({ kind: 'rescue', tower: savior, lives: SECOND, wiped });
-  }
-
-  _bounty() {
-    const prey = this.prey;
-    this.prey = null;
-    if (this.time - prey.at > prey.window || !this.towers.includes(prey.by)) return;
-    for (const t of this.towers) {
-      const coins = Math.round(t === prey.by ? prey.bounty : prey.bounty / 2);
-      t.player.coins += coins;
-      t.run.coins += coins;
-    }
-    this._event({ kind: 'bounty', tower: prey.by, mob: prey.mob, coins: Math.round(prey.bounty) });
   }
 
   reward(t, xp) {
@@ -2584,18 +2426,6 @@ export class Battle {
       return { tower: other, coins: part };
     });
     this._event({ kind: 'share', tower: t, coins, shares });
-  }
-
-  _ambush(t, now) {
-    t.lastHit = now;
-    const leader = this._leader();
-    const cell = leader ? this._hookCell(leader, t) : null;
-    if (!cell || cell.x === t.x && cell.y === t.y) return;
-    const fx = t.cx, fy = t.cy;
-    this._relocate(t, cell.x, cell.y);
-    t.pull = { fx, fy, start: now, end: now + PULL_TIME };
-    t.busy = Math.max(t.busy, now + PULL_TIME);
-    this._event({ kind: 'ambush', tower: t, mob: leader });
   }
 }
 
@@ -2668,7 +2498,6 @@ function closestPrey(b, t) {
   return prey[0] || null;
 }
 
-const monster = (t, mob) => (open(t, 4) && big(mob) ? 1 + t.s[4].bonus : 1);
 
 const rollCrit = (b, t) => b.random() < 1 - (1 - t.critChance) * (1 - t.boost.crit);
 
@@ -3005,26 +2834,6 @@ function bolt(b, t, target) {
   b._event({ kind: 'chain', tower: t, points });
 }
 
-function potion(b, t, x, y, crit) {
-  const radius = POTION_SPLASH, damage = t.damage * (crit ? t.critMul : 1);
-  b._event({ kind: 'splash', tower: t, x, y, radius: open(t, 0) ? t.s[0].radius : radius });
-  for (const mob of b._around(x, y, radius)) {
-    if (mob.flying) continue;
-    b._hurt(mob, damage, t);
-    if (mob.dead) continue;
-    b._toxin(t, mob);
-    if (open(t, 3)) {
-      mob.acid = t.s[3].cut;
-      mob.acidUntil = b.time + t.s[3].time;
-    }
-    if (open(t, 4) && b.random() < t.s[4].chance) b._madden(mob, t.s[4].time, t, t.skill * t.s[4].bite);
-  }
-  if (open(t, 0)) {
-    const s = t.s[0];
-    b.puddles.push({ tower: t, x, y, radius: s.radius, until: b.time + s.time, dps: t.skill * s.dps, born: b.time });
-  }
-}
-
 function spikes(b, t, target) {
   const crit = rollCrit(b, t), damage = t.damage * (crit ? t.critMul : 1), base = t.cls.base;
   const count = t.runes.has('stone') ? STONE_SPIKES : base.spikes, first = -Math.floor((count - 1) / 2);
@@ -3082,6 +2891,7 @@ const SKILLS = {
       }
       shoot(b, t, target);
       if (t.style === 'hunter') reload(t, now, WOOD.hunter.reload);
+      else reload(t, now, Math.min(WOOD.bow.reload, b._intervalOf(t, now) / 2));
       return true;
     },
   },
@@ -3158,28 +2968,6 @@ const SKILLS = {
       }
     },
   },
-  alchemist: {
-    fire(b, t) {
-      const target = b._target(t);
-      if (!target) return false;
-      const x = target.x, y = target.y, crit = rollCrit(b, t), flight = t.cls.base.flight;
-      b._event({ kind: 'flask', tower: t, x, y, time: flight });
-      b._later(flight, () => potion(b, t, x, y, crit), t);
-      return true;
-    },
-    every(b, t, now, alive) {
-      if (!open(t, 2) || !alive || now < t.nextActive) return;
-      const target = b._target(t, { mode: 'any' });
-      if (!target) return;
-      const s = t.s[2], x = target.x, y = target.y;
-      t.nextActive = now + s.every;
-      b._event({ kind: 'fogtoss', tower: t, x, y, time: FOG_FLIGHT });
-      b._later(FOG_FLIGHT, () => {
-        b.fogs.push({ tower: t, x, y, radius: s.radius, until: b.time + s.time, dps: t.skill * s.dps, born: b.time });
-        b._event({ kind: 'fog', tower: t, x, y, radius: s.radius });
-      }, t);
-    },
-  },
   pyro: {
     fire(b, t, now) {
       if (t.style === 'ignite') return false;
@@ -3254,47 +3042,6 @@ const SKILLS = {
       t.lastFire = now;
       b._event({ kind: 'beam', tower: t, x: target.x, y: target.y, mob: target, blue: t.runes.has('blue') });
       scorch(b, t, target, t.damage * FIRE.beam.mul * t.critMul);
-    },
-  },
-  hunter: {
-    fire(b, t) {
-      const target = b._target(t);
-      if (!target) return false;
-      const crit = rollCrit(b, t), damage = t.damage * (big(target) ? t.cls.base.big : 1) * (crit ? t.critMul : 1)
-        * monster(t, target);
-      t.lastHit = b.time;
-      b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target });
-      b._hurt(target, damage, t);
-      b._torchHit(t, target, damage);
-      if (open(t, 3) && big(target) && !target.dead) {
-        const s = t.s[3], share = target.info.boss ? s.boss : s.share;
-        target.wound = { by: t, until: b.time + s.time, dps: Math.min(target.max * share / s.time, t.skill * s.cap) };
-      }
-      if (open(t, 1) && !target.dead && b.random() < t.s[1].chance) b._net(t, target);
-      return true;
-    },
-    every(b, t, now, alive) {
-      if (open(t, 0) && now >= t.nextTrap) {
-        t.nextTrap = now + t.s[0].every;
-        b._setTrap(t);
-      }
-      if (open(t, 5) && alive && now >= (t.nextBear || 0)) {
-        const target = b._toughest(t, true), s = t.s[5];
-        if (target) {
-          t.nextBear = now + s.every;
-          b._event({ kind: 'snap', tower: t, x: target.x, y: target.y, radius: TRAP_TOUCH });
-          b._hold(target, s.hold, t, true);
-          b._hurt(target, t.skill * s.bonus * monster(t, target), t);
-        }
-      }
-      if (t.runes.has('ambush') && alive && now - t.lastHit >= AMBUSH) b._ambush(t, now);
-      if (!open(t, 2) || !alive || now < t.nextActive) return;
-      const target = b._closestBig(t);
-      if (!target) return;
-      const s = t.s[2];
-      t.nextActive = now + s.every;
-      b.prey = { mob: target, by: t, at: now, until: now + s.time, window: s.window, bounty: s.bounty };
-      b._event({ kind: 'prey', tower: t, mob: target, time: s.time });
     },
   },
   parasite: {

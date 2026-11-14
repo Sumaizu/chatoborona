@@ -24,16 +24,6 @@ const GRENADES = {
     m.limb(11, 7.2, 5.6, 11, 4.6, 6, 1.3, METAL, 0.6);
     if (lit) m.ball(11, 4.2, 7, 0.9, '#67e8f9', 1);
   },
-  grenade(m, lit) {
-    m.egg(11, 13, 0, 5.6, 6.8, 4.8, '#55642f', 0.3);
-    for (let row = 0; row < 4; row++) {
-      for (let col = 0; col < 3; col++) m.ball(8.2 + col * 2.8, 8.6 + row * 2.9, 3.4, 1.25, '#6f8040', 0.4);
-    }
-    m.limb(11, 6.8, 4, 11, 3.6, 4.6, 1.5, METAL, 0.6);
-    m.limb(12.4, 4, 5.2, 15.8, 13.4, 5.4, 0.7, STEEL, 0.6);
-    around(8, 0, 7.6, 3.6, 1.7, 1.7, (x, y) => m.ball(x, y, 5, 0.45, METAL, 0.8));
-    if (lit) m.ball(11, 3, 6.4, 0.9, '#ffd84a', 1);
-  },
 };
 
 const DRONES = { attack: ['#57534e', '#f97316'], laser: ['#1e3a8a', '#22d3ee'], air: ['#3f6212', '#a3e635'] };
@@ -135,31 +125,6 @@ export function drawVent(lit, blue) {
   m.egg(c - 0.6, c - 0.5, 6, 2.6, 2.2, 0.4, lava[lit ? 1 : 2], 0.2);
   const [bx, by] = lit ? [c + 1.4, c - 1.2] : [c - 1.6, c + 1.2];
   m.ball(bx, by, 6, lit ? 1.2 : 0.8, lava[0], 0.6);
-  return m.paint();
-}
-
-export function drawTrap(closed) {
-  const m = new Model(24, 1), cx = 12, cy = 12.5;
-  if (!closed) {
-    m.egg(cx, cy, 0, 3.4, 3, 0.8, STEEL, 0.4);
-    m.ball(cx, cy, 1, 1, '#c0262d', 0.8);
-    around(14, 0, cx, cy, 7.6, 6.6, (x, y, a) => {
-      m.limb(x, y, 1.2, cx + Math.cos(a) * 4.6, cy + Math.sin(a) * 4, 2, 0.95, '#dfe5ea', 0.8, 0.15);
-    });
-    around(40, 0, cx, cy, 8.4, 7.4, (x, y) => m.ball(x, y, 1.2, 1.15, '#8b939c', 0.5));
-    for (const side of [-1, 1]) m.egg(cx + side * 10, cy, 1, 1.6, 2.6, 1.4, STEEL, 0.4);
-    return m.paint();
-  }
-  for (const side of [-1, 1]) m.egg(cx + side * 9.6, cy + 1, 1, 1.8, 2.8, 1.6, STEEL, 0.4);
-  for (let i = 0; i <= 18; i++) {
-    const t = i / 18, x = cx - 8.5 + t * 17, lift = Math.sin(t * Math.PI);
-    m.ball(x, cy - 1.6 - lift * 2.4, 4 + lift * 2, 1.2, '#8b939c', 0.5);
-    m.ball(x, cy + 2.2 + lift * 1.2, 3 + lift * 1.6, 1.2, '#7a828b', 0.5);
-  }
-  for (let i = 0; i < 8; i++) {
-    const x = cx - 6.3 + i * 1.8, up = i % 2 === 0;
-    m.limb(x, up ? cy - 2.6 : cy + 2, 5, x, up ? cy + 0.8 : cy - 1.4, 5.5, 0.85, '#dfe5ea', 0.8, 0.15);
-  }
   return m.paint();
 }
 

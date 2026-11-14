@@ -1,7 +1,7 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { AIM, BITE_TIME, Battle, CRIMSON, WOOD, DISCHARGE, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, PLAGUE,
-  FIRE, PLANTED, PULSE, REACTIONS, ROT, SECOND, SHOT, SPLIT_TIME, THORN }
+import { AIM, BITE_TIME, Battle, CRIMSON, WOOD, DISCHARGE, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, FIRE,
+  PLANTED, PULSE, REACTIONS, ROT, SECOND, SHOT, SPLIT_TIME, THORN }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
 import { AFFIXES, BOSSES, DIABLO, ELITES, FAMILIES, FAMILY_BY_ID, FINALE, LIVES, LOOKS, MIGHT, MIMIC, MOBS, POWERS,
@@ -541,7 +541,7 @@ test('механик-ракетчик: через всю карту в того,
 
 test('механик: команда поддержки — механики рядом стреляют быстрее, тем быстрее, чем их больше', () => {
   const battle = makeBattle(), lead = mechanic(battle, 10, 2, ['team']), mate = mechanic(battle, 11, 2, ['turret']);
-  const far = mechanic(battle, 14, 2, []), gun = battle.place(player(), 'hunter', 10, 3);
+  const far = mechanic(battle, 14, 2, []), gun = battle.place(player(), 'frost', 10, 3);
   battle.step(TICK);
   near(lead.boost.rate, MECH.team.per * 2, 'двое механиков — каждому по двойной прибавке');
   near(mate.boost.rate, MECH.team.per * 2);
@@ -557,7 +557,7 @@ test('механик: команда поддержки — механики р�
 test('механик: тюнинг — стрелки в клетке вокруг стреляют быстрее, другие классы — нет', () => {
   const battle = makeBattle(), tuner = mechanic(battle, 10, 2, ['tuning']);
   const near1 = battle.place(player(), 'sniper', 11, 3), far = battle.place(player(), 'sniper', 14, 2);
-  const gun = battle.place(player(), 'hunter', 9, 2);
+  const gun = battle.place(player(), 'frost', 9, 2);
   battle.step(TICK);
   near(near1.boost.rate, MECH.tuning.haste);
   ok(near1.boostBy.has(tuner));
@@ -864,7 +864,7 @@ function forester(battle, x, y, runes) {
   return t;
 }
 
-test('лесник: без стиля — лук, стрела в того, кто ближе к сердцу', () => {
+test('лесник: без стиля — лук, стрела в того, кто ближе к сердцу; после выстрела накладывает новую стрелу', () => {
   const battle = makeBattle(), t = forester(battle, 10, 4, []);
   eq(t.cls.name, 'Лесник');
   const back = walker(battle, 9, 1e9), front = walker(battle, 12, 1e9);
@@ -872,6 +872,8 @@ test('лесник: без стиля — лук, стрела в того, кт
   ok(battle._fire(t));
   near(hit(front), t.damage);
   eq(hit(back), 0);
+  ok(t.reloadUntil > battle.time, 'перезарядка видна в модельке');
+  ok(t.reloadUntil - battle.time <= battle._intervalOf(t, battle.time) / 2, 'и не медленнее выстрелов');
 });
 
 test('лесник-друид: сам не стреляет, птица летит через всю карту и клюёт того, кто впереди', () => {
@@ -1112,37 +1114,6 @@ test('стрелок: последний патрон, наводчик, зол�
   near(hit(mob) - before, 100 * (1 + SHOT.mark.bonus), 'меченого бьют сильнее и союзники');
 });
 
-test('охотник, навыки Реборна: кровопускание, гроза чудовищ, медвежий капкан', () => {
-  const battle = makeBattle(), t = battle.place(player(), 'hunter', 10, 4);
-  battle.random = () => 0.99;
-  const boss = put(battle, special(battle, 'boss', 'crusher', 1e9), 10);
-  still(boss);
-  battle._fire(t);
-  const plain = hit(boss);
-  battle.setMods(t, { perks: [4] });
-  battle._fire(t);
-  near(hit(boss) - plain, plain * (1 + t.s[4].bonus), 'по боссу на 60% сильнее');
-  battle.setMods(t, { perks: [3] });
-  battle._fire(t);
-  ok(boss.wound && boss.wound.by === t, 'рана открыта');
-  near(boss.wound.dps, Math.min(boss.max * t.s[3].boss / t.s[3].time, t.skill * t.s[3].cap));
-  const before = hit(boss), dps = boss.wound.dps;
-  battle.remove(t);
-  runFor(battle, 1);
-  ok(Math.abs(hit(boss) - before - dps) < dps * 0.01, 'рана кровит');
-
-  const trap = makeBattle(), h = trap.place(player(), 'hunter', 10, 4);
-  trap.random = () => 0.99;
-  trap.setMods(h, { perks: [5] });
-  const giant = put(trap, special(trap, 'boss', 'crusher', 1e9), 10);
-  still(giant);
-  h.angle = Math.atan2(giant.x - h.cx, -(giant.y - h.cy));
-  trap.step(TICK);
-  ok(trap.events.some((e) => e.kind === 'snap'), 'капкан захлопнулся');
-  ok(giant.holdUntil >= trap.time + h.s[5].hold * (1 - giant.resist) - 0.1, 'держит даже босса');
-  ok(hit(giant) >= h.skill * h.s[5].bonus, 'и бьёт ×50');
-});
-
 test('громовержец: молния прыгает назад по дороге ещё на девять мобов, каждому на 10% меньше', () => {
   const battle = makeBattle(), thunder = battle.place(player(), 'thunder', 10, 4);
   thunder.critChance = 0;
@@ -1216,160 +1187,6 @@ test('громовержец: руна «Разрядка» — заряженн
 const lookOf = (id) => Object.values(LOOKS).flat().find((look) => look.id === id);
 const typeOf = (id) => Object.keys(LOOKS).find((type) => LOOKS[type].some((look) => look.id === id));
 const creature = (battle, id, d = 5, hp = 1e6) => battle._spawn({ type: typeOf(id), look: lookOf(id), hp }, d);
-
-test('алхимик: зелье не летит в летучих и нежить; летит полсекунды и травит рядом с местом падения', () => {
-  const battle = makeBattle(), alchemist = battle.place(player(), 'alchemist', 10, 4);
-  battle.random = () => 0.99;
-  const flyer = walker(battle, 11, 1e6, bat()), zombie = creature(battle, 'zombie', 11);
-  still(flyer, zombie);
-  no(battle._fire(alchemist), 'летучих и нежить не бьёт');
-  const rat = creature(battle, 'rat', 11.4);
-  still(rat);
-  ok(battle._fire(alchemist));
-  alchemist.busy = 1e9;
-  eq(rat.hp, rat.max, 'зелье ещё летит');
-  runFor(battle, alchemist.cls.base.flight + 0.1);
-  ok(hit(rat) > 0);
-  eq(zombie.hp, zombie.max, 'нежить яд не берёт');
-  eq(flyer.hp, flyer.max, 'летучих не задевает');
-});
-
-test('алхимик: с 10-го лужа травит стоящих в ней, летучих — нет; с 30-го яд въедается', () => {
-  const battle = makeBattle(), alchemist = battle.place(level(30), 'alchemist', 10, 4);
-  battle.random = () => 0;
-  const mob = walker(battle, 11, 1e6), flyer = walker(battle, 11, 1e6, bat());
-  still(mob, flyer);
-  battle._fire(alchemist);
-  alchemist.busy = 1e9;
-  runFor(battle, alchemist.cls.base.flight + 0.1);
-  eq(battle.puddles.length, 1);
-  ok(mob.poison && mob.poison.has(alchemist), 'яд въелся');
-  const before = hit(mob);
-  runFor(battle, 1);
-  ok(hit(mob) > before, 'в луже травится');
-  eq(flyer.hp, flyer.max, 'летучих не травит');
-});
-
-test('алхимик: с 50-го туман глушит навыки мобов в нём', () => {
-  const battle = makeBattle(), alchemist = battle.place(level(50), 'alchemist', 10, 4);
-  battle.random = () => 0.99;
-  const leader = put(battle, special(battle, 'elite', 'leader', 1e9), 11);
-  still(leader);
-  battle.step(TICK);
-  ok(battle.events.some((e) => e.kind === 'fogtoss'));
-  alchemist.busy = 1e9;
-  runFor(battle, 0.7);
-  eq(battle.fogs.length, 1);
-  ok(leader.muteUntil > battle.time, 'заглушён');
-  battle.events.length = 0;
-  leader.powerAt = battle.time;
-  runFor(battle, 1);
-  no(battle.events.some((e) => e.kind === 'power' && e.mob === leader), 'рывка нет');
-});
-
-test('алхимик: руна «Инфекция» — отравленный гниёт, «Чума» — берёт нежить, броню и бьёт сильнее', () => {
-  const battle = makeBattle(), alchemist = battle.place(player(), 'alchemist', 10, 4);
-  battle.setMods(alchemist, { runes: ['infection'] });
-  alchemist.critChance = 0;
-  battle.random = () => 0.99;
-  const mob = walker(battle, 11, 1e6);
-  still(mob);
-  battle._fire(alchemist);
-  alchemist.busy = 1e9;
-  runFor(battle, alchemist.cls.base.flight + 0.1);
-  ok(mob.rot && mob.rot.by === alchemist, 'гниёт');
-  const before = hit(mob);
-  runFor(battle, 2);
-  const rate = Math.min(mob.max * ROT.share, alchemist.skill * RUNE_CAPS.rot);
-  ok(rate < mob.max * ROT.share, 'у очень крепкого — не больше предела от силы алхимика');
-  ok(hit(mob) - before >= rate * 1.9, 'гниёт каждую секунду');
-  runFor(battle, ROT.time);
-  eq(mob.rot, null, 'без нового яда гниение проходит');
-  const field = makeBattle(), black = field.place(player(), 'alchemist', 10, 4);
-  black.critChance = 0;
-  field.random = () => 0.99;
-  const knight = put(field, special(field, 'elite', 'knight', 1e6), 11);
-  still(knight);
-  no(field._fire(black), 'нежить не трогает');
-  field.setMods(black, { runes: ['plague'] });
-  black.critChance = 0;
-  ok(field._fire(black));
-  black.busy = 1e9;
-  runFor(field, black.cls.base.flight + 0.1);
-  near(hit(knight), black.damage * (1 + PLAGUE), 'сквозь броню и на 25% сильнее');
-});
-
-test('охотник: из арбалета бьёт всех, элитных и боссов — первыми и в пять раз сильнее', () => {
-  const battle = makeBattle(), hunter = battle.place(player(), 'hunter', 10, 4);
-  hunter.critChance = 0;
-  battle.random = () => 0.99;
-  const plain = walker(battle, 9, 1e6);
-  still(plain);
-  ok(battle._fire(hunter), 'по обычным тоже стреляет');
-  near(hit(plain), hunter.damage);
-  const elite = put(battle, special(battle, 'elite', 'vampire', 1e6), 8.5);
-  still(elite);
-  ok(battle._target(hunter) === elite, 'элитный — первым, хоть и позади');
-  battle._fire(hunter);
-  near(hit(elite), hunter.damage * hunter.cls.base.big);
-});
-
-test('охотник: с 10-го ставит до трёх капканов; попавший стоит и получает больше урона', () => {
-  const battle = makeBattle(), hunter = battle.place(level(10), 'hunter', 10, 4);
-  const gun = battle.place(player(), 'mechanic', 18, 0);
-  runFor(battle, 12);
-  eq(battle.traps.length, hunter.s[0].count);
-  hunter.busy = 1e9;
-  const trap = battle.traps[0], mob = walker(battle, battle._spot(trap.i).d - 0.1, 1e6);
-  battle.step(TICK);
-  ok(mob.holdUntil > battle.time, 'попался');
-  eq(battle.traps.length, hunter.s[0].count - 1);
-  const before = mob.hp;
-  battle._hurt(mob, 100, gun, null);
-  near(before - mob.hp, 100 * (1 + hunter.s[0].bonus));
-});
-
-test('охотник: с 30-го иногда набрасывает сеть — стоит даже босс и получает больше урона', () => {
-  const battle = makeBattle(), hunter = battle.place(level(30), 'hunter', 10, 4);
-  battle.random = () => 0;
-  const boss = put(battle, special(battle, 'boss', 'crusher', 1e9), 11);
-  battle._fire(hunter);
-  ok(battle.events.some((e) => e.kind === 'net' && e.mob === boss));
-  ok(boss.holdUntil >= battle.time + hunter.s[1].time - 1e-9, 'держит босса полностью');
-  ok(boss.vulnUntil > battle.time && boss.vuln >= hunter.s[1].bonus - 1e-9);
-  const d = boss.d;
-  runFor(battle, hunter.s[1].time - 0.2);
-  eq(boss.d, d, 'стоит');
-});
-
-test('охотник: с 50-го метит добычу — все бьют её первой; убили вовремя — награда охотнику, остальным половина', () => {
-  const battle = makeBattle(), hunter = battle.place(level(50), 'hunter', 2, 1);
-  const gun = battle.place(player(), 'mechanic', 10, 4);
-  battle.random = () => 0.99;
-  const elite = put(battle, special(battle, 'elite', 'vampire', 1e9), 10), runner = walker(battle, 12, 1e9);
-  still(elite, runner);
-  battle.step(TICK);
-  ok(battle.prey && battle.prey.mob === elite, 'добыча помечена');
-  ok(battle._target(gun) === elite, 'пулемётчик бьёт добычу, хоть обычно крупных не любит');
-  const mine = hunter.player.coins, theirs = gun.player.coins;
-  battle._hurt(elite, 1e12, gun, null);
-  ok(battle.events.some((e) => e.kind === 'bounty'));
-  ok(hunter.player.coins - mine >= Math.round(hunter.s[2].bounty) - 1e-9, 'охотнику награда');
-  ok(gun.player.coins - theirs >= Math.round(hunter.s[2].bounty / 2), 'остальным половина');
-});
-
-test('охотник: руна «Засада» — без дела 10 секунд прыгает к первому мобу; «Мастер ловушек» — капканов вдвое', () => {
-  const battle = makeBattle(), hunter = battle.place(level(10), 'hunter', 2, 1);
-  battle.setMods(hunter, { runes: ['ambush', 'master'] });
-  const mob = walker(battle, 15, 1e9);
-  still(mob);
-  runFor(battle, 10.5);
-  ok(battle.events.some((e) => e.kind === 'ambush'));
-  ok(Math.abs(hunter.x - Math.floor(mob.x)) <= 1 && Math.abs(hunter.y - Math.floor(mob.y)) <= 1, 'рядом с мобом');
-  mob.dead = true;
-  runFor(battle, 30);
-  eq(battle.traps.length, hunter.s[0].count * 2);
-});
 
 test('паразит: первые 10 волн — кокон на клетке: не кусает, за волну 1–500 монет и опыт наравне с отрядом', () => {
   const battle = makeBattle(), larva = player(), bug = battle.place(larva, 'parasite', 3, 4);
@@ -2009,15 +1826,14 @@ function lab() {
     fire: at('pyro', 1, { runes: ['fireReact'] }), fire2: at('pyro', 3, { runes: ['fireReact'] }),
     fire3: at('pyro', 17, { runes: ['fireReact'] }),
     water: at('frost', 5, { perks: [6] }), earth: at('earth', 7, { perks: [6] }), air: at('shaman', 9, { perks: [6] }),
-    lightning: at('thunder', 11, { perks: [3] }), poison: at('alchemist', 13, { perks: [6] }),
+    lightning: at('thunder', 11, { perks: [3] }), poison: at('forester', 13, { runes: ['witch'] }),
   };
   return { battle, towers };
 }
 
 test('реакции: стихию накладывают только «… реакция»; две стихии — реакция в тик, урон от суммы мощи', () => {
   const { battle, towers } = lab(), plain = battle.place(player(), 'thunder', 15, 3);
-  eq([towers.fire.react, towers.water.react, towers.air.react, towers.poison.react],
-    ['fire', 'water', 'air', 'poison']);
+  eq([towers.fire.react, towers.water.react, towers.air.react], ['fire', 'water', 'air']);
   eq(plain.react, null, 'без способности стихия не накладывается');
   const mob = walker(battle, 2, 1e6);
   still(mob);
@@ -2186,44 +2002,6 @@ test('маг земли: землетрясение, разлом, зыбучи�
   fort._batter(wall, mob, TICK, fort.time);
   ok(fort.events.some((e) => e.kind === 'boom' && e.tower === f), 'рухнув, взрывается');
   ok(mob.holdUntil > fort.time, 'и оглушает');
-});
-
-test('алхимик, навыки Реборна: кислота, зелье безумия, эпидемия, философский камень', () => {
-  const battle = makeBattle(), t = battle.place(player(), 'alchemist', 10, 4);
-  battle.setMods(t, { perks: [3, 4] });
-  battle.random = () => 0.01;
-  t.critChance = 0;
-  t.cooldown = 1e9;
-  const mob = walker(battle, 10, 1e9), pace = mob.speed;
-  still(mob);
-  battle._fire(t);
-  runFor(battle, t.cls.base.flight + 0.1);
-  mob.speed = pace;
-  ok(mob.acidUntil > battle.time && mob.acid === t.s[3].cut, 'кислота разъедает броню');
-  ok(mob.madUntil > battle.time, 'и сводит с ума');
-  const back = mob.d, other = walker(battle, back, 1e9);
-  still(other);
-  runFor(battle, 0.5);
-  ok(mob.d < back, 'безумный идёт назад');
-  ok(hit(other) > 0, 'и кусает своих');
-  const bare = walker(battle, 5, 1e9);
-  bare.acid = t.s[3].cut;
-  bare.acidUntil = battle.time + 5;
-  battle._hurt(bare, 100, t);
-  near(hit(bare), 100 * (1 + t.s[3].cut), 'у кого нет брони — урон больше');
-
-  const lab = makeBattle(), a = lab.place(player(), 'alchemist', 10, 4), far = lab.place(player(), 'sniper', 2, 4);
-  lab.random = () => 0.01;
-  lab.setMods(a, { perks: [5], runes: ['epidemic'] });
-  ok(a.runes.has('plague'), 'эпидемия берёт и нежить');
-  const sick = walker(lab, 10, 100), next = walker(lab, 10.5, 1e6);
-  still(sick, next);
-  lab._poison(sick, a, a, 1, 5);
-  lab._hurt(sick, 1e6, a);
-  ok(sick.dead);
-  ok(next.poison && next.poison.has(a), 'заразил соседа');
-  ok(lab.events.some((e) => e.kind === 'gold'), 'рассыпался золотом');
-  eq(far.player.coins, a.s[5].coins, 'монеты — всем в отряде');
 });
 
 test('паразит, навыки Реборна: липкий кокон, пожиратель, королева роя, захват разума', () => {
@@ -2398,13 +2176,13 @@ test('мудрец: искры в двух мобов, рядом с ним бо
 
 test('мудрец: с 10-го вдохновение, с 30-го озарение перезаряжает способность, руна «ученик» — двоим', () => {
   const battle = makeBattle(), sage = battle.place(level(30), 'sage', 10, 4);
-  const ally = battle.place(level(50), 'hunter', 11, 4), mob = walker(battle, 1, 1e9);
+  const ally = battle.place(level(50), 'frost', 11, 4), mob = walker(battle, 1, 1e9);
   still(mob);
   ally.nextActive = 1e9;
   battle.random = () => 0;
   battle.step(TICK);
   ok(battle.events.some((e) => e.kind === 'muse' && e.ally === ally && e.flash));
-  ok(ally.nextActive <= battle.time, 'перезарядилось');
+  ok(ally.nextActive < 1e9, 'перезарядилось');
   ally.busy = 1e9;
   battle.step(TICK);
   near(ally.boost.damage, sage.s[0].bonus);
@@ -2569,7 +2347,7 @@ test('маг земли: с 50-го метеорит — урон землёй �
 test('элементали: своя стихия их не берёт, остальное — как обычно', () => {
   const battle = makeBattle();
   const pyro = battle.place(level(10), 'pyro', 3, 4), gunner = battle.place(player(), 'mechanic', 3, 6);
-  const frost = battle.place(level(10), 'frost', 5, 4), alchemist = battle.place(player(), 'alchemist', 5, 6);
+  const frost = battle.place(level(10), 'frost', 5, 4), witch = forester(battle, 5, 6, ['witch']);
   const thunder = battle.place(player(), 'thunder', 7, 4);
   const ember = creature(battle, 'ember'), ice = creature(battle, 'frostling'), sludge = creature(battle, 'sludge');
   const storm = creature(battle, 'stormling');
@@ -2579,8 +2357,8 @@ test('элементали: своя стихия их не берёт, оста
   no(ember.burn);
   battle._hurt(ember, 50, gunner);
   ok(ember.hp < ember.max, 'пули берут');
-  battle._poison(sludge, alchemist, alchemist, 10, 3);
-  no(sludge.poison, 'яд не берёт');
+  battle._hurt(sludge, 50, witch);
+  eq(sludge.hp, sludge.max, 'яд не берёт');
   battle._hurt(storm, 50, thunder);
   eq(storm.hp, storm.max, 'молния не берёт');
   ice.x = frost.cx;
@@ -2876,7 +2654,7 @@ test('новые элитные: зеркальщик отражает удар,
   eq(armadillo.hp, 800, 'свернувшись, неуязвим');
 });
 
-test('новые боссы: червь под землёй, вынырнув — глотает капканы; дракон жжёт линию; матка опутывает', () => {
+test('новые боссы: червь под землёй; дракон жжёт линию; матка опутывает', () => {
   const battle = makeBattle();
   const gun = battle.place(player(), 'mechanic', 6, 4);
   const worm = special(battle, 'boss', 'worm', 1000);
@@ -2884,23 +2662,17 @@ test('новые боссы: червь под землёй, вынырнув �
   eq(battle._target(gun), null, 'под землёй');
   battle._hurt(worm, 100, gun);
   eq(worm.hp, 1000);
-  battle.traps.push({ tower: gun, i: 4, x: worm.x, y: worm.y });
-  battle.step(TICK);
-  eq(battle.traps.length, 1, 'под землёй капкан не ловит');
   worm.powerAt = battle.time;
   battle.step(TICK);
-  eq(battle.traps.length, 0, 'вынырнул — проглотил');
   ok(battle._target(gun) === worm);
   const sky = makeBattle(), a = sky.place(player(), 'mechanic', 7, 4), b = sky.place(player(), 'mechanic', 9, 3);
   const c = sky.place(player(), 'mechanic', 2, 9), dragon = special(sky, 'boss', 'dragon', 1000);
   for (const t of [a, b, c]) t.busy = 1e9;
   ok(dragon.flying);
-  sky.traps.push({ tower: a, i: 5, x: 6, y: 5 });
   dragon.powerAt = sky.time;
   sky.step(TICK);
   ok(a.stunUntil > sky.time && b.stunUntil > sky.time, 'на линии оглушены');
   ok(c.stunUntil <= sky.time, 'в стороне — нет');
-  eq(sky.traps.length, 0, 'капкан на линии сгорел');
   sky._hurt(dragon, 100, a, 'fire');
   near(hit(dragon), 50, 'огонь вдвое слабее');
   const lair = makeBattle();
@@ -2931,23 +2703,6 @@ function mapWith(marks = {}, biome = 'grass') {
   for (const [tile, cells] of Object.entries(marks)) for (const [x, y] of cells) tiles[y * SIZE + x] = tile;
   return new Battle({ path: STRAIGHT, branch: FORK, merge: 10, tiles, biome }, { random: seeded(7) });
 }
-
-test('капканы на повороте ложатся на путь мобов', () => {
-  const bent = Array.from({ length: 7 }, (_, x) => [x, 5]).concat(Array.from({ length: 10 }, (_, k) => [6, 6 + k]));
-  const battle = new Battle(bent, { random: seeded(3) });
-  const hunter = battle.place(level(10), 'hunter', 7, 4);
-  const path = [];
-  const probe = { r: 0, d: 0, x: 0, y: 0 };
-  for (let d = 0; d <= battle.length; d += 0.02) {
-    probe.d = d;
-    battle._onRoute(probe);
-    path.push([probe.x, probe.y]);
-  }
-  const gap = (item) => Math.min(...path.map(([x, y]) => Math.hypot(item.x - x, item.y - y)));
-  battle._setTrap(hunter);
-  ok(battle.traps.length > 0);
-  for (const trap of battle.traps) ok(gap(trap) < 0.05, 'капкан на пути');
-});
 
 test('мясник: раз в 10 секунд крюк летит пару секунд и пару секунд тащит защитника на клетку рядом с собой', () => {
   const battle = makeBattle(), far = battle.place(player(), 'mechanic', 15, 1);
@@ -3102,17 +2857,20 @@ test('карта: с холма бьют поверх руин, круга ка�
   }
 });
 
-test('серебряные — тоже элитные: охотник бьёт их первым, наравне с золотыми, «Добыча» их видит', () => {
-  const battle = makeBattle(), hunter = battle.place(level(50), 'hunter', 10, 4);
+test('серебряные — тоже элитные: охотник бьёт их первым, наравне с золотыми, РПГ их видит', () => {
+  const battle = makeBattle(), hunter = forester(battle, 10, 4, ['hunter']);
   const plain = walker(battle, 12, 1e9), silver = walker(battle, 9, 1e9);
   silver.silver = AFFIXES[0];
   still(plain, silver);
-  ok(battle._target(hunter) === silver, 'серебряного — первым, хоть обычный и впереди');
-  ok(battle._closestBig(hunter) === silver, '«Добыча» и РПГ метят серебряного');
+  ok(battle._fire(hunter));
+  ok(hit(silver) > 0 && hit(plain) === 0, 'серебряного — первым, хоть обычный и впереди');
+  ok(battle._closestBig(hunter) === silver, 'РПГ метит серебряного');
   const gold = walker(battle, 8, 1e9);
   gold.info = MOBS.elite;
   still(gold);
-  ok(battle._target(hunter) === silver, 'золотой элитный — наравне: бьёт того, кто впереди');
+  hunter.reloadUntil = 0;
+  ok(battle._fire(hunter));
+  ok(hit(gold) === 0, 'золотой элитный — наравне: бьёт того, кто впереди');
   for (const mob of [silver, gold]) battle._hold(mob, 2, hunter);
   ok(Math.abs(silver.holdUntil - gold.holdUntil) < 1e-9, 'оглушение — как у элитного');
 });

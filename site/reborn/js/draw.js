@@ -2,9 +2,9 @@ import { LETTERS, SIZE } from './field.js';
 import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintRoof } from './terrain.js';
 import { FIRE, MECH, flightAt } from './battle.js';
 import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite, cocoonSprite,
-  coinSprite, fireballSprite, flaskSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
+  coinSprite, fireballSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
   meteorSprite, grenadeSprite, droneSprite, birdSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
-  rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, trapSprite, ventSprite, wallSprite } from './sprites.js';
+  rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, ventSprite, wallSprite } from './sprites.js';
 import { SOILS } from './props.js';
 import { MUZZLES, RELOAD_FRAMES } from './models.js';
 import { gearColor } from './gacha.js';
@@ -22,7 +22,6 @@ const SHOT_HOLD = 0.15;
 const SHOT_WAIT = 0.5;
 const SHOT_QUEUE = 4;
 const FLIGHT_MIN = 0.05;
-const LOB_ARC = 22;
 const COG = ['.#.#.', '#####', '##.##', '#####', '.#.#.'];
 const SHELL = ['oo', '##', '##', '##', '##'];
 const AURAS = { team: { glow: 'rgba(100, 116, 139, 1)', tones: ['#64748b', '#475569', '#7c8a9e'], shape: COG },
@@ -52,7 +51,7 @@ const RISE = 0.3;
 const TRAIL_STEP = 0.2;
 const CORPSE = { fall: 0.45, lie: 1, fade: 1.1, max: 60 };
 const DECALS_MAX = 300;
-const TINTS = { poison: '#4ade80', plague: '#6d28d9', burn: '#ff7a1f', blue: '#4aa3ff', black: '#1c1917',
+const TINTS = { burn: '#ff7a1f', blue: '#4aa3ff', black: '#1c1917',
   chill: '#8ee6ff',
   fury: '#ff4d1f', steam: '#f1f5f9', mud: '#8a5a2b', corrosion: '#a3e635', disease: '#7c3aed',
   epidemic: '#4c1d95' };
@@ -91,8 +90,6 @@ const BOLTS = {
   mechanic: { look: 'tracer', color: '#ffe8a3', width: 1.5, bullet: true },
   forester: { look: 'bolt', color: '#c8a26a', width: 2 },
   earth: { look: 'lob', color: '#9a8f80', size: 4 },
-  alchemist: { look: 'dot', color: '#9be22d', size: 3 },
-  hunter: { look: 'bolt', color: '#e8d9b5', width: 2 },
   frost: { look: 'dot', color: '#38bdf8', size: 3 },
   pyro: { look: 'fireball', color: '#ff7a1f', size: 7 },
   shaman: { look: 'dot', color: '#5eead4', size: 3 },
@@ -108,10 +105,6 @@ const FIRE_SPARKS = new Set(FLAME.concat(BLUE_FLAME, BLACK_FLAME, ['#ffd84a', '#
   '#ff9a1f']));
 const HEAT = { warm: ['rgba(255, 110, 30, .9)', 'rgba(255, 220, 120, .9)'],
   blue: ['rgba(74, 163, 255, .9)', 'rgba(224, 242, 255, .9)'] };
-const PUDDLES = {
-  poison: { tones: ['#2f4f0e', '#3f6212', '#4d7c0f', '#65a30d', '#84cc16'], shine: ['#d9f99d', '#bef264'] },
-  plague: { tones: ['#0b0a10', '#17141f', '#231d2e', '#2f2540', '#4c1d95'], shine: ['#a78bfa', '#7c3aed'] },
-};
 const FLAME_HOLD = 0.3;
 const FLAME_BITS = 34;
 const BADGE_HALF = 16;
@@ -233,35 +226,6 @@ function sprite(ctx, image, x, y, angle, zoom = ZOOM, lift = 0, steps = TURN_STE
   ctx.restore();
 }
 
-const puddleShapes = new Map();
-
-function puddleShape(radius, seed, look = 'poison') {
-  const size = Math.max(4, Math.round(radius)), key = size + ':' + seed + ':' + look, { tones, shine } = PUDDLES[look];
-  if (puddleShapes.has(key)) return puddleShapes.get(key);
-  const canvas = document.createElement('canvas'), side = size * 2 + 2;
-  canvas.width = canvas.height = side;
-  const ctx = canvas.getContext('2d'), c = side / 2;
-  for (let y = 0; y < side; y++) {
-    for (let x = 0; x < side; x++) {
-      const dx = x + 0.5 - c, dy = (y + 0.5 - c) * 1.2, a = Math.atan2(dy, dx), d = Math.hypot(dx, dy);
-      const edge = size * (0.82 + 0.1 * Math.sin(3 * a + seed) + 0.06 * Math.sin(5 * a + seed * 2)
-        + 0.04 * Math.sin(7 * a + seed * 3));
-      if (d > edge) continue;
-      const k = d / edge;
-      let color = k > 0.86 ? tones[0] : k > 0.7 ? tones[1] : k > 0.35 ? tones[2] : tones[3];
-      if (k < 0.55 && Math.sin(x * 1.7 + seed) + Math.cos(y * 2.1 + seed) > 1.4) color = tones[4];
-      ctx.fillStyle = color;
-      ctx.fillRect(x, y, 1, 1);
-    }
-  }
-  ctx.fillStyle = shine[0];
-  ctx.fillRect(Math.round(c - size * 0.35), Math.round(c - size * 0.35), 2, 1);
-  ctx.fillRect(Math.round(c - size * 0.35), Math.round(c - size * 0.35) + 1, 1, 1);
-  ctx.fillStyle = shine[1];
-  ctx.fillRect(Math.round(c + size * 0.25), Math.round(c - size * 0.1), 1, 1);
-  puddleShapes.set(key, canvas);
-  return canvas;
-}
 
 const gooShapes = new Map();
 
@@ -549,11 +513,9 @@ export class Scene {
       this._blazes(ctx, battle);
       this._grounds(ctx, battle);
       this._vents(ctx, battle);
-      this._puddles(ctx, battle);
       this._decals(ctx, step);
     });
     this._corpses(ctx, step);
-    this._traps(ctx, battle);
     this._layer(ctx, this.peaks);
     this._onField(ctx, () => {
       this._glints(ctx, battle);
@@ -562,7 +524,6 @@ export class Scene {
     this._walls(ctx, battle, still);
     this._base(ctx, battle);
     this._mobs(ctx, battle, dt, still);
-    this._onField(ctx, () => this._fogs(ctx, battle));
     this._layer(ctx, this.roof);
     this._gates(ctx, battle);
     this._onField(ctx, () => {
@@ -1169,26 +1130,6 @@ export class Scene {
     }
   }
 
-  _fogs(ctx, battle) {
-    const now = battle.time;
-    for (const fog of battle.fogs) {
-      const x = at(fog.x), y = at(fog.y), r = fog.radius * CELL, grow = Math.min(1, (now - fog.born) / 0.5);
-      const fade = Math.min(1, (fog.until - now) / 1), black = fog.tower.runes.has('plague');
-      const tone = black ? 'rgba(40, 24, 60, 1)' : 'rgba(74, 110, 40, 1)';
-      for (let i = 0; i < 9; i++) {
-        const a = i * 0.7 + this.clock * (0.25 + (i % 3) * 0.1), d = r * 0.55 * grow * (0.4 + 0.6 * noise(i, fog.x));
-        glow(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8, r * 0.6 * grow, tone, 0.42 * fade);
-      }
-      glow(ctx, x, y, r * grow, black ? 'rgba(124, 58, 237, 1)' : 'rgba(163, 230, 53, 1)', 0.12 * fade);
-      for (let i = 0; i < 10; i++) {
-        const rise = (this.clock * 0.5 + i / 10) % 1, a = i * 2.1 + fog.y, d = r * 0.7 * noise(i, fog.x + 1);
-        ctx.globalAlpha = fade * Math.sin(rise * Math.PI) * 0.9;
-        square(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8 - rise * 12, 2, black ? '#a78bfa' : '#d9f99d');
-      }
-      ctx.globalAlpha = 1;
-    }
-  }
-
   _decals(ctx, dt) {
     const next = [];
     for (const d of this.decals) {
@@ -1261,37 +1202,6 @@ export class Scene {
     const i = Math.max(0, Math.min(last - 1, Math.floor(d))), f = Math.max(0, Math.min(1, d - i));
     const a = route[i], b = route[i + 1];
     return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
-  }
-
-  _puddles(ctx, battle) {
-    const now = battle.time;
-    for (const puddle of battle.puddles) {
-      const grow = Math.min(1, (now - puddle.born) / 0.25), fade = Math.min(1, (puddle.until - now) / 0.8);
-      const x = at(puddle.x), y = at(puddle.y), r = puddle.radius * CELL;
-      const seed = Math.round(puddle.x * 7 + puddle.y * 13) % 9, black = puddle.tower.runes.has('plague');
-      const shape = puddleShape(r / ZOOM, seed, black ? 'plague' : 'poison');
-      const w = shape.width * ZOOM * grow, h = shape.height * ZOOM * grow;
-      ctx.globalAlpha = 0.9 * fade;
-      ctx.drawImage(shape, Math.round(x - w / 2), Math.round(y - h / 2), Math.round(w), Math.round(h));
-      for (let i = 0; i < 4; i++) {
-        const phase = (this.clock * 0.7 + i * 0.29 + puddle.x * 0.37) % 1, a = i * 1.9 + puddle.y * 3;
-        const bx = x + Math.cos(a) * r * 0.45, by = y + Math.sin(a) * r * 0.35, size = 1 + Math.round(phase * 3);
-        ctx.globalAlpha = fade * (phase < 0.85 ? 0.9 : 0.3);
-        const bubble = bubbleSprite(), side = Math.round(bubble.width * (0.5 + size * 0.25));
-        ctx.drawImage(bubble, Math.round(bx - side / 2), Math.round(by - side / 2), side, side);
-        if (phase > 0.85) square(ctx, bx, by - 4 - (phase - 0.85) * 30, 2, black ? '#a78bfa' : '#d9f99d');
-      }
-      for (let i = 0; i < 3; i++) {
-        const rise = (this.clock * 0.35 + i / 3 + puddle.y * 0.21) % 1;
-        ctx.globalAlpha = fade * 0.35 * (1 - rise);
-        square(ctx, x + Math.sin(i * 2.3 + this.clock) * r * 0.3, y - rise * 18, 3, black ? '#7c3aed' : '#a3e635');
-      }
-      ctx.globalAlpha = 1;
-    }
-  }
-
-  _traps(ctx, battle) {
-    for (const trap of battle.traps) sprite(ctx, trapSprite(false), at(trap.x), at(trap.y), 0, 1.8);
   }
 
   _whirls(ctx, battle) {
@@ -1693,7 +1603,6 @@ export class Scene {
       if (mob.netUntil > now) this._netOn(ctx, x, y - lift, size);
       if (mob.muteUntil > now) this._mutedOn(ctx, x, y - lift, size);
       if (mob.rot) this._rotOn(ctx, mob, x, y - lift, size);
-      if (battle.prey && battle.prey.mob === mob && battle.prey.until > now) this._preyOn(ctx, x, y - lift, size, top);
       if (mob.weakUntil > now) this._weakOn(ctx, x, y - lift, size, top);
       spot.screenX = x;
       spot.top = top;
@@ -1861,25 +1770,6 @@ export class Scene {
     ctx.globalAlpha = 1;
   }
 
-  _preyOn(ctx, x, y, size, top) {
-    const pulse = 0.5 + 0.5 * Math.sin(this.clock * 8), ay = top - 26 - pulse * 3;
-    glow(ctx, x, y, size * 0.95, 'rgba(239, 68, 68, 1)', 0.22 + 0.2 * pulse);
-    ctx.fillStyle = DARK;
-    ctx.beginPath();
-    ctx.moveTo(x - 7, ay - 6);
-    ctx.lineTo(x + 7, ay - 6);
-    ctx.lineTo(x, ay + 3);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = '#ef4444';
-    ctx.beginPath();
-    ctx.moveTo(x - 5, ay - 4.8);
-    ctx.lineTo(x + 5, ay - 4.8);
-    ctx.lineTo(x, ay + 1.2);
-    ctx.closePath();
-    ctx.fill();
-  }
-
   _weakOn(ctx, x, y, size, top) {
     const pulse = 0.5 + 0.5 * Math.sin(this.clock * 6), ay = top - 24 - pulse * 2;
     glow(ctx, x, y, size * 0.9, 'rgba(168, 85, 247, 1)', 0.2 + 0.15 * pulse);
@@ -1912,9 +1802,7 @@ export class Scene {
 
   _tint(ctx, mob, image, x, y, angle, slowed, frozen) {
     const layers = [];
-    const plague = mob.poison && Array.from(mob.poison.values()).some((dose) => dose.tower.runes.has('plague'));
     const blue = mob.burn && Array.from(mob.burn.values()).some((fire) => fire.tower.runes.has('blue'));
-    if (mob.poison) layers.push([plague ? 'plague' : 'poison', 0.34 + 0.1 * Math.sin(this.clock * 5 + mob.id)]);
     const black = Boolean(mob.black && mob.black.size);
     if (mob.burn || black) {
       layers.push([black ? 'black' : blue ? 'blue' : 'burn', 0.3 + 0.12 * Math.sin(this.clock * 17 + mob.id)]);
@@ -1935,12 +1823,6 @@ export class Scene {
         square(ctx, x - 5 + k * 3, y - 11 + Math.round(Math.sin(this.clock * 4 + k)), 2, MARK_COLORS[element]);
         k += 1;
       }
-    }
-    if (mob.poison) {
-      const rise = (this.clock * 10 + mob.id * 3) % 9;
-      square(ctx, x + 4, y - rise, 2, plague ? '#7c3aed' : '#9be22d');
-      square(ctx, x - 4, y - ((rise + 4) % 9), 2, plague ? '#a78bfa' : '#c7f36b');
-      square(ctx, x + 1, y - ((rise + 7) % 9) - 2, 1, plague ? '#ddd6fe' : '#e3ff9e');
     }
     if (mob.burn || black) {
       const tones = black ? BLACK_FLAME : blue ? BLUE_FLAME : FLAME;
@@ -2500,18 +2382,6 @@ export class Scene {
       add({ kind: 'chain', life: 0.3, points: [[tip.x, tip.y], [event.mob.x, event.mob.y]],
         color: 'rgba(214, 180, 120, .7)' });
       this._sparks(event.mob.x, event.mob.y, ['#d6b478', '#8a6a3c'], 8, 1.6, 0.4, 2);
-    } else if (event.kind === 'prey') {
-      const mob = event.mob;
-      add({ kind: 'ring', life: 0.7, x: mob.x, y: mob.y, r: 1.2, color: '#ef4444', width: 3 });
-      add({ kind: 'text', life: 1.6, x: mob.x, y: mob.y - 0.9, text: 'добыча!', color: '#f87171' });
-    } else if (event.kind === 'bounty') {
-      const pose = this._pose(t);
-      add({ kind: 'text', life: 1.8, x: pose.x, y: pose.y - 0.7, text: '+' + event.coins, color: '#fde047' });
-      this._sparks(event.mob.x, event.mob.y, ['#facc15', '#fff7c2', '#ca8a04'], 14, 2.4, 0.6, 2);
-    } else if (event.kind === 'ambush') {
-      const pose = this._pose(t);
-      this._sparks(pose.x, pose.y, ['#e8d9b5', '#b45309'], 8, 1.8, 0.4, 2);
-      this._sparks(t.cx, t.cy, ['#e8d9b5', '#b45309'], 8, 1.8, 0.4, 2);
     } else if (event.kind === 'cocoon') {
       add({ kind: 'text', life: 1.6, x: t.cx, y: t.cy - 0.7, text: '+' + event.coins, color: '#fde047' });
       this._sparks(t.cx, t.cy, ['#facc15', '#fff7c2'], 6, 1.4, 0.5, 2);
@@ -2603,21 +2473,6 @@ export class Scene {
     } else if (event.kind === 'immune') {
       const spot = this.shown.get(event.mob.id) || event.mob;
       add({ kind: 'ring', life: 0.35, x: spot.x, y: spot.y, r: 0.55, color: 'rgba(226, 232, 240, .8)', width: 1.5 });
-    } else if (event.kind === 'flask' || event.kind === 'fogtoss') {
-      this._fire(t, event.x, event.y, null, (x2, y2, late) => {
-        const tip = this._muzzle(t), fog = event.kind === 'fogtoss';
-        add({ kind: 'lob', life: Math.max(FLIGHT_MIN, event.time - late), x1: tip.x, y1: tip.y, x2, y2, fog,
-          black: t.runes.has('plague'), arc: fog ? arcOf(tip.x, tip.y, x2, y2) : LOB_ARC });
-      });
-    } else if (event.kind === 'splash') {
-      this._sparks(event.x, event.y, t.runes.has('plague') ? ['#a78bfa', '#4c1d95', '#17141f']
-        : ['#d9f99d', '#84cc16', '#3f6212'], 8, 2, 0.35, 2);
-    } else if (event.kind === 'fog') {
-      add({ kind: 'puff', life: 0.6, x: event.x, y: event.y });
-      this._sparks(event.x, event.y, t.runes.has('plague') ? ['#a78bfa', '#2f2540'] : ['#d9f99d', '#4d7c0f'], 12,
-        event.radius * 3, 0.5, 2);
-    } else if (event.kind === 'trap') {
-      add({ kind: 'ring', life: 0.35, x: event.x, y: event.y, r: 0.4, color: '#d6d3d1', width: 1.5 });
     } else if (event.kind === 'react') {
       const spot = this.shown.get(event.mob.id) || event.mob;
       add({ kind: 'text', life: 1.2, x: spot.x, y: spot.y - 0.7, text: event.name, color: event.color });
@@ -2634,16 +2489,6 @@ export class Scene {
     } else if (event.kind === 'lift') {
       const spot = this.shown.get(event.mob.id) || event.mob;
       this._sparks(spot.x, spot.y, ['#ccfbf1', '#5eead4', '#ffffff'], 6, 1.6, 0.5, 2);
-    } else if (event.kind === 'gold') {
-      const spot = this.shown.get(event.mob.id) || event.mob;
-      add({ kind: 'text', life: 1.6, x: spot.x, y: spot.y - 0.6, text: '+' + event.coins + ' всем', color: '#ffd43b' });
-      this._sparks(spot.x, spot.y, ['#ffd43b', '#fff2a8', '#ffffff'], 12, 1.6, 0.6, 2);
-    } else if (event.kind === 'snap') {
-      add({ kind: 'snapped', life: 0.7, x: event.x, y: event.y });
-      this._sparks(event.x, event.y, ['#e5e7eb', '#9ca3af', '#7a1f1f'], 6, 1.6, 0.3, 2);
-      if (event.radius > 0.6) {
-        add({ kind: 'ring', life: 0.4, x: event.x, y: event.y, r: event.radius, color: '#d6d3d1' });
-      }
     } else if (event.kind === 'nova') {
       this._pose(t).flash = FLASH;
       add({ kind: 'ring', life: 0.45, x: t.cx, y: t.cy, r: event.radius, color: '#a5f3fc', width: 3 });
@@ -2802,16 +2647,6 @@ export class Scene {
           square(ctx, x, y, (b.size || 2) + 2, 'rgba(0, 0, 0, .5)');
           square(ctx, x, y, b.size || 2, e.crit ? '#ffffff' : b.color);
         }
-      } else if (e.kind === 'lob') {
-        const x = at(e.x1 + (e.x2 - e.x1) * share);
-        const y = at(e.y1 + (e.y2 - e.y1) * share) - Math.sin(share * Math.PI) * e.arc;
-        const image = e.fog ? grenadeSprite('grenade', true) : flaskSprite();
-        sprite(ctx, image, x, y, share * Math.PI * 3, e.fog ? 1.2 : 1.6);
-        if (e.black) {
-          ctx.globalAlpha = 0.7;
-          sprite(ctx, tintSprite(image, '#2e1065'), x, y, share * Math.PI * 3, e.fog ? 1.2 : 1.6);
-          ctx.globalAlpha = 1;
-        }
       } else if (e.kind === 'rocket') {
         const spot = e.mob.dead ? null : this.shown.get(e.mob.id);
         if (spot) {
@@ -2910,10 +2745,6 @@ export class Scene {
           ctx.globalAlpha = alpha * (0.6 + 0.4 * noise(i, 4));
           square(ctx, x, EDGE + fall * width, i % 4 ? 2 : 3, '#f0f9ff');
         }
-        ctx.globalAlpha = 1;
-      } else if (e.kind === 'snapped') {
-        ctx.globalAlpha = Math.min(1, fade * 2);
-        sprite(ctx, trapSprite(true), at(e.x), at(e.y), 0, 1.8);
         ctx.globalAlpha = 1;
       } else if (e.kind === 'spikes') {
         const rise = Math.sin(Math.min(1, share * 2.5) * Math.PI / 2) * (1 - Math.max(0, share - 0.6) / 0.4);
