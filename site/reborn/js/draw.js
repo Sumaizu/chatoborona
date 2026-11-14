@@ -3,7 +3,7 @@ import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintR
 import { FIRE, MECH, flightAt } from './battle.js';
 import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite, cocoonSprite,
   coinSprite, fireballSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
-  meteorSprite, grenadeSprite, droneSprite, birdSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
+  meteorSprite, grenadeSprite, droneSprite, birdSprite, orbSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
   rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, ventSprite, wallSprite } from './sprites.js';
 import { SOILS } from './props.js';
 import { MUZZLES, RELOAD_FRAMES } from './models.js';
@@ -84,7 +84,7 @@ const INK = '#f4f0e8';
 const MUTED = 'rgba(166, 162, 189, .85)';
 const DARK = '#100e1f';
 const STYLE_BOLTS = { hunter: { look: 'bolt', color: '#e7e5e4', width: 3 },
-  witch: { look: 'orb', color: '#84cc16', size: 4 } };
+  witch: { look: 'orb', color: '#84cc16', size: 13 } };
 const BOLTS = {
   sniper: { look: 'tracer', color: '#fff3b0', width: 2, bullet: true },
   mechanic: { look: 'tracer', color: '#ffe8a3', width: 1.5, bullet: true },
@@ -1339,11 +1339,12 @@ export class Scene {
       const x = at(spot.x), y = at(spot.y), lift = DRONE_LIFT + Math.sin(this.clock * 3 + drone.n * 1.7) * 2;
       ctx.fillStyle = 'rgba(0, 0, 0, .25)';
       ctx.beginPath();
-      ctx.ellipse(x, y + 3, 7, 3, 0, 0, Math.PI * 2);
+      const bird = drone.kind === 'bird';
+      ctx.ellipse(x, y + 5, bird ? 18 : 7, bird ? 5 : 3, 0, 0, Math.PI * 2);
       ctx.fill();
-      const image = drone.kind === 'bird' ? birdSprite(Math.floor(this.clock * 12) % 3)
+      const image = bird ? birdSprite(Math.floor(this.clock * 12) % 3)
         : droneSprite(drone.kind, Math.floor(this.clock * 24) % 2);
-      sprite(ctx, image, x, y - lift, spot.angle, drone.kind === 'bird' ? 1.3 : 1.5, 0, 64);
+      sprite(ctx, image, x, y - lift, spot.angle, bird ? 4.4 : 1.5, 0, 64);
     }
   }
 
@@ -2622,16 +2623,16 @@ export class Scene {
           ctx.lineTo(x, y);
           ctx.stroke();
         } else if (b.look === 'orb') {
-          glow(ctx, x, y, 9, 'rgba(132, 204, 22, 1)', 0.65);
-          for (let i = 1; i <= 4; i++) {
-            const back = Math.max(0, share - i * 0.07);
-            ctx.globalAlpha = 1 - i / 5;
-            bit(ctx, at(e.x1 + (e.x2 - e.x1) * back), at(e.y1 + (e.y2 - e.y1) * back), 2,
+          const zoom = b.size / 8;
+          glow(ctx, x, y, 9 * zoom + 4, 'rgba(132, 204, 22, 1)', 0.75);
+          for (let i = 1; i <= 5; i++) {
+            const back = Math.max(0, share - i * 0.05);
+            ctx.globalAlpha = 1 - i / 6;
+            bit(ctx, at(e.x1 + (e.x2 - e.x1) * back), at(e.y1 + (e.y2 - e.y1) * back), 4 - i * 0.5,
               i % 2 ? '#84cc16' : '#4d7c0f', i + Math.floor(this.clock * 9));
           }
           ctx.globalAlpha = 1;
-          square(ctx, x, y, b.size + 2, '#365314');
-          square(ctx, x, y, b.size, '#bef264');
+          sprite(ctx, orbSprite(Math.floor(this.clock * 8) % 7), x, y, 0, zoom, 0, 64);
         } else if (b.look === 'lob') {
           const arc = Math.sin(share * Math.PI) * 10;
           square(ctx, x, y - arc, b.size + 2, '#15111d');

@@ -62,6 +62,34 @@ export function drawBird(frame) {
   return m.paint();
 }
 
+const ORB = { side: 14, radius: 5.5, tones: ['#1a2e05', '#3f6212', '#65a30d', '#a3e635', '#d9f99d', '#f7fee7'] };
+
+export function drawOrb(frame) {
+  const { side, radius, tones } = ORB, canvas = document.createElement('canvas');
+  canvas.width = side;
+  canvas.height = side;
+  const g = canvas.getContext('2d'), c = side / 2;
+  const bubbles = [0, 1, 2].map((i) => {
+    const a = frame * 0.9 + i * 2.1;
+    return [c + Math.cos(a) * 2.6, c + Math.sin(a) * 2.6];
+  });
+  for (let y = 0; y < side; y++) {
+    for (let x = 0; x < side; x++) {
+      const px = x + 0.5, py = y + 0.5, d = Math.hypot(px - c, py - c);
+      if (d > radius) continue;
+      const light = 1 - Math.hypot(px - c + 1.6, py - c + 1.6) / (radius * 1.6);
+      let tone = d > radius - 1 ? 0 : 1 + Math.max(0, Math.min(3, Math.floor(light * 4.2)));
+      if (tone && bubbles.some(([bx, by]) => Math.hypot(px - bx, py - by) < 0.8)) tone = 1;
+      g.fillStyle = tones[tone];
+      g.fillRect(x, y, 1, 1);
+    }
+  }
+  g.fillStyle = tones[5];
+  g.fillRect(Math.round(c - 2.5), Math.round(c - 2.5), 2, 1);
+  g.fillRect(Math.round(c - 2.5), Math.round(c - 1.5), 1, 1);
+  return canvas;
+}
+
 export function drawGrenade(kind, lit) {
   const m = new Model(22, 1);
   GRENADES[kind](m, lit);
