@@ -327,7 +327,7 @@ export class Battle {
       nextActive: 0, nextWall: 0, pull: null,
       nextCheer: 0, nextCleanse: 0, nextMuse: 0, cheerUntil: 0, rallyUntil: 0, wardUntil: 0, muses: [], lift: 1,
       ownRange: 0, boost: { rate: 0, range: 0, damage: 0, crit: 0, wisdom: 0, cheer: false, muse: false },
-      boostBy: new Set(),
+      boostBy: new Set(), torch: null, torches: [],
       run: { damage: 0, kills: 0, assists: 0, xp: 0, coins: 0 },
     };
   }
@@ -1662,7 +1662,7 @@ export class Battle {
   }
 
   _buffs(now) {
-    const banners = [], sages = [], winds = [], pyros = [], mechanics = [], teams = [], tuners = [], graces = [];
+    const banners = [], sages = [], shamans = [], pyros = [], mechanics = [], teams = [], tuners = [], graces = [];
     for (const t of this.towers) {
       if (t.cocoon || t.rider) continue;
       if (t.cls.id === 'mechanic') {
@@ -1673,30 +1673,36 @@ export class Battle {
       if (t.cls.id === 'forester' && t.runes.has('grace')) graces.push(t);
       if (t.cls.id === 'banner') banners.push(t);
       else if (t.cls.id === 'sage') sages.push(t);
-      else if (t.cls.id === 'shaman' && open(t, 3)) winds.push(t);
+      else if (t.cls.id === 'shaman' && open(t, 3)) shamans.push(t);
       else if (t.cls.id === 'pyro' && t.runes.has('torch')) pyros.push(t);
     }
     const close = (a, b, radius) => (a.cx - b.cx) * (a.cx - b.cx) + (a.cy - b.cy) * (a.cy - b.cy) <= radius * radius;
     const herald = banners.find((flag) => open(flag, 6)), hero = herald ? this._hero() : null;
     for (const t of this.towers) {
       const boost = t.boost, by = t.boostBy;
-      let aura = null, cheer = null, rally = null, crit = 0, wisdom = 0, muse = 0, clarity = 0;
+      const haste = [], range = [], crit = [], cheer = [], crimson = [], wisdom = [], clarity = [];
+      const winds = [], team = [], grace = [], tuning = [];
+      let rally = null, muse = 0;
       by.clear();
       for (const flag of banners) {
         if (flag.rallyUntil > now && (!rally || flag.s[2].haste * flag.lift > rally.s[2].haste * rally.lift)) {
           rally = flag;
         }
         if (t.rider || !(flag.legionUntil > now) && !close(flag, t, this._bannerOf(flag))) continue;
-        if (!aura || flag.lift > aura.lift) aura = flag;
-        if (flag.cheerUntil > now && (!cheer || flag.s[0].damage * flag.lift > cheer.s[0].damage * cheer.lift)) {
-          cheer = flag;
+        haste.push(flag.cls.base.haste * flag.lift);
+        range.push(flag.cls.base.reach * flag.lift + (open(flag, 4) ? flag.s[4].range : 0));
+        if (open(flag, 3)) t.wardUntil = Math.max(t.wardUntil, now + WARD_AURA);
+        if (open(flag, 1)) crit.push(flag.s[1].chance);
+        if (flag.cheerUntil > now) {
+          cheer.push(flag.s[0].damage * flag.lift);
+          if (flag.runes.has('crimson')) crimson.push(CRIMSON);
         }
-        if (open(flag, 1)) crit = Math.max(crit, flag.s[1].chance);
+        by.add(flag);
       }
       for (const sage of sages) {
         if (!t.rider && close(sage, t, this._circleOf(sage))) {
-          wisdom = Math.max(wisdom, sage.cls.base.wisdom * sage.lift);
-          if (open(sage, 3) && sage !== t) clarity = Math.max(clarity, sage.s[3].haste);
+          wisdom.push(sage.cls.base.wisdom * sage.lift);
+          if (open(sage, 3) && sage !== t) clarity.push(sage.s[3].haste);
         }
         sage.muses = sage.muses.filter((item) => item.until > now);
         for (const item of sage.muses) {
@@ -1705,47 +1711,35 @@ export class Battle {
           by.add(sage);
         }
       }
-      boost.rate = muse;
-      boost.damage = muse;
-      boost.range = 0;
-      if (aura) {
-        boost.rate += aura.cls.base.haste * aura.lift;
-        boost.range = aura.cls.base.reach * aura.lift + (open(aura, 4) ? aura.s[4].range : 0);
-        if (open(aura, 3)) t.wardUntil = Math.max(t.wardUntil, now + WARD_AURA);
-        by.add(aura);
-      }
-      for (const wind of winds) {
-        if (wind !== t && !t.rider && close(wind, t, wind.s[3].radius + wind.reach)) {
-          boost.rate += wind.s[3].haste;
-          by.add(wind);
-          break;
+      if (!t.rider) {
+        for (const shaman of shamans) {
+          if (shaman === t || !close(shaman, t, shaman.s[3].radius + shaman.reach)) continue;
+          winds.push(shaman.s[3].haste);
+          by.add(shaman);
+        }
+        for (const g of graces) {
+          if (!close(g, t, WOOD.grace.radius)) continue;
+          grace.push(WOOD.grace.haste);
+          by.add(g);
         }
       }
       if (t.cls.id === 'mechanic' && !t.rider && !t.cocoon) {
-        let crew = 0, lead = null;
         for (const head of teams) {
           if (!close(head, t, MECH.team.radius)) continue;
-          const size = mechanics.filter((m) => close(head, m, MECH.team.radius)).length;
-          if (size > crew) {
-            crew = size;
-            lead = head;
-          }
-        }
-        if (lead) {
-          boost.rate += MECH.team.per * crew;
-          if (lead !== t) by.add(lead);
+          team.push(MECH.team.per * mechanics.filter((m) => close(head, m, MECH.team.radius)).length);
+          by.add(head);
         }
       }
-      const grace = t.rider ? null : graces.find((g) => close(g, t, WOOD.grace.radius));
-      if (grace) {
-        boost.rate += WOOD.grace.haste;
-        by.add(grace);
+      if (t.cls.id === 'sniper' && !t.rider) {
+        for (const m of tuners) {
+          if (!close(m, t, MECH.tuning.radius)) continue;
+          tuning.push(MECH.tuning.haste);
+          by.add(m);
+        }
       }
-      const tuner = t.cls.id === 'sniper' && !t.rider ? tuners.find((m) => close(m, t, MECH.tuning.radius)) : null;
-      if (tuner) {
-        boost.rate += MECH.tuning.haste;
-        by.add(tuner);
-      }
+      boost.rate = muse + fade(haste) + fade(winds) + fade(team) + fade(grace) + fade(tuning) + fade(crimson);
+      boost.damage = muse + fade(cheer);
+      boost.range = fade(range);
       if (t.blessUntil > now) {
         boost.damage += t.bless.bonus;
         by.add(t.bless.by);
@@ -1754,25 +1748,21 @@ export class Battle {
         boost.damage += herald.s[6].bonus;
         by.add(herald);
       }
-      if (cheer) {
-        boost.damage += cheer.s[0].damage * cheer.lift;
-        if (cheer.runes.has('crimson')) boost.rate += CRIMSON;
-        by.add(cheer);
-      }
       if (rally && !t.rider) {
         boost.rate += rally.s[2].haste * rally.lift;
         by.add(rally);
       }
-      boost.crit = crit;
-      boost.wisdom = wisdom;
-      boost.clarity = clarity;
-      t.torch = TORCH_USERS.has(t.cls.id) ? pyros.find((pyro) => close(pyro, t, FIRE.torch.radius + pyro.reach))
-        || null : null;
-      boost.cheer = Boolean(cheer);
+      boost.crit = fade(crit);
+      boost.wisdom = fade(wisdom);
+      boost.clarity = fade(clarity);
+      t.torches = TORCH_USERS.has(t.cls.id) ? pyros.filter((pyro) => close(pyro, t, FIRE.torch.radius + pyro.reach))
+        .sort((x, y) => torchPower(y) - torchPower(x)) : [];
+      t.torch = t.torches[0] || null;
+      boost.cheer = cheer.length > 0;
       boost.muse = muse > 0;
       by.delete(t);
-      const range = t.ownRange * (1 + boost.range);
-      if (range !== t.range) t.range = range;
+      const reach = t.ownRange * (1 + boost.range);
+      if (reach !== t.range) t.range = reach;
     }
   }
 
@@ -1869,10 +1859,11 @@ export class Battle {
   }
 
   _torchHit(t, mob, damage) {
-    const pyro = t.torch;
-    if (!pyro || mob.dead || immune(mob, 'fire') || !this.towers.includes(pyro)) return;
-    this._hurt(mob, damage * FIRE.torch.share * (pyro.runes.has('blue') ? FIRE.blue : 1), t, 'fire', true);
-    if (pyro.react && mob.hp > 0) this._mark(mob, 'fire', pyro);
+    t.torches.filter((pyro) => this.towers.includes(pyro)).forEach((pyro, i) => {
+      if (mob.dead || immune(mob, 'fire')) return;
+      this._hurt(mob, damage * FIRE.torch.share * torchPower(pyro) / 2 ** i, t, 'fire', true);
+      if (pyro.react && mob.hp > 0) this._mark(mob, 'fire', pyro);
+    });
   }
 
   _hero() {
@@ -2529,6 +2520,12 @@ function closestPrey(b, t) {
   return prey[0] || null;
 }
 
+
+function fade(values) {
+  return values.sort((a, b) => b - a).reduce((sum, value, i) => sum + value / 2 ** i, 0);
+}
+
+const torchPower = (pyro) => (pyro.runes.has('blue') ? FIRE.blue : 1);
 
 function rollCrit(b, t) {
   t.striking = b.random() < 1 - (1 - t.critChance) * (1 - t.boost.crit);

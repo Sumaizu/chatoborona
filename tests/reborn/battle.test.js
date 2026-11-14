@@ -950,6 +950,11 @@ test('лесник, природная ловкость: союзники в 2 �
   ok(ally.boostBy.has(grace), 'помощь засчитана леснику');
   near(grace.boost.rate, WOOD.grace.haste, 'и сам тоже');
   eq(far.boost.rate, 0, 'дальний — без прибавки');
+  forester(battle, 11, 1, ['grace']);
+  forester(battle, 11, 3, ['grace']);
+  battle.step(TICK);
+  near(ally.boost.rate, WOOD.grace.haste * (1 + 1 / 2 + 1 / 4), 'ауры складываются: каждая следующая — вдвое слабее');
+  near(corner.boost.rate, WOOD.grace.haste, 'до угла достаёт только ближний');
 });
 
 test('лесник-охотник: тяжёлый арбалет — далеко, очень сильно, сперва элитные и боссы, после выстрела перезарядка', () => {
@@ -1591,7 +1596,7 @@ test('орда: в волне орды мобов больше, чем у дру
   ok(FAMILY_BY_ID.get('horde').count > 1);
 });
 
-test('знаменосец: под знаменем бьют быстрее и дальше, два знамени не складываются, за добычу под знаменем — помощь', () => {
+test('знаменосец: под знаменем бьют быстрее и дальше, знамёна складываются вполовину, за добычу под знаменем — помощь', () => {
   const battle = makeBattle(), flag = battle.place(player(), 'banner', 4, 4), b = flag.cls.base;
   const ally = battle.place(player(), 'mechanic', 5, 4), far = battle.place(player(), 'mechanic', 14, 4);
   const range = far.range;
@@ -1601,9 +1606,11 @@ test('знаменосец: под знаменем бьют быстрее и �
   near(battle._intervalOf(ally, battle.time), ally.interval / (1 + b.haste), 'быстрее');
   near(flag.boost.rate, b.haste, 'и сам знаменосец');
   ok(ally.boostBy.has(flag) && !flag.boostBy.has(flag));
-  battle.place(player(), 'banner', 6, 4);
+  const second = battle.place(player(), 'banner', 6, 4), third = battle.place(player(), 'banner', 5, 3);
   battle.step(TICK);
-  near(battle._intervalOf(ally, battle.time), ally.interval / (1 + b.haste), 'второе знамя не прибавляет');
+  near(battle._intervalOf(ally, battle.time), ally.interval / (1 + b.haste * 1.75), 'второе — половину, третье — четверть');
+  near(ally.range, range * (1 + b.reach * 1.75));
+  ok(ally.boostBy.has(second) && ally.boostBy.has(third), 'помощь — каждому');
   const mob = walker(battle, 12, 10);
   still(mob);
   battle._hurt(mob, 100, ally);
@@ -1836,6 +1843,16 @@ test('маг огня: тление, огненная реакция, факел
   torch._fire(s);
   ok(hit(target) > s.damage, 'к выстрелу добавился огонь');
   ok(target.marks && target.marks.get('fire').has(p), 'и стихия огня от мага');
+  const p2 = torch.place(player(), 'pyro', 12, 4);
+  torch.setMods(p2, { runes: ['torch'] });
+  torch.step(TICK);
+  eq(s.torches.length, 2);
+  const before = hit(target);
+  torch.random = () => 0.99;
+  s.reloadUntil = 0;
+  s.busy = 0;
+  torch._fire(s);
+  near(hit(target) - before, s.damage * (1 + FIRE.torch.share * 1.5), 'второй факел — вполовину');
 
   const blue = makeBattle(), q = blue.place(player(), 'pyro', 10, 4);
   blue.setMods(q, { runes: ['blue'] });
