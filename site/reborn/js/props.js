@@ -81,6 +81,49 @@ export function drawBird(frame) {
   return m.paint();
 }
 
+const HAWK = { flap: [1, 0.7, 0.4], lift: [0, 1, 2], feathers: ['#3b2414', '#4a2c17', '#5c371c', '#4a2c17', '#6b4423'] };
+
+export function drawHawk(frame) {
+  const m = new Model(52, 1), open = HAWK.flap[frame], lift = HAWK.lift[frame], c = 26;
+  for (let i = 0; i < 7; i++) {
+    const dx = (i - 3) * 1.15;
+    m.limb(c, 30, 3, c + dx * 1.9, 41 - Math.abs(i - 3) * 0.5, 2.4, 1.2, i % 2 ? '#7c3f1d' : '#9a4f24', 0, 0.8);
+  }
+  for (const x of [c - 2.6, c, c + 2.6]) m.limb(x, 37, 3.4, x + (x - c) * 0.3, 39.6, 3.2, 0.4, '#3b2414');
+  for (const side of [-1, 1]) {
+    const sx = c + side * 3.4, sy = 22, z = 4 + lift * 0.5;
+    for (let i = 0; i < 8; i++) {
+      const a = -0.5 + i * 0.17, len = (18 - i * 1.2) * (0.55 + open * 0.45);
+      const tx = sx + side * Math.cos(a) * len * (0.4 + open * 0.6), ty = sy + Math.sin(a) * len + (1 - open) * 4;
+      const mx = sx + (tx - sx) * 0.7, my = sy + (ty - sy) * 0.7;
+      m.limb(sx, sy, z, mx, my, z + lift * 0.5, 2.4, HAWK.feathers[i % 5], 0.2, 1.5);
+      m.limb(mx, my, z + lift * 0.5, tx, ty, z + lift * 0.6, i < 3 ? 1.1 : 1.5, i < 3 ? '#1c1209' : '#2e1c0f', 0.2,
+        0.45);
+    }
+    m.limb(sx, sy - 0.8, z + 1, sx + side * 7.5 * (0.4 + open * 0.6), sy - 1.6 + (1 - open) * 2.4,
+      z + 1 + lift * 0.4, 2.6, '#7a5230', 0.3, 1.2);
+    for (let k = 0; k < 3; k++) {
+      const px = sx + side * (2.4 + k * 2) * (0.4 + open * 0.6), py = sy - 0.6 + (1 - open) * k * 0.6;
+      m.dot(px, py, '#c9a46a');
+    }
+  }
+  m.egg(c, 24.5, 4.6, 5, 7.8, 3.2, '#5c371c', 0.3);
+  for (const [x, y] of [[c - 1.6, 22], [c + 1.6, 23], [c - 1, 26.4], [c + 1.2, 27.4]]) {
+    m.limb(x, y - 1.2, 7.8, x + 0.2, y + 1.2, 7.6, 0.5, '#d9c29a');
+  }
+  m.egg(c, 16, 6.6, 3.8, 4.2, 2.8, '#6b4423', 0.3);
+  m.egg(c, 15.2, 8.4, 2.6, 2.8, 1.5, '#e8dcc0', 0.4);
+  for (const side of [-1, 1]) m.limb(c + side * 2.2, 15.4, 8.2, c + side * 3.4, 17.4, 7.4, 0.55, '#3b2414');
+  m.limb(c, 12.6, 7.6, c, 10, 7.2, 1.1, '#facc15', 0.3, 0.3);
+  m.limb(c, 10.2, 7.2, c, 9, 6.6, 0.5, '#1f2937');
+  for (const side of [-1, 1]) {
+    m.ball(c + side * 2.1, 13.6, 8.8, 0.95, '#fbbf24', 0.8);
+    m.ball(c + side * 2.1, 13.6, 9.4, 0.5, '#111827', 0.8);
+    m.dot(c + side * 2.1 - 0.4, 13.2, '#f8fafc');
+  }
+  return m.paint();
+}
+
 export function drawGrenade(kind, lit) {
   const m = new Model(22, 1);
   GRENADES[kind](m, lit);

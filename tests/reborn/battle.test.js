@@ -891,12 +891,84 @@ test('лесник-друид: сам не стреляет, птица лети
   eq(hit(close), 0, 'ближнего друид не трогает');
 });
 
+test('друид, стена корней: 5 клеток дороги рядом — замедляет и понемногу бьёт ядом', () => {
+  const battle = makeBattle(), t = forester(battle, 10, 4, ['druid', 'roots']);
+  const cells = battle._blazeOf(t, WOOD.roots.cells).cells;
+  eq(cells.map((cell) => cell.x - 0.5), [8, 9, 10, 11, 12], 'по две клетки в стороны');
+  const inside = walker(battle, 9, 1e9), out = walker(battle, 15, 1e9), ghost = walker(battle, 13, 1e9);
+  ghost.undead = true;
+  still(inside, out, ghost);
+  runFor(battle, 1);
+  ok(inside.slowUntil > battle.time && inside.slow > 0, 'замедляет');
+  ok(hit(inside) > 0 && hit(inside) < t.damage * 2, 'ядом — понемногу');
+  eq(out.slowUntil, 0, 'вне стены не замедляет');
+  eq(hit(ghost), 0, 'нежить яд не берёт');
+});
+
+test('друид, ястреб: до трёх, сперва летучих, у каждого своя цель, бьёт ядом сильнее птицы', () => {
+  const battle = makeBattle(), t = forester(battle, 1, 4, ['druid', 'hawk', 'hawk', 'hawk']);
+  const lead = walker(battle, 17, 1e9), flyer = walker(battle, 6, 1e9, bat()), second = walker(battle, 9, 1e9);
+  still(lead, flyer, second);
+  battle.step(TICK);
+  const hawks = battle.drones.filter((d) => d.tower === t && d.kind === 'hawk');
+  eq(hawks.length, 3);
+  eq(battle.drones.filter((d) => d.tower === t && d.kind === 'bird').length, 1, 'и своя птица');
+  ok(hawks[0].target === flyer, 'первый — к летучему, хоть тот и позади');
+  eq(new Set(hawks.map((d) => d.target)).size, 3, 'цели разные');
+  ok(WOOD.hawk.mul / WOOD.hawk.every > 2 * WOOD.bird.mul / WOOD.bird.every, 'сильнее птицы');
+  lead.dead = second.dead = true;
+  battle.step(TICK);
+  ok(hawks.every((d) => d.target === flyer), 'цель одна — бьют вместе');
+  runFor(battle, 6);
+  ok(hit(flyer) > 0 && battle.events.some((e) => e.kind === 'peck' && e.hawk), 'долетели и бьют');
+});
+
+test('друид, путы: удары птиц иногда опутывают моба — стоит на месте; элитных тоже, боссов нет', () => {
+  const battle = makeBattle(), t = forester(battle, 1, 4, ['druid', 'snare']);
+  const mob = walker(battle, 10, 1e9);
+  battle.random = () => 0;
+  battle._snare(t, mob, t);
+  ok(mob.rootUntil > battle.time, 'опутан');
+  const d = mob.d;
+  runFor(battle, 1);
+  eq(mob.d, d, 'стоит');
+  battle.time = mob.rootUntil + 0.1;
+  battle._snare(t, mob, t);
+  ok(mob.rootUntil < battle.time, 'сразу снова не опутать');
+  const chief = special(battle, 'elite', 'vampire', 1e9), boss = special(battle, 'boss', 'crusher');
+  battle._snare(t, chief, t);
+  battle._snare(t, boss, t);
+  ok(chief.rootUntil > battle.time, 'элитного — можно');
+  eq(boss.rootUntil, 0, 'босса — нет');
+  const plain = forester(battle, 3, 4, ['druid']), other = walker(battle, 12, 1e9);
+  battle.random = () => 0;
+  battle._snare(plain, other, plain);
+  eq(other.rootUntil, 0, 'без пут — никого');
+});
+
+test('друид, стая: ещё птица, второй раз — ещё две; обычные птицы бьют и ядом', () => {
+  const count = (runes) => {
+    const battle = makeBattle(), t = forester(battle, 1, 4, runes);
+    battle.step(TICK);
+    return battle.drones.filter((d) => d.tower === t && d.kind === 'bird').length;
+  };
+  eq([count(['druid']), count(['druid', 'flock']), count(['druid', 'flock', 'flock'])], [1, 2, 4]);
+  const battle = makeBattle(), t = forester(battle, 16, 4, ['druid', 'flock']);
+  const mob = walker(battle, 17, 1e9);
+  still(mob);
+  runFor(battle, 4);
+  const pecks = battle.events.filter((e) => e.kind === 'peck' && e.tower === t).length;
+  ok(pecks > 0);
+  near(hit(mob) / pecks, t.damage * WOOD.bird.mul * (1 + WOOD.flock.poison), 'клюёт и травит');
+});
+
 test('лесник, ядовитая реакция: метит ядом только ядовитые атаки — шары ведьмы', () => {
   const battle = makeBattle(), witch = forester(battle, 10, 4, ['witch', 'poisonReact']);
   const bow = forester(battle, 10, 2, ['poisonReact']);
-  eq([witch.react, bow.react], ['poison', null], 'у лука яда нет');
   const mob = walker(battle, 11, 1e9);
   still(mob);
+  battle._hurt(mob, 1, bow);
+  no(mob.marks && mob.marks.has('poison'), 'удар лука — не яд');
   ok(battle._fire(witch));
   runFor(battle, WOOD.witch.flight + 0.05);
   ok(mob.marks && mob.marks.has('poison'), 'метка яда для реакций');

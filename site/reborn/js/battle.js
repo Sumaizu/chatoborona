@@ -97,9 +97,12 @@ export const MECH = { turret: { range: -1.5, interval: 1, mul: 0.3, count: 3, ga
   droneAir: { every: 1.5, mul: 0.2, slow: 0.6, time: 2 } };
 const DRONE_KINDS = [['droneAttack', 'attack'], ['droneLaser', 'laser'], ['droneAir', 'air']];
 export const WOOD = { bow: { reload: 0.8 }, grace: { radius: 2.5, haste: 0.15 }, hunter: { range: 2, interval: 0.4, mul: 3.4, reload: 2.4 },
-  witch: { range: 0, interval: 1.8, mul: 1.3, flight: FIREBALL_FLIGHT }, bird: { every: 0.9, mul: 0.45, speed: 5 } };
+  witch: { range: 0, interval: 1.8, mul: 1.3, flight: FIREBALL_FLIGHT }, bird: { every: 0.9, mul: 0.45, speed: 5 },
+  hawk: { every: 1.4, mul: 1.6, speed: 5.5 }, flock: { birds: [1, 2, 4], poison: 0.5 },
+  roots: { cells: 5, reach: 0.7, slow: 0.4, mul: 0.15 }, snare: { chance: 0.15, time: 2.5, gap: 3 } };
 const STYLE_ELEMENTS = { witch: 'poison' };
-const DRONE_SHOTS = { attack: MECH.droneAttack, laser: MECH.droneLaser, air: MECH.droneAir, bird: WOOD.bird };
+const DRONE_SHOTS = { attack: MECH.droneAttack, laser: MECH.droneLaser, air: MECH.droneAir, bird: WOOD.bird,
+  hawk: WOOD.hawk };
 const STEEL_BLAST = { radius: 1.5, mul: 8, stun: 1 };
 const METEOR_FLIGHT = 1.2;
 export const AIM = { turn: 8, slack: Math.PI / 12, hold: 0.15 };
@@ -684,7 +687,7 @@ export class Battle {
       chill: 0,
       mark: 0, markUntil: 0, vuln: 0, vulnUntil: 0, weak: 0, weakUntil: 0, weakBy: null, rush: 0, rushUntil: 0,
       charge: null, rot: null,
-      muteUntil: 0, netUntil: 0,
+      muteUntil: 0, netUntil: 0, rootUntil: 0, rootFree: 0, thicketUntil: 0,
       rollAt: this.time + ROLL_EVERY, thornAt: 0, resist: resistOf(this.wave), holdUntil: 0, holdFree: 0,
       holdBy: '', pushed: 0, poison: null, burn: null, helpers: new Set(), last: null, dead: false, biting: 0,
       wall: null, fury: 0, sx: 0, sy: 0, placed: false,
@@ -997,7 +1000,6 @@ export class Battle {
     tower.damage = base.damage * boost;
     tower.skill = base.skill * boost;
     tower.element = cls.element || STYLE_ELEMENTS[tower.style] || null;
-    if (cls.id === 'forester' && tower.element !== 'poison') tower.react = null;
     const shot = cls.id === 'sniper' && SHOT[tower.style] || cls.id === 'mechanic' && MECH[tower.style]
       || cls.id === 'forester' && WOOD[tower.style] || null;
     if (shot) tower.damage *= shot.mul;
@@ -1442,6 +1444,7 @@ export class Battle {
       }
       mob.wall = null;
       if (mob.holdUntil > now && !steady(mob, now)) continue;
+      if (mob.rootUntil > now && !steady(mob, now)) continue;
       if (mob.madUntil > now) {
         this._rave(mob, dt);
         continue;
@@ -1507,7 +1510,10 @@ export class Battle {
 
   _pets(t) {
     if (t.cocoon) return [];
-    if (t.cls.id === 'forester' && t.style === 'druid') return [['bird', 'bird', 1, null]];
+    if (t.cls.id === 'forester' && t.style === 'druid') {
+      return [['bird', 'bird', WOOD.flock.birds[t.stacks.get('flock') || 0], null],
+        ['hawk', 'hawk', t.stacks.get('hawk') || 0, null]];
+    }
     if (t.cls.id !== 'mechanic' || t.style !== 'turret') return [];
     return DRONE_KINDS.map(([rune, kind]) => [rune, kind, t.stacks.get(rune) || 0, null]);
   }
@@ -1539,8 +1545,9 @@ export class Battle {
   _assign() {
     for (const kind of new Set(this.drones.map((drone) => drone.kind))) {
       const crew = this.drones.filter((drone) => drone.kind === kind);
+      const sky = (mob) => (kind === 'hawk' && mob.flying ? 1 : 0);
       const pool = this.mobs.filter((mob) => this._droneCan(crew[0], mob))
-        .sort((a, b) => this.ahead(b) - this.ahead(a));
+        .sort((a, b) => sky(b) - sky(a) || this.ahead(b) - this.ahead(a));
       const front = new Set(pool.slice(0, crew.length)), kept = new Set(), idle = [];
       for (const drone of crew) {
         if (drone.target && front.has(drone.target) && !kept.has(drone.target)) kept.add(drone.target);
@@ -1554,7 +1561,8 @@ export class Battle {
 
   _droneCan(drone, mob) {
     return !mob.dead && !hidden(mob, this.time) && !this.covered(mob.x, mob.y)
-      && (drone.kind !== 'laser' || big(mob)) && (drone.kind !== 'air' || Boolean(mob.flying));
+      && (drone.kind !== 'laser' || big(mob)) && (drone.kind !== 'air' || Boolean(mob.flying))
+      && (drone.kind !== 'hawk' || !mob.undead && !immune(mob, 'poison'));
   }
 
   _pilot(drone, dt, now) {
@@ -1577,11 +1585,17 @@ export class Battle {
       };
       one();
       for (let k = 1; k < shot.count; k++) this._later(k * shot.gap, one);
-    } else if (drone.kind === 'bird') {
-      const peck = (drone.source || t).damage * shot.mul;
-      this._event({ kind: 'peck', tower: t, mob: target, x: target.x, y: target.y });
-      this._hurt(target, peck, t);
+    } else if (drone.kind === 'bird' || drone.kind === 'hawk') {
+      const owner = drone.source || t, peck = owner.damage * shot.mul, hawk = drone.kind === 'hawk';
+      const toxic = !hawk && owner.runes.has('flock');
+      this._event({ kind: 'peck', tower: t, mob: target, x: target.x, y: target.y, hawk, toxic });
+      if (hawk) this._hurt(target, peck, t, 'poison');
+      else {
+        this._hurt(target, peck, t);
+        if (toxic) this._hurt(target, peck * WOOD.flock.poison, t, 'poison');
+      }
       this._torchHit(t, target, peck);
+      this._snare(owner, target, t);
     } else if (drone.kind === 'laser') {
       this._event({ kind: 'ray', tower: t, sx: drone.x, sy: drone.y, x: target.x, y: target.y, mob: target });
       this._hurt(target, t.damage * shot.mul, t, null, false, ARMOR);
@@ -1595,6 +1609,16 @@ export class Battle {
         target.netUntil = Math.max(target.netUntil, now + shot.time);
       }
     }
+  }
+
+  _snare(owner, mob, t) {
+    const now = this.time, s = WOOD.snare;
+    if (!owner.runes.has('snare') || mob.dead || mob.info.boss || steady(mob, now) || now < mob.rootFree) return;
+    if (this.random() >= s.chance) return;
+    mob.rootUntil = now + s.time * (1 - mob.resist);
+    mob.rootFree = mob.rootUntil + s.gap;
+    mob.helpers.add(t);
+    this._event({ kind: 'snare', tower: t, mob });
   }
 
   _steelOf(t) {
@@ -1766,8 +1790,8 @@ export class Battle {
     }
   }
 
-  _blazeOf(t) {
-    const key = t.x + ':' + t.y;
+  _blazeOf(t, size = 3) {
+    const key = t.x + ':' + t.y + ':' + size;
     if (t.blaze && t.blaze.key === key) return t.blaze;
     const trunk = (i) => i < this.path.length && i >= Math.max(0, this.merge);
     let best = 0, low = Infinity;
@@ -1780,8 +1804,9 @@ export class Battle {
       }
     });
     const main = best < this.path.length, line = main ? this.path : this.branch.concat([this.path[this.merge]]);
-    const k = main ? best : best - this.path.length, from = Math.max(0, Math.min(k - 1, line.length - 3));
-    t.blaze = { key, cells: line.slice(from, from + 3).map(([x, y]) => ({ x: x + 0.5, y: y + 0.5 })) };
+    const k = main ? best : best - this.path.length;
+    const from = Math.max(0, Math.min(k - Math.floor(size / 2), line.length - size));
+    t.blaze = { key, cells: line.slice(from, from + size).map(([x, y]) => ({ x: x + 0.5, y: y + 0.5 })) };
     return t.blaze;
   }
 
@@ -2223,7 +2248,7 @@ export class Battle {
     if (!dot) mob.hitAt = now;
     mob.helpers.add(t);
     if (mob.party) for (const ally of mob.party) mob.helpers.add(ally);
-    if (!dot && t.react && mob.hp > 0) this._mark(mob, t.react, t);
+    if (!dot && t.react && mob.hp > 0 && (!t.cls.react.strict || element === t.react)) this._mark(mob, t.react, t);
     if (t.windBy && t.windUntil > now && t.windBy !== t) mob.helpers.add(t.windBy);
     for (const by of t.boostBy) mob.helpers.add(by);
     mob.last = t;
@@ -2928,6 +2953,19 @@ const SKILLS = {
       if (t.style === 'hunter') reload(t, now, WOOD.hunter.reload);
       else reload(t, now, Math.min(WOOD.bow.reload, b._intervalOf(t, now) / 2));
       return true;
+    },
+    every(b, t, now, alive) {
+      if (t.style !== 'druid' || !t.runes.has('roots') || !alive || now < (t.nextRoots || 0)) return;
+      t.nextRoots = now + PULSE;
+      const s = WOOD.roots, cells = b._blazeOf(t, s.cells).cells;
+      for (const mob of b.mobs.slice()) {
+        if (mob.dead || hidden(mob, now) || !cells.some((cell) => near(mob, cell.x, cell.y, s.reach))) continue;
+        b._slow(mob, s.slow, PULSE * 1.5);
+        mob.thicketUntil = now + PULSE * 1.5;
+        b._hurt(mob, t.damage * s.mul, t, 'poison', true);
+        if (t.react && !mob.dead && !mob.undead) b._mark(mob, 'poison', t);
+        b._snare(t, mob, t);
+      }
     },
   },
   mechanic: {

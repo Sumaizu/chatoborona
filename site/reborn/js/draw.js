@@ -3,7 +3,7 @@ import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintR
 import { FIRE, MECH, WOOD, flightAt } from './battle.js';
 import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite, cocoonSprite,
   coinSprite, fireballSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
-  meteorSprite, grenadeSprite, droneSprite, birdSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
+  meteorSprite, grenadeSprite, droneSprite, birdSprite, hawkSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
   rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, ventSprite, wallSprite } from './sprites.js';
 import { SOILS } from './props.js';
 import { MUZZLES, RELOAD_FRAMES } from './models.js';
@@ -1124,10 +1124,47 @@ export class Scene {
     ctx.globalAlpha = 1;
   }
 
+  _rootWall(ctx, cells, seed) {
+    const first = cells[0], second = cells[1] || first, last = cells[cells.length - 1];
+    const before = cells[cells.length - 2] || last;
+    const points = [{ x: first.x - (second.x - first.x) * 0.4, y: first.y - (second.y - first.y) * 0.4 }].concat(cells,
+      [{ x: last.x + (last.x - before.x) * 0.4, y: last.y + (last.y - before.y) * 0.4 }]);
+    const spots = [];
+    for (let i = 0; i < points.length - 1; i++) {
+      const a = points[i], b = points[i + 1], len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const steps = Math.max(1, Math.round(len * CELL / 2));
+      for (let k = 0; k < steps; k++) {
+        spots.push({ x: at(a.x + (b.x - a.x) * k / steps), y: at(a.y + (b.y - a.y) * k / steps),
+          nx: -(b.y - a.y) / len, ny: (b.x - a.x) / len });
+      }
+    }
+    ctx.globalAlpha = 0.85;
+    spots.forEach((spot, i) => {
+      for (const [phase, color] of [[0, '#4b3621'], [2.6, '#5e4429']]) {
+        const off = Math.sin(i * 0.33 + phase + seed) * 4;
+        square(ctx, spot.x + spot.nx * off, spot.y + spot.ny * off, 2, color);
+      }
+      if (i % 7 === 3) {
+        const side = i % 14 === 3 ? 1 : -1, off = Math.sin(i * 0.33 + seed) * 4;
+        const bx = spot.x + spot.nx * off, by = spot.y + spot.ny * off;
+        square(ctx, bx + spot.nx * side * 2.5, by + spot.ny * side * 2.5, 1, '#8c7a58');
+        square(ctx, bx + spot.nx * side * 3.5, by + spot.ny * side * 3.5, 1, '#a8977a');
+      }
+      if (i % 17 === 8) {
+        const off = Math.sin(i * 0.33 + 2.6 + seed) * 4 + 2;
+        square(ctx, spot.x + spot.nx * off, spot.y + spot.ny * off - 1, 2, '#4d7c0f');
+      }
+    });
+    ctx.globalAlpha = 1;
+  }
+
   _blazes(ctx, battle) {
     for (const t of battle.towers) {
       if (t.cls.id === 'pyro' && t.runes.has('torch')) this._torch(ctx, t);
       if (t.torch && battle.towers.includes(t.torch)) this._torchLit(ctx, t);
+      if (t.style === 'druid' && t.runes.has('roots')) {
+        this._rootWall(ctx, battle._blazeOf(t, WOOD.roots.cells).cells, (t.x * 7 + t.y * 13) % 9);
+      }
       if (t.style !== 'ignite') continue;
       const blue = t.runes.has('blue'), tones = blue ? BLUE_FLAME : FLAME;
       if (t.runes.has('fireWall')) this._fireWall(ctx, battle._blazeOf(t).cells, blue, (t.x * 7 + t.y * 13) % 9);
@@ -1369,12 +1406,19 @@ export class Scene {
       const x = at(spot.x), y = at(spot.y), lift = DRONE_LIFT + Math.sin(this.clock * 3 + drone.n * 1.7) * 2;
       ctx.fillStyle = 'rgba(0, 0, 0, .25)';
       ctx.beginPath();
-      const bird = drone.kind === 'bird';
-      ctx.ellipse(x, y + 4, bird ? 12 : 7, bird ? 4 : 3, 0, 0, Math.PI * 2);
+      const bird = drone.kind === 'bird', hawk = drone.kind === 'hawk';
+      ctx.ellipse(x, y + 4, hawk ? 15 : bird ? 12 : 7, hawk ? 5 : bird ? 4 : 3, 0, 0, Math.PI * 2);
       ctx.fill();
-      const image = bird ? birdSprite(Math.floor(this.clock * 12) % 3)
-        : droneSprite(drone.kind, Math.floor(this.clock * 24) % 2);
-      sprite(ctx, image, x, y - lift, spot.angle, bird ? 2 : 1.5, 0, 64);
+      const image = hawk ? hawkSprite(Math.floor(this.clock * 9 + drone.n) % 3)
+        : bird ? birdSprite(Math.floor(this.clock * 12 + drone.n) % 3)
+          : droneSprite(drone.kind, Math.floor(this.clock * 24) % 2);
+      sprite(ctx, image, x, y - lift, spot.angle, bird || hawk ? 2 : 1.5, 0, 64);
+      if (bird && (drone.source || drone.tower).runes.has('flock')) {
+        const drip = (this.clock * 1.6 + drone.n * 0.37) % 1;
+        ctx.globalAlpha = 0.8 * (1 - drip);
+        square(ctx, x + Math.sin(drone.n * 2.3) * 3, y - lift + 6 + drip * 10, 2, '#84cc16');
+        ctx.globalAlpha = 1;
+      }
     }
   }
 
@@ -1530,7 +1574,7 @@ export class Scene {
       spot.x = nx;
       spot.y = ny;
       const held = mob.holdUntil > now, frozen = held && mob.holdBy === 'frost';
-      const slowed = mob.chill > 0 || mob.slowUntil > now || frozen;
+      const slowed = mob.chill > 0 || mob.slowUntil > now && !(mob.thicketUntil > now) || frozen;
       if (slowed && !mob.flying && !still && spot.trail > TRAIL_STEP) {
         spot.trail = 0;
         this.decals.push({ kind: 'ice', t: 0, life: 1.6, x: spot.x + (Math.random() - 0.5) * 0.3,
@@ -1635,6 +1679,7 @@ export class Scene {
       }
       if (mob.charge && mob.charge.until > now) this._chargedOn(ctx, mob, x, y - lift, size);
       if (mob.netUntil > now) this._netOn(ctx, x, y - lift, size);
+      if (mob.rootUntil > now) this._rootOn(ctx, mob, x, y - lift, size);
       if (mob.muteUntil > now) this._mutedOn(ctx, x, y - lift, size);
       if (mob.rot) this._rotOn(ctx, mob, x, y - lift, size);
       if (mob.weakUntil > now) this._weakOn(ctx, x, y - lift, size, top);
@@ -1764,6 +1809,18 @@ export class Scene {
       ctx.stroke();
     }
     ctx.restore();
+  }
+
+  _rootOn(ctx, mob, x, y, size) {
+    const r = Math.max(8, size * 0.42), base = y + r * 0.55;
+    for (let i = 0; i < 5; i++) {
+      const a = Math.PI * (0.15 + i * 0.175), sway = Math.sin(this.clock * 3 + i + mob.id) * 0.6;
+      const sx = x + Math.cos(a) * r * 1.1, sy = base + Math.sin(a) * 2;
+      for (let k = 0; k < 6; k++) {
+        const f = k / 5, px = sx + (x - sx) * f * 0.55 + sway * f, py = sy - f * r * 0.9 - Math.sin(f * Math.PI) * 2;
+        square(ctx, px, py, k < 4 ? 2 : 1, k < 4 ? (i % 2 ? '#4b3621' : '#5e4429') : '#4d7c0f');
+      }
+    }
   }
 
   _netOn(ctx, x, y, size) {
@@ -2407,7 +2464,11 @@ export class Scene {
     } else if (event.kind === 'flight') {
       this._sparks(event.x1, event.y1, FLAME.slice(0, 3), 14, 2.4, 0.5, 3);
     } else if (event.kind === 'peck') {
-      this._sparks(event.x, event.y, ['#8b5a2b', '#e7c9a0', '#ffffff'], 4, 1.2, 0.3, 2);
+      if (event.hawk) this._sparks(event.x, event.y, ['#a3e635', '#65a30d', '#5c371c'], 7, 1.6, 0.35, 2);
+      else this._sparks(event.x, event.y, ['#8b5a2b', '#e7c9a0', '#ffffff'], 4, 1.2, 0.3, 2);
+      if (event.toxic) this._sparks(event.x, event.y, ['#a3e635', '#65a30d'], 3, 1, 0.3, 2);
+    } else if (event.kind === 'snare') {
+      this._sparks(event.mob.x, event.mob.y, ['#5e4429', '#4d7c0f', '#84cc16'], 8, 1.4, 0.4, 2);
     } else if (event.kind === 'ray') {
       add({ kind: 'ray', life: 0.18, x1: event.sx, y1: event.sy - DRONE_LIFT / CELL, x2: event.x, y2: event.y });
       this._sparks(event.x, event.y, ['#ecfeff', '#22d3ee'], 4, 1.2, 0.25, 2);
