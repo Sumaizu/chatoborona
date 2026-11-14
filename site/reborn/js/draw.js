@@ -3,7 +3,7 @@ import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintR
 import { FIRE, MECH, flightAt } from './battle.js';
 import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite, cocoonSprite,
   coinSprite, fireballSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
-  meteorSprite, grenadeSprite, droneSprite, birdSprite, orbSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
+  meteorSprite, grenadeSprite, droneSprite, birdSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
   rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, ventSprite, wallSprite } from './sprites.js';
 import { SOILS } from './props.js';
 import { MUZZLES, RELOAD_FRAMES } from './models.js';
@@ -84,7 +84,7 @@ const INK = '#f4f0e8';
 const MUTED = 'rgba(166, 162, 189, .85)';
 const DARK = '#100e1f';
 const STYLE_BOLTS = { hunter: { look: 'bolt', color: '#e7e5e4', width: 3 },
-  witch: { look: 'orb', color: '#84cc16', size: 13 } };
+  witch: { look: 'fireball', color: '#84cc16', size: 11, tone: 'toxic' } };
 const BOLTS = {
   sniper: { look: 'tracer', color: '#fff3b0', width: 2, bullet: true },
   mechanic: { look: 'tracer', color: '#ffe8a3', width: 1.5, bullet: true },
@@ -99,12 +99,14 @@ const BOLTS = {
 };
 const FLAME = ['#fff3b0', '#ffd84a', '#ff9a1f', '#ff5a1f', '#b8320f'];
 const BLUE_FLAME = ['#e0f2ff', '#9bd5ff', '#4aa3ff', '#2563eb', '#1e3a8a'];
+const FLAME_TONES = { warm: FLAME, blue: BLUE_FLAME, toxic: ['#f7fee7', '#d9f99d', '#a3e635', '#65a30d', '#3f6212'] };
 const BOOM = { heat: 'rgba(255, 200, 80, .9)', core: '#ffd84a' };
 const BLACK_FLAME = ['#c084fc', '#7e22ce', '#3b0764', '#1c1917', '#0a0a0a'];
 const FIRE_SPARKS = new Set(FLAME.concat(BLUE_FLAME, BLACK_FLAME, ['#ffd84a', '#ff8a1f', '#ff4d1f', '#ff5a1f',
   '#ff9a1f']));
 const HEAT = { warm: ['rgba(255, 110, 30, .9)', 'rgba(255, 220, 120, .9)'],
-  blue: ['rgba(74, 163, 255, .9)', 'rgba(224, 242, 255, .9)'] };
+  blue: ['rgba(74, 163, 255, .9)', 'rgba(224, 242, 255, .9)'],
+  toxic: ['rgba(132, 204, 22, .9)', 'rgba(217, 249, 157, .9)'] };
 const FLAME_HOLD = 0.3;
 const FLAME_BITS = 34;
 const BADGE_HALF = 16;
@@ -989,9 +991,10 @@ export class Scene {
 
   _fireball(ctx, e, share, dt) {
     const b = e.bolt, zoom = b.size / 8, cx = e.x1 + (e.x2 - e.x1) * share, cy = e.y1 + (e.y2 - e.y1) * share;
-    const x = at(cx), y = at(cy), tones = b.blue ? BLUE_FLAME : FLAME;
-    glow(ctx, x, y, 9 * zoom + 4, HEAT[b.blue ? 'blue' : 'warm'][0], 0.75);
-    sprite(ctx, fireballSprite(Boolean(b.blue), Math.floor(this.clock * 14) % FIREBALL_FRAMES), x, y,
+    const tone = b.tone || (b.blue ? 'blue' : 'warm'), tones = FLAME_TONES[tone];
+    const x = at(cx), y = at(cy);
+    glow(ctx, x, y, 9 * zoom + 4, HEAT[tone][0], 0.75);
+    sprite(ctx, fireballSprite(tone, Math.floor(this.clock * 14) % FIREBALL_FRAMES), x, y,
       Math.atan2(e.x2 - e.x1, -(e.y2 - e.y1)), zoom, 6 * zoom, 64);
     if (dt > 0 && Math.random() < 0.6) this._sparks(cx, cy, tones.slice(1, 4), 1, 0.5, 0.3, Math.round(1 + zoom * 1.5));
   }
@@ -1340,11 +1343,11 @@ export class Scene {
       ctx.fillStyle = 'rgba(0, 0, 0, .25)';
       ctx.beginPath();
       const bird = drone.kind === 'bird';
-      ctx.ellipse(x, y + 5, bird ? 18 : 7, bird ? 5 : 3, 0, 0, Math.PI * 2);
+      ctx.ellipse(x, y + 4, bird ? 12 : 7, bird ? 4 : 3, 0, 0, Math.PI * 2);
       ctx.fill();
       const image = bird ? birdSprite(Math.floor(this.clock * 12) % 3)
         : droneSprite(drone.kind, Math.floor(this.clock * 24) % 2);
-      sprite(ctx, image, x, y - lift, spot.angle, bird ? 4.4 : 1.5, 0, 64);
+      sprite(ctx, image, x, y - lift, spot.angle, bird ? 2 : 1.5, 0, 64);
     }
   }
 
@@ -2622,17 +2625,6 @@ export class Scene {
           ctx.moveTo(x - dx / len * 7, y - dy / len * 7);
           ctx.lineTo(x, y);
           ctx.stroke();
-        } else if (b.look === 'orb') {
-          const zoom = b.size / 8;
-          glow(ctx, x, y, 9 * zoom + 4, 'rgba(132, 204, 22, 1)', 0.75);
-          for (let i = 1; i <= 5; i++) {
-            const back = Math.max(0, share - i * 0.05);
-            ctx.globalAlpha = 1 - i / 6;
-            bit(ctx, at(e.x1 + (e.x2 - e.x1) * back), at(e.y1 + (e.y2 - e.y1) * back), 4 - i * 0.5,
-              i % 2 ? '#84cc16' : '#4d7c0f', i + Math.floor(this.clock * 9));
-          }
-          ctx.globalAlpha = 1;
-          sprite(ctx, orbSprite(Math.floor(this.clock * 8) % 7), x, y, 0, zoom, 0, 64);
         } else if (b.look === 'lob') {
           const arc = Math.sin(share * Math.PI) * 10;
           square(ctx, x, y - arc, b.size + 2, '#15111d');

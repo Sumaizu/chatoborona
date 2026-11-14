@@ -1,6 +1,6 @@
 import { HERO_IDS, drawHero, drawPhoenix } from './models.js';
 import { MOB_IDS, drawMelt, drawMob, drawSplit, gooColor } from './monsters.js';
-import { drawClod, drawCocoon, drawBird, drawOrb, drawCoinIcon, drawDrone, drawEmblem, drawFireball, drawGrenade, drawHeart,
+import { drawClod, drawCocoon, drawBird, drawCoinIcon, drawDrone, drawEmblem, drawFireball, drawGrenade, drawHeart,
   drawMeteor, drawMound, drawNuke, drawVent, drawRocket, drawWall } from './props.js';
 
 const OUTLINE = '#15111d';
@@ -306,7 +306,6 @@ export const nukeSprite = () => remember('nuke', () => drawNuke());
 
 export const droneSprite = (kind, frame) => remember('drone:' + kind + frame, () => drawDrone(kind, frame));
 export const birdSprite = (frame) => remember('bird:' + frame, () => drawBird(frame));
-export const orbSprite = (frame) => remember('orb:' + frame, () => drawOrb(frame));
 export const grenadeSprite = (kind, lit) => remember('grenade:' + kind + ':' + lit, () => drawGrenade(kind, lit));
 export const ventSprite = (lit, blue) => remember('vent:' + lit + blue, () => drawVent(lit, blue));
 const FLAPS = [1, 0.74, 0.5, 0.74];
@@ -314,8 +313,8 @@ export const PHOENIX_FRAMES = FLAPS.length;
 export const phoenixSprite = (blue, frame = 0) => remember('phoenix:' + blue + ':' + frame,
   () => drawPhoenix(blue, FLAPS[frame % FLAPS.length]));
 export const FIREBALL_FRAMES = 3;
-export const fireballSprite = (blue, frame = 0) => remember('fireball:' + blue + ':' + frame,
-  () => drawFireball(blue, frame % FIREBALL_FRAMES));
+export const fireballSprite = (tone, frame = 0) => remember('fireball:' + tone + ':' + frame,
+  () => drawFireball(tone, frame % FIREBALL_FRAMES));
 export const rocketSprite = () => remember('rocket', () => drawRocket());
 export const meteorSprite = () => remember('meteor', () => drawMeteor());
 export const cocoonSprite = (frame) => remember('cocoon:' + frame, () => drawCocoon(frame));

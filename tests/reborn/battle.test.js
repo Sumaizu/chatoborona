@@ -903,13 +903,15 @@ test('лесник-охотник: тяжёлый арбалет — далек�
   no(battle._fire(t), 'пока перезаряжается — не стреляет');
 });
 
-test('лесник-ведьма: ядовитые шары — урон ядом, без меток для реакций; нежить и неуязвимых к яду не трогает', () => {
+test('лесник-ведьма: ядовитые шары летят, как огненный шар, — урон ядом, без меток для реакций; нежить и неуязвимых к яду не трогает', () => {
   const battle = makeBattle(), t = forester(battle, 10, 4, ['witch']);
   eq(t.element, 'poison');
   const bone = walker(battle, 13, 1e9), mob = walker(battle, 11, 1e9);
   bone.undead = true;
   still(bone, mob);
   ok(battle._fire(t));
+  eq(hit(mob), 0, 'шар ещё летит');
+  runFor(battle, WOOD.witch.flight + 0.05);
   ok(hit(mob) > 0, 'бьёт живого');
   eq(hit(bone), 0, 'нежить не трогает');
   no(mob.marks && mob.marks.has('poison'), 'без метки яда для реакций');

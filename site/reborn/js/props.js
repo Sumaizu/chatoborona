@@ -46,48 +46,39 @@ export function drawDrone(kind, frame) {
 }
 
 
+const BIRD = { flap: [1, 0.72, 0.42], lift: [0, 1, 2], feathers: ['#5a3a1e', '#7c4a22', '#94602f', '#7c4a22', '#a0703e'] };
+
 export function drawBird(frame) {
-  const m = new Model(16, 1), spread = [5.6, 4.2, 2.4][frame], lift = [0, 0.8, 1.6][frame];
+  const m = new Model(40, 1), open = BIRD.flap[frame], lift = BIRD.lift[frame];
+  for (let i = 0; i < 5; i++) {
+    const dx = (i - 2) * 1.3;
+    m.limb(20, 24, 3, 20 + dx * 1.4, 32.5 - Math.abs(i - 2) * 0.6, 2.6, 1.1, i % 2 ? '#5a3a1e' : '#6b4423', 0, 0.8);
+  }
   for (const side of [-1, 1]) {
-    m.limb(8 + side * 1, 8.4, 3, 8 + side * spread, 7.6 + lift * 1.6, 3.4 + lift, 1.2, '#7c4a22', 0, 0.5);
-    m.limb(8 + side * (spread - 0.6), 7.8 + lift * 1.6, 3.6 + lift, 8 + side * (spread + 0.6), 8.6 + lift * 1.6,
-      3.4 + lift, 0.4, '#3f2a18');
-  }
-  m.limb(8, 10.6, 2.6, 8, 13.4, 2.6, 0.9, '#5a3a1e', 0, 0.5);
-  m.egg(8, 8.6, 3, 2.1, 3, 1.6, '#8b5a2b', 0.3);
-  m.egg(8, 8, 3.8, 1.3, 1.8, 0.8, '#e7c9a0');
-  m.ball(8, 5.8, 4, 1.6, '#6b4423');
-  m.limb(8, 4.4, 4, 8, 3.2, 4, 0.4, '#f59e0b', 0, 0.2);
-  for (const side of [-1, 1]) m.dot(8 + side * 0.8, 5.4, '#111827', 30);
-  return m.paint();
-}
-
-const ORB = { side: 14, radius: 5.5, tones: ['#1a2e05', '#3f6212', '#65a30d', '#a3e635', '#d9f99d', '#f7fee7'] };
-
-export function drawOrb(frame) {
-  const { side, radius, tones } = ORB, canvas = document.createElement('canvas');
-  canvas.width = side;
-  canvas.height = side;
-  const g = canvas.getContext('2d'), c = side / 2;
-  const bubbles = [0, 1, 2].map((i) => {
-    const a = frame * 0.9 + i * 2.1;
-    return [c + Math.cos(a) * 2.6, c + Math.sin(a) * 2.6];
-  });
-  for (let y = 0; y < side; y++) {
-    for (let x = 0; x < side; x++) {
-      const px = x + 0.5, py = y + 0.5, d = Math.hypot(px - c, py - c);
-      if (d > radius) continue;
-      const light = 1 - Math.hypot(px - c + 1.6, py - c + 1.6) / (radius * 1.6);
-      let tone = d > radius - 1 ? 0 : 1 + Math.max(0, Math.min(3, Math.floor(light * 4.2)));
-      if (tone && bubbles.some(([bx, by]) => Math.hypot(px - bx, py - by) < 0.8)) tone = 1;
-      g.fillStyle = tones[tone];
-      g.fillRect(x, y, 1, 1);
+    const sx = 20 + side * 3, sy = 17, z = 4 + lift * 0.5;
+    for (let i = 0; i < 6; i++) {
+      const a = -0.42 + i * 0.22, len = (12.5 - i * 1.1) * (0.55 + open * 0.45);
+      const tx = sx + side * Math.cos(a) * len * (0.4 + open * 0.6), ty = sy + Math.sin(a) * len + (1 - open) * 3;
+      const mx = sx + (tx - sx) * 0.72, my = sy + (ty - sy) * 0.72;
+      m.limb(sx, sy, z, mx, my, z + lift * 0.5, 2.2, BIRD.feathers[i % 5], 0.2, 1.5);
+      m.limb(mx, my, z + lift * 0.5, tx, ty, z + lift * 0.6, 1.4, i % 2 ? '#3f2a18' : '#4a2f17', 0.2, 0.45);
     }
+    m.limb(sx, sy - 0.6, z + 1, sx + side * 5.2 * (0.4 + open * 0.6), sy - 1.2 + (1 - open) * 2, z + 1 + lift * 0.4,
+      2.4, '#a0703e', 0.3, 1.2);
   }
-  g.fillStyle = tones[5];
-  g.fillRect(Math.round(c - 2.5), Math.round(c - 2.5), 2, 1);
-  g.fillRect(Math.round(c - 2.5), Math.round(c - 1.5), 1, 1);
-  return canvas;
+  m.egg(20, 19.5, 4.6, 4.2, 6.6, 3, '#8b5a2b', 0.3);
+  for (const [x, y] of [[18.6, 18], [21.4, 18.6], [19.2, 21.4], [20.8, 22]]) {
+    m.limb(x, y - 1, 7.4, x + 0.3, y + 1, 7.2, 0.45, '#4a2f17');
+  }
+  m.egg(20, 12, 6.4, 3.4, 3.6, 2.6, '#7c4a22', 0.3);
+  m.egg(20, 11.2, 8, 2.2, 2.4, 1.4, '#94602f', 0.4);
+  for (const side of [-1, 1]) m.egg(20 + side * 2.6, 12.6, 6.8, 1.1, 1.6, 1, '#e7d3b0');
+  m.limb(20, 8.8, 7, 20, 6, 6.6, 0.9, '#f59e0b', 0.3, 0.2);
+  for (const side of [-1, 1]) {
+    m.ball(20 + side * 1.8, 10.2, 8.4, 0.75, '#111827', 0.8);
+    m.dot(20 + side * 1.8 - 0.4, 9.6, '#f8fafc');
+  }
+  return m.paint();
 }
 
 export function drawGrenade(kind, lit) {
@@ -98,15 +89,16 @@ export function drawGrenade(kind, lit) {
 
 const FIREBALL = { width: 16, height: 26, head: 7, radius: 5.5,
   tones: { warm: ['#fffbe6', '#fde68a', '#fbbf24', '#f97316', '#dc2626', '#7f1d1d'],
-    blue: ['#f0f9ff', '#bae6fd', '#7dd3fc', '#3b82f6', '#1d4ed8', '#1e3a8a'] } };
+    blue: ['#f0f9ff', '#bae6fd', '#7dd3fc', '#3b82f6', '#1d4ed8', '#1e3a8a'],
+    toxic: ['#f7fee7', '#d9f99d', '#a3e635', '#65a30d', '#3f6212', '#1a2e05'] } };
 
 const grain = (x, y, frame) => {
   const v = Math.sin(x * 12.9898 + y * 78.233 + frame * 37.719) * 43758.5453;
   return v - Math.floor(v);
 };
 
-export function drawFireball(blue, frame) {
-  const { width, height, head, radius } = FIREBALL, tones = FIREBALL.tones[blue ? 'blue' : 'warm'];
+export function drawFireball(tone, frame) {
+  const { width, height, head, radius } = FIREBALL, tones = FIREBALL.tones[tone];
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;

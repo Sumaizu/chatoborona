@@ -97,7 +97,7 @@ export const MECH = { turret: { range: -1.5, interval: 1, mul: 0.3, count: 3, ga
   droneAir: { every: 1.5, mul: 0.2, slow: 0.6, time: 2 } };
 const DRONE_KINDS = [['droneAttack', 'attack'], ['droneLaser', 'laser'], ['droneAir', 'air']];
 export const WOOD = { bow: { reload: 0.8 }, hunter: { range: 2, interval: 0.4, mul: 3.4, reload: 2.4 },
-  witch: { range: 0, interval: 1.8, mul: 1.3 }, bird: { every: 0.9, mul: 0.45, speed: 5 } };
+  witch: { range: 0, interval: 1.8, mul: 1.3, flight: FIREBALL_FLIGHT }, bird: { every: 0.9, mul: 0.45, speed: 5 } };
 const STYLE_ELEMENTS = { witch: 'poison' };
 const DRONE_SHOTS = { attack: MECH.droneAttack, laser: MECH.droneLaser, air: MECH.droneAir, bird: WOOD.bird };
 const STEEL_BLAST = { radius: 1.5, mul: 8, stun: 1 };
@@ -2885,8 +2885,10 @@ const SKILLS = {
       if (!target) return false;
       if (t.style === 'witch') {
         const crit = rollCrit(b, t);
-        b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target });
-        b._hurt(target, t.damage * (crit ? t.critMul : 1), t, 'poison');
+        b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target, time: WOOD.witch.flight });
+        b._later(WOOD.witch.flight, () => {
+          if (!target.dead) b._hurt(target, t.damage * (crit ? t.critMul : 1), t, 'poison');
+        }, t);
         return true;
       }
       shoot(b, t, target);
