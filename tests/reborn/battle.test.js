@@ -932,6 +932,19 @@ test('друид, ястреб: до трёх, сперва летучих, у �
     'по нежити — только обычная половина');
 });
 
+test('друид: птицы и ястребы кружат вокруг него в разных местах, а не в одной точке', () => {
+  const battle = makeBattle(), t = forester(battle, 10, 2, ['druid', 'flock', 'flock', 'hawk', 'hawk', 'hawk']);
+  runFor(battle, 3);
+  const pets = battle.drones.filter((d) => d.tower === t);
+  eq(pets.length, 7);
+  let closest = Infinity;
+  pets.forEach((a, i) => pets.slice(i + 1).forEach((b) => {
+    closest = Math.min(closest, Math.hypot(a.x - b.x, a.y - b.y));
+  }));
+  ok(closest > 0.25, 'ближайшие двое — ' + closest.toFixed(2) + ' клетки');
+  ok(pets.every((d) => Math.hypot(d.x - t.cx, d.y - t.cy) < 1.2), 'все рядом с друидом');
+});
+
 test('друид, путы: удары птиц иногда опутывают моба — стоит на месте; элитных тоже, боссов и летучих нет', () => {
   const battle = makeBattle(), t = forester(battle, 1, 4, ['druid', 'snare']);
   const mob = walker(battle, 10, 1e9);

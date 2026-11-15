@@ -97,8 +97,8 @@ export const MECH = { turret: { range: -1.5, interval: 1, mul: 0.3, count: 3, ga
   droneAir: { every: 1.5, mul: 0.2, slow: 0.6, time: 2 } };
 const DRONE_KINDS = [['droneAttack', 'attack'], ['droneLaser', 'laser'], ['droneAir', 'air']];
 export const WOOD = { bow: { reload: 0.8 }, grace: { radius: 2.5, haste: 0.15 }, hunter: { range: 2, interval: 0.4, mul: 3.4, reload: 2.4 },
-  witch: { range: 0, interval: 1.8, mul: 1.3, flight: FIREBALL_FLIGHT }, bird: { every: 0.9, mul: 0.45, speed: 5 },
-  hawk: { every: 1.4, mul: 1.6, speed: 5.5, poison: 0.5 }, flock: { birds: [1, 2, 4], poison: 0.5 },
+  witch: { range: 0, interval: 1.8, mul: 1.3, flight: FIREBALL_FLIGHT }, bird: { every: 0.9, mul: 0.45, speed: 5, orbit: 0.7 },
+  hawk: { every: 1.4, mul: 1.6, speed: 5.5, poison: 0.5, orbit: 0.95 }, flock: { birds: [1, 2, 4], poison: 0.5 },
   roots: { cells: 5, reach: 0.7, slow: 0.4, mul: 0.15 }, snare: { chance: 0.15, time: 2.5, gap: 3 } };
 const STYLE_ELEMENTS = { witch: 'poison' };
 const DRONE_SHOTS = { attack: MECH.droneAttack, laser: MECH.droneLaser, air: MECH.droneAir, bird: WOOD.bird,
@@ -1538,6 +1538,12 @@ export class Battle {
     const wanted = (drone) => (this._crew(drone.tower).find(([rune, , , source]) => rune === drone.rune
       && source === drone.source) || [0, 0, 0])[2];
     this.drones = this.drones.filter((drone) => this.towers.includes(drone.tower) && drone.n < wanted(drone));
+    for (const t of this.towers) {
+      const flock = this.drones.filter((drone) => drone.tower === t && WOOD[drone.kind]);
+      flock.forEach((drone, i) => {
+        drone.slot = i / flock.length;
+      });
+    }
     this._assign();
     for (const drone of this.drones) this._pilot(drone, dt, now);
   }
@@ -1567,8 +1573,10 @@ export class Battle {
   _pilot(drone, dt, now) {
     const s = MECH.drone, t = drone.tower;
     const shot = DRONE_SHOTS[drone.kind], goal = drone.target || { x: t.cx, y: t.cy };
-    const a = now * s.spin + drone.n * 2.1 + DRONE_KINDS.findIndex(([rune]) => rune === drone.rune) * 0.7;
-    const dx = goal.x + Math.cos(a) * s.hover - drone.x, dy = goal.y + Math.sin(a) * s.hover - drone.y;
+    const pet = WOOD[drone.kind], hover = pet ? pet.orbit : s.hover;
+    const a = now * s.spin + (pet ? drone.slot * Math.PI * 2
+      : drone.n * 2.1 + DRONE_KINDS.findIndex(([rune]) => rune === drone.rune) * 0.7);
+    const dx = goal.x + Math.cos(a) * hover - drone.x, dy = goal.y + Math.sin(a) * hover - drone.y;
     const gap = Math.hypot(dx, dy), step = (shot.speed || s.speed) * dt;
     drone.x += gap <= step ? dx : dx / gap * step;
     drone.y += gap <= step ? dy : dy / gap * step;
