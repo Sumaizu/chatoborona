@@ -923,7 +923,7 @@ test('друид, ястреб: до трёх, сперва летучих, у �
   ok(hit(flyer) > 0 && battle.events.some((e) => e.kind === 'peck' && e.hawk), 'долетели и бьют');
 });
 
-test('друид, путы: удары птиц иногда опутывают моба — стоит на месте; элитных тоже, боссов нет', () => {
+test('друид, путы: удары птиц иногда опутывают моба — стоит на месте; элитных тоже, боссов и летучих нет', () => {
   const battle = makeBattle(), t = forester(battle, 1, 4, ['druid', 'snare']);
   const mob = walker(battle, 10, 1e9);
   battle.random = () => 0;
@@ -940,6 +940,9 @@ test('друид, путы: удары птиц иногда опутывают 
   battle._snare(t, boss, t);
   ok(chief.rootUntil > battle.time, 'элитного — можно');
   eq(boss.rootUntil, 0, 'босса — нет');
+  const bird = walker(battle, 14, 1e9, bat());
+  battle._snare(t, bird, t);
+  eq(bird.rootUntil, 0, 'летучих — нет');
   const plain = forester(battle, 3, 4, ['druid']), other = walker(battle, 12, 1e9);
   battle.random = () => 0;
   battle._snare(plain, other, plain);

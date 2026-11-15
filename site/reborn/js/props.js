@@ -162,6 +162,91 @@ export function drawFireball(tone, frame) {
   return canvas;
 }
 
+const ROSE = { cane: ['#4a2a1c', '#5b3a22', '#6b2f2a', '#4f5a2a', '#5a4a26'], thorn: ['#d9c8a0', '#b8645a'],
+  leaf: ['#3f6212', '#4d7c0f', '#365314'], bloom: ['#dc2626', '#e11d48', '#f472b6'], soil: '#3a2a1b', lift: 0.75,
+  tall: 12, gap: 13 };
+const SNARE = { bark: ['#5b3a22', '#6e4a2c', '#7a5636'], leaf: '#65a30d' };
+
+function walk(spots, s, u) {
+  let lo = 0, hi = spots.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (spots[mid].s <= s) lo = mid;
+    else hi = mid;
+  }
+  const a = spots[lo], b = spots[hi], f = b.s > a.s ? Math.max(0, Math.min(1, (s - a.s) / (b.s - a.s))) : 0;
+  const nx = a.nx + (b.nx - a.nx) * f, ny = a.ny + (b.ny - a.ny) * f;
+  return [a.x + (b.x - a.x) * f + nx * u, a.y + (b.y - a.y) * f + ny * u];
+}
+
+export function drawRootWall(spots, length, size, half) {
+  const m = new Model(size, 1), seed = Math.round(length * 13 + spots[0].x * 7 + spots[0].y * 3);
+  let n = 0;
+  const roll = () => grain(n++, seed, 7);
+  const pick = (list) => list[Math.floor(roll() * list.length) % list.length];
+  const at = (s, u, z) => {
+    const [x, y] = walk(spots, Math.max(0, Math.min(length, s)), u);
+    return [x, y - (z - ROSE.tall / 2) * ROSE.lift, z];
+  };
+  const count = Math.max(2, Math.round(length / ROSE.gap)), step = length / count;
+  for (let b = 0; b < count; b++) {
+    const end = b === 0 || b === count - 1, grow = end ? 0.75 : 1;
+    const s0 = step * (b + 0.5) + (roll() - 0.5) * step * 0.3, u0 = (b % 2 ? 1 : -1) * half * (0.2 + roll() * 0.25);
+    const [bx, by] = at(s0, u0, 0);
+    m.egg(bx, by, 0, 2.6, 1.8, 1.2, ROSE.soil);
+    const canes = 5 + Math.floor(roll() * 3);
+    for (let c = 0; c < canes; c++) {
+      const a = (c / canes) * Math.PI * 2 + roll() * 0.8, reach = (5 + roll() * 3.5) * grow;
+      const top = (ROSE.tall * (0.6 + roll() * 0.4)) * grow, cane = pick(ROSE.cane), r = 1.25 + roll() * 0.4;
+      const point = (f) => at(s0 + Math.cos(a) * reach * f, Math.max(-half + 2, Math.min(half - 2,
+        u0 + Math.sin(a) * reach * f)), top * Math.sin(f * Math.PI * 0.62) / Math.sin(Math.PI * 0.62));
+      const steps = 6;
+      for (let k = 0; k < steps; k++) {
+        const p = point(k / steps), q = point((k + 1) / steps);
+        m.limb(p[0], p[1], p[2], q[0], q[1], q[2], r * (1 - 0.45 * k / steps), cane, 0.2,
+          r * (1 - 0.45 * (k + 1) / steps));
+      }
+      for (const f of [0.25, 0.45, 0.65, 0.85]) {
+        if (roll() > 0.65) continue;
+        const [x, y, z] = point(f), out = roll() < 0.5 ? 1 : -1;
+        m.limb(x, y, z, x + out * 2, y - 1, z + 1, 0.7, pick(ROSE.thorn), 0.3, 0.12);
+      }
+      for (const f of [0.55, 0.9]) {
+        if (roll() > 0.6) continue;
+        const [x, y, z] = point(f);
+        m.egg(x + (roll() - 0.5) * 2.4, y + (roll() - 0.5) * 2.4, z + 0.7, 1.9, 1.2, 0.7, pick(ROSE.leaf), 0.2);
+      }
+      if (c === 0 && roll() < 0.5) {
+        const [x, y, z] = point(1);
+        m.ball(x, y, z + 1.2, 1.7, pick(ROSE.bloom), 0.4);
+      }
+    }
+  }
+  return m.paint();
+}
+
+export function drawSnare(r) {
+  const size = Math.ceil(r * 2.6 + 8), m = new Model(size, 1), c = size / 2, foot = c + r * 0.55;
+  for (let k = 0; k < 16; k++) {
+    const a0 = k / 16 * Math.PI * 2, a1 = (k + 1) / 16 * Math.PI * 2, front = Math.sin(a0) > -0.2;
+    m.limb(c + Math.cos(a0) * r, foot + Math.sin(a0) * r * 0.4, front ? 3 : 1,
+      c + Math.cos(a1) * r, foot + Math.sin(a1) * r * 0.4, front ? 3 : 1, front ? 1.6 : 1.1, SNARE.bark[k % 3], 0.2);
+  }
+  for (let i = 0; i < 5; i++) {
+    const a = Math.PI * (0.12 + i * 0.19), sx = c + Math.cos(a) * r, sy = foot + Math.sin(a) * r * 0.4;
+    const ex = c + Math.cos(a) * r * 0.2 + (i % 2 ? 2 : -2), ey = foot - r * (1.1 + 0.25 * (i % 2));
+    const point = (f) => [sx + (ex - sx) * f + Math.cos(a) * r * 0.3 * Math.sin(f * Math.PI), sy + (ey - sy) * f,
+      4 + f * 3];
+    for (let k = 0; k < 6; k++) {
+      const p = point(k / 6), q = point((k + 1) / 6);
+      m.limb(p[0], p[1], p[2], q[0], q[1], q[2], 1.7 - k * 0.15, SNARE.bark[i % 3], 0.2, 1.55 - k * 0.15);
+    }
+    const [lx, ly, lz] = point(1);
+    m.egg(lx, ly, lz + 1, 1.6, 1.1, 0.7, SNARE.leaf, 0.2);
+  }
+  return m.paint();
+}
+
 const LAVA = {
   warm: ['#fff3b0', '#ffd84a', '#f97316', '#c2410c', '#7c2d12'],
   blue: ['#e0f2ff', '#9bd5ff', '#3b82f6', '#1d4ed8', '#1e3a8a'],

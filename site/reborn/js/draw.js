@@ -3,9 +3,9 @@ import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintR
 import { FIRE, MECH, WOOD, flightAt } from './battle.js';
 import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite, cocoonSprite,
   coinSprite, fireballSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
-  meteorSprite, grenadeSprite, droneSprite, birdSprite, hawkSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
+  meteorSprite, grenadeSprite, droneSprite, birdSprite, hawkSprite, snareSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
   rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, ventSprite, wallSprite } from './sprites.js';
-import { SOILS } from './props.js';
+import { SOILS, drawRootWall } from './props.js';
 import { MUZZLES, RELOAD_FRAMES } from './models.js';
 import { gearColor } from './gacha.js';
 
@@ -175,9 +175,6 @@ function pixels(ctx, x, y, shape, color, tip = color) {
 
 const WALL_HALF = CELL * 0.38;
 const WALL_ROUND = 0.9;
-const ROOT_TONES = ['#3b2a1a', '#4b3621', '#5e4429', '#6f4e2c', '#7a5a3a', '#5b4a3a', '#6b3f2a', '#4f4a2a'];
-const ROOT_MOSS = ['#4d6b2a', '#5f7f32', '#3f5a24'];
-
 function roadCurve(line) {
   const corners = [];
   for (const [x, y] of line) {
@@ -242,85 +239,20 @@ function wallBand(blaze) {
     height: Math.ceil(Math.max(...ys)) + 4 - top, roots: null };
 }
 
-function bandPath(ctx, band, dx = 0, dy = 0) {
-  const { spots } = band;
-  ctx.beginPath();
-  spots.forEach((p, i) => {
-    const x = p.x + p.nx * WALL_HALF - dx, y = p.y + p.ny * WALL_HALF - dy;
-    if (i) ctx.lineTo(x, y);
-    else ctx.moveTo(x, y);
-  });
-  for (let i = spots.length - 1; i >= 0; i--) {
-    const p = spots[i];
-    ctx.lineTo(p.x - p.nx * WALL_HALF - dx, p.y - p.ny * WALL_HALF - dy);
-  }
-  ctx.closePath();
+function wallSpots(band) {
+  return band.spots.map((p) => ({ x: p.x - band.left, y: p.y - band.top, nx: p.nx, ny: p.ny, s: p.s }));
 }
 
-function bandAt(band, s, u) {
+function bandSpot(band, s) {
   const { spots } = band;
   let lo = 0, hi = spots.length - 1;
   while (hi - lo > 1) {
-    const m = (lo + hi) >> 1;
-    if (spots[m].s <= s) lo = m;
-    else hi = m;
+    const mid = (lo + hi) >> 1;
+    if (spots[mid].s <= s) lo = mid;
+    else hi = mid;
   }
   const a = spots[lo], b = spots[hi], f = b.s > a.s ? Math.max(0, Math.min(1, (s - a.s) / (b.s - a.s))) : 0;
-  const nx = a.nx + (b.nx - a.nx) * f, ny = a.ny + (b.ny - a.ny) * f;
-  return [a.x + (b.x - a.x) * f + nx * u, a.y + (b.y - a.y) * f + ny * u];
-}
-
-function paintRoots(band) {
-  const canvas = document.createElement('canvas');
-  canvas.width = band.width;
-  canvas.height = band.height;
-  const g = canvas.getContext('2d'), seed = Math.round(band.length * 7 + band.left * 3 + band.top);
-  const roll = (i, k) => noise(i * 7.13 + k, seed);
-  const dot = (x, y, size, color) => {
-    g.fillStyle = color;
-    g.fillRect(Math.round(x - band.left - size / 2), Math.round(y - band.top - size / 2), size, size);
-  };
-  g.save();
-  bandPath(g, band, band.left, band.top);
-  g.clip();
-  g.globalAlpha = 0.5;
-  bandPath(g, band, band.left, band.top);
-  g.fillStyle = '#1e140b';
-  g.fill();
-  g.globalAlpha = 1;
-  const strands = [], span = WALL_HALF + 3;
-  for (let s = -10, i = 0; s < band.length + 10; s += 3 + roll(i, 1) * 3, i++) {
-    const lean = (roll(i, 2) < 0.5 ? -1 : 1) * (8 + roll(i, 3) * 12), bulge = (roll(i, 4) - 0.5) * 8;
-    const thick = roll(i, 5) < 0.3 ? 3 : 2, tone = ROOT_TONES[Math.floor(roll(i, 6) * ROOT_TONES.length)];
-    strands.push({ s, lean, bulge, thick, tone, i });
-  }
-  const along = (st, f) => bandAt(band, st.s + st.lean * f + Math.sin(f * Math.PI) * st.bulge, -span + 2 * span * f);
-  for (const pass of [0, 1]) {
-    for (const st of strands) {
-      for (let k = 0; k <= 24; k++) {
-        const [x, y] = along(st, k / 24);
-        if (pass) dot(x, y, st.thick, st.tone);
-        else dot(x, y + 1, st.thick + 1, '#140d07');
-      }
-    }
-  }
-  for (const st of strands) {
-    for (let k = 3; k < 24; k += 5 + Math.floor(roll(st.i, k) * 4)) {
-      const [x, y] = along(st, k / 24);
-      if (roll(st.i, k + 40) < 0.45) {
-        dot(x, y - 1.5, 1, '#c9b48a');
-        dot(x - 0.5, y - 2.5, 1, '#e3d4b0');
-      } else if (roll(st.i, k + 80) < 0.25) {
-        const moss = ROOT_MOSS[Math.floor(roll(st.i, k + 90) * ROOT_MOSS.length)];
-        dot(x, y, 2, moss);
-        dot(x + 1, y - 1, 1, ROOT_MOSS[1]);
-      } else if (roll(st.i, k + 120) < 0.06) {
-        dot(x, y - 1, 2, roll(st.i, k + 130) < 0.5 ? '#e8d27a' : '#c9a3d8');
-      }
-    }
-  }
-  g.restore();
-  return canvas;
+  return [a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f, a.nx + (b.nx - a.nx) * f, a.ny + (b.ny - a.ny) * f];
 }
 
 function square(ctx, x, y, size, color) {
@@ -1253,31 +1185,34 @@ export class Scene {
 
   _fireWall(ctx, blaze, blue, seed) {
     const tones = blue ? BLUE_FLAME : FLAME, [warm, core] = HEAT[blue ? 'blue' : 'warm'];
-    const band = this._wallBand(blaze), spots = band.spots;
-    ctx.save();
-    bandPath(ctx, band);
-    ctx.clip();
+    const band = this._wallBand(blaze), spots = [], ease = CELL * 0.6;
+    for (let s = 1.5; s < band.length; s += 3) {
+      const [x, y, nx, ny] = bandSpot(band, s);
+      const f = Math.min(1, Math.min(s, band.length - s) / ease);
+      spots.push({ x, y, nx, ny, fade: f * f * (3 - 2 * f) });
+    }
     spots.forEach((spot, i) => {
-      if (i % 4) return;
-      glow(ctx, spot.x, spot.y, CELL * 0.5, 'rgba(40, 14, 6, .9)', 0.3);
-      glow(ctx, spot.x, spot.y, CELL * 0.55, warm, 0.4);
-      glow(ctx, spot.x, spot.y, CELL * 0.28, core, 0.3 + 0.1 * Math.sin(this.clock * 9 + i));
+      if (i % 3 !== 1) return;
+      glow(ctx, spot.x, spot.y, CELL * 0.42, 'rgba(40, 14, 6, .9)', 0.35 * spot.fade);
+      glow(ctx, spot.x, spot.y, CELL * 0.45, warm, 0.5 * spot.fade);
+      glow(ctx, spot.x, spot.y - 6, CELL * 0.28, core, (0.3 + 0.1 * Math.sin(this.clock * 9 + i)) * spot.fade);
     });
+    const span = WALL_HALF - 3;
     spots.forEach((spot, i) => {
-      if (i % 2) return;
-      const side = (noise(i + 3, seed) - 0.5) * 2 * (WALL_HALF - 3);
-      ctx.globalAlpha = 0.9;
-      bit(ctx, spot.x + spot.nx * side, spot.y + spot.ny * side + 2, 3, tones[i % 4 ? 1 : 2], i + this.clock * 6);
-    });
-    ctx.restore();
-    spots.forEach((spot, i) => {
-      if (i % 2) return;
-      for (const shift of [0, 0.5]) {
-        const rise = (this.clock * 2.2 + noise(i, seed) + shift) % 1;
-        const side = (noise(i + 7, seed + shift) - 0.5) * 2 * (WALL_HALF - 4);
-        ctx.globalAlpha = 1 - rise * 0.7;
-        bit(ctx, spot.x + spot.nx * side, spot.y + spot.ny * side + 2 - rise * 22, rise < 0.35 ? 4 : 3,
-          tones[Math.min(tones.length - 1, Math.floor(rise * tones.length))], i * 2 + shift * 2 + this.clock * 9);
+      if (spot.fade < 0.08) return;
+      for (const shift of [0, 1 / 3, 2 / 3]) {
+        const rise = (this.clock * 2.2 + noise(i, seed) + shift) % 1, across = noise(i + 7, seed + shift) * 2 - 1;
+        const edge = 1 - across * across, side = across * span * spot.fade, high = (0.35 + 0.65 * edge) * spot.fade;
+        ctx.globalAlpha = (1 - rise * 0.7) * (0.45 + 0.55 * edge) * spot.fade;
+        bit(ctx, spot.x + spot.nx * side, spot.y + spot.ny * side + 3 - rise * 22 * high,
+          rise < 0.35 && high > 0.6 ? 4 : 3, tones[Math.min(tones.length - 1, Math.floor(rise * tones.length))],
+          i * 3 + shift * 3 + this.clock * 9);
+      }
+      for (const across of [-0.6, 0, 0.6]) {
+        const side = across * span * spot.fade;
+        ctx.globalAlpha = 0.9 * spot.fade * (1 - across * across * 0.5);
+        bit(ctx, spot.x + spot.nx * side, spot.y + spot.ny * side + 4, 3, tones[(i + Math.round(across * 2)) % 2 ? 1 : 2],
+          i + across * 5 + this.clock * 6);
       }
     });
     ctx.globalAlpha = 1;
@@ -1285,8 +1220,11 @@ export class Scene {
 
   _rootWall(ctx, blaze) {
     const band = this._wallBand(blaze);
-    if (!band.roots) band.roots = paintRoots(band);
-    ctx.drawImage(band.roots, band.left, band.top);
+    if (!band.roots) {
+      const image = drawRootWall(wallSpots(band), band.length, Math.max(band.width, band.height), WALL_HALF);
+      band.roots = { image, pad: (image.width - Math.max(band.width, band.height)) / 2 };
+    }
+    ctx.drawImage(band.roots.image, band.left - band.roots.pad, band.top - band.roots.pad);
   }
 
   _blazes(ctx, battle) {
@@ -1941,15 +1879,7 @@ export class Scene {
   }
 
   _rootOn(ctx, mob, x, y, size) {
-    const r = Math.max(8, size * 0.42), base = y + r * 0.55;
-    for (let i = 0; i < 5; i++) {
-      const a = Math.PI * (0.15 + i * 0.175), sway = Math.sin(this.clock * 3 + i + mob.id) * 0.6;
-      const sx = x + Math.cos(a) * r * 1.1, sy = base + Math.sin(a) * 2;
-      for (let k = 0; k < 6; k++) {
-        const f = k / 5, px = sx + (x - sx) * f * 0.55 + sway * f, py = sy - f * r * 0.9 - Math.sin(f * Math.PI) * 2;
-        square(ctx, px, py, k < 4 ? 2 : 1, k < 4 ? (i % 2 ? '#4b3621' : '#5e4429') : '#4d7c0f');
-      }
-    }
+    sprite(ctx, snareSprite(Math.round(Math.max(9, size * 0.45))), x, y, 0, 2);
   }
 
   _netOn(ctx, x, y, size) {

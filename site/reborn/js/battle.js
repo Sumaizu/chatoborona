@@ -1613,7 +1613,8 @@ export class Battle {
 
   _snare(owner, mob, t) {
     const now = this.time, s = WOOD.snare;
-    if (!owner.runes.has('snare') || mob.dead || mob.info.boss || steady(mob, now) || now < mob.rootFree) return;
+    if (!owner.runes.has('snare') || mob.dead || mob.info.boss || mob.flying || steady(mob, now)
+      || now < mob.rootFree) return;
     if (this.random() >= s.chance) return;
     mob.rootUntil = now + s.time * (1 - mob.resist);
     mob.rootFree = mob.rootUntil + s.gap;
