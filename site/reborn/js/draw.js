@@ -173,6 +173,156 @@ function pixels(ctx, x, y, shape, color, tip = color) {
   });
 }
 
+const WALL_HALF = CELL * 0.38;
+const WALL_ROUND = 0.9;
+const ROOT_TONES = ['#3b2a1a', '#4b3621', '#5e4429', '#6f4e2c', '#7a5a3a', '#5b4a3a', '#6b3f2a', '#4f4a2a'];
+const ROOT_MOSS = ['#4d6b2a', '#5f7f32', '#3f5a24'];
+
+function roadCurve(line) {
+  const corners = [];
+  for (const [x, y] of line) {
+    const q = [x + 0.5, y + 0.5], a = corners[corners.length - 2], b = corners[corners.length - 1];
+    if (a && (b[0] - a[0]) * (q[1] - b[1]) === (b[1] - a[1]) * (q[0] - b[0])) corners[corners.length - 1] = q;
+    else corners.push(q);
+  }
+  const points = [corners[0]], step = 0.04;
+  const line2 = (p, q) => {
+    const n = Math.max(1, Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]) / step));
+    for (let k = 1; k <= n; k++) points.push([p[0] + (q[0] - p[0]) * k / n, p[1] + (q[1] - p[1]) * k / n]);
+  };
+  for (let i = 1; i < corners.length - 1; i++) {
+    const a = corners[i - 1], b = corners[i], c = corners[i + 1];
+    const la = Math.hypot(b[0] - a[0], b[1] - a[1]), lc = Math.hypot(c[0] - b[0], c[1] - b[1]);
+    const r = Math.min(WALL_ROUND, la / 2, lc / 2);
+    const u = [(b[0] - a[0]) / la, (b[1] - a[1]) / la], v = [(c[0] - b[0]) / lc, (c[1] - b[1]) / lc];
+    const t1 = [b[0] - u[0] * r, b[1] - u[1] * r], center = [t1[0] + v[0] * r, t1[1] + v[1] * r];
+    line2(points[points.length - 1], t1);
+    const from = Math.atan2(t1[1] - center[1], t1[0] - center[0]), turn = u[0] * v[1] - u[1] * v[0] > 0 ? 1 : -1;
+    const n = Math.ceil(r * Math.PI / 2 / step);
+    for (let k = 1; k <= n; k++) {
+      const a2 = from + turn * Math.PI / 2 * k / n;
+      points.push([center[0] + Math.cos(a2) * r, center[1] + Math.sin(a2) * r]);
+    }
+  }
+  line2(points[points.length - 1], corners[corners.length - 1]);
+  return points;
+}
+
+function wallBand(blaze) {
+  const { line, from, size } = blaze, last = from + size - 1;
+  const mid = (p, q) => [(p[0] + q[0]) / 2 + 0.5, (p[1] + q[1]) / 2 + 0.5];
+  const out = (p, q) => [p[0] + (p[0] - q[0]) / 2 + 0.5, p[1] + (p[1] - q[1]) / 2 + 0.5];
+  const start = from > 0 ? mid(line[from - 1], line[from]) : out(line[from], line[from + 1]);
+  const end = last < line.length - 1 ? mid(line[last], line[last + 1]) : out(line[last], line[last - 1]);
+  const curve = roadCurve(line);
+  const nearest = (p) => {
+    let best = 0, low = Infinity;
+    curve.forEach((q, i) => {
+      const d = (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2;
+      if (d < low) {
+        low = d;
+        best = i;
+      }
+    });
+    return best;
+  };
+  const i0 = nearest(start), i1 = nearest(end), part = curve.slice(Math.min(i0, i1), Math.max(i0, i1) + 1);
+  const spots = [];
+  let s = 0;
+  part.forEach((p, i) => {
+    const a = part[Math.max(0, i - 1)], b = part[Math.min(part.length - 1, i + 1)];
+    const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1;
+    if (i) s += Math.hypot(p[0] - part[i - 1][0], p[1] - part[i - 1][1]) * CELL;
+    spots.push({ x: at(p[0]), y: at(p[1]), nx: -dy / len, ny: dx / len, s });
+  });
+  const xs = spots.flatMap((p) => [p.x + p.nx * WALL_HALF, p.x - p.nx * WALL_HALF]);
+  const ys = spots.flatMap((p) => [p.y + p.ny * WALL_HALF, p.y - p.ny * WALL_HALF]);
+  const left = Math.floor(Math.min(...xs)) - 4, top = Math.floor(Math.min(...ys)) - 4;
+  return { spots, length: s, left, top, width: Math.ceil(Math.max(...xs)) + 4 - left,
+    height: Math.ceil(Math.max(...ys)) + 4 - top, roots: null };
+}
+
+function bandPath(ctx, band, dx = 0, dy = 0) {
+  const { spots } = band;
+  ctx.beginPath();
+  spots.forEach((p, i) => {
+    const x = p.x + p.nx * WALL_HALF - dx, y = p.y + p.ny * WALL_HALF - dy;
+    if (i) ctx.lineTo(x, y);
+    else ctx.moveTo(x, y);
+  });
+  for (let i = spots.length - 1; i >= 0; i--) {
+    const p = spots[i];
+    ctx.lineTo(p.x - p.nx * WALL_HALF - dx, p.y - p.ny * WALL_HALF - dy);
+  }
+  ctx.closePath();
+}
+
+function bandAt(band, s, u) {
+  const { spots } = band;
+  let lo = 0, hi = spots.length - 1;
+  while (hi - lo > 1) {
+    const m = (lo + hi) >> 1;
+    if (spots[m].s <= s) lo = m;
+    else hi = m;
+  }
+  const a = spots[lo], b = spots[hi], f = b.s > a.s ? Math.max(0, Math.min(1, (s - a.s) / (b.s - a.s))) : 0;
+  const nx = a.nx + (b.nx - a.nx) * f, ny = a.ny + (b.ny - a.ny) * f;
+  return [a.x + (b.x - a.x) * f + nx * u, a.y + (b.y - a.y) * f + ny * u];
+}
+
+function paintRoots(band) {
+  const canvas = document.createElement('canvas');
+  canvas.width = band.width;
+  canvas.height = band.height;
+  const g = canvas.getContext('2d'), seed = Math.round(band.length * 7 + band.left * 3 + band.top);
+  const roll = (i, k) => noise(i * 7.13 + k, seed);
+  const dot = (x, y, size, color) => {
+    g.fillStyle = color;
+    g.fillRect(Math.round(x - band.left - size / 2), Math.round(y - band.top - size / 2), size, size);
+  };
+  g.save();
+  bandPath(g, band, band.left, band.top);
+  g.clip();
+  g.globalAlpha = 0.5;
+  bandPath(g, band, band.left, band.top);
+  g.fillStyle = '#1e140b';
+  g.fill();
+  g.globalAlpha = 1;
+  const strands = [], span = WALL_HALF + 3;
+  for (let s = -10, i = 0; s < band.length + 10; s += 3 + roll(i, 1) * 3, i++) {
+    const lean = (roll(i, 2) < 0.5 ? -1 : 1) * (8 + roll(i, 3) * 12), bulge = (roll(i, 4) - 0.5) * 8;
+    const thick = roll(i, 5) < 0.3 ? 3 : 2, tone = ROOT_TONES[Math.floor(roll(i, 6) * ROOT_TONES.length)];
+    strands.push({ s, lean, bulge, thick, tone, i });
+  }
+  const along = (st, f) => bandAt(band, st.s + st.lean * f + Math.sin(f * Math.PI) * st.bulge, -span + 2 * span * f);
+  for (const pass of [0, 1]) {
+    for (const st of strands) {
+      for (let k = 0; k <= 24; k++) {
+        const [x, y] = along(st, k / 24);
+        if (pass) dot(x, y, st.thick, st.tone);
+        else dot(x, y + 1, st.thick + 1, '#140d07');
+      }
+    }
+  }
+  for (const st of strands) {
+    for (let k = 3; k < 24; k += 5 + Math.floor(roll(st.i, k) * 4)) {
+      const [x, y] = along(st, k / 24);
+      if (roll(st.i, k + 40) < 0.45) {
+        dot(x, y - 1.5, 1, '#c9b48a');
+        dot(x - 0.5, y - 2.5, 1, '#e3d4b0');
+      } else if (roll(st.i, k + 80) < 0.25) {
+        const moss = ROOT_MOSS[Math.floor(roll(st.i, k + 90) * ROOT_MOSS.length)];
+        dot(x, y, 2, moss);
+        dot(x + 1, y - 1, 1, ROOT_MOSS[1]);
+      } else if (roll(st.i, k + 120) < 0.06) {
+        dot(x, y - 1, 2, roll(st.i, k + 130) < 0.5 ? '#e8d27a' : '#c9a3d8');
+      }
+    }
+  }
+  g.restore();
+  return canvas;
+}
+
 function square(ctx, x, y, size, color) {
   ctx.fillStyle = color;
   ctx.fillRect(Math.round(x - size / 2), Math.round(y - size / 2), size, size);
@@ -467,6 +617,7 @@ export class Scene {
     this.shown = new Map();
     this.trails = new Map();
     this.droneSpots = new WeakMap();
+    this.bands = new WeakMap();
     this.poses = new Map();
     this.flights = new WeakMap();
     this.effects = [];
@@ -1091,83 +1242,61 @@ export class Scene {
     ctx.globalAlpha = 1;
   }
 
-  _fireWall(ctx, cells, blue, seed) {
-    const tones = blue ? BLUE_FLAME : FLAME, [warm, core] = HEAT[blue ? 'blue' : 'warm'];
-    const first = cells[0], second = cells[1] || first, last = cells[cells.length - 1];
-    const before = cells[cells.length - 2] || last;
-    const points = [{ x: first.x - (second.x - first.x) / 2, y: first.y - (second.y - first.y) / 2 }].concat(cells,
-      [{ x: last.x + (last.x - before.x) / 2, y: last.y + (last.y - before.y) / 2 }]);
-    const spots = [];
-    for (let i = 0; i < points.length - 1; i++) {
-      const a = points[i], b = points[i + 1];
-      const steps = Math.max(1, Math.round(Math.hypot(b.x - a.x, b.y - a.y) * CELL / 3));
-      for (let k = 0; k < steps; k++) {
-        spots.push({ x: at(a.x + (b.x - a.x) * k / steps), y: at(a.y + (b.y - a.y) * k / steps) });
-      }
+  _wallBand(blaze) {
+    let band = this.bands.get(blaze);
+    if (!band) {
+      band = wallBand(blaze);
+      this.bands.set(blaze, band);
     }
+    return band;
+  }
+
+  _fireWall(ctx, blaze, blue, seed) {
+    const tones = blue ? BLUE_FLAME : FLAME, [warm, core] = HEAT[blue ? 'blue' : 'warm'];
+    const band = this._wallBand(blaze), spots = band.spots;
+    ctx.save();
+    bandPath(ctx, band);
+    ctx.clip();
     spots.forEach((spot, i) => {
-      if (i % 3) return;
-      glow(ctx, spot.x, spot.y, CELL * 0.55, 'rgba(40, 14, 6, .9)', 0.3);
-      glow(ctx, spot.x, spot.y, CELL * 0.65, warm, 0.4);
-      glow(ctx, spot.x, spot.y - 6, CELL * 0.3, core, 0.3 + 0.1 * Math.sin(this.clock * 9 + i));
+      if (i % 4) return;
+      glow(ctx, spot.x, spot.y, CELL * 0.5, 'rgba(40, 14, 6, .9)', 0.3);
+      glow(ctx, spot.x, spot.y, CELL * 0.55, warm, 0.4);
+      glow(ctx, spot.x, spot.y, CELL * 0.28, core, 0.3 + 0.1 * Math.sin(this.clock * 9 + i));
     });
     spots.forEach((spot, i) => {
+      if (i % 2) return;
+      const side = (noise(i + 3, seed) - 0.5) * 2 * (WALL_HALF - 3);
+      ctx.globalAlpha = 0.9;
+      bit(ctx, spot.x + spot.nx * side, spot.y + spot.ny * side + 2, 3, tones[i % 4 ? 1 : 2], i + this.clock * 6);
+    });
+    ctx.restore();
+    spots.forEach((spot, i) => {
+      if (i % 2) return;
       for (const shift of [0, 0.5]) {
-        const rise = (this.clock * 2.2 + noise(i, seed) + shift) % 1, side = (noise(i + 7, seed + shift) - 0.5) * 6;
+        const rise = (this.clock * 2.2 + noise(i, seed) + shift) % 1;
+        const side = (noise(i + 7, seed + shift) - 0.5) * 2 * (WALL_HALF - 4);
         ctx.globalAlpha = 1 - rise * 0.7;
-        bit(ctx, spot.x + side, spot.y + 3 - rise * 22, rise < 0.35 ? 4 : 3,
+        bit(ctx, spot.x + spot.nx * side, spot.y + spot.ny * side + 2 - rise * 22, rise < 0.35 ? 4 : 3,
           tones[Math.min(tones.length - 1, Math.floor(rise * tones.length))], i * 2 + shift * 2 + this.clock * 9);
       }
-      ctx.globalAlpha = 0.9;
-      bit(ctx, spot.x, spot.y + 4, 3, tones[i % 2 ? 1 : 2], i + this.clock * 6);
     });
     ctx.globalAlpha = 1;
   }
 
-  _rootWall(ctx, cells, seed) {
-    const first = cells[0], second = cells[1] || first, last = cells[cells.length - 1];
-    const before = cells[cells.length - 2] || last;
-    const points = [{ x: first.x - (second.x - first.x) * 0.4, y: first.y - (second.y - first.y) * 0.4 }].concat(cells,
-      [{ x: last.x + (last.x - before.x) * 0.4, y: last.y + (last.y - before.y) * 0.4 }]);
-    const spots = [];
-    for (let i = 0; i < points.length - 1; i++) {
-      const a = points[i], b = points[i + 1], len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-      const steps = Math.max(1, Math.round(len * CELL / 2));
-      for (let k = 0; k < steps; k++) {
-        spots.push({ x: at(a.x + (b.x - a.x) * k / steps), y: at(a.y + (b.y - a.y) * k / steps),
-          nx: -(b.y - a.y) / len, ny: (b.x - a.x) / len });
-      }
-    }
-    ctx.globalAlpha = 0.85;
-    spots.forEach((spot, i) => {
-      for (const [phase, color] of [[0, '#4b3621'], [2.6, '#5e4429']]) {
-        const off = Math.sin(i * 0.33 + phase + seed) * 4;
-        square(ctx, spot.x + spot.nx * off, spot.y + spot.ny * off, 2, color);
-      }
-      if (i % 7 === 3) {
-        const side = i % 14 === 3 ? 1 : -1, off = Math.sin(i * 0.33 + seed) * 4;
-        const bx = spot.x + spot.nx * off, by = spot.y + spot.ny * off;
-        square(ctx, bx + spot.nx * side * 2.5, by + spot.ny * side * 2.5, 1, '#8c7a58');
-        square(ctx, bx + spot.nx * side * 3.5, by + spot.ny * side * 3.5, 1, '#a8977a');
-      }
-      if (i % 17 === 8) {
-        const off = Math.sin(i * 0.33 + 2.6 + seed) * 4 + 2;
-        square(ctx, spot.x + spot.nx * off, spot.y + spot.ny * off - 1, 2, '#4d7c0f');
-      }
-    });
-    ctx.globalAlpha = 1;
+  _rootWall(ctx, blaze) {
+    const band = this._wallBand(blaze);
+    if (!band.roots) band.roots = paintRoots(band);
+    ctx.drawImage(band.roots, band.left, band.top);
   }
 
   _blazes(ctx, battle) {
     for (const t of battle.towers) {
       if (t.cls.id === 'pyro' && t.runes.has('torch')) this._torch(ctx, t);
       if (t.torch && battle.towers.includes(t.torch)) this._torchLit(ctx, t);
-      if (t.style === 'druid' && t.runes.has('roots')) {
-        this._rootWall(ctx, battle._blazeOf(t, WOOD.roots.cells).cells, (t.x * 7 + t.y * 13) % 9);
-      }
+      if (t.style === 'druid' && t.runes.has('roots')) this._rootWall(ctx, battle._blazeOf(t, WOOD.roots.cells));
       if (t.style !== 'ignite') continue;
       const blue = t.runes.has('blue'), tones = blue ? BLUE_FLAME : FLAME;
-      if (t.runes.has('fireWall')) this._fireWall(ctx, battle._blazeOf(t).cells, blue, (t.x * 7 + t.y * 13) % 9);
+      if (t.runes.has('fireWall')) this._fireWall(ctx, battle._blazeOf(t), blue, (t.x * 7 + t.y * 13) % 9);
       if (!t.ring) continue;
       const x = at(t.cx), y = at(t.cy), r = t.ring * CELL, seed = (t.x * 7 + t.y * 13) % 9;
       glow(ctx, x, y, r, HEAT[blue ? 'blue' : 'warm'][0], 0.22);

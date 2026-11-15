@@ -1806,7 +1806,8 @@ export class Battle {
     const main = best < this.path.length, line = main ? this.path : this.branch.concat([this.path[this.merge]]);
     const k = main ? best : best - this.path.length;
     const from = Math.max(0, Math.min(k - Math.floor(size / 2), line.length - size));
-    t.blaze = { key, cells: line.slice(from, from + size).map(([x, y]) => ({ x: x + 0.5, y: y + 0.5 })) };
+    const cells = line.slice(from, from + size).map(([x, y]) => ({ x: x + 0.5, y: y + 0.5 }));
+    t.blaze = { key, line, from, size, cells };
     return t.blaze;
   }
 
