@@ -239,10 +239,6 @@ function wallBand(blaze) {
     height: Math.ceil(Math.max(...ys)) + 4 - top, roots: null };
 }
 
-function wallSpots(band) {
-  return band.spots.map((p) => ({ x: p.x - band.left, y: p.y - band.top, nx: p.nx, ny: p.ny, s: p.s }));
-}
-
 function bandSpot(band, s) {
   const { spots } = band;
   let lo = 0, hi = spots.length - 1;
@@ -1183,14 +1179,19 @@ export class Scene {
     return band;
   }
 
-  _fireWall(ctx, blaze, blue, seed) {
-    const tones = blue ? BLUE_FLAME : FLAME, [warm, core] = HEAT[blue ? 'blue' : 'warm'];
+  _wallSpots(blaze) {
     const band = this._wallBand(blaze), spots = [], ease = CELL * 0.6;
     for (let s = 1.5; s < band.length; s += 3) {
       const [x, y, nx, ny] = bandSpot(band, s);
       const f = Math.min(1, Math.min(s, band.length - s) / ease);
       spots.push({ x, y, nx, ny, fade: f * f * (3 - 2 * f) });
     }
+    return spots;
+  }
+
+  _fireWall(ctx, blaze, blue, seed) {
+    const tones = blue ? BLUE_FLAME : FLAME, [warm, core] = HEAT[blue ? 'blue' : 'warm'];
+    const spots = this._wallSpots(blaze);
     spots.forEach((spot, i) => {
       if (i % 3 !== 1) return;
       glow(ctx, spot.x, spot.y, CELL * 0.42, 'rgba(40, 14, 6, .9)', 0.35 * spot.fade);
@@ -1221,9 +1222,15 @@ export class Scene {
   _rootWall(ctx, blaze) {
     const band = this._wallBand(blaze);
     if (!band.roots) {
-      const image = drawRootWall(wallSpots(band), band.length, Math.max(band.width, band.height), WALL_HALF);
-      band.roots = { image, pad: (image.width - Math.max(band.width, band.height)) / 2 };
+      const size = Math.max(band.width, band.height), local = band.spots.map((p) => ({ x: p.x - band.left,
+        y: p.y - band.top, nx: p.nx, ny: p.ny, s: p.s }));
+      const image = drawRootWall(local, band.length, size, WALL_HALF);
+      band.roots = { image, pad: (image.width - size) / 2 };
     }
+    band.spots.forEach((spot, i) => {
+      const f = Math.min(1, Math.min(spot.s, band.length - spot.s) / (CELL * 0.6));
+      if (i % 8 === 4) glow(ctx, spot.x, spot.y, CELL * 0.42, 'rgba(26, 17, 9, .95)', 0.35 * f * f);
+    });
     ctx.drawImage(band.roots.image, band.left - band.roots.pad, band.top - band.roots.pad);
   }
 
@@ -1231,7 +1238,9 @@ export class Scene {
     for (const t of battle.towers) {
       if (t.cls.id === 'pyro' && t.runes.has('torch')) this._torch(ctx, t);
       if (t.torch && battle.towers.includes(t.torch)) this._torchLit(ctx, t);
-      if (t.style === 'druid' && t.runes.has('roots')) this._rootWall(ctx, battle._blazeOf(t, WOOD.roots.cells));
+      if (t.style === 'druid' && t.runes.has('roots')) {
+        this._rootWall(ctx, battle._blazeOf(t, WOOD.roots.cells));
+      }
       if (t.style !== 'ignite') continue;
       const blue = t.runes.has('blue'), tones = blue ? BLUE_FLAME : FLAME;
       if (t.runes.has('fireWall')) this._fireWall(ctx, battle._blazeOf(t), blue, (t.x * 7 + t.y * 13) % 9);
@@ -1746,7 +1755,7 @@ export class Scene {
       }
       if (mob.charge && mob.charge.until > now) this._chargedOn(ctx, mob, x, y - lift, size);
       if (mob.netUntil > now) this._netOn(ctx, x, y - lift, size);
-      if (mob.rootUntil > now) this._rootOn(ctx, mob, x, y - lift, size);
+      if (mob.rootUntil > now) this._rootOn(ctx, mob, x, y - lift, size, now);
       if (mob.muteUntil > now) this._mutedOn(ctx, x, y - lift, size);
       if (mob.rot) this._rotOn(ctx, mob, x, y - lift, size);
       if (mob.weakUntil > now) this._weakOn(ctx, x, y - lift, size, top);
@@ -1878,8 +1887,13 @@ export class Scene {
     ctx.restore();
   }
 
-  _rootOn(ctx, mob, x, y, size) {
-    sprite(ctx, snareSprite(Math.round(Math.max(9, size * 0.45))), x, y, 0, 2);
+  _rootOn(ctx, mob, x, y, size, now) {
+    const r = Math.round(Math.max(9, size * 0.45)), image = snareSprite(r), w = image.width, h = image.height;
+    const grow = Math.max(0, Math.min(1, (now - mob.rootAt) / 0.3, (mob.rootUntil - now) / 0.3));
+    const foot = h / 2 + r * 0.55 + 4, cut = Math.round(foot * (1 - grow));
+    glow(ctx, x, y + r * 0.6, r * 1.2, 'rgba(26, 17, 9, .95)', 0.45 * grow);
+    if (cut >= h) return;
+    ctx.drawImage(image, 0, cut, w, h - cut, Math.round(x - w / 2), Math.round(y - h / 2) + cut, w, h - cut);
   }
 
   _netOn(ctx, x, y, size) {

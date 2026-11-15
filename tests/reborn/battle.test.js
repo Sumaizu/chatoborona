@@ -905,7 +905,7 @@ test('друид, стена корней: 5 клеток дороги рядо�
   eq(hit(ghost), 0, 'нежить яд не берёт');
 });
 
-test('друид, ястреб: до трёх, сперва летучих, у каждого своя цель, бьёт ядом сильнее птицы', () => {
+test('друид, ястреб: до трёх, сперва летучих, у каждого своя цель, бьёт сильнее птицы — наполовину ядом', () => {
   const battle = makeBattle(), t = forester(battle, 1, 4, ['druid', 'hawk', 'hawk', 'hawk']);
   const lead = walker(battle, 17, 1e9), flyer = walker(battle, 6, 1e9, bat()), second = walker(battle, 9, 1e9);
   still(lead, flyer, second);
@@ -921,6 +921,15 @@ test('друид, ястреб: до трёх, сперва летучих, у �
   ok(hawks.every((d) => d.target === flyer), 'цель одна — бьют вместе');
   runFor(battle, 6);
   ok(hit(flyer) > 0 && battle.events.some((e) => e.kind === 'peck' && e.hawk), 'долетели и бьют');
+  const dead = makeBattle(), d = forester(dead, 16, 4, ['druid', 'hawk']), ghost = walker(dead, 17, 1e9);
+  ghost.undead = true;
+  still(ghost);
+  runFor(dead, 4);
+  const claws = dead.events.filter((e) => e.kind === 'peck' && e.hawk).length;
+  const pecks = dead.events.filter((e) => e.kind === 'peck' && !e.hawk).length;
+  ok(claws > 0, 'нежить ястреб тоже бьёт');
+  near(hit(ghost), claws * d.damage * WOOD.hawk.mul * (1 - WOOD.hawk.poison) + pecks * d.damage * WOOD.bird.mul,
+    'по нежити — только обычная половина');
 });
 
 test('друид, путы: удары птиц иногда опутывают моба — стоит на месте; элитных тоже, боссов и летучих нет', () => {

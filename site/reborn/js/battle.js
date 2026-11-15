@@ -98,7 +98,7 @@ export const MECH = { turret: { range: -1.5, interval: 1, mul: 0.3, count: 3, ga
 const DRONE_KINDS = [['droneAttack', 'attack'], ['droneLaser', 'laser'], ['droneAir', 'air']];
 export const WOOD = { bow: { reload: 0.8 }, grace: { radius: 2.5, haste: 0.15 }, hunter: { range: 2, interval: 0.4, mul: 3.4, reload: 2.4 },
   witch: { range: 0, interval: 1.8, mul: 1.3, flight: FIREBALL_FLIGHT }, bird: { every: 0.9, mul: 0.45, speed: 5 },
-  hawk: { every: 1.4, mul: 1.6, speed: 5.5 }, flock: { birds: [1, 2, 4], poison: 0.5 },
+  hawk: { every: 1.4, mul: 1.6, speed: 5.5, poison: 0.5 }, flock: { birds: [1, 2, 4], poison: 0.5 },
   roots: { cells: 5, reach: 0.7, slow: 0.4, mul: 0.15 }, snare: { chance: 0.15, time: 2.5, gap: 3 } };
 const STYLE_ELEMENTS = { witch: 'poison' };
 const DRONE_SHOTS = { attack: MECH.droneAttack, laser: MECH.droneLaser, air: MECH.droneAir, bird: WOOD.bird,
@@ -687,7 +687,7 @@ export class Battle {
       chill: 0,
       mark: 0, markUntil: 0, vuln: 0, vulnUntil: 0, weak: 0, weakUntil: 0, weakBy: null, rush: 0, rushUntil: 0,
       charge: null, rot: null,
-      muteUntil: 0, netUntil: 0, rootUntil: 0, rootFree: 0, thicketUntil: 0,
+      muteUntil: 0, netUntil: 0, rootAt: 0, rootUntil: 0, rootFree: 0, thicketUntil: 0,
       rollAt: this.time + ROLL_EVERY, thornAt: 0, resist: resistOf(this.wave), holdUntil: 0, holdFree: 0,
       holdBy: '', pushed: 0, poison: null, burn: null, helpers: new Set(), last: null, dead: false, biting: 0,
       wall: null, fury: 0, sx: 0, sy: 0, placed: false,
@@ -1561,8 +1561,7 @@ export class Battle {
 
   _droneCan(drone, mob) {
     return !mob.dead && !hidden(mob, this.time) && !this.covered(mob.x, mob.y)
-      && (drone.kind !== 'laser' || big(mob)) && (drone.kind !== 'air' || Boolean(mob.flying))
-      && (drone.kind !== 'hawk' || !mob.undead && !immune(mob, 'poison'));
+      && (drone.kind !== 'laser' || big(mob)) && (drone.kind !== 'air' || Boolean(mob.flying));
   }
 
   _pilot(drone, dt, now) {
@@ -1589,8 +1588,10 @@ export class Battle {
       const owner = drone.source || t, peck = owner.damage * shot.mul, hawk = drone.kind === 'hawk';
       const toxic = !hawk && owner.runes.has('flock');
       this._event({ kind: 'peck', tower: t, mob: target, x: target.x, y: target.y, hawk, toxic });
-      if (hawk) this._hurt(target, peck, t, 'poison');
-      else {
+      if (hawk) {
+        this._hurt(target, peck * (1 - WOOD.hawk.poison), t);
+        this._hurt(target, peck * WOOD.hawk.poison, t, 'poison');
+      } else {
         this._hurt(target, peck, t);
         if (toxic) this._hurt(target, peck * WOOD.flock.poison, t, 'poison');
       }
@@ -1616,6 +1617,7 @@ export class Battle {
     if (!owner.runes.has('snare') || mob.dead || mob.info.boss || mob.flying || steady(mob, now)
       || now < mob.rootFree) return;
     if (this.random() >= s.chance) return;
+    mob.rootAt = now;
     mob.rootUntil = now + s.time * (1 - mob.resist);
     mob.rootFree = mob.rootUntil + s.gap;
     mob.helpers.add(t);
