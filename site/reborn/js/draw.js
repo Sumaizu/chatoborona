@@ -1407,7 +1407,7 @@ export class Scene {
       ctx.fillStyle = 'rgba(0, 0, 0, .25)';
       ctx.beginPath();
       const bird = drone.kind === 'bird', hawk = drone.kind === 'hawk';
-      ctx.ellipse(x, y + 4, hawk ? 15 : bird ? 12 : 7, hawk ? 5 : bird ? 4 : 3, 0, 0, Math.PI * 2);
+      ctx.ellipse(x, y + 4, hawk ? 8 : bird ? 6 : 7, hawk ? 3 : bird ? 2 : 3, 0, 0, Math.PI * 2);
       ctx.fill();
       const image = hawk ? hawkSprite(Math.floor(this.clock * 9 + drone.n) % 3)
         : bird ? birdSprite(Math.floor(this.clock * 12 + drone.n) % 3)
@@ -1416,7 +1416,7 @@ export class Scene {
       if (bird && (drone.source || drone.tower).runes.has('flock')) {
         const drip = (this.clock * 1.6 + drone.n * 0.37) % 1;
         ctx.globalAlpha = 0.8 * (1 - drip);
-        square(ctx, x + Math.sin(drone.n * 2.3) * 3, y - lift + 6 + drip * 10, 2, '#84cc16');
+        square(ctx, x + Math.sin(drone.n * 2.3) * 2, y - lift + 3 + drip * 8, 2, '#84cc16');
         ctx.globalAlpha = 1;
       }
     }

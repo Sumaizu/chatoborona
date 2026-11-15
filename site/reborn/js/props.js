@@ -49,7 +49,7 @@ export function drawDrone(kind, frame) {
 const BIRD = { flap: [1, 0.72, 0.42], lift: [0, 1, 2], feathers: ['#5a3a1e', '#7c4a22', '#94602f', '#7c4a22', '#a0703e'] };
 
 export function drawBird(frame) {
-  const m = new Model(40, 1), open = BIRD.flap[frame], lift = BIRD.lift[frame];
+  const m = new Model(40, 0.5), open = BIRD.flap[frame], lift = BIRD.lift[frame];
   for (let i = 0; i < 5; i++) {
     const dx = (i - 2) * 1.3;
     m.limb(20, 24, 3, 20 + dx * 1.4, 32.5 - Math.abs(i - 2) * 0.6, 2.6, 1.1, i % 2 ? '#5a3a1e' : '#6b4423', 0, 0.8);
@@ -84,7 +84,7 @@ export function drawBird(frame) {
 const HAWK = { flap: [1, 0.7, 0.4], lift: [0, 1, 2], feathers: ['#3b2414', '#4a2c17', '#5c371c', '#4a2c17', '#6b4423'] };
 
 export function drawHawk(frame) {
-  const m = new Model(52, 1), open = HAWK.flap[frame], lift = HAWK.lift[frame], c = 26;
+  const m = new Model(52, 0.5), open = HAWK.flap[frame], lift = HAWK.lift[frame], c = 26;
   for (let i = 0; i < 7; i++) {
     const dx = (i - 3) * 1.15;
     m.limb(c, 30, 3, c + dx * 1.9, 41 - Math.abs(i - 3) * 0.5, 2.4, 1.2, i % 2 ? '#7c3f1d' : '#9a4f24', 0, 0.8);
