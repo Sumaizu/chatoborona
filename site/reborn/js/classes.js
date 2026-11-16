@@ -551,7 +551,18 @@ export const CLASSES = [
       { id: 'holyGround', style: 'angel', name: 'Святая земля', text: 'раз в 6 секунд бросает шар света в случайного '
         + 'врага на карте: где шар упал, расходится угасающее кольцо святого света на 4 клетки и ранит всех, кого '
         + 'задело' },
+      { id: 'heavyShaft', style: 'monk', name: 'Тяжёлое древко', text: 'с шансом 15% удар посохом — критический и '
+        + 'оглушает моба на секунду' },
+      { id: 'mantraSpeed', style: 'monk', name: 'Мантра скорости', text: 'вокруг него оранжевая аура на 3 клетки: '
+        + 'все союзники в ней и он сам атакуют на 15% быстрее' },
+      { id: 'mantraPower', style: 'monk', name: 'Мантра силы', text: 'вокруг него красная аура на 3 клетки: все '
+        + 'союзники в ней и он сам бьют на 15% сильнее' },
+      { id: 'mantraRange', style: 'monk', name: 'Мантра дальности', text: 'вокруг него розовая аура на 3 клетки: '
+        + 'все союзники в ней и он сам бьют на 15% дальше' },
     ],
+    master: { id: 'mantraMaster', style: 'monk', name: 'Повелитель мантр', parts: ['mantraSpeed', 'mantraPower',
+      'mantraRange'], text: 'три мантры слились в одну переливающуюся ауру на 3 клетки: все союзники в ней и он сам '
+      + 'атакуют на 15% быстрее, бьют на 15% сильнее и на 15% дальше, а их мощь выше на 20%' },
     abilities: [],
     skills: [],
     runes: [],
@@ -651,11 +662,22 @@ export function choiceOf(id, taken) {
   if (!style && pool.some((skill) => skill.kind === 'style')) {
     return pool.filter((skill) => skill.kind === 'style').map((skill) => ({ skill, state: 'open', count: 0 }));
   }
-  return pool.filter((skill) => skill.kind !== 'style' && (!skill.style || style && skill.style === style.id))
+  const options = pool.filter((skill) => skill.kind !== 'style' && (!skill.style || style && skill.style === style.id))
     .map((skill) => {
       const count = countOf(taken, skill.id);
       return { skill, count, state: count >= (skill.max || 1) ? 'taken' : 'open' };
     });
+  const master = masterOf(id, taken);
+  if (!master) return options;
+  const at = options.findIndex((option) => master.parts.includes(option.skill.id));
+  const rest = options.filter((option) => !master.parts.includes(option.skill.id));
+  rest.splice(at, 0, { skill: Object.assign({ kind: 'upgrade', perk: null }, master), count: 1, state: 'taken' });
+  return rest;
+}
+
+function masterOf(id, taken) {
+  const cls = CLASS_BY_ID.get(id), master = cls && cls.master;
+  return master && master.parts.every((part) => taken.includes(part)) ? master : null;
 }
 
 export function styleOf(id, taken) {
@@ -679,7 +701,13 @@ export const stonesAt = (level) => STONES.filter((at) => level >= at).length;
 export function describe(id, skills = []) {
   const cls = CLASS_BY_ID.get(id), style = styleOf(id, skills);
   const main = style ? style.text[0].toUpperCase() + style.text.slice(1) : cls.main(cls.base);
+  const master = masterOf(id, skills);
   const unique = skills.filter((skill, i) => skills.indexOf(skill) === i);
-  return { main, skills: unique.map((skill) => skillOf(id, skill)).filter(Boolean)
-    .map((skill) => Object.assign({}, skill, { count: countOf(skills, skill.id) })) };
+  const listed = unique.map((skill) => skillOf(id, skill)).filter(Boolean)
+    .map((skill) => Object.assign({}, skill, { count: countOf(skills, skill.id) }));
+  if (!master) return { main, skills: listed };
+  const at = listed.findIndex((skill) => master.parts.includes(skill.id));
+  const rest = listed.filter((skill) => !master.parts.includes(skill.id));
+  rest.splice(at, 0, Object.assign({ kind: 'upgrade', perk: null, count: 1 }, master));
+  return { main, skills: rest };
 }

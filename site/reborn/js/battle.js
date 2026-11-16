@@ -106,7 +106,9 @@ export const WOOD = { bow: { reload: 0.8 }, grace: { radius: 2.5, haste: 0.15 },
 export const HOLY = { angel: { reach: 1, interval: 1, mul: 2.6 }, monk: { reach: 2, interval: 0.4, mul: 0.8 },
   inquisitor: { reach: 4, interval: 1.45, mul: 2.2, flight: FIREBALL_FLIGHT }, smite: { every: 5, boss: 11 },
   mercy: { reach: 1, lives: 1 }, second: { charge: 1, awe: 10, lives: 10 },
-  holyGround: { every: 6, radius: 4, mul: 2, flight: 0.8 } };
+  holyGround: { every: 6, radius: 4, mul: 2, flight: 0.8 }, heavy: { chance: 0.15, stun: 1 },
+  mantra: { radius: 3, haste: 0.15, damage: 0.15, range: 0.15, might: 0.2 } };
+export const MANTRAS = ['mantraSpeed', 'mantraPower', 'mantraRange'];
 const STYLE_ELEMENTS = { witch: 'poison' };
 const STYLE_BALL = 11;
 const ROAD_ROUND = 0.9;
@@ -342,7 +344,7 @@ export class Battle {
       charge: null,
       nextActive: 0, nextWall: 0, pull: null,
       nextCheer: 0, nextMuse: 0, cheerUntil: 0, rallyUntil: 0, wardUntil: 0, muses: [], lift: 1,
-      ownRange: 0, boost: { rate: 0, range: 0, damage: 0, crit: 0, wisdom: 0, cheer: false, muse: false },
+      ownRange: 0, boost: { rate: 0, range: 0, damage: 0, might: 0, crit: 0, wisdom: 0, cheer: false, muse: false },
       boostBy: new Set(), torch: null, torches: [],
       run: { damage: 0, kills: 0, assists: 0, xp: 0, coins: 0 },
     };
@@ -1712,6 +1714,7 @@ export class Battle {
 
   _buffs(now) {
     const banners = [], sages = [], shamans = [], pyros = [], mechanics = [], teams = [], tuners = [], graces = [];
+    const monks = [];
     for (const t of this.towers) {
       if (t.cocoon || t.rider) continue;
       if (t.cls.id === 'mechanic') {
@@ -1720,6 +1723,7 @@ export class Battle {
         if (t.runes.has('tuning')) tuners.push(t);
       }
       if (t.cls.id === 'forester' && t.runes.has('grace')) graces.push(t);
+      if (t.style === 'monk' && MANTRAS.some((id) => t.runes.has(id))) monks.push(t);
       if (t.cls.id === 'banner') banners.push(t);
       else if (t.cls.id === 'sage') sages.push(t);
       else if (t.cls.id === 'shaman' && open(t, 3)) shamans.push(t);
@@ -1730,7 +1734,8 @@ export class Battle {
     for (const t of this.towers) {
       const boost = t.boost, by = t.boostBy;
       const haste = [], range = [], crit = [], cheer = [], crimson = [], wisdom = [], clarity = [];
-      const winds = [], team = [], grace = [], tuning = [];
+      const winds = [], team = [], grace = [], tuning = [], mantras = { mantraSpeed: [], mantraPower: [], mantraRange: [] };
+      const might = [];
       let rally = null, muse = 0;
       by.clear();
       for (const flag of banners) {
@@ -1771,6 +1776,12 @@ export class Battle {
           grace.push(WOOD.grace.haste);
           by.add(g);
         }
+        for (const monk of monks) {
+          if (!close(monk, t, HOLY.mantra.radius)) continue;
+          for (const id of MANTRAS) if (monk.runes.has(id)) mantras[id].push(1);
+          if (MANTRAS.every((id) => monk.runes.has(id))) might.push(HOLY.mantra.might);
+          by.add(monk);
+        }
       }
       if (t.cls.id === 'mechanic' && !t.rider && !t.cocoon) {
         for (const head of teams) {
@@ -1786,9 +1797,12 @@ export class Battle {
           by.add(m);
         }
       }
-      boost.rate = muse + fade(haste) + fade(winds) + fade(team) + fade(grace) + fade(tuning) + fade(crimson);
-      boost.damage = muse + fade(cheer);
-      boost.range = fade(range);
+      const chant = (id, value) => fade(mantras[id].map(() => value));
+      boost.rate = muse + fade(haste) + fade(winds) + fade(team) + fade(grace) + fade(tuning) + fade(crimson)
+        + chant('mantraSpeed', HOLY.mantra.haste);
+      boost.damage = muse + fade(cheer) + chant('mantraPower', HOLY.mantra.damage);
+      boost.range = fade(range) + chant('mantraRange', HOLY.mantra.range);
+      boost.might = fade(might);
       if (hero === t) {
         boost.damage += herald.s[6].bonus;
         by.add(herald);
@@ -2280,7 +2294,7 @@ export class Battle {
     const vulnerable = ((mob.markUntil > now ? mob.mark : 0) + (mob.charge && mob.charge.until > now
       ? mob.charge.bonus : 0) + (mob.vulnUntil > now ? mob.vuln : 0) + (mob.weakUntil > now ? mob.weak : 0))
       * (1 - mob.resist);
-    let dealt = amount * (1 + vulnerable) * (1 + t.boost.damage) * this._frailty(mob, element)
+    let dealt = amount * (1 + vulnerable) * (1 + t.boost.damage) * (1 + t.boost.might) * this._frailty(mob, element)
       * (1 + FIRE.black.damage * stacksOf(mob, t));
     const cut = Math.max(power && power.cut || 0, mob.armor) - (this.state(mob, 'disease') ? REACTIONS.disease.armor : 0);
     if (cut && !pierce) dealt *= 1 - cut;
@@ -3494,11 +3508,13 @@ const SKILLS = {
       if (!target) return false;
       if (t.style === 'inquisitor') return holyThrow(b, t, target);
       if (t.style === 'angel' && t.runes.has('smite')) return smite(b, t, target);
-      const crit = rollCrit(b, t);
+      const heavy = t.style === 'monk' && t.runes.has('heavyShaft') && b.random() < HOLY.heavy.chance;
+      const crit = heavy ? (t.striking = true) : rollCrit(b, t);
       if (t.style === 'angel' || t.style === 'monk') {
-        b._event({ kind: 'strike', tower: t, x: target.x, y: target.y, crit, mob: target });
+        b._event({ kind: 'strike', tower: t, x: target.x, y: target.y, crit, mob: target, heavy });
       } else b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target });
       b._hurt(target, t.damage * (crit ? t.critMul : 1), t);
+      if (heavy) b._hold(target, HOLY.heavy.stun, t);
       return true;
     },
     every(b, t, now, alive) {

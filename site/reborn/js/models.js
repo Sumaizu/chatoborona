@@ -1009,10 +1009,9 @@ function pilgrim(m) {
 }
 
 const WING = { white: '#fffaf0', cream: '#f2e3bd', gold: '#e8c25a', bone: '#f8f0dc' };
-const FLAPS = [0.05, 0.45, 0.85, 0.45];
 
-function wing(m, side, flap) {
-  const lean = FLAPS[flap], c = Math.cos(lean), rise = Math.sin(lean);
+function wing(m, side) {
+  const lean = 0.05, c = Math.cos(lean), rise = Math.sin(lean);
   const at = (x, y, z) => [16 + side * (2 + (x - 2) * c), y, z + (x - 2) * rise * 1.1];
   const arm = [[2.6, 19.4, 9.6], [7.4, 21.4, 10.4], [12, 24.4, 11], [15.6, 28.6, 11.4]];
   const along = (f) => {
@@ -1037,16 +1036,6 @@ function wing(m, side, flap) {
   }
 }
 
-function foldedWing(m, side) {
-  for (let i = 0; i < 9; i++) {
-    const f = i / 8, x = 16 + side * (3.2 + f * 2.4), y = 18.4 + f * 1.4;
-    m.limb(x, y, 10.6 - f * 0.6, 16 + side * (2.6 + f * 1.6), 29.4 + f * 2.6, 4 - f, 1.25 - f * 0.3,
-      i % 3 ? WING.white : WING.cream, 0.3, 0.5);
-    if (i % 3 === 1) m.egg(16 + side * (2.6 + f * 1.6), 30 + f * 2.6, 4.4 - f, 0.5, 0.8, 0.3, WING.gold, 0.8);
-  }
-  m.limb(16 + side * 3, 18.2, 11.4, 16 + side * 5.6, 22.6, 10.8, 0.9, WING.bone, 0.5, 0.7);
-}
-
 function angel(m, o = {}) {
   const kneel = Boolean(o.kneel);
   if (kneel) {
@@ -1055,11 +1044,11 @@ function angel(m, o = {}) {
       const a = Math.PI * (0.1 + 0.8 * i / 10), x = 16 + Math.cos(a) * 8.2, y = 22.4 + Math.sin(a) * 6.6;
       m.limb(16, 21, 2.4, x, y, 1.2, 0.8, i % 2 ? '#faf5e8' : '#e9dcbc', 0, 1.3);
     }
-    foldedWing(m, -1);
-    foldedWing(m, 1);
   } else {
-    wing(m, -1, o.flap || 0);
-    wing(m, 1, o.flap || 0);
+    if (o.armed) {
+      wing(m, -1);
+      wing(m, 1);
+    }
     for (let i = 0; i < 9; i++) {
       const a = Math.PI * (0.18 + 0.64 * i / 8), x = 16 + Math.cos(a) * 5.4, y = 22 + Math.sin(a) * 6.6;
       m.limb(16, 20.4, 3.6, x, y, 1.8, 0.8, i % 2 ? '#faf5e8' : '#e9dcbc', 0, 1.2);
@@ -1130,7 +1119,7 @@ function monk(m, strike = false) {
   m.limb(11, 16.4, 9.2, 19.6, 22.2, 7.2, 1, MONK.deep, 0, 0.8);
   m.limb(11.8, 22.4, 7.2, 20.2, 22.4, 7.2, 1, MONK.sash, 0.4);
   m.limb(13, 22.8, 7, 12.4, 26.6, 4.6, 0.7, MONK.sash, 0.3, 0.45);
-  const [lx, ly, rx, ry] = strike ? [14.6, 10.6, 17.4, 10.6] : [13.2, 14, 19.4, 11.4];
+  const [lx, ly, rx, ry] = [21.2, 12.4, 21.6, 19.4];
   m.limb(10.6, 17.2, 7.8, lx, ly + 1.4, 8.8, 1.6, MONK.robe, 0, 1.2);
   m.limb(21.4, 17.2, 7.8, rx, ry + 1.4, 8.8, 1.45, SKIN, 0, 1.15);
   for (const [hx, hy, ex] of [[lx, ly, 10.6], [rx, ry, 21.4]]) {
@@ -1144,12 +1133,12 @@ function monk(m, strike = false) {
     m.egg(x, y, 9.8, i % 4 === 0 ? 0.85 : 0.65, i % 4 === 0 ? 0.75 : 0.6, 0.5, i % 4 === 0 ? '#c9a227' : '#7c4a2a', 0.8);
   }
   if (!strike) {
-    m.limb(10.6, 20.4, 9.8, 22.6, 4.2, 10.6, 0.72, MONK.staff, 0.6);
-    m.limb(10.6, 20.4, 9.8, 11.6, 19, 9.9, 0.9, MONK.cap, 1);
-    m.limb(21.6, 5.6, 10.5, 22.6, 4.2, 10.6, 0.9, MONK.cap, 1);
-    for (const f of [0.38, 0.62]) {
-      const x = 10.6 + 12 * f, y = 20.4 - 16.2 * f;
-      m.limb(x - 0.4, y + 0.5, 10.6, x + 0.4, y - 0.5, 10.6, 0.82, '#44403c', 0.3);
+    m.limb(21.6, 23, 9.6, 21, 3.4, 10.6, 0.7, MONK.staff, 0.6);
+    m.limb(21.6, 23, 9.6, 21.55, 21.4, 9.7, 0.78, MONK.cap, 1);
+    m.limb(21.05, 5, 10.5, 21, 3.4, 10.6, 0.78, MONK.cap, 1);
+    for (const y of [14.8, 15.8, 9.8, 10.8]) {
+      const x = 21.55 - (23 - y) * 0.03;
+      m.limb(x, y + 0.25, 10.3, x, y - 0.25, 10.3, 0.78, '#44403c', 0.3);
     }
   }
   m.ball(lx, ly, 9.8, 1.4, SKIN);
@@ -1240,10 +1229,7 @@ const SKINS = {
   priest: pilgrim,
   'priest-ragged': pilgrim,
   'priest-angel': (m) => angel(m, { armed: true }),
-  'priest-angel-w0': (m) => angel(m, { flap: 0 }),
-  'priest-angel-w1': (m) => angel(m, { flap: 1 }),
-  'priest-angel-w2': (m) => angel(m, { flap: 2 }),
-  'priest-angel-w3': (m) => angel(m, { flap: 3 }),
+  'priest-angel-body': (m) => angel(m),
   'priest-angel-kneel': (m) => angel(m, { kneel: true }),
   'priest-monk': (m) => monk(m),
   'priest-monk-strike': (m) => monk(m, true),
@@ -1319,16 +1305,18 @@ export const MUZZLES = {
   'mechanic-demo': [[21.2, 1]], 'mechanic-mortar': [[16, 8.6]],
   'mechanic-turret-giant': [[16, -6.6]],
   banner: [[19, 11]], priest: [[20.5, 4.4]], 'priest-ragged': [[20.5, 4.4]],
-  'priest-angel': [[21, -1]], 'priest-monk': [[22.6, 4.2]], 'priest-inquisitor': [[20.6, 3]],
+  'priest-angel': [[21, -1]], 'priest-monk': [[21, 3.4]], 'priest-inquisitor': [[20.6, 3]],
   sage: [[16, 11.2]], frost: STAFF, earth: STAFF, shaman: STAFF, thunder: STAFF,
 };
 
 export const RELOAD_FRAMES = RELOAD.frames;
 
 export const FINE_HEROES = /^priest/;
+export const ANGEL_BODY = 0.8;
+const COMPACT = new Map([['priest-angel-body', ANGEL_BODY], ['priest-angel-kneel', ANGEL_BODY]]);
 
 export function drawHero(id, reload = -1) {
-  const fine = FINE_HEROES.test(id) ? 2 : 1, m = new Model(32 * fine, 1.08 * fine, 16);
+  const fine = FINE_HEROES.test(id) ? 2 : 1, m = new Model(32 * fine, 1.08 * fine * (COMPACT.get(id) || 1), 16);
   m.reload = reload;
   HEROES[id](m);
   const canvas = m.paint();

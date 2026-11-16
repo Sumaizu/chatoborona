@@ -703,7 +703,8 @@ function scaleAt(x, y) {
   return best ? best.reach : 1;
 }
 
-export function drawHeart(armored = false) {
+export function drawHeart(look = '') {
+  const armored = look !== '';
   const m = new Model(48, 1), side = m.side, shift = m.pad - 0.5;
   const inside = (px, py) => {
     const u = (px - shift - 24) / 17.5, v = (26 - (py - shift)) / 16.5, q = u * u + v * v - 1;
@@ -728,7 +729,8 @@ export function drawHeart(armored = false) {
     const [z, d, reach] = height.get(py * side + px), gold = d <= 3.2;
     const dx = (zAt(px + 1, py, z) - zAt(px - 1, py, z)) / 2, dy = (zAt(px, py + 1, z) - zAt(px, py - 1, z)) / 2;
     const n = [-dx, -dy, 1], l = Math.hypot(n[0], n[1], n[2]);
-    const face = gold ? GOLD : !armored ? '#e11d48' : reach > 0.86 ? '#3f4856' : '#aab5c3';
+    const face = gold ? GOLD : !armored ? '#e11d48' : look === 'holy' ? (reach > 0.86 ? '#d9a521' : '#ffeeb8')
+      : reach > 0.86 ? '#3f4856' : '#aab5c3';
     if (!armored && HEART_GLINTS.has((px - m.pad) + ',' + (py - m.pad))) m.plot(px, py, z, '#fff1f2', [0, 0, 1], 1, 0);
     else m.plot(px, py, z, face, [n[0] / l, n[1] / l, n[2] / l], 0, gold || armored ? 0.8 : 0.7);
   }

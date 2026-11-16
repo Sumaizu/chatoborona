@@ -635,7 +635,7 @@ function shape(p, inside, color, dark, light) {
   }
 }
 
-export const heartSprite = (armored = false) => remember('heart' + (armored ? ':armored' : ''), () => drawHeart(armored));
+export const heartSprite = (look = '') => remember('heart:' + look, () => drawHeart(look));
 
 
 const KIND_COLORS = { buff: '#4ade80', debuff: '#f87171', blessing: '#fbbf24', curse: '#c084fc', biome: '#7dd3fc',

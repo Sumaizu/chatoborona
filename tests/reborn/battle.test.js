@@ -8,7 +8,7 @@ import { AFFIXES, BOSSES, DIABLO, ELITES, FAMILIES, FAMILY_BY_ID, FINALE, LIVES,
   SILVER, TERRAIN, TICK, familyPool, resistOf, silverChance, waveHp, waveSpawns, xpForLevel }
   from '../../site/reborn/js/balance.js';
 import { ASSIST_COINS, KILL_COINS } from '../../site/reborn/js/gacha.js';
-import { CLASSES, CLASS_BY_ID, RUNE_CAPS, baseOf } from '../../site/reborn/js/classes.js';
+import { CLASSES, CLASS_BY_ID, RUNE_CAPS, baseOf, choiceOf, describe } from '../../site/reborn/js/classes.js';
 
 const ATTACK = (battle, t, target) => {
   battle.time = Math.max(battle.time, t.leapUntil);
@@ -1281,6 +1281,57 @@ test('жрец-монах: бьёт посохом на 2 клетки и оче
   near(hit(mob), t.damage);
   eq(hit(far), 0);
   ok(battle.events.some((e) => e.kind === 'strike' && e.tower === t && e.mob === mob), 'посох вытягивается до врага');
+});
+
+test('монах, тяжёлое древко: с шансом удар — критический и оглушает', () => {
+  const battle = makeBattle(), t = priest(battle, 10, 4, ['monk', 'heavyShaft']);
+  const mob = walker(battle, 13, 1e9);
+  still(mob);
+  battle.random = () => HOLY.heavy.chance / 2;
+  ok(battle._fire(t));
+  near(hit(mob), t.damage * t.critMul);
+  ok(mob.holdUntil > battle.time, 'оглушён');
+  ok(battle.events.some((e) => e.kind === 'strike' && e.heavy));
+  const calm = walker(battle, 12, 1e9);
+  still(calm);
+  battle.random = () => 0.99;
+  battle._fire(t);
+  no(calm.holdUntil > battle.time, 'без удачи — обычный удар');
+});
+
+test('монах, мантры: аура на 3 клетки — быстрее, сильнее, дальше; одинаковые складываются вполовину', () => {
+  const battle = makeBattle(), monk = priest(battle, 5, 4, ['monk', 'mantraSpeed', 'mantraPower', 'mantraRange']);
+  const ally = battle.place(player(), 'forester', 7, 4), far = battle.place(player(), 'forester', 12, 4);
+  battle.step(TICK);
+  for (const t of [monk, ally]) {
+    near(t.boost.rate, HOLY.mantra.haste);
+    near(t.boost.damage, HOLY.mantra.damage);
+    near(t.boost.range, HOLY.mantra.range);
+    near(t.boost.might, HOLY.mantra.might, 'все три — ещё и мощь');
+  }
+  eq(far.boost.rate + far.boost.damage + far.boost.range + far.boost.might, 0, 'вне ауры — ничего');
+  const second = priest(battle, 6, 6, ['monk', 'mantraSpeed']);
+  battle.step(TICK);
+  near(ally.boost.rate, HOLY.mantra.haste * 1.5, 'вторая такая же аура — вполовину');
+  near(ally.boost.might, HOLY.mantra.might, 'мощь — только у повелителя мантр');
+  ok(second.boost.rate > 0);
+  const mob = walker(battle, 8, 1e9);
+  still(mob);
+  ally.critChance = 0;
+  battle._hurt(mob, 10, ally);
+  near(hit(mob), 10 * (1 + ally.boost.damage) * (1 + ally.boost.might));
+});
+
+test('монах, повелитель мантр: три мантры в профиле и в выборе — одним навыком', () => {
+  const taken = ['monk', 'mantraSpeed', 'mantraPower', 'mantraRange'];
+  const info = describe('priest', taken), names = info.skills.map((skill) => skill.name);
+  ok(names.includes('Повелитель мантр'));
+  no(names.some((name) => name.startsWith('Мантра')), 'мантр по отдельности нет');
+  const options = choiceOf('priest', taken);
+  eq(options.filter((option) => option.skill.name === 'Повелитель мантр').length, 1);
+  no(options.some((option) => option.skill.name.startsWith('Мантра')));
+  ok(options.some((option) => option.skill.id === 'heavyShaft' && option.state === 'open'));
+  ok(choiceOf('priest', ['monk', 'mantraSpeed']).some((option) => option.skill.id === 'mantraPower'), 'пока не все три — по одной');
 });
 
 test('жрец-инквизитор: светлый шар летит и бьёт по прилёту', () => {
