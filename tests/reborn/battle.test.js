@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { AIM, BITE_TIME, Battle, CRIMSON, WOOD, DISCHARGE, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, FIRE,
+import { AIM, BITE_TIME, Battle, CRIMSON, HOLY, WOOD, DISCHARGE, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, FIRE,
   PLANTED, PULSE, REACTIONS, ROT, SECOND, SHOT, SPLIT_TIME, THORN }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
@@ -1142,6 +1142,69 @@ test('ведьма, поглощение: втягивает все облака
   near(battle.clouds[0].dps, t.damage * WOOD.venomBurst.dps * 4, 'и облако ×4');
 });
 
+function priest(battle, x, y, runes) {
+  const t = battle.place(player(), 'priest', x, y);
+  battle.setMods(t, { runes });
+  t.critChance = 0;
+  t.cooldown = 1e9;
+  return t;
+}
+
+test('жрец: без стиля — светлые частицы из посоха в того, кто ближе к сердцу, нежить упокаивает; лекаря больше нет', () => {
+  const battle = makeBattle(), t = priest(battle, 10, 4, []);
+  eq(t.cls.name, 'Жрец');
+  no(CLASS_BY_ID.has('healer'), 'лекарь заменён жрецом');
+  const back = walker(battle, 8, 1e9), front = walker(battle, 14, 1e9), far = walker(battle, 16, 1e9);
+  still(back, front, far);
+  ok(battle._fire(t));
+  near(hit(front), t.damage);
+  eq(hit(back) + hit(far), 0);
+  ok(battle.events.some((e) => e.kind === 'shot' && e.tower === t && e.mob === front), 'частицы летят в цель');
+  const skeleton = creature(battle, 'skeleton', 6, 100);
+  battle._hurt(skeleton, 1e6, t);
+  runFor(battle, 2);
+  eq(battle.mobs.filter((m) => m.look === 'skeleton').length, 0, 'убитая жрецом нежить не встаёт');
+});
+
+test('жрец-ангел: рубит мечом только того, кто в клетке вокруг него, и сильнее частиц', () => {
+  const battle = makeBattle(), plain = priest(battle, 2, 4, []), t = priest(battle, 10, 4, ['angel']);
+  ok(t.range < 1.5, 'бьёт только рядом');
+  near(t.damage, plain.damage * HOLY.angel.mul);
+  const far = walker(battle, 13, 1e9);
+  still(far);
+  no(battle._fire(t), 'в двух клетках — не достаёт');
+  const close = walker(battle, 11, 1e9);
+  still(close);
+  ok(battle._fire(t));
+  near(hit(close), t.damage);
+  eq(hit(far), 0);
+  ok(battle.events.some((e) => e.kind === 'strike' && e.tower === t && e.mob === close), 'взмах мечом');
+});
+
+test('жрец-монах: бьёт посохом на 2 клетки и очень часто', () => {
+  const battle = makeBattle(), plain = priest(battle, 2, 4, []), t = priest(battle, 10, 4, ['monk']);
+  ok(t.range >= 2 && t.range < 3, 'на 2 клетки');
+  ok(t.interval < plain.interval / 2, 'бьёт намного чаще');
+  const far = walker(battle, 14, 1e9), mob = walker(battle, 13, 1e9);
+  still(far, mob);
+  ok(battle._fire(t));
+  near(hit(mob), t.damage);
+  eq(hit(far), 0);
+  ok(battle.events.some((e) => e.kind === 'strike' && e.tower === t && e.mob === mob), 'посох вытягивается до врага');
+});
+
+test('жрец-инквизитор: светлый шар летит и бьёт по прилёту', () => {
+  const battle = makeBattle(), t = priest(battle, 10, 4, ['inquisitor']);
+  const mob = walker(battle, 14, 1e9);
+  still(mob);
+  ok(t.range >= 4, 'бросает дальше частиц');
+  ok(battle._fire(t));
+  eq(hit(mob), 0, 'шар ещё летит');
+  runFor(battle, HOLY.inquisitor.flight + 0.05);
+  ok(hit(mob) >= t.damage - 1e-6, 'попал');
+  ok(battle.events.some((e) => e.kind === 'shot' && e.tower === t && e.time === HOLY.inquisitor.flight), 'шар');
+});
+
 test('лесник, ядовитая реакция: метит ядом только ядовитые атаки — шары ведьмы', () => {
   const battle = makeBattle(), witch = forester(battle, 10, 4, ['witch', 'poisonReact']);
   const bow = forester(battle, 10, 2, ['poisonReact']);
@@ -1656,15 +1719,13 @@ test('Диабло: на 100-й волне выходит один, без мо�
   eq(battle.nextFamily, FINALE, 'и на 200-й');
 });
 
-test('Диабло у сердца разбивает его одним ударом: щит и второй шанс лекаря не спасают', () => {
-  const battle = makeBattle(), healer = battle.place(level(50), 'healer', 3, 4);
-  battle.setMods(healer, { runes: ['guardian', 'second'] });
+test('Диабло у сердца разбивает его одним ударом', () => {
+  const battle = makeBattle();
   battle.random = () => 0;
   const devil = battle._spawn({ type: 'boss', kind: DIABLO, hp: 1e12 }, battle.length - 2);
   for (let i = 0; i < 400 && battle.lives > 0; i++) battle.step(TICK);
   eq(battle.lives, 0, 'сердце разбито');
   ok(devil.dead);
-  no(battle.events.some((e) => e.kind === 'shield' || e.kind === 'rescue'), 'лекарь не спас');
 });
 
 test('паразит: руна «Бешенство» — кусает втрое чаще, «Смертельный шип» — иногда добивает раненого', () => {
@@ -1917,59 +1978,6 @@ test('знаменосец: руны — багровый стяг ускоря�
   near(ally.boost.rate, flag.cls.base.haste + CRIMSON + flag.s[2].haste);
   near(flag.rallyUntil - battle.time + TICK, flag.s[2].time + PLANTED.time, 'дольше');
   ok(mob.pushed > 0, 'отбросило');
-});
-
-test('лекарь: святой свет по нежити сильнее, убитая им нежить не встаёт, призрака бьёт в полную силу', () => {
-  const battle = makeBattle(), healer = battle.place(player(), 'healer', 10, 4);
-  healer.critChance = 0;
-  const zombie = creature(battle, 'zombie', 11), rat = creature(battle, 'rat', 11);
-  still(zombie, rat);
-  ATTACK(battle, healer, zombie);
-  battle._hurt(rat, healer.damage, healer, 'holy');
-  near(hit(rat), healer.damage);
-  ok(hit(zombie) >= healer.damage * healer.cls.base.undead - 1e-6, 'нежить — в 2,5 раза');
-  const skeleton = creature(battle, 'skeleton', 12, 10);
-  still(skeleton);
-  battle._hurt(skeleton, 100, healer, 'holy');
-  runFor(battle, 3);
-  no(battle.mobs.some((mob) => mob.look === 'skeleton' && !mob.dead), 'упокоен');
-  const ghost = creature(battle, 'ghost', 13);
-  still(ghost);
-  ghost.phaseUntil = battle.time + 10;
-  battle._hurt(ghost, 100, healer, 'holy');
-  near(hit(ghost), 100, 'свет не режется');
-});
-
-test('лекарь: после волны возвращает сердцу жизнь, все лекари вместе — не больше двух', () => {
-  const battle = makeBattle();
-  battle.place(player(), 'healer', 2, 4);
-  battle.lives = 10;
-  battle.endWave();
-  eq(battle.lives, 11);
-  battle.place(player(), 'healer', 3, 4);
-  battle.place(player(), 'healer', 4, 4);
-  battle.endWave();
-  eq(battle.lives, 13, 'трое — всё равно две');
-  battle.lives = battle.maxLives;
-  battle.endWave();
-  eq(battle.lives, battle.maxLives, 'сверх полного не лечит');
-});
-
-test('лекарь: с 10-го щит — дошедший моб не отнимает жизнь, боссов держит только руна', () => {
-  const battle = makeBattle(), healer = battle.place(level(10), 'healer', 2, 6);
-  healer.busy = 1e9;
-  battle.random = () => 0;
-  const mob = walker(battle, battle.length - 2, 1e9);
-  runFor(battle, 5);
-  ok(mob.dead && battle.lives === LIVES, 'щит спас');
-  ok(battle.events.some((e) => e.kind === 'shield'));
-  const boss = put(battle, special(battle, 'boss', 'crusher', 1e9), battle.length - 2);
-  runFor(battle, 5);
-  ok(boss.dead && battle.lives < LIVES, 'босса щит не держит');
-  battle.setMods(healer, { runes: ['guardian'] });
-  const lives = battle.lives, again = put(battle, special(battle, 'boss', 'crusher', 1e9), battle.length - 2);
-  runFor(battle, 5);
-  ok(again.dead && battle.lives === lives, 'с ангелом-хранителем — держит');
 });
 
 test('маг огня без стиля и в стиле огненного шара: шар, взрыв, гигантский шар, двойной каст', () => {
@@ -2391,33 +2399,6 @@ test('знаменосец, навыки Реборна: стяг стойкос
   ok(ally.boost.damage >= flag.s[6].bonus, 'знамя героя — лучшему по убийствам');
 });
 
-test('лекарь, навыки Реборна: обновление, благословение, свет небес', () => {
-  const battle = makeBattle(), h = battle.place(player(), 'healer', 10, 4), ally = battle.place(player(), 'sniper', 11, 3);
-  battle.setMods(h, { perks: [3] });
-  battle.lives = 10;
-  battle.endWave();
-  ok(battle.lives >= 10 + h.s[3].lives, 'после волны — ещё две жизни');
-  battle.startWave(2, 2);
-  battle.spawns = [];
-  const biter = walker(battle, battle.length - 2);
-  const lives = battle.lives;
-  for (let i = 0; i < 200 && !biter.dead; i++) battle.step(TICK);
-  eq(battle.lives, lives, 'первый укус волны не отнял жизнь');
-
-  const holy = makeBattle(), k = holy.place(player(), 'healer', 10, 4), friend = holy.place(player(), 'sniper', 11, 3);
-  holy.setMods(k, { perks: [4, 5] });
-  holy.random = () => 0.99;
-  const zombie = walker(holy, 10, 1e9, LOOKS.normal.find((l) => l.id === 'zombie'));
-  still(zombie);
-  holy.step(TICK);
-  ok(friend.blessUntil > holy.time, 'союзник благословлён');
-  holy.step(TICK);
-  ok(friend.boost.damage >= k.s[4].bonus, 'и бьёт сильнее');
-  ok(hit(zombie) >= k.skill * k.s[5].undead, 'свет небес: нежити ×30');
-  ok(zombie.holdUntil > holy.time, 'и оглушение');
-  ok(!ally.blessUntil, 'в первой битве благословлять было некому');
-});
-
 test('мудрец, навыки Реборна: ясность, петля времени, просветление', () => {
   const battle = makeBattle(), sage = battle.place(player(), 'sage', 10, 4), ally = battle.place(player(), 'sniper', 11, 4);
   battle.setMods(sage, { perks: [3] });
@@ -2443,58 +2424,6 @@ test('мудрец, навыки Реборна: ясность, петля вр
   friend.nextActive = wise.time + 50;
   wise.step(TICK);
   ok(friend.nextActive <= wise.time, 'просветление перезарядило способности');
-});
-
-test('лекарь: руна «второй шанс» — раз за игру возвращает сердцу пять жизней и стирает всю волну', () => {
-  const battle = makeBattle(), healer = battle.place(player(), 'healer', 2, 6);
-  battle.setMods(healer, { runes: ['second'] });
-  healer.busy = 1e9;
-  battle.startWave(20, 5);
-  ok(battle.spawns.length > 5, 'волна ещё выходит');
-  battle.lives = 1;
-  const others = [walker(battle, 3, 1e9), walker(battle, 8, 1e9)];
-  walker(battle, battle.length - 2, 1e9);
-  runFor(battle, 5);
-  eq(battle.lives, SECOND);
-  const rescue = battle.events.find((e) => e.kind === 'rescue');
-  ok(rescue && rescue.wiped.length >= 2, 'стёрты все, кто был на поле');
-  ok(others.every((mob) => mob.dead), 'и те, кто ещё далеко');
-  ok(battle.cleared, 'волна кончилась: больше никто не выйдет');
-  battle.lives = 1;
-  walker(battle, battle.length - 2, 1e9);
-  runFor(battle, 5);
-  ok(battle.lives <= 0, 'второй раз — нет');
-});
-
-test('лекарь: с 30-го очищение будит оглушённых и усыплённых, и потом их не оглушить', () => {
-  const battle = makeBattle(), healer = battle.place(level(30), 'healer', 4, 4);
-  const ally = battle.place(player(), 'mechanic', 5, 4), mob = walker(battle, 19, 1e9);
-  still(mob);
-  battle._daze(ally, 10);
-  ally.napUntil = battle.time + 10;
-  battle.step(TICK);
-  ok(battle.events.some((e) => e.kind === 'cleanse'));
-  ok(ally.stunUntil <= battle.time && ally.napUntil <= battle.time && ally.busy <= battle.time, 'проснулся');
-  no(battle._daze(ally, 5), 'сглаз не берёт');
-  runFor(battle, healer.s[1].time + 0.1);
-  ok(battle._daze(ally, 1), 'защита прошла');
-});
-
-test('лекарь: с 50-го святая земля — нежить на ней горит, все мобы получают больше урона, летучих не берёт', () => {
-  const battle = makeBattle(), healer = battle.place(level(50), 'healer', 10, 2);
-  healer.critChance = 0;
-  battle.random = () => 0.99;
-  const zombie = creature(battle, 'zombie', 15), dog = creature(battle, 'dog', 15.3), flyer = walker(battle, 15.2, 1e6,
-    bat());
-  still(zombie, dog, flyer);
-  healer.cooldown = 1e9;
-  battle.step(TICK);
-  ok(battle.events.some((e) => e.kind === 'hallow'));
-  healer.busy = 1e9;
-  runFor(battle, 2);
-  ok(hit(zombie) > 0 && hit(dog) === 0, 'горит только нежить');
-  ok(dog.vuln > 0 && dog.vulnUntil > battle.time, 'уязвим');
-  eq(flyer.vuln, 0, 'летучих не берёт');
 });
 
 test('мудрец: искры в двух мобов, рядом с ним больше опыта', () => {

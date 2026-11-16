@@ -1170,7 +1170,7 @@ test('знаменосцев и мудрецов — не больше одно�
   const members = Array.from(game.members.values());
   members[0].cls = 'banner';
   members[1].cls = 'sage';
-  members[2].cls = 'healer';
+  members[2].cls = 'priest';
   members[3].cls = 'sniper';
   const seen = new Set();
   for (let i = 0; i < 300; i++) {
@@ -1179,7 +1179,7 @@ test('знаменосцев и мудрецов — не больше одно�
     no(SUPPORTS.has(cls), 'знаменосцу и мудрецу места нет — рерол их не даёт');
     ok(cls !== 'sniper', 'рерол меняет класс');
   }
-  ok(seen.has('healer'), 'второй лекарь — можно');
+  ok(seen.has('priest'), 'второй жрец — можно');
   eq(Array.from(SUPPORTS).sort(), ['banner', 'sage']);
 });
 

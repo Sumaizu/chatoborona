@@ -146,7 +146,8 @@ function fitted(image, size) {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size || span;
   const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingEnabled = (image.fine || 1) > 2;
+  ctx.imageSmoothingQuality = 'high';
   const scale = canvas.width / span;
   ctx.drawImage(image, canvas.width / 2 - cx * scale, canvas.height / 2 - cy * scale, image.width * scale,
     image.height * scale);

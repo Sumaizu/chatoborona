@@ -28,11 +28,12 @@ function ramp(color) {
 }
 
 class Model {
-  constructor(size, k) {
+  constructor(size, k, center = size / 2) {
     this.reload = -1;
     this.w = size;
     this.h = size;
     this.k = k;
+    this.center = center;
     this.pad = Math.ceil(size * PAD);
     this.side = size + this.pad * 2;
     const cells = this.side * this.side;
@@ -44,7 +45,7 @@ class Model {
   }
 
   place(x, y) {
-    return [this.pad + this.w / 2 + (x - this.w / 2) * this.k, this.pad + this.h / 2 + (y - this.h / 2) * this.k];
+    return [this.pad + this.w / 2 + (x - this.center) * this.k, this.pad + this.h / 2 + (y - this.center) * this.k];
   }
 
   plot(x, y, z, color, n, flat, gloss) {
@@ -969,6 +970,208 @@ function giantTurret(m) {
 }
 
 
+const TEMPLE = { robe: '#ece3cc', dark: '#bfae86', sleeve: '#f3ecda', gold: '#d9a521', light: '#fffbe6', glow: '#fde68a' };
+
+function lightTip(q, x, y, z) {
+  for (const [dx, dy, long] of [[0, -1, 3.4], [1, 0, 2.6], [-1, 0, 2.6], [0.7, -0.7, 2.2], [-0.7, -0.7, 2.2]]) {
+    q.limb(x + dx * 1.2, y + dy * 1.2, z, x + dx * long, y + dy * long, z + 0.2, 0.42, TEMPLE.gold, 1, 0.12);
+  }
+  q.limb(x, y + 2.6, z - 0.4, x, y + 0.8, z, 0.6, TEMPLE.gold, 1, 0.45);
+  q.ball(x, y, z + 0.4, 1.35, TEMPLE.glow, 1);
+  q.ball(x - 0.3, y - 0.3, z + 1.4, 0.75, TEMPLE.light, 1);
+}
+
+function vTorso(m, cloth, shade, top = 17, waist = 23) {
+  m.limb(10.4, top, 7.4, 21.6, top, 7.4, 2.2, cloth, 0.2);
+  m.limb(16, top + 0.4, 7.2, 16, waist, 5.6, 4.6, cloth, 0.2, 2.6);
+  m.limb(16, top + 1.6, 9.6, 16, waist - 0.6, 7.8, 0.5, shade, 0, 0.3);
+}
+
+function pilgrim(m) {
+  robed(m, {
+    robe: TEMPLE.robe, dark: TEMPLE.dark, sleeve: TEMPLE.sleeve, trim: TEMPLE.gold, hands: [12, 14.6, 20.5, 12.4],
+    weapon: (q) => {
+      q.limb(20.5, 16.4, 9.6, 20.5, 6.6, 10.8, 0.62, '#8a5a2e', 0.2, 0.55);
+      q.limb(20.5, 13.6, 10.2, 20.5, 11.2, 10.4, 0.7, '#5c3d22');
+      lightTip(q, 20.5, 4.4, 11.2);
+    },
+    head: (q) => {
+      q.egg(16, 18, 11, 4.4, 5, 3.6, TEMPLE.robe);
+      q.limb(16, 20, 12.4, 16, 23.6, 10.4, 1.5, TEMPLE.dark, 0, 0.6);
+      q.egg(16, 14.4, 11.8, 2.6, 1.7, 1.6, '#5a4630');
+      q.egg(16, 14, 12.1, 1.7, 1.1, 1.1, SKIN);
+      q.limb(13, 16, 13.6, 13.6, 21, 12.6, 0.4, TEMPLE.gold, 0.6);
+      q.limb(19, 16, 13.6, 18.4, 21, 12.6, 0.4, TEMPLE.gold, 0.6);
+    },
+  });
+  m.limb(11.6, 21.6, 6.4, 20.4, 21.6, 6.4, 0.55, '#a07a42');
+  for (const x of [12.4, 13.2]) m.limb(x, 21.8, 6.2, x - 0.3, 25.4, 4.8, 0.35, '#a07a42', 0, 0.25);
+}
+
+const WING = { white: '#fffaf0', cream: '#f2e3bd', gold: '#e8c25a', bone: '#f8f0dc' };
+const FLAPS = [0.05, 0.45, 0.85, 0.45];
+
+function wing(m, side, flap) {
+  const lean = FLAPS[flap], c = Math.cos(lean), rise = Math.sin(lean);
+  const at = (x, y, z) => [16 + side * (2 + (x - 2) * c), y, z + (x - 2) * rise * 1.1];
+  const arm = [[2.6, 19.4, 9.6], [7.4, 21.4, 10.4], [12, 24.4, 11], [15.6, 28.6, 11.4]];
+  const along = (f) => {
+    const k = f * (arm.length - 1), j = Math.min(arm.length - 2, Math.floor(k)), u = k - j;
+    return arm[j].map((v, n) => v + (arm[j + 1][n] - v) * u);
+  };
+  for (let i = 0; i < 18; i++) {
+    const f = i / 17, root = along(f), long = 4.6 + f * 6.6, spread = 1.15 - f * 0.75;
+    const x = root[0] - Math.cos(spread) * long * 0.35 + f * 1.2, y = root[1] + Math.sin(spread) * long;
+    const [ax, ay, az] = at(root[0], root[1], root[2]), [bx, by, bz] = at(x, y, root[2] - 1.2);
+    m.limb(ax, ay, az, bx, by, bz, 1.2 - f * 0.25, i % 3 ? WING.white : WING.cream, 0.3, 0.5);
+    if (i % 3 === 1) m.egg(bx, by, bz + 0.3, 0.5, 0.7, 0.3, WING.gold, 0.8);
+  }
+  for (let i = 0; i < 13; i++) {
+    const root = along(i / 12);
+    const [ax, ay, az] = at(root[0], root[1], root[2] + 0.6), [bx, by, bz] = at(root[0] - 0.4, root[1] + 3, root[2]);
+    m.limb(ax, ay, az, bx, by, bz, 1.1, WING.white, 0.4, 0.7);
+  }
+  for (let i = 0; i < arm.length - 1; i++) {
+    const [ax, ay, az] = at(...arm[i]), [bx, by, bz] = at(...arm[i + 1]);
+    m.limb(ax, ay, az + 0.8, bx, by, bz + 0.8, 0.85, WING.bone, 0.5, 0.7);
+  }
+}
+
+function angel(m, flap = 0) {
+  wing(m, -1, flap);
+  wing(m, 1, flap);
+  for (let i = 0; i < 9; i++) {
+    const a = Math.PI * (0.18 + 0.64 * i / 8), x = 16 + Math.cos(a) * 5.4, y = 22 + Math.sin(a) * 6.6;
+    m.limb(16, 20.4, 3.6, x, y, 1.8, 0.8, i % 2 ? '#faf5e8' : '#e9dcbc', 0, 1.2);
+    if (i % 2 === 0) {
+      m.limb(x, y, 1.8, x + Math.cos(a) * 0.6, y + 1.6, 1.4, 0.24, TEMPLE.gold, 0.8);
+      m.egg(x + Math.cos(a) * 0.7, y + 2.3, 1.3, 0.5, 0.8, 0.4, '#c98a1b', 0.8);
+    }
+  }
+  m.limb(16, 20.6, 4.8, 16, 28.4, 2.6, 0.8, '#c9a227', 0.8, 0.5);
+  vTorso(m, '#d9a521', '#f5d77a');
+  m.limb(12.4, 21.6, 6.8, 19.6, 21.6, 6.8, 0.5, '#b8860b', 0.8);
+  const [lx, ly, rx, ry] = [11.6, 13.8, 21, 12.8];
+  for (const [sx, hx, hy] of [[10.6, lx, ly], [21.4, rx, ry]]) {
+    m.limb(sx, 17.2, 7.6, hx, hy + 1.2, 8.6, 1.4, '#e9dcbc', 0, 1.1);
+    m.limb(hx, hy + 2.4, 8.8, hx, hy + 0.8, 9, 1.25, '#d9a521', 0.9);
+  }
+  for (const side of [-1, 1]) {
+    for (let k = 0; k < 3; k++) {
+      m.limb(16 + side * 4.4, 16.2 + k * 1.1, 9 - k * 0.4, 16 + side * 7, 17 + k * 1.2, 8.4 - k * 0.4, 0.9 - k * 0.15,
+        k % 2 ? '#b8860b' : '#e0b43a', 1, 0.5);
+    }
+  }
+  m.limb(rx, ry + 1, 10, rx, ry - 0.4, 10, 0.55, '#c9a227', 0.9);
+  m.limb(rx - 2.8, ry - 0.6, 10.2, rx + 2.8, ry - 0.6, 10.2, 0.6, '#d9a521', 1, 0.45);
+  m.ball(rx, ry - 0.6, 10.6, 0.8, '#fbbf24', 1);
+  for (const [a, b] of [[0.3, 1.3], [1.9, 2.9], [3.5, 4.5], [5.1, 6.1]]) {
+    m.limb(rx + Math.cos(a) * 2.2, ry - 0.6 + Math.sin(a) * 2.2, 10.4, rx + Math.cos(b) * 2.2,
+      ry - 0.6 + Math.sin(b) * 2.2, 10.4, 0.36, '#b91c1c', 0.9);
+  }
+  m.limb(rx, ry - 1.4, 10.4, rx, ry - 13.6, 10.8, 1, '#dc2626', 1, 0.5);
+  m.limb(rx, ry - 1.4, 11.2, rx, ry - 12.8, 11.4, 0.32, '#fecaca', 1, 0.15);
+  m.limb(rx, ry - 13.4, 10.8, rx, ry - 15, 10.8, 0.5, '#b91c1c', 1, 0.1);
+  m.limb(rx - 1.6, ry - 9.6, 10.6, rx + 1.6, ry - 9.6, 10.6, 0.32, '#ef4444', 1);
+  m.ball(rx, ry + 2.2, 10.2, 0.75, '#d9a521', 1);
+  m.ball(lx, ly, 9.6, 1.4, '#d9a521', 1);
+  m.ball(rx, ry, 9.6, 1.4, '#d9a521', 1);
+  m.egg(16, 17.6, 11.2, 3.6, 4, 3.4, '#e0b43a', 1);
+  m.egg(16, 14.6, 11.4, 1.9, 1.1, 1.6, '#b8860b', 0.8);
+  m.egg(16, 14.3, 12.2, 1.2, 0.5, 0.6, '#3b2a1a');
+  m.limb(16, 13.8, 14.4, 16, 21.4, 14, 0.6, '#f5d77a', 1, 0.3);
+  for (const side of [-1, 1]) {
+    m.limb(16 + side * 3, 17.4, 13, 16 + side * 4.6, 20.6, 12.6, 0.5, '#f8e7a8', 1, 0.2);
+  }
+}
+
+const MONK = { robe: '#d97706', deep: '#b45309', sash: '#facc15', wrap: '#a8a29e', staff: '#1f2937', cap: '#9ca3af' };
+
+function monk(m, strike = false) {
+  for (let i = 0; i < 7; i++) {
+    const a = Math.PI * (0.2 + 0.6 * i / 6), x = 16 + Math.cos(a) * 4.6, y = 22.6 + Math.sin(a) * 4.6;
+    m.limb(16, 21.4, 4, x, y, 2.4, 0.9, i % 2 ? MONK.robe : MONK.deep, 0, 1.2);
+  }
+  vTorso(m, MONK.robe, MONK.deep);
+  m.limb(16.4, 17, 7.8, 21.6, 17, 7.6, 2.05, SKIN, 0.3);
+  for (const [x, y] of [[20.4, 16.4], [21.4, 17.6]]) m.egg(x, y, 9.7, 0.8, 0.45, 0.25, '#7c4a2a');
+  m.limb(11, 16.4, 9.2, 19.6, 22.2, 7.2, 1, MONK.deep, 0, 0.8);
+  m.limb(11.8, 22.4, 7.2, 20.2, 22.4, 7.2, 1, MONK.sash, 0.4);
+  m.limb(13, 22.8, 7, 12.4, 26.6, 4.6, 0.7, MONK.sash, 0.3, 0.45);
+  const [lx, ly, rx, ry] = strike ? [14.6, 10.6, 17.4, 10.6] : [13.2, 14, 19.4, 11.4];
+  m.limb(10.6, 17.2, 7.8, lx, ly + 1.4, 8.8, 1.6, MONK.robe, 0, 1.2);
+  m.limb(21.4, 17.2, 7.8, rx, ry + 1.4, 8.8, 1.45, SKIN, 0, 1.15);
+  for (const [hx, hy, ex] of [[lx, ly, 10.6], [rx, ry, 21.4]]) {
+    for (let k = 0; k < 3; k++) {
+      const f = 0.45 + k * 0.17, x = ex + (hx - ex) * f, y = 17.2 + (hy + 1.4 - 17.2) * f;
+      m.limb(x - 1.2, y + 0.3, 9.4, x + 1.2, y - 0.3, 9.4, 0.4, MONK.wrap, 0.2);
+    }
+  }
+  for (let i = 0; i < 13; i++) {
+    const a = Math.PI * (1.1 + 0.8 * i / 12), x = 16 + Math.cos(a) * 4.2, y = 18.4 + Math.sin(a) * 3.2;
+    m.egg(x, y, 9.8, i % 4 === 0 ? 0.85 : 0.65, i % 4 === 0 ? 0.75 : 0.6, 0.5, i % 4 === 0 ? '#c9a227' : '#7c4a2a', 0.8);
+  }
+  if (!strike) {
+    m.limb(10.6, 20.4, 9.8, 22.6, 4.2, 10.6, 0.72, MONK.staff, 0.6);
+    m.limb(10.6, 20.4, 9.8, 11.6, 19, 9.9, 0.9, MONK.cap, 1);
+    m.limb(21.6, 5.6, 10.5, 22.6, 4.2, 10.6, 0.9, MONK.cap, 1);
+    for (const f of [0.38, 0.62]) {
+      const x = 10.6 + 12 * f, y = 20.4 - 16.2 * f;
+      m.limb(x - 0.4, y + 0.5, 10.6, x + 0.4, y - 0.5, 10.6, 0.82, '#44403c', 0.3);
+    }
+  }
+  m.ball(lx, ly, 9.8, 1.4, SKIN);
+  m.ball(rx, ry, 9.8, 1.4, SKIN);
+  m.egg(16, 17.4, 11, 3.5, 3.8, 3.4, SKIN, 0.6);
+  m.limb(16, 15, 11.6, 16, 12.4, 10.2, 1.9, '#3b2414', 0, 1.1);
+  for (const side of [-1, 1]) m.limb(16 + side * 2.6, 16.4, 11.4, 16 + side * 1.2, 13.6, 10.8, 0.7, '#3b2414');
+  for (const [x, y] of [[16, 15.6], [15.2, 16.4], [16.8, 16.4]]) m.ball(x, y, 14.2, 0.32, '#3b2414');
+}
+
+const INQ = { robe: '#f8f6f0', fold: '#ddd6c6', gold: '#d9a521', bright: '#f5d77a', steel: '#cbd5e1', iron: '#94a3b8' };
+
+function inquisitor(m) {
+  for (let i = 0; i < 9; i++) {
+    const a = Math.PI * (0.16 + 0.68 * i / 8), x = 16 + Math.cos(a) * 7.2, y = 21.6 + Math.sin(a) * 8.6;
+    m.limb(16, 20, 3, x, y, 1.6, 0.9, i % 2 ? INQ.robe : INQ.fold, 0, 1.4);
+    if (i % 2 === 0) m.limb(x - 0.9, y + 0.4, 2, x + 0.9, y + 0.6, 2, 0.3, INQ.gold, 1);
+  }
+  m.limb(16, 21, 4.6, 16, 30.6, 2.4, 1.2, INQ.robe, 0, 0.8);
+  m.limb(15, 21.4, 5, 15, 30, 2.6, 0.3, INQ.gold, 1);
+  m.limb(17, 21.4, 5, 17, 30, 2.6, 0.3, INQ.gold, 1);
+  vTorso(m, INQ.steel, INQ.iron);
+  m.limb(12.8, 16.4, 9.4, 16, 21.6, 8.4, 0.4, INQ.gold, 1);
+  m.limb(19.2, 16.4, 9.4, 16, 21.6, 8.4, 0.4, INQ.gold, 1);
+  const [lx, ly, rx, ry] = [12, 14.8, 20.6, 12.2];
+  for (const [sx, hx, hy] of [[10.6, lx, ly], [21.4, rx, ry]]) {
+    m.limb(sx, 17.2, 7.6, hx, hy + 1.4, 8.6, 1.4, INQ.robe, 0, 1.5);
+    m.limb(hx, hy + 2.6, 8.8, hx, hy + 1, 9, 1.3, INQ.iron, 0.9);
+  }
+  for (const side of [-1, 1]) {
+    for (let k = 0; k < 2; k++) {
+      m.limb(16 + side * 4.4, 16.2 + k * 1.2, 9 - k * 0.4, 16 + side * 6.9, 17 + k * 1.3, 8.4 - k * 0.4, 0.85 - k * 0.15,
+        k ? INQ.gold : INQ.bright, 1, 0.5);
+    }
+  }
+  m.limb(rx, ry + 2.2, 10, rx, ry - 6.6, 10.6, 0.55, INQ.gold, 1, 0.48);
+  m.limb(rx, ry - 2, 10.3, rx, ry - 3.2, 10.4, 0.7, '#b8860b', 1);
+  const hx = rx, hy = ry - 9.2;
+  for (const [dx, dy, long] of [[0, -1, 3.8], [1, 0, 3.2], [-1, 0, 3.2], [0, 1, 2.6]]) {
+    m.limb(hx + dx * 1.1, hy + dy * 1.1, 11, hx + dx * long, hy + dy * long, 11, 0.55, INQ.gold, 1, 0.2);
+  }
+  for (const [dx, dy] of [[0.7, -0.7], [-0.7, -0.7], [0.7, 0.7], [-0.7, 0.7]]) {
+    m.limb(hx + dx * 1.2, hy + dy * 1.2, 11, hx + dx * 2.3, hy + dy * 2.3, 11, 0.32, INQ.bright, 1, 0.12);
+  }
+  m.ball(hx, hy, 11.4, 1.3, '#fff3c4', 1);
+  m.ball(hx - 0.3, hy - 0.3, 12.4, 0.7, '#fffdf5', 1);
+  m.ball(lx, ly, 9.6, 1.4, INQ.iron, 0.9);
+  m.ball(rx, ry, 9.6, 1.4, INQ.iron, 0.9);
+  m.egg(16, 18, 11, 4.2, 4.8, 3.6, INQ.robe);
+  m.limb(16, 20, 12.2, 16, 23.4, 10.4, 1.4, INQ.fold, 0, 0.6);
+  m.egg(16, 14.6, 11.8, 2.4, 1.5, 1.8, INQ.gold, 1);
+  m.limb(14.8, 14.4, 13.2, 17.2, 14.4, 13.2, 0.26, '#7c5a10');
+  m.limb(16, 13.6, 14.6, 16, 21.6, 14.2, 0.5, INQ.gold, 1, 0.3);
+}
 
 const SKINS = {
   pyro: ragged,
@@ -1002,6 +1205,15 @@ const SKINS = {
   'pyro-dragon-blue-flap': (m) => dragonFly(m, DRAGONS.blue, 0.72),
   'pyro-ignite': (m) => igniteMage(m, '#f97316', '#fde047'),
   'pyro-ignite-blue': (m) => igniteMage(m, '#3b82f6', '#e0f2ff'),
+  priest: pilgrim,
+  'priest-ragged': pilgrim,
+  'priest-angel': (m) => angel(m, 0),
+  'priest-angel-1': (m) => angel(m, 1),
+  'priest-angel-2': (m) => angel(m, 2),
+  'priest-angel-3': (m) => angel(m, 3),
+  'priest-monk': (m) => monk(m),
+  'priest-monk-strike': (m) => monk(m, true),
+  'priest-inquisitor': inquisitor,
 };
 
 const HEROES = {
@@ -1018,22 +1230,6 @@ const HEROES = {
       q.ball(16, 17, 11.5, 4.8, '#c4ccd6', 0.8);
       q.limb(16, 13.5, 15.5, 16, 21, 15, 1.4, '#ff5fb0');
       q.dot(16, 13, '#ffd1e8', 60);
-    },
-  }),
-  healer: (m) => hero(m, {
-    coat: '#eef4f1', dark: '#c9d6cf', sleeve: '#dfe8e3', boots: '#c7cfd6', hands: [12.5, 10.5, 19.5, 10.5],
-    chest: (q) => {
-      q.limb(16, 13, 9.6, 16, 25, 9.6, 1.1, '#22c55e');
-      q.limb(12, 17.5, 9.6, 20, 17.5, 9.6, 1.1, '#22c55e');
-    },
-    weapon: (q) => {
-      q.ball(16, 9, 11, 2.6, '#34d399', 1);
-      q.dot(15, 8, '#ecfdf5');
-    },
-    head: (q) => {
-      q.ball(16, 16.5, 11.5, 4.8, '#d9b77a');
-      q.egg(16, 17.5, 14.8, 3.2, 2.4, 1.3, '#f8fafc');
-      for (const [x, y] of [[16, 17], [15, 17], [17, 17], [16, 16], [16, 18]]) q.dot(x, y, '#22c55e', 120);
     },
   }),
   sage: (m) => hero(m, {
@@ -1088,17 +1284,22 @@ export const MUZZLES = {
   mechanic: [[19.2, 6.8]], 'mechanic-ragged': [[19.2, 6.8]], 'mechanic-turret': [[19.6, 6.4]],
   'mechanic-demo': [[21.2, 1]], 'mechanic-mortar': [[16, 8.6]],
   'mechanic-turret-giant': [[16, -6.6]],
-  banner: [[19, 11]], healer: [[16, 9]],
+  banner: [[19, 11]], priest: [[20.5, 4.4]], 'priest-ragged': [[20.5, 4.4]],
+  'priest-angel': [[21, -1]], 'priest-monk': [[22.6, 4.2]], 'priest-inquisitor': [[20.6, 3]],
   sage: [[16, 11.2]], frost: STAFF, earth: STAFF, shaman: STAFF, thunder: STAFF,
 };
 
 export const RELOAD_FRAMES = RELOAD.frames;
 
+export const FINE_HEROES = /^priest/;
+
 export function drawHero(id, reload = -1) {
-  const m = new Model(32, 1.08);
+  const fine = FINE_HEROES.test(id) ? 2 : 1, m = new Model(32 * fine, 1.08 * fine, 16);
   m.reload = reload;
   HEROES[id](m);
-  return m.paint();
+  const canvas = m.paint();
+  canvas.fine *= fine;
+  return canvas;
 }
 
 export function drawPhoenix(blue, span = 1) {

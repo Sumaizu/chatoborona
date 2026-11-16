@@ -104,6 +104,8 @@ export const WOOD = { bow: { reload: 0.8 }, grace: { radius: 2.5, haste: 0.15 },
   beartrap: { time: 3, reopen: 10, dps: 0.3, reach: 0.45 }, hail: { every: 10, radius: 4, fall: 0.6, poison: 0.5 },
   venomBurst: { radius: 1, time: 4, dps: 0.4 }, plague: 0.1, absorb: { time: 0.35, size: 1.5 },
   cauldron: { every: 2.5, reach: 5, flight: 0.7, mul: 0.8, radius: 0.8, time: 8, dps: 0.3 } };
+export const HOLY = { angel: { reach: 1, interval: 1, mul: 2.6 }, monk: { reach: 2, interval: 0.4, mul: 0.8 },
+  inquisitor: { reach: 4, interval: 1.45, mul: 2.2, flight: FIREBALL_FLIGHT } };
 const STYLE_ELEMENTS = { witch: 'poison' };
 const STYLE_BALL = 11;
 const ROAD_ROUND = 0.9;
@@ -1016,7 +1018,7 @@ export class Battle {
     tower.skill = base.skill * boost;
     tower.element = cls.element || STYLE_ELEMENTS[tower.style] || null;
     const shot = cls.id === 'sniper' && SHOT[tower.style] || cls.id === 'mechanic' && MECH[tower.style]
-      || cls.id === 'forester' && WOOD[tower.style] || null;
+      || cls.id === 'forester' && WOOD[tower.style] || cls.id === 'priest' && HOLY[tower.style] || null;
     if (shot) tower.damage *= shot.mul;
     tower.interval = (shot && shot.interval || base.interval) / (Math.max(FLOOR, 1 + (mods.rate || 0))
       * (tower.runes.has('frenzy') ? 3 : 1));
@@ -1049,6 +1051,7 @@ export class Battle {
     if (tower.style === 'assault' || tower.style === 'marksman') return b.range + SHOT[tower.style].range;
     if (tower.style === 'turret' || tower.style === 'demo') return b.range + MECH[tower.style].range;
     if (tower.style === 'hunter' || tower.style === 'witch') return b.range + WOOD[tower.style].range;
+    if (tower.cls.id === 'priest' && HOLY[tower.style]) return HOLY[tower.style].reach;
     return b.range || 0;
   }
 
@@ -2482,7 +2485,7 @@ export class Battle {
           r: mob.r, at: this.time });
       }
     }
-    if (mob.revive > 0 && !(killer && killer.cls.id === 'healer' && mob.undead)) {
+    if (mob.revive > 0 && !(killer && killer.cls.id === 'priest' && mob.undead)) {
       const spawn = { type: mob.type, kind: mob.kind, look: mob.kind ? null : lookOfMob(mob), hp: mob.max };
       this.births.push({ spawn, d: mob.d, r: mob.r, at: this.time + REVIVE_TIME, risen: true,
         raise: mob.power && mob.power.raise || 0 });
@@ -2834,6 +2837,15 @@ function witchThrow(b, t, target) {
   };
   if (pools) b._later(WOOD.absorb.time, toss, t);
   else toss();
+  return true;
+}
+
+function holyThrow(b, t, target) {
+  const crit = rollCrit(b, t), flight = HOLY.inquisitor.flight;
+  b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target, time: flight });
+  b._later(flight, () => {
+    if (!target.dead) b._hurt(target, t.damage * (crit ? t.critMul : 1), t);
+  }, t);
   return true;
 }
 
@@ -3533,34 +3545,17 @@ const SKILLS = {
       if (planted) for (const mob of b._around(t.cx, t.cy, PLANTED.radius)) b._push(mob, PLANTED.push, t);
     },
   },
-  healer: {
+  priest: {
     fire(b, t) {
       const target = b._target(t);
       if (!target) return false;
+      if (t.style === 'inquisitor') return holyThrow(b, t, target);
       const crit = rollCrit(b, t);
-      const damage = t.damage * (target.undead ? t.cls.base.undead : 1) * (crit ? t.critMul : 1);
-      b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target, holy: target.undead });
-      b._hurt(target, damage, t, 'holy');
+      if (t.style === 'angel' || t.style === 'monk') {
+        b._event({ kind: 'strike', tower: t, x: target.x, y: target.y, crit, mob: target });
+      } else b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target });
+      b._hurt(target, t.damage * (crit ? t.critMul : 1), t);
       return true;
-    },
-    every(b, t, now, alive) {
-      if (open(t, 1) && now >= t.nextCleanse && b.towers.some((ally) => !ally.rider && (ally.stunUntil > now
-        || ally.napUntil > now || ally.webUntil > now) && (ally.cx - t.cx) ** 2 + (ally.cy - t.cy) ** 2
-        <= (t.s[1].radius + t.reach) ** 2)) {
-        b._cleanse(t, now);
-      }
-      if (open(t, 2) && alive && now >= t.nextActive) b._hallow(t, now);
-      if (open(t, 4) && now >= (t.nextBless || 0)) b._bless(t, now);
-      if (open(t, 5) && alive && now >= (t.nextLight || 0)) {
-        const target = b._toughest(t), s = t.s[5];
-        if (target) {
-          t.nextLight = now + s.every;
-          b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit: true, mob: target, holy: true,
-            heavy: 'heavy' });
-          b._hurt(target, t.skill * (target.undead ? s.undead : s.bonus), t, 'holy');
-          if (!target.dead) b._hold(target, s.stun, t);
-        }
-      }
     },
   },
   sage: {

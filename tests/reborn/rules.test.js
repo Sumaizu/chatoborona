@@ -248,15 +248,13 @@ test('классы: двенадцать, у каждого оружие, сво
   eq(choiceOf('mechanic', ['turret', 'giant']).find((option) => option.skill.id === 'giant').state, 'taken');
   eq(describe('mechanic', ['turret', 'droneAir', 'droneAir']).skills.map((skill) => [skill.id, skill.count]),
     [['turret', 1], ['droneAir', 2]], 'в профиле дрон один раз, с числом');
-  for (const id of ['bomber', 'miner', 'gunner', 'hunter', 'alchemist']) no(CLASS_BY_ID.has(id), 'старого класса больше нет: ' + id);
+  for (const id of ['bomber', 'miner', 'gunner', 'hunter', 'alchemist', 'healer']) no(CLASS_BY_ID.has(id), 'старого класса больше нет: ' + id);
   eq(names('parasite'), ['Шок', 'Липкий кокон', 'Заражение', 'Налёт', 'Пожиратель', 'Королева роя', 'Захват разума']);
   eq(names('banner'), ['Боевой клич', 'Стяг стойкости', 'Натиск', 'Длинное древко', 'Знамя победы', 'Легион',
     'Знамя героя']);
-  eq(names('healer'), ['Щит', 'Обновление', 'Очищение', 'Благословение', 'Святая земля', 'Свет небес', 'Второй шанс',
-    'Ангел-хранитель']);
   eq(names('sage'), ['Вдохновение', 'Ясность', 'Озарение', 'Ученик', 'Слабое место', 'Всеведение', 'Петля времени',
     'Просветление']);
-  for (const id of ['banner', 'healer', 'sage']) ok(CLASSES.some((cls) => cls.id === id), 'поддержка вернулась: ' + id);
+  for (const id of ['banner', 'sage']) ok(CLASSES.some((cls) => cls.id === id), 'поддержка вернулась: ' + id);
 });
 
 test('классы: описания — простой текст, без меток и значков', () => {

@@ -74,7 +74,7 @@ export const POWERS = {
   leech: { id: 'leech', name: 'Кровосос', text: 'лечится, когда рядом гибнут мобы', range: 2.5, drain: 0.1 },
   blink: { id: 'blink', name: 'Скачок', text: 'раз в 6 секунд прыгает на 2,5 клетки вперёд', every: 6, jump: 2.5 },
   undying: { id: 'undying', name: 'Бессмертие', text: 'после смерти встаёт с полным здоровьем и поднимает трёх '
-    + 'скелетов; лекарь упокаивает его насовсем', revive: 1, raise: 3 },
+    + 'скелетов; жрец упокаивает его насовсем', revive: 1, raise: 3 },
   swoop: { id: 'swoop', name: 'Пике', text: 'раз в 8 секунд пикирует на ближайшего защитника и оглушает его на секунду',
     every: 8, range: 3, hold: 1 },
   ward: { id: 'ward', name: 'Оберег', text: 'раз в 10 секунд даёт мобам вокруг щит на 10% их здоровья', every: 10,
@@ -189,7 +189,7 @@ export const DIABLO = { id: 'diablo', name: 'Диабло', title: 'Послед
 export const LOOKS = {
   normal: [{ id: 'zombie', name: 'Зомби', undead: true },
     { id: 'skeleton', name: 'Скелет', from: 3, undead: true, revive: 1, hp: 0.6,
-      text: 'встаёт после смерти, если его не упокоил лекарь' },
+      text: 'встаёт после смерти, если его не упокоил жрец' },
     { id: 'imp', name: 'Бесёнок', from: 8 },
     { id: 'slime2', name: 'Слизень', from: 12, slime: 2, text: 'при смерти делится на двух слизнят' },
     { id: 'ember', name: 'Огненный элементаль', from: 16, element: 'fire', text: 'огонь его не берёт' },
@@ -198,7 +198,7 @@ export const LOOKS = {
     { id: 'mole', name: 'Крот', from: 9, burrow: { every: 5, time: 1.5 },
       text: 'временами зарывается: под землёй его не достать, мины и стены ему нипочём' },
     { id: 'ghost', name: 'Призрак', from: 13, undead: true, phase: { every: 4, time: 1 },
-      text: 'временами бесплотен: проходит сквозь стены и мины, урон по нему вдвое слабее — кроме света лекаря' },
+      text: 'временами бесплотен: проходит сквозь стены и мины, урон по нему вдвое слабее — кроме света жреца' },
     { id: 'harpy', name: 'Гарпия', from: 19, flying: true, power: 'swoop',
       text: 'летает и раз в 8 секунд оглушает ближайшего защитника на секунду' },
     { id: 'goblin', name: 'Гоблин' },

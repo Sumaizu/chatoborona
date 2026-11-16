@@ -519,48 +519,29 @@ export const CLASSES = [
     ],
   },
   {
-    id: 'healer',
-    name: 'Лекарь',
-    color: '#22c55e',
+    id: 'priest',
+    name: 'Жрец',
+    color: '#fbbf24',
     element: 'holy',
     primary: 'int',
     earn: { xp: 1, coins: 1.05 },
-    weapon: 'святой посох',
+    weapon: 'посох',
     stats: { str: 'low', agi: 'mid', int: 'high' },
-    base: { damage: 0.85, interval: 1.2, range: 3, undead: 2.5, heal: 1, healCap: 2, mend: 0.04 },
-    summary: 'Святой свет по нежити, жизни сердцу после волны, щит и святая земля',
-    main: (b) => 'Бьёт святым светом на ' + cells(b.range) + ', урон ×' + num(b.damage) + ', по нежити в '
-      + num(b.undead) + ' раза сильнее, и убитая им нежить больше не встаёт. После волны возвращает сердцу '
-      + b.heal + ' жизнь (все лекари вместе — не больше ' + b.healCap + '), каменные стены рядом чинит',
-    skills: [
-      { name: 'Щит', v: { chance: 0.15 }, scale: { chance: 'luck' },
-        text: (v) => 'с шансом ' + pct(v.chance) + ' дошедший до сердца моб не отнимает жизнь; боссы отнимают '
-          + 'всегда' },
-      { name: 'Очищение', v: { every: 15, radius: 3.2, time: 4 }, scale: { every: 'haste', time: 'time' },
-        text: (v) => 'раз в ' + sec(v.every) + ' союзники ' + around(v.radius) + ' стряхивают оглушение, сглаз, '
-          + 'паутину и сон и ' + sec(v.time) + ' ничего не боятся' },
-      { name: 'Святая земля', v: { every: 30, time: 8, radius: 2.2, dps: 3, vuln: 0.4 },
-        scale: { every: 'haste', time: 'time', dps: 'dmg', vuln: 'buff' },
-        text: (v) => 'раз в ' + sec(v.every) + ' освящает дорогу ' + around(v.radius) + ' там, где мобов больше '
-          + 'всего: ' + sec(v.time) + ' нежить на ней горит — урон ×' + num(v.dps) + ' в секунду, — а все мобы '
-          + 'получают на ' + pct(v.vuln) + ' больше урона' },
-      { name: 'Обновление', v: { lives: 2 },
-        text: (v) => 'после каждой волны сердцу ещё +' + v.lives + ' жизни, а первый укус в каждой волне жизнь не '
-          + 'отнимает' },
-      { name: 'Благословение', v: { every: 10, time: 8, bonus: 0.3, radius: 3.2 },
-        scale: { every: 'haste', time: 'time', bonus: 'power' },
-        text: (v) => 'раз в ' + sec(v.every) + ' благословляет союзника ' + around(v.radius) + ': тот ' + sec(v.time)
-          + ' бьёт на ' + pct(v.bonus) + ' сильнее' },
-      { name: 'Свет небес', v: { every: 30, undead: 30, bonus: 10, stun: 1 }, scale: { every: 'haste', stun: 'time' },
-        text: (v) => 'раз в ' + sec(v.every) + ' луч с неба бьёт самого крепкого моба в радиусе: нежити урон ×'
-          + num(v.undead) + ', остальным ×' + num(v.bonus) + ', и оглушает на ' + sec(v.stun) },
+    base: { damage: 1, interval: 1.2, range: 3 },
+    summary: 'Посох со светом; первый камень даёт стиль: ангел, монах или инквизитор',
+    main: (b) => 'Пускает из посоха светлые частицы на ' + cells(b.range) + ' — в того, кто ближе к сердцу: урон ×'
+      + num(b.damage),
+    styles: [
+      { id: 'angel', name: 'Ангел', text: 'парит над землёй и рубит сияющим крестовым мечом — только тех, кто в '
+        + 'клетке вокруг него, зато сильно' },
+      { id: 'monk', name: 'Монах', text: 'бьёт посохом на 2 клетки: замахивается, и посох вытягивается до врага; '
+        + 'бьёт очень быстро' },
+      { id: 'inquisitor', name: 'Инквизитор', text: 'бросает из булавы-посоха светлые шары' },
     ],
-    pool: ['perk0', 'perk3', 'perk1', 'perk4', 'perk2', 'perk5', 'second', 'guardian'],
-    runes: [
-      { id: 'guardian', name: 'Ангел-хранитель', text: '«Щит» спасает и от боссов и срабатывает вдвое чаще' },
-      { id: 'second', name: 'Второй шанс', text: 'раз за игру, когда у сердца кончаются жизни, лекарь возвращает 5 '
-        + 'и стирает всю волну — один раз на весь отряд' },
-    ],
+    upgrades: [],
+    abilities: [],
+    skills: [],
+    runes: [],
   },
   {
     id: 'sage',

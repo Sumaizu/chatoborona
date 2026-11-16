@@ -134,7 +134,8 @@ const FIREBALL = { width: 16, height: 26, head: 7, radius: 5.5,
   tones: { warm: ['#fffbe6', '#fde68a', '#fbbf24', '#f97316', '#dc2626', '#7f1d1d'],
     blue: ['#f0f9ff', '#bae6fd', '#7dd3fc', '#3b82f6', '#1d4ed8', '#1e3a8a'],
     toxic: ['#f7fee7', '#d9f99d', '#a3e635', '#65a30d', '#3f6212', '#1a2e05'],
-    plague: ['#ede9fe', '#a78bfa', '#6d28d9', '#3b0764', '#1e1033', '#09090b'] } };
+    plague: ['#ede9fe', '#a78bfa', '#6d28d9', '#3b0764', '#1e1033', '#09090b'],
+    holy: ['#fffef7', '#fffbe0', '#fef3b4', '#fde68a', '#facc15', '#ca8a04'] } };
 
 const grain = (x, y, frame) => {
   const v = Math.sin(x * 12.9898 + y * 78.233 + frame * 37.719) * 43758.5453;

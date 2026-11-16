@@ -6,7 +6,7 @@ import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite
   meteorSprite, grenadeSprite, droneSprite, birdSprite, hawkSprite, snareSprite, trapSprite, cauldronSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
   rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, ventSprite, wallSprite } from './sprites.js';
 import { BREWS, SOILS, drawRootWall } from './props.js';
-import { MUZZLES, RELOAD_FRAMES } from './models.js';
+import { FINE_HEROES, MUZZLES, RELOAD_FRAMES } from './models.js';
 import { gearColor } from './gacha.js';
 
 export const BOARD = EDGE * 2 + CELL * SIZE;
@@ -87,7 +87,8 @@ const INK = '#f4f0e8';
 const MUTED = 'rgba(166, 162, 189, .85)';
 const DARK = '#100e1f';
 const STYLE_BOLTS = { hunter: { look: 'bolt', color: '#e7e5e4', width: 3 },
-  witch: { look: 'fireball', color: '#84cc16', size: 11, tone: 'toxic' } };
+  witch: { look: 'fireball', color: '#84cc16', size: 11, tone: 'toxic' },
+  inquisitor: { look: 'fireball', color: '#fde68a', size: 11, tone: 'holy' } };
 const BOLTS = {
   sniper: { look: 'tracer', color: '#fff3b0', width: 2, bullet: true },
   mechanic: { look: 'tracer', color: '#ffe8a3', width: 1.5, bullet: true },
@@ -97,12 +98,13 @@ const BOLTS = {
   pyro: { look: 'fireball', color: '#ff7a1f', size: 7 },
   shaman: { look: 'dot', color: '#5eead4', size: 3 },
   banner: { look: 'dot', color: '#ff5fb0', size: 3 },
-  healer: { look: 'tracer', color: '#fde68a', width: 2 },
+  priest: { look: 'light', color: '#fde68a', size: 3 },
   sage: { look: 'dot', color: '#d8b4fe', size: 3 },
 };
 const FLAME = ['#fff3b0', '#ffd84a', '#ff9a1f', '#ff5a1f', '#b8320f'];
 const BLUE_FLAME = ['#e0f2ff', '#9bd5ff', '#4aa3ff', '#2563eb', '#1e3a8a'];
 const FLAME_TONES = { warm: FLAME, blue: BLUE_FLAME, toxic: ['#f7fee7', '#d9f99d', '#a3e635', '#65a30d', '#3f6212'],
+  holy: ['#fffef5', '#fff7cc', '#fde68a', '#facc15', '#d4a017'],
   plague: ['#ede9fe', '#a78bfa', '#6d28d9', '#3b0764', '#1e1033'] };
 const VENOM = { toxic: 'rgba(132, 204, 22, .9)', plague: 'rgba(91, 33, 182, .9)' };
 const GAS = { toxic: ['rgba(201, 246, 120, .8)', 'rgba(101, 163, 13, .45)'],
@@ -119,7 +121,14 @@ const FIRE_SPARKS = new Set(FLAME.concat(BLUE_FLAME, BLACK_FLAME, ['#ffd84a', '#
 const HEAT = { warm: ['rgba(255, 110, 30, .9)', 'rgba(255, 220, 120, .9)'],
   blue: ['rgba(74, 163, 255, .9)', 'rgba(224, 242, 255, .9)'],
   toxic: ['rgba(132, 204, 22, .9)', 'rgba(217, 249, 157, .9)'],
-  plague: ['rgba(91, 33, 182, .9)', 'rgba(196, 181, 253, .9)'] };
+  plague: ['rgba(91, 33, 182, .9)', 'rgba(196, 181, 253, .9)'],
+  holy: ['rgba(250, 204, 21, .9)', 'rgba(255, 251, 230, .95)'] };
+const HOLY_LIGHT = { core: 'rgba(255, 251, 230, 1)', warm: 'rgba(253, 224, 120, 1)', ray: 'rgba(255, 244, 200, ',
+  motes: 5, wave: 4 };
+const HOVER = { lift: 9, bob: 3, rate: 1.2, frames: [2, 1, 0, 1] };
+const SLASH = { life: 0.22, width: 1.7, reach: 0.95, inner: 0.62 };
+const STAFF_HIT = { life: 0.3, swing: 0.9, back: 7, shaft: '#1f2937', sheen: '#6b7280', cap: '#9ca3af', capLight: '#e5e7eb',
+  grip: '#57534e' };
 const FLAME_HOLD = 0.3;
 const FLAME_BITS = 34;
 const BADGE_HALF = 16;
@@ -1648,6 +1657,169 @@ export class Scene {
     ctx.globalAlpha = 1;
   }
 
+  _holyAura(ctx, t, x, y) {
+    const pulse = 0.5 + 0.5 * Math.sin(this.clock * 2.4 + t.x);
+    if (t.style === 'angel') glow(ctx, x, y - 2, 30, 'rgba(255, 236, 170, 1)', 0.12 + 0.06 * pulse);
+    else if (t.style === 'inquisitor') glow(ctx, x, y - 2, 18, HOLY_LIGHT.warm, 0.16 + 0.08 * pulse);
+  }
+
+  _halo(ctx, t, x, y) {
+    const a = turnOf(this._pose(t).angle, HERO_TURN_STEPS) * Math.PI * 2 / HERO_TURN_STEPS, back = 1.8 * MODEL_UNIT;
+    const hx = x - Math.sin(a) * back, hy = y + Math.cos(a) * back, rings = t.style === 'angel' ? [6.5] : [5.5, 8];
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    rings.forEach((r, n) => {
+      for (let i = 0; i < 10; i++) {
+        const from = i * Math.PI / 5 + this.clock * (n ? -0.7 : 0.9), shine = 0.5 + 0.5 * Math.sin(this.clock * 3 + i * 1.3 + n);
+        for (const [width, alpha] of [[3.4, 0.12], [1.6, 0.35], [0.8, 0.6]]) {
+          ctx.strokeStyle = HOLY_LIGHT.ray + (alpha * (0.4 + 0.6 * shine)) + ')';
+          ctx.lineWidth = width;
+          ctx.beginPath();
+          ctx.arc(hx, hy, r, from, from + Math.PI / 5 * 0.82);
+          ctx.stroke();
+        }
+      }
+    });
+    ctx.restore();
+  }
+
+  _holyTip(ctx, t) {
+    const tip = this._muzzle(t), x = at(tip.x), y = at(tip.y), seed = t.x * 7 + t.y * 13;
+    const flash = this._pose(t).flash > 0 ? 1 : 0, beat = 0.5 + 0.5 * Math.sin(this.clock * 3.1 + seed);
+    if (t.style === 'angel') {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      glow(ctx, x, y, 8 + 2 * beat, 'rgba(255, 90, 70, 1)', 0.35 + 0.15 * beat);
+      glow(ctx, x, y, 4, HOLY_LIGHT.core, 0.5 + 0.3 * beat);
+      ctx.restore();
+      return;
+    }
+    const size = t.style === 'inquisitor' ? 1.25 : 1;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    glow(ctx, x, y, (13 + 3 * beat + flash * 6) * size, HOLY_LIGHT.warm, 0.4 + 0.15 * beat);
+    glow(ctx, x, y, (6 + 1.5 * beat) * size, HOLY_LIGHT.core, 0.75 + 0.2 * beat);
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 6; i++) {
+      const a = this.clock * 0.9 + i * Math.PI / 3, long = (7 + 3 * Math.sin(this.clock * 2.3 + i * 1.7)) * size;
+      const ray = ctx.createLinearGradient(x, y, x + Math.cos(a) * long, y + Math.sin(a) * long);
+      ray.addColorStop(0, HOLY_LIGHT.ray + '0.75)');
+      ray.addColorStop(1, HOLY_LIGHT.ray + '0)');
+      ctx.strokeStyle = ray;
+      ctx.lineWidth = 1.4 * size;
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(a) * 2, y + Math.sin(a) * 2);
+      ctx.lineTo(x + Math.cos(a) * long, y + Math.sin(a) * long);
+      ctx.stroke();
+    }
+    for (let i = 0; i < 4; i++) {
+      const k = (this.clock * 0.6 + i / 4 + seed * 0.01) % 1, a = i * 1.9 + this.clock * 1.3;
+      const r = (3 + k * 7) * size;
+      glow(ctx, x + Math.cos(a) * r, y + Math.sin(a) * r - k * 6, 2.6, HOLY_LIGHT.core, 0.8 * (1 - k));
+    }
+    ctx.restore();
+  }
+
+  _holyMotes(ctx, e, share) {
+    const dx = at(e.x2) - at(e.x1), dy = at(e.y2) - at(e.y1), len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len, ny = dx / len;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < HOLY_LIGHT.motes; i++) {
+      const k = Math.max(0, Math.min(1, share * 1.3 - i * 0.075));
+      if (k <= 0 || k >= 1) continue;
+      const side = (i % 2 ? 1 : -1) * HOLY_LIGHT.wave * (0.5 + i * 0.25) * Math.sin(k * Math.PI);
+      const x = at(e.x1) + dx * k + nx * side, y = at(e.y1) + dy * k + ny * side;
+      glow(ctx, x, y, e.crit ? 7 : 5.5, HOLY_LIGHT.warm, 0.55);
+      glow(ctx, x, y, 2.6, HOLY_LIGHT.core, 0.95);
+    }
+    ctx.restore();
+  }
+
+  _slash(ctx, e, share) {
+    const pose = this._pose(e.tower), x = at(pose.x), y = at(pose.y) - (pose.lift || 0);
+    const aim = Math.atan2(at(e.y2) - y, at(e.x2) - x), sweep = Math.min(1, share / 0.55);
+    const from = aim - SLASH.width / 2, to = from + SLASH.width * sweep, fade = 1 - Math.max(0, (share - 0.55) / 0.45);
+    const outer = SLASH.reach * CELL, inner = outer * SLASH.inner;
+    ctx.save();
+    ctx.globalAlpha = fade;
+    const fill = ctx.createRadialGradient(x, y, inner * 0.9, x, y, outer);
+    fill.addColorStop(0, 'rgba(255, 245, 210, 0)');
+    fill.addColorStop(0.45, 'rgba(255, 245, 210, .95)');
+    fill.addColorStop(0.75, e.crit ? 'rgba(255, 255, 255, 1)' : 'rgba(253, 186, 116, .9)');
+    fill.addColorStop(1, 'rgba(220, 38, 38, 0)');
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.arc(x, y, outer, from, to);
+    const mid = (from + to) / 2, lean = inner * 0.35;
+    ctx.quadraticCurveTo(x + Math.cos(mid) * (inner + lean), y + Math.sin(mid) * (inner + lean),
+      x + Math.cos(from) * inner * 1.05, y + Math.sin(from) * inner * 1.05);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  _staff(ctx, e, share) {
+    const pose = this._pose(e.tower), hx = at(pose.x), hy = at(pose.y);
+    const spot = e.mob && !e.mob.dead ? this.shown.get(e.mob.id) || e.mob : null;
+    const tx = spot ? at(spot.x) : at(e.x2), ty = spot ? at(spot.y) - (spot.lift || 0) : at(e.y2);
+    const aim = Math.atan2(ty - hy, tx - hx), reach = Math.hypot(tx - hx, ty - hy);
+    const swing = Math.min(1, share / 0.45), ease = 1 - Math.pow(1 - swing, 3), back = share > 0.7 ? (share - 0.7) / 0.3 : 0;
+    const angle = aim - STAFF_HIT.swing * (1 - ease), long = (12 + (reach - 12) * ease) * (1 - back * 0.5);
+    const cx = Math.cos(angle), cy = Math.sin(angle), x0 = hx - cx * STAFF_HIT.back, y0 = hy - cy * STAFF_HIT.back;
+    const x1 = hx + cx * long, y1 = hy + cy * long;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(0, 0, 0, .35)';
+    ctx.lineWidth = 4.2;
+    ctx.beginPath();
+    ctx.moveTo(x0 + 1, y0 + 2);
+    ctx.lineTo(x1 + 1, y1 + 2);
+    ctx.stroke();
+    ctx.strokeStyle = STAFF_HIT.shaft;
+    ctx.lineWidth = 3.2;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+    ctx.strokeStyle = STAFF_HIT.sheen;
+    ctx.lineWidth = 0.9;
+    ctx.beginPath();
+    ctx.moveTo(x0 - cy * 0.7, y0 + cx * 0.7);
+    ctx.lineTo(x1 - cy * 0.7, y1 + cx * 0.7);
+    ctx.stroke();
+    for (const [ax, ay, bx, by] of [[x0, y0, x0 + cx * 3, y0 + cy * 3], [x1 - cx * 3.5, y1 - cy * 3.5, x1, y1]]) {
+      ctx.strokeStyle = STAFF_HIT.cap;
+      ctx.lineWidth = 4.2;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+      ctx.strokeStyle = STAFF_HIT.capLight;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(ax - cy, ay + cx);
+      ctx.lineTo(bx - cy, by + cx);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = STAFF_HIT.grip;
+    ctx.lineWidth = 3.8;
+    for (const f of [1.5, 5]) {
+      ctx.beginPath();
+      ctx.moveTo(hx + cx * (f - 1), hy + cy * (f - 1));
+      ctx.lineTo(hx + cx * (f + 1), hy + cy * (f + 1));
+      ctx.stroke();
+    }
+    ctx.restore();
+    if (swing >= 1 && share < 0.75) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      glow(ctx, x1, y1, 9 * (1 - (share - 0.45) / 0.3), HOLY_LIGHT.warm, 0.7);
+      ctx.restore();
+    }
+  }
+
   _leafGlow(ctx, t) {
     const tip = this._muzzle(t), x = at(tip.x), y = at(tip.y);
     glow(ctx, x, y, 9, 'rgba(134, 239, 172, 1)', 0.4 + 0.15 * Math.sin(this.clock * 3 + t.x));
@@ -2286,6 +2458,13 @@ export class Scene {
           pose.aim = Math.atan2(t.cx - t.pull.fx, -(t.cy - t.pull.fy));
         }
       }
+      if (t.style === 'angel' && !t.cocoon && !(t.pull && now < t.pull.end)) {
+        const u = (this.clock * HOVER.rate + t.x * 0.37) % 1;
+        spot.lift = HOVER.lift + HOVER.bob * Math.sin(u * Math.PI * 2);
+        look = t.look + '-' + HOVER.frames[Math.floor(((u + 0.25) % 1) * 4)];
+        if (look === t.look + '-0') look = t.look;
+      }
+      if (t.style === 'monk' && pose.staff && this.clock < pose.staff.until) look = t.look + '-strike';
       pose.x = spot.x;
       pose.y = spot.y;
       pose.lift = spot.lift;
@@ -2299,9 +2478,10 @@ export class Scene {
         pose.flash = Math.max(0, pose.flash - dt);
       }
       if (!spot.riding || spot.lift > 6) {
-        ctx.fillStyle = 'rgba(0, 0, 0, .32)';
+        const hover = t.style === 'angel' ? 1 - (spot.lift - HOVER.lift) / (HOVER.bob * 6) : 1;
+        ctx.fillStyle = t.style === 'angel' ? 'rgba(0, 0, 0, .22)' : 'rgba(0, 0, 0, .32)';
         ctx.beginPath();
-        ctx.ellipse(at(spot.x), at(spot.y) + 7, 12, 5, 0, 0, Math.PI * 2);
+        ctx.ellipse(at(spot.x), at(spot.y) + 7, 12 * hover, 5 * hover, 0, 0, Math.PI * 2);
         ctx.fill();
       }
       if (lit) glow(ctx, x, y, 22, 'rgba(255, 255, 255, .9)', 0.5);
@@ -2312,9 +2492,15 @@ export class Scene {
       if (t.cocoon) sprite(ctx, cocoonSprite(Math.floor(this.clock * 1.6 + t.x) % 2), x, y, 0, ZOOM, 0);
       else {
         const reload = t.reloadUntil > now && look === t.look ? Math.floor(this.clock * 5) % RELOAD_FRAMES : -1;
-        sprite(ctx, heroSprite(look, reload), x, y, pose.angle, ZOOM, lift, HERO_TURN_STEPS);
+        if (FINE_HEROES.test(look)) {
+          if (t.cls.id === 'priest') this._holyAura(ctx, t, x, y);
+          smooth(ctx, heroSprite(look, -1), x, y + lift, turnOf(pose.angle, HERO_TURN_STEPS) * Math.PI * 2
+            / HERO_TURN_STEPS, ZOOM);
+        } else sprite(ctx, heroSprite(look, reload), x, y, pose.angle, ZOOM, lift, HERO_TURN_STEPS);
       }
-      if (pose.flash > 0 && !t.rider && !t.cocoon) {
+      if (t.cls.id === 'priest' && !t.cocoon && t.style !== 'monk') this._holyTip(ctx, t);
+      if (t.style === 'angel' || t.style === 'inquisitor') this._halo(ctx, t, x, y);
+      if (pose.flash > 0 && !t.rider && !t.cocoon && t.cls.id !== 'priest') {
         const tip = this._muzzle(t), fx = at(tip.x), fy = at(tip.y);
         glow(ctx, fx, fy, 7, 'rgba(255, 236, 160, .95)', 0.9);
         square(ctx, fx, fy, 3, '#ffffff');
@@ -2608,6 +2794,13 @@ export class Scene {
       };
       if (away) launch(event.x, event.y);
       else this._fire(t, event.x, event.y, event.mob, launch);
+    } else if (event.kind === 'strike') {
+      const monk = t.style === 'monk', life = monk ? STAFF_HIT.life : SLASH.life;
+      this._fire(t, event.x, event.y, event.mob, (x2, y2) => {
+        if (monk) this._pose(t).staff = { until: this.clock + life };
+        add({ kind: monk ? 'staff' : 'slash', life, tower: t, mob: event.mob, x2, y2, crit: event.crit });
+        this._sparks(x2, y2, ['#fffbe6', '#fde68a', event.crit ? '#ffffff' : '#fbbf24'], event.crit ? 8 : 4, 1.6, 0.3);
+      }, life);
     } else if (event.kind === 'beam') {
       this._fire(t, event.x, event.y, event.mob, (x2, y2) => {
         add({ kind: 'laser', life: LASER.life, tower: t, mob: event.mob, x2, y2, blue: event.blue });
@@ -3124,6 +3317,14 @@ export class Scene {
         this._glob(ctx, e, share);
         continue;
       }
+      if (e.kind === 'slash') {
+        this._slash(ctx, e, share);
+        continue;
+      }
+      if (e.kind === 'staff') {
+        this._staff(ctx, e, share);
+        continue;
+      }
       if (e.kind === 'absorb') {
         const tip = this._muzzle(e.tower), from = (px, py, f, a) => {
           const ease = f * f, off = (1 - f) * 8;
@@ -3154,6 +3355,8 @@ export class Scene {
         const b = e.bolt, x = at(e.x1 + (e.x2 - e.x1) * share), y = at(e.y1 + (e.y2 - e.y1) * share);
         if (b.look === 'fireball') {
           this._fireball(ctx, e, share, dt);
+        } else if (b.look === 'light') {
+          this._holyMotes(ctx, e, share);
         } else if (b.look === 'tracer') {
           if (e.heavy) glow(ctx, x, y, b.width * 3, 'rgba(255, 243, 176, .95)', 0.8);
           ctx.strokeStyle = b.color;
