@@ -1039,7 +1039,8 @@ export class Battle {
     tower.baseRange = Math.max(RANGE_MIN, this._reachOf(tower, b) + (mods.range || 0))
       + (this.onHill(tower) ? TERRAIN.hill : 0) + (this.onWatch(tower) ? TERRAIN.watch : 0);
     tower.ownRange = tower.baseRange + tower.reach;
-    tower.range = tower.ownRange * (1 + tower.boost.range);
+    if (tower.style === 'angel') tower.baseRange = tower.ownRange = HOLY.angel.reach;
+    tower.range = fixedRange(tower) ? tower.ownRange : tower.ownRange * (1 + tower.boost.range);
     tower.lift = 1 + (tower.might / MIGHT.base - 1) * MIGHT.lift;
     this._steelOf(tower);
     this._flags();
@@ -1820,7 +1821,7 @@ export class Battle {
       boost.cheer = cheer.length > 0;
       boost.muse = muse > 0;
       by.delete(t);
-      const reach = t.ownRange * (1 + boost.range);
+      const reach = fixedRange(t) ? t.ownRange : t.ownRange * (1 + boost.range);
       if (reach !== t.range) t.range = reach;
     }
   }
@@ -2631,6 +2632,8 @@ function fade(values) {
 }
 
 const torchPower = (pyro) => (pyro.runes.has('blue') ? FIRE.blue : 1);
+
+const fixedRange = (t) => t.style === 'angel';
 
 function rollCrit(b, t) {
   t.striking = b.random() < 1 - (1 - t.critChance) * (1 - t.boost.crit);

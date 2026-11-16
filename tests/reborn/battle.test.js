@@ -1181,6 +1181,15 @@ test('жрец-ангел: рубит мечом только того, кто �
   ok(battle.events.some((e) => e.kind === 'strike' && e.tower === t && e.mob === close), 'взмах мечом');
 });
 
+test('ангел: радиус ровно 1 клетка — ни оружие, ни ауры, ни интеллект его не меняют', () => {
+  const battle = makeBattle(), t = priest(battle, 10, 4, ['angel']);
+  eq(t.range, HOLY.angel.reach);
+  battle.setMods(t, { runes: ['angel'], range: 2 });
+  priest(battle, 11, 3, ['monk', 'mantraRange']);
+  battle.step(TICK);
+  eq(t.range, HOLY.angel.reach, 'мантра дальности и оружие не помогают');
+});
+
 test('ангел, кара: бьёт раз в 5 секунд, но убивает любого моба одним ударом; боссу — огромный урон', () => {
   const battle = makeBattle(), t = priest(battle, 10, 4, ['angel', 'smite']);
   eq(t.interval, HOLY.smite.every);

@@ -125,12 +125,11 @@ const HEAT = { warm: ['rgba(255, 110, 30, .9)', 'rgba(255, 220, 120, .9)'],
   holy: ['rgba(250, 204, 21, .9)', 'rgba(255, 251, 230, .95)'] };
 const HOLY_LIGHT = { core: 'rgba(255, 251, 230, 1)', warm: 'rgba(253, 224, 120, 1)', ray: 'rgba(255, 244, 200, ',
   motes: 5, wave: 4 };
-const HOVER = { lift: 4, bob: 1.5, rate: 1.2 };
-const WING_LOOK = { root: [2, 2.6], elbow: [4.8, 3.8], wrist: [7.8, 4.4], fold: { elbow: [3.4, 7], wrist: [3.8, 10.4] },
-  base: '#ffffff', mid: '#fbf5e4', tip: '#f0d98e', edge: 'rgba(160, 130, 80, .45)', shaft: 'rgba(215, 192, 140, .7)',
-  bone: '#faf3e0' };
+const HOVER = { lift: 4, bob: 1.5, rate: 1.2, frames: [2, 1, 0, 1] };
 const MANTRA_LOOKS = { mantraSpeed: '251, 146, 60', mantraPower: '239, 68, 68', mantraRange: '244, 114, 182' };
-const STAFF_ROD = { rear: [5.6, 7], wide: 2, cap: 3.2, reach: 0.4, back: 0.3 };
+const STAFF_ROD = { rear: [5.4, 2.6], wide: 2, cap: 3.2, reach: 0.4, back: 0.3, lunge: 3 };
+const HOLY_BLADE = ['#8a6410', '#e0b43a', '#fffbe6', '#f5d77a', '#8a6410'];
+const RED_BLADE = ['#7f1d1d', '#dc2626', '#fecaca', '#ef4444', '#7f1d1d'];
 const SWORD = { hand: [5, -3.2], blade: 14.6, grip: 3, wide: 2.6, guard: 3.2, ring: 2.3, life: 0.36, wind: 0.25,
   cut: 0.55, back: 0.9, sweep: 1.3, drift: [0.05, 0.04] };
 const JUDGEMENT = { life: 1.6, reach: 30, band: 1.4 };
@@ -1747,21 +1746,17 @@ export class Scene {
       ctx.fill();
     }
     ctx.globalCompositeOperation = 'lighter';
-    const shine = 0.5 + 0.5 * Math.sin(this.clock * 3 + t.x);
+    const shine = 0.5 + 0.5 * Math.sin(this.clock * 3 + t.x), tones = smite ? HOLY_BLADE : RED_BLADE;
     for (let i = 1; i <= 4; i++) {
       const f = i / 5;
-      glow(ctx, gx + fx * long * f, gy + fy * long * f, smite ? 5 : 4.5, smite ? HOLY_LIGHT.warm : 'rgba(255, 90, 70, 1)',
-        (smite ? 0.22 : 0.16) + 0.06 * shine);
+      glow(ctx, gx + fx * long * f, gy + fy * long * f, 4.5, smite ? HOLY_LIGHT.warm : 'rgba(255, 90, 70, 1)',
+        0.16 + 0.06 * shine);
     }
     ctx.globalCompositeOperation = 'source-over';
     const blade = ctx.createLinearGradient(gx - sx * wide, gy - sy * wide, gx + sx * wide, gy + sy * wide);
-    blade.addColorStop(0, '#7f1d1d');
-    blade.addColorStop(0.35, '#dc2626');
-    blade.addColorStop(0.5, '#fecaca');
-    blade.addColorStop(0.65, '#ef4444');
-    blade.addColorStop(1, '#7f1d1d');
+    [0, 0.35, 0.5, 0.65, 1].forEach((stop, i) => blade.addColorStop(stop, tones[i]));
     ctx.fillStyle = blade;
-    ctx.strokeStyle = 'rgba(40, 6, 6, .7)';
+    ctx.strokeStyle = smite ? 'rgba(70, 48, 6, .7)' : 'rgba(40, 6, 6, .7)';
     ctx.lineWidth = 0.7;
     ctx.beginPath();
     ctx.moveTo(gx - sx * wide, gy - sy * wide);
@@ -1774,7 +1769,7 @@ export class Scene {
     ctx.fill();
     ctx.stroke();
     ctx.lineCap = 'round';
-    ctx.strokeStyle = '#b91c1c';
+    ctx.strokeStyle = smite ? '#c9a227' : '#b91c1c';
     ctx.lineWidth = 0.9;
     ctx.beginPath();
     ctx.arc(gx, gy, SWORD.ring * u, 0, Math.PI * 2);
@@ -1804,26 +1799,16 @@ export class Scene {
   }
 
   _holyFlame(ctx, gx, gy, fx, fy, long, t) {
-    const sx = -fy, sy = fx;
     ctx.globalCompositeOperation = 'lighter';
-    glow(ctx, gx + fx * long * 0.5, gy + fy * long * 0.5, long * 0.55, HOLY_LIGHT.warm, 0.18);
-    for (let i = 0; i < 18; i++) {
-      const cycle = this.clock * 2.6 + i * 0.37 + t.x, k = cycle % 1, along = ((i * 0.61) % 1) * 0.92 + 0.06;
-      const side = (i % 2 ? 1 : -1) * (1.2 + 2.6 * k), bx = gx + fx * long * along, by = gy + fy * long * along;
-      const x = bx + sx * side, y = by + sy * side - k * 8, size = (1 - k) * (4.2 + (i % 3) * 1.2);
-      const tongue = ctx.createRadialGradient(x, y, 0, x, y, size * 1.6);
-      tongue.addColorStop(0, 'rgba(255, 255, 255, ' + (0.9 * (1 - k)) + ')');
-      tongue.addColorStop(0.45, 'rgba(255, 236, 160, ' + (0.6 * (1 - k)) + ')');
-      tongue.addColorStop(1, 'rgba(255, 190, 80, 0)');
-      ctx.fillStyle = tongue;
-      ctx.beginPath();
-      ctx.moveTo(x, y - size * 1.7);
-      ctx.bezierCurveTo(x + size, y - size * 0.6, x + size * 0.9, y + size, x, y + size);
-      ctx.bezierCurveTo(x - size * 0.9, y + size, x - size, y - size * 0.6, x, y - size * 1.7);
-      ctx.fill();
+    for (let i = 0; i < 4; i++) {
+      const k = (this.clock * 0.8 + i / 4 + t.x * 0.13) % 1, along = 0.2 + ((i * 0.37) % 1) * 0.75;
+      const x = gx + fx * long * along + (i % 2 ? 1 : -1) * (1 + k * 2), y = gy + fy * long * along - k * 7;
+      glow(ctx, x, y, 2.6, HOLY_LIGHT.warm, 0.7 * Math.sin(k * Math.PI));
+      glow(ctx, x, y, 1.1, HOLY_LIGHT.core, 0.9 * Math.sin(k * Math.PI));
     }
     ctx.globalCompositeOperation = 'source-over';
   }
+
 
   _holyRing(ctx, e, share) {
     const x = at(e.x), y = at(e.y), grow = 1 - Math.pow(1 - share, 2.4), r = Math.max(2, e.radius * CELL * grow);
@@ -1892,92 +1877,20 @@ export class Scene {
     ctx.restore();
   }
 
-  _wings(ctx, x, y, facing, flap, folded) {
-    const u = MODEL_UNIT, spread = folded ? 1 : 0.78 + 0.22 * flap, fold = folded ? WING_LOOK.fold : WING_LOOK;
-    const feathers = [];
-    for (const side of [-1, 1]) {
-      const at = ([px, py]) => [side * px * spread * u, py * u];
-      const root = at(WING_LOOK.root), elbow = at(fold.elbow), wrist = at(fold.wrist);
-      const along = (k) => k < 0.5 ? [root[0] + (elbow[0] - root[0]) * k * 2, root[1] + (elbow[1] - root[1]) * k * 2]
-        : [elbow[0] + (wrist[0] - elbow[0]) * (k - 0.5) * 2, elbow[1] + (wrist[1] - elbow[1]) * (k - 0.5) * 2];
-      const aim = (angle) => (folded ? Math.PI / 2 + side * 0.08 : side > 0 ? angle : Math.PI - angle);
-      for (let i = 0; i < 6; i++) {
-        const k = i / 5;
-        feathers.push({ at: wrist, angle: aim(0.2 + 0.75 * k), long: (5.8 - k * 1.2) * u * (folded ? 1.2 : 1),
-          wide: 2.6 * u, row: 0 });
-      }
-      for (let i = 0; i < 7; i++) {
-        const k = 0.15 + 0.8 * i / 6;
-        feathers.push({ at: along(k), angle: aim(1.3 - 0.3 * k), long: (5.2 - k * 0.6) * u, wide: 2.8 * u, row: 1 });
-      }
-      for (let i = 0; i < 9; i++) {
-        const k = 0.1 + 0.85 * i / 8, base = along(k);
-        feathers.push({ at: [base[0], base[1] + 0.3 * u], angle: aim(1.15 - 0.3 * k), long: 3.2 * u, wide: 2.4 * u, row: 2 });
-      }
-      feathers.push({ bone: [root, elbow, wrist] });
-    }
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(facing);
-    ctx.fillStyle = 'rgba(0, 0, 0, .16)';
-    for (const f of feathers) if (!f.bone) this._feather(ctx, f, 0.7, 1.4, true);
-    for (const row of [0, 1, 2]) for (const f of feathers) if (f.row === row) this._feather(ctx, f, 0, 0, false);
-    ctx.lineCap = 'round';
-    for (const f of feathers) {
-      if (!f.bone) continue;
-      const [a, b, c] = f.bone;
-      for (const [width, color] of [[2.2 * u, WING_LOOK.edge], [1.5 * u, WING_LOOK.bone], [0.5 * u, '#ffffff']]) {
-        ctx.strokeStyle = color;
-        ctx.lineWidth = width;
-        ctx.beginPath();
-        ctx.moveTo(a[0], a[1]);
-        ctx.quadraticCurveTo(b[0], b[1] - 0.6 * u, c[0], c[1]);
-        ctx.stroke();
-      }
-    }
-    ctx.restore();
+  _thrust(t) {
+    const k = (this.clock - this._pose(t).staff.at) / STAFF_HIT.life;
+    const ease = (v) => 1 - Math.pow(1 - Math.max(0, Math.min(1, v)), 3);
+    return k < STAFF_ROD.reach ? ease(k / STAFF_ROD.reach) : k > 1 - STAFF_ROD.back
+      ? 1 - ease((k - 1 + STAFF_ROD.back) / STAFF_ROD.back) : 1;
   }
 
-  _feather(ctx, f, dx, dy, shadow) {
-    const [bx, by] = f.at, cx = Math.cos(f.angle), cy = Math.sin(f.angle), nx = -cy, ny = cx;
-    const x0 = bx + dx, y0 = by + dy, tx = x0 + cx * f.long, ty = y0 + cy * f.long, w = f.wide / 2;
-    ctx.beginPath();
-    ctx.moveTo(x0 + nx * w * 0.5, y0 + ny * w * 0.5);
-    ctx.quadraticCurveTo(x0 + cx * f.long * 0.55 + nx * w * 1.25, y0 + cy * f.long * 0.55 + ny * w * 1.25, tx, ty);
-    ctx.quadraticCurveTo(x0 + cx * f.long * 0.55 - nx * w * 1.25, y0 + cy * f.long * 0.55 - ny * w * 1.25,
-      x0 - nx * w * 0.5, y0 - ny * w * 0.5);
-    ctx.closePath();
-    if (shadow) {
-      ctx.fill();
-      return;
-    }
-    const fill = ctx.createLinearGradient(x0, y0, tx, ty);
-    fill.addColorStop(0, WING_LOOK.base);
-    fill.addColorStop(0.65, WING_LOOK.mid);
-    fill.addColorStop(1, WING_LOOK.tip);
-    ctx.fillStyle = fill;
-    ctx.fill();
-    ctx.strokeStyle = WING_LOOK.edge;
-    ctx.lineWidth = 0.45;
-    ctx.stroke();
-    ctx.strokeStyle = WING_LOOK.shaft;
-    ctx.lineWidth = 0.4;
-    ctx.beginPath();
-    ctx.moveTo(x0, y0);
-    ctx.lineTo(x0 + cx * f.long * 0.85, y0 + cy * f.long * 0.85);
-    ctx.stroke();
-  }
-
-  _rod(ctx, t, x, y, facing) {
+  _rod(ctx, t, x, y, facing, out) {
     const pose = this._pose(t), job = pose.staff, u = MODEL_UNIT;
     const [rx, ry] = STAFF_ROD.rear, px = x + (rx * Math.cos(facing) - ry * Math.sin(facing)) * u;
     const py = y + (rx * Math.sin(facing) + ry * Math.cos(facing)) * u;
     const spot = job.mob && !job.mob.dead ? this.shown.get(job.mob.id) || job.mob : null;
     const tx = spot ? at(spot.x) : at(job.x2), ty = spot ? at(spot.y) - (spot.lift || 0) : at(job.y2);
-    const k = (this.clock - job.at) / STAFF_HIT.life, ease = (v) => 1 - Math.pow(1 - Math.max(0, Math.min(1, v)), 3);
-    const out = k < STAFF_ROD.reach ? ease(k / STAFF_ROD.reach) : k > 1 - STAFF_ROD.back
-      ? 1 - ease((k - 1 + STAFF_ROD.back) / STAFF_ROD.back) : 1;
-    const rest = 20 * u, full = Math.hypot(tx - px, ty - py), long = rest + (full - rest) * out;
+    const rest = 22 * u, full = Math.hypot(tx - px, ty - py), long = rest + (full - rest) * out;
     const ax = (tx - px) / (full || 1), ay = (ty - py) / (full || 1), nx = -ay, ny = ax, w = STAFF_ROD.wide / 2;
     const ex = px + ax * long, ey = py + ay * long;
     ctx.save();
@@ -2700,15 +2613,13 @@ export class Scene {
           pose.aim = Math.atan2(t.cx - t.pull.fx, -(t.cy - t.pull.fy));
         }
       }
-      let flap = 0;
       if (t.style === 'angel' && !t.cocoon && t.planted) look = t.look + '-kneel';
       else if (t.style === 'angel' && !t.cocoon && !(t.pull && now < t.pull.end)) {
         const u = (this.clock * HOVER.rate + t.x * 0.37) % 1, seed = t.x * 1.7 + t.y * 2.3;
         spot.lift = HOVER.lift + HOVER.bob * Math.sin(u * Math.PI * 2);
         spot.x += SWORD.drift[0] * Math.sin(this.clock * 0.55 + seed);
         spot.y += SWORD.drift[1] * Math.sin(this.clock * 0.9 + seed * 1.3);
-        flap = 0.5 + 0.5 * Math.sin(u * Math.PI * 2);
-        look = t.look + '-body';
+        look = t.look + '-w' + HOVER.frames[Math.floor(((u + 0.25) % 1) * 4)];
       }
       if (t.style === 'monk' && pose.staff && this.clock < pose.staff.until) look = t.look + '-strike';
       pose.x = spot.x;
@@ -2741,9 +2652,11 @@ export class Scene {
         if (FINE_HEROES.test(look)) {
           if (t.cls.id === 'priest') this._holyAura(ctx, t, x, y);
           const facing = turnOf(pose.angle, HERO_TURN_STEPS) * Math.PI * 2 / HERO_TURN_STEPS;
-          if (t.style === 'angel') this._wings(ctx, x, y + lift, facing, flap, t.planted);
-          if (t.style === 'monk' && pose.staff && this.clock < pose.staff.until) this._rod(ctx, t, x, y + lift, facing);
-          smooth(ctx, heroSprite(look, -1), x, y + lift, facing, ZOOM);
+          const lunge = t.style === 'monk' && pose.staff && this.clock < pose.staff.until ? this._thrust(t) : -1;
+          const mx = lunge > 0 ? x + Math.sin(facing) * lunge * STAFF_ROD.lunge : x;
+          const my = lunge > 0 ? y - Math.cos(facing) * lunge * STAFF_ROD.lunge : y;
+          if (lunge >= 0) this._rod(ctx, t, mx, my + lift, facing, lunge);
+          smooth(ctx, heroSprite(look, -1), mx, my + lift, facing, ZOOM);
           if (t.style === 'angel' && !t.planted) this._sword(ctx, t, x, y + lift, facing);
         } else sprite(ctx, heroSprite(look, reload), x, y, pose.angle, ZOOM, lift, HERO_TURN_STEPS);
       }
