@@ -738,7 +738,7 @@ export class Game {
     this._turnCards();
     if (this.battle && this.state !== 'over' && this.state !== 'ascend') this.battle.step(dt);
     if (this.state === 'wave') {
-      if (this.battle.lives <= 0) this._over();
+      if (this.battle.lives <= 0 && !this.battle.ward) this._over();
       else if (this.battle.cleared) this._endWave();
       return;
     }

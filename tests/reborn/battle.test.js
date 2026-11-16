@@ -1,7 +1,7 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
 import { AIM, BITE_TIME, Battle, CRIMSON, HOLY, WOOD, DISCHARGE, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, FIRE,
-  PLANTED, PULSE, REACTIONS, ROT, SECOND, SHOT, SPLIT_TIME, THORN }
+  PLANTED, PULSE, REACTIONS, ROT, SHOT, SPLIT_TIME, THORN }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
 import { AFFIXES, BOSSES, DIABLO, ELITES, FAMILIES, FAMILY_BY_ID, FINALE, LIVES, LOOKS, MIGHT, MIMIC, MOBS, POWERS,
@@ -1179,6 +1179,96 @@ test('жрец-ангел: рубит мечом только того, кто �
   near(hit(close), t.damage);
   eq(hit(far), 0);
   ok(battle.events.some((e) => e.kind === 'strike' && e.tower === t && e.mob === close), 'взмах мечом');
+});
+
+test('ангел, кара: бьёт раз в 5 секунд, но убивает любого моба одним ударом; боссу — огромный урон', () => {
+  const battle = makeBattle(), t = priest(battle, 10, 4, ['angel', 'smite']);
+  eq(t.interval, HOLY.smite.every);
+  const brute = walker(battle, 11, 1e12);
+  still(brute);
+  ok(battle._fire(t));
+  ok(brute.dead, 'любой моб — с одного удара');
+  ok(battle.events.some((e) => e.kind === 'strike' && e.smite), 'меч горит');
+  const boss = put(battle, special(battle, 'boss', BOSSES[0].id, 1e12), 11);
+  still(boss);
+  ok(battle._fire(t));
+  no(boss.dead, 'босса не убивает');
+  ok(hit(boss) >= t.damage * HOLY.smite.boss * 0.5, 'но бьёт очень сильно');
+});
+
+test('ангел, божественная помощь: в клетке от сердца после волны +1 жизнь, у двух ангелов — +2', () => {
+  const battle = makeBattle(), [hx] = STRAIGHT[STRAIGHT.length - 1];
+  battle.place(player(), 'priest', hx - 1, 4);
+  battle.setMods(battle.towers[0], { runes: ['angel', 'mercy'] });
+  const far = battle.place(player(), 'priest', 5, 4);
+  battle.setMods(far, { runes: ['angel', 'mercy'] });
+  battle.lives = battle.maxLives - 5;
+  battle.endWave();
+  eq(battle.lives, battle.maxLives - 4, 'дальний ангел не лечит');
+  const second = battle.place(player(), 'priest', hx, 6);
+  battle.setMods(second, { runes: ['angel', 'mercy'] });
+  battle.endWave();
+  eq(battle.lives, battle.maxLives - 2, 'лечение складывается');
+});
+
+test('ангел, второй шанс: сердце под неуязвимостью, волна света стирает волну, потом +10 жизней; ангел стоит до конца', () => {
+  const battle = makeBattle(), t = priest(battle, 2, 4, ['angel', 'lastStand']);
+  battle.lives = 1;
+  const biter = walker(battle, battle.length - 1, 1e9), other = walker(battle, battle.length - 3, 1e9);
+  other.speed = 0;
+  battle.spawns.push({ type: 'normal', hp: 10, at: battle.time + 100 });
+  for (let i = 0; i < 200 && !battle.ward; i++) battle.step(TICK);
+  ok(battle.ward, 'неуязвимость на сердце');
+  eq(battle.lives, 0);
+  ok(t.planted, 'ангел опустился и воткнул меч');
+  ok(battle.events.some((e) => e.kind === 'lastStand'));
+  runFor(battle, HOLY.second.charge + 0.1);
+  ok(other.dead && battle.cleared, 'волна стёрта');
+  ok(battle.events.some((e) => e.kind === 'judgement'));
+  battle.endWave();
+  eq(battle.ward, null);
+  eq(battle.lives, HOLY.second.lives);
+  const mob = walker(battle, 2, 1e9);
+  still(mob);
+  no(battle._fire(t), 'атаковать больше не может');
+  battle.lives = 1;
+  walker(battle, battle.length - 1, 1e9);
+  for (let i = 0; i < 200 && battle.lives > 0; i++) battle.step(TICK);
+  eq(battle.ward, null, 'второй раз не спасает');
+  ok(biter.dead);
+});
+
+test('ангел, второй шанс против Диабло: волна его не ранит, но держит 10 секунд, потом он разбивает сердце', () => {
+  const battle = makeBattle();
+  priest(battle, 2, 4, ['angel', 'lastStand']);
+  battle.random = () => 0;
+  const devil = battle._spawn({ type: 'boss', kind: DIABLO, hp: 1e12 }, battle.length - 2);
+  for (let i = 0; i < 400 && !battle.ward; i++) battle.step(TICK);
+  ok(battle.ward && !devil.dead, 'удар Диабло принял ангел');
+  runFor(battle, HOLY.second.charge + 0.1);
+  no(devil.dead, 'волна его не убила');
+  eq(devil.hp, devil.max, 'и не ранила');
+  runFor(battle, HOLY.second.awe - 1);
+  ok(battle.lives === 0 && battle.ward, 'Диабло ещё стоит, сердце держится');
+  for (let i = 0; i < 400 && battle.ward; i++) battle.step(TICK);
+  eq(battle.ward, null, 'разбил сердце сквозь неуязвимость');
+  eq(battle.lives, 0);
+});
+
+test('ангел, святая земля: шар света в случайного врага, кольцо на 4 клетки ранит всех', () => {
+  const battle = makeBattle(), t = priest(battle, 2, 4, ['angel', 'holyGround']);
+  battle.random = () => 0;
+  const target = walker(battle, 14, 1e9), near4 = walker(battle, 17, 1e9), far = walker(battle, 9, 1e9);
+  still(target, near4, far);
+  battle.mobs.splice(battle.mobs.indexOf(target), 1);
+  battle.mobs.unshift(target);
+  runFor(battle, 0.1);
+  ok(battle.events.some((e) => e.kind === 'holyOrb' && e.mob === target), 'шар летит в моба далеко от ангела');
+  eq(hit(target), 0);
+  runFor(battle, HOLY.holyGround.flight);
+  ok(battle.events.some((e) => e.kind === 'holyRing'));
+  ok(hit(target) > 0 && hit(near4) > 0, 'кольцо задело всех рядом');
+  eq(hit(far), 0, 'дальше 4 клеток — нет');
 });
 
 test('жрец-монах: бьёт посохом на 2 клетки и очень часто', () => {

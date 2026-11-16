@@ -1037,21 +1037,42 @@ function wing(m, side, flap) {
   }
 }
 
-function angel(m, flap = 0) {
-  wing(m, -1, flap);
-  wing(m, 1, flap);
+function foldedWing(m, side) {
   for (let i = 0; i < 9; i++) {
-    const a = Math.PI * (0.18 + 0.64 * i / 8), x = 16 + Math.cos(a) * 5.4, y = 22 + Math.sin(a) * 6.6;
-    m.limb(16, 20.4, 3.6, x, y, 1.8, 0.8, i % 2 ? '#faf5e8' : '#e9dcbc', 0, 1.2);
-    if (i % 2 === 0) {
-      m.limb(x, y, 1.8, x + Math.cos(a) * 0.6, y + 1.6, 1.4, 0.24, TEMPLE.gold, 0.8);
-      m.egg(x + Math.cos(a) * 0.7, y + 2.3, 1.3, 0.5, 0.8, 0.4, '#c98a1b', 0.8);
-    }
+    const f = i / 8, x = 16 + side * (3.2 + f * 2.4), y = 18.4 + f * 1.4;
+    m.limb(x, y, 10.6 - f * 0.6, 16 + side * (2.6 + f * 1.6), 29.4 + f * 2.6, 4 - f, 1.25 - f * 0.3,
+      i % 3 ? WING.white : WING.cream, 0.3, 0.5);
+    if (i % 3 === 1) m.egg(16 + side * (2.6 + f * 1.6), 30 + f * 2.6, 4.4 - f, 0.5, 0.8, 0.3, WING.gold, 0.8);
   }
-  m.limb(16, 20.6, 4.8, 16, 28.4, 2.6, 0.8, '#c9a227', 0.8, 0.5);
+  m.limb(16 + side * 3, 18.2, 11.4, 16 + side * 5.6, 22.6, 10.8, 0.9, WING.bone, 0.5, 0.7);
+}
+
+function angel(m, o = {}) {
+  const kneel = Boolean(o.kneel);
+  if (kneel) {
+    m.egg(16, 22.4, 1, 8.8, 7.2, 0.8, '#efe5cc');
+    for (let i = 0; i < 11; i++) {
+      const a = Math.PI * (0.1 + 0.8 * i / 10), x = 16 + Math.cos(a) * 8.2, y = 22.4 + Math.sin(a) * 6.6;
+      m.limb(16, 21, 2.4, x, y, 1.2, 0.8, i % 2 ? '#faf5e8' : '#e9dcbc', 0, 1.3);
+    }
+    foldedWing(m, -1);
+    foldedWing(m, 1);
+  } else {
+    wing(m, -1, o.flap || 0);
+    wing(m, 1, o.flap || 0);
+    for (let i = 0; i < 9; i++) {
+      const a = Math.PI * (0.18 + 0.64 * i / 8), x = 16 + Math.cos(a) * 5.4, y = 22 + Math.sin(a) * 6.6;
+      m.limb(16, 20.4, 3.6, x, y, 1.8, 0.8, i % 2 ? '#faf5e8' : '#e9dcbc', 0, 1.2);
+      if (i % 2 === 0) {
+        m.limb(x, y, 1.8, x + Math.cos(a) * 0.6, y + 1.6, 1.4, 0.24, TEMPLE.gold, 0.8);
+        m.egg(x + Math.cos(a) * 0.7, y + 2.3, 1.3, 0.5, 0.8, 0.4, '#c98a1b', 0.8);
+      }
+    }
+    m.limb(16, 20.6, 4.8, 16, 28.4, 2.6, 0.8, '#c9a227', 0.8, 0.5);
+  }
   vTorso(m, '#d9a521', '#f5d77a');
   m.limb(12.4, 21.6, 6.8, 19.6, 21.6, 6.8, 0.5, '#b8860b', 0.8);
-  const [lx, ly, rx, ry] = [11.6, 13.8, 21, 12.8];
+  const [lx, ly, rx, ry] = kneel ? [15, 12.6, 17, 12.6] : [11.6, 13.8, 21, 12.8];
   for (const [sx, hx, hy] of [[10.6, lx, ly], [21.4, rx, ry]]) {
     m.limb(sx, 17.2, 7.6, hx, hy + 1.2, 8.6, 1.4, '#e9dcbc', 0, 1.1);
     m.limb(hx, hy + 2.4, 8.8, hx, hy + 0.8, 9, 1.25, '#d9a521', 0.9);
@@ -1062,26 +1083,37 @@ function angel(m, flap = 0) {
         k % 2 ? '#b8860b' : '#e0b43a', 1, 0.5);
     }
   }
-  m.limb(rx, ry + 1, 10, rx, ry - 0.4, 10, 0.55, '#c9a227', 0.9);
-  m.limb(rx - 2.8, ry - 0.6, 10.2, rx + 2.8, ry - 0.6, 10.2, 0.6, '#d9a521', 1, 0.45);
-  m.ball(rx, ry - 0.6, 10.6, 0.8, '#fbbf24', 1);
-  for (const [a, b] of [[0.3, 1.3], [1.9, 2.9], [3.5, 4.5], [5.1, 6.1]]) {
-    m.limb(rx + Math.cos(a) * 2.2, ry - 0.6 + Math.sin(a) * 2.2, 10.4, rx + Math.cos(b) * 2.2,
-      ry - 0.6 + Math.sin(b) * 2.2, 10.4, 0.36, '#b91c1c', 0.9);
+  if (kneel) {
+    m.limb(13, 10.4, 9.6, 19, 10.4, 9.6, 0.65, '#d9a521', 1, 0.45);
+    for (const [a, b] of [[0.3, 1.3], [1.9, 2.9], [3.5, 4.5], [5.1, 6.1]]) {
+      m.limb(16 + Math.cos(a) * 2.2, 10.4 + Math.sin(a) * 2.2, 9.8, 16 + Math.cos(b) * 2.2, 10.4 + Math.sin(b) * 2.2,
+        9.8, 0.36, '#b91c1c', 0.9);
+    }
+    m.limb(16, 10.4, 9.8, 16, 12.8, 10.6, 0.55, '#c9a227', 0.9);
+    m.ball(16, 13.4, 11.2, 0.8, '#d9a521', 1);
+  } else if (o.armed) {
+    m.limb(rx, ry + 1, 10, rx, ry - 0.4, 10, 0.55, '#c9a227', 0.9);
+    m.limb(rx - 2.8, ry - 0.6, 10.2, rx + 2.8, ry - 0.6, 10.2, 0.6, '#d9a521', 1, 0.45);
+    m.ball(rx, ry - 0.6, 10.6, 0.8, '#fbbf24', 1);
+    for (const [a, b] of [[0.3, 1.3], [1.9, 2.9], [3.5, 4.5], [5.1, 6.1]]) {
+      m.limb(rx + Math.cos(a) * 2.2, ry - 0.6 + Math.sin(a) * 2.2, 10.4, rx + Math.cos(b) * 2.2,
+        ry - 0.6 + Math.sin(b) * 2.2, 10.4, 0.36, '#b91c1c', 0.9);
+    }
+    m.limb(rx, ry - 1.4, 10.4, rx, ry - 13.6, 10.8, 1, '#dc2626', 1, 0.5);
+    m.limb(rx, ry - 1.4, 11.2, rx, ry - 12.8, 11.4, 0.32, '#fecaca', 1, 0.15);
+    m.limb(rx, ry - 13.4, 10.8, rx, ry - 15, 10.8, 0.5, '#b91c1c', 1, 0.1);
+    m.limb(rx - 1.6, ry - 9.6, 10.6, rx + 1.6, ry - 9.6, 10.6, 0.32, '#ef4444', 1);
+    m.ball(rx, ry + 2.2, 10.2, 0.75, '#d9a521', 1);
   }
-  m.limb(rx, ry - 1.4, 10.4, rx, ry - 13.6, 10.8, 1, '#dc2626', 1, 0.5);
-  m.limb(rx, ry - 1.4, 11.2, rx, ry - 12.8, 11.4, 0.32, '#fecaca', 1, 0.15);
-  m.limb(rx, ry - 13.4, 10.8, rx, ry - 15, 10.8, 0.5, '#b91c1c', 1, 0.1);
-  m.limb(rx - 1.6, ry - 9.6, 10.6, rx + 1.6, ry - 9.6, 10.6, 0.32, '#ef4444', 1);
-  m.ball(rx, ry + 2.2, 10.2, 0.75, '#d9a521', 1);
   m.ball(lx, ly, 9.6, 1.4, '#d9a521', 1);
   m.ball(rx, ry, 9.6, 1.4, '#d9a521', 1);
-  m.egg(16, 17.6, 11.2, 3.6, 4, 3.4, '#e0b43a', 1);
-  m.egg(16, 14.6, 11.4, 1.9, 1.1, 1.6, '#b8860b', 0.8);
-  m.egg(16, 14.3, 12.2, 1.2, 0.5, 0.6, '#3b2a1a');
-  m.limb(16, 13.8, 14.4, 16, 21.4, 14, 0.6, '#f5d77a', 1, 0.3);
+  const bow = kneel ? 1.2 : 0;
+  m.egg(16, 17.6 - bow, 11.2 - bow, 3.6, 4, 3.4, '#e0b43a', 1);
+  m.egg(16, 14.6 - bow, 11.4 - bow, 1.9, 1.1, 1.6, '#b8860b', 0.8);
+  m.egg(16, 14.3 - bow, 12.2 - bow, 1.2, 0.5, 0.6, '#3b2a1a');
+  m.limb(16, 13.8 - bow, 14.4 - bow, 16, 21.4 - bow, 14 - bow, 0.6, '#f5d77a', 1, 0.3);
   for (const side of [-1, 1]) {
-    m.limb(16 + side * 3, 17.4, 13, 16 + side * 4.6, 20.6, 12.6, 0.5, '#f8e7a8', 1, 0.2);
+    m.limb(16 + side * 3, 17.4 - bow, 13 - bow, 16 + side * 4.6, 20.6 - bow, 12.6 - bow, 0.5, '#f8e7a8', 1, 0.2);
   }
 }
 
@@ -1207,10 +1239,12 @@ const SKINS = {
   'pyro-ignite-blue': (m) => igniteMage(m, '#3b82f6', '#e0f2ff'),
   priest: pilgrim,
   'priest-ragged': pilgrim,
-  'priest-angel': (m) => angel(m, 0),
-  'priest-angel-1': (m) => angel(m, 1),
-  'priest-angel-2': (m) => angel(m, 2),
-  'priest-angel-3': (m) => angel(m, 3),
+  'priest-angel': (m) => angel(m, { armed: true }),
+  'priest-angel-w0': (m) => angel(m, { flap: 0 }),
+  'priest-angel-w1': (m) => angel(m, { flap: 1 }),
+  'priest-angel-w2': (m) => angel(m, { flap: 2 }),
+  'priest-angel-w3': (m) => angel(m, { flap: 3 }),
+  'priest-angel-kneel': (m) => angel(m, { kneel: true }),
   'priest-monk': (m) => monk(m),
   'priest-monk-strike': (m) => monk(m, true),
   'priest-inquisitor': inquisitor,

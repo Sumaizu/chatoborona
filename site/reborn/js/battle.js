@@ -14,7 +14,6 @@ export const ROT = { share: 0.01, boss: 0.003, time: 5 };
 export const BRITTLE = 0.005;
 export const PLANTED = { time: 3, radius: 1, push: 1 };
 export const CRIMSON = 0.2;
-export const SECOND = 5;
 
 const SHOTS_PER_TICK = 6;
 const BOSS_HOLD = 0.3;
@@ -38,7 +37,7 @@ const PIERCE_WIDTH = 0.4;
 const FAR_REACH = SIZE * 1.5;
 const MAD_BITE = 0.7;
 const STICKY_SLOW = 0.3;
-const COOLDOWNS = ['nextActive', 'nextBlaze', 'nextBless', 'nextCheer', 'nextCleanse', 'nextCloud', 'nextEye',
+const COOLDOWNS = ['nextActive', 'nextBlaze', 'nextCheer', 'nextCloud', 'nextEye',
   'nextFar', 'nextGale', 'nextInferno', 'nextLegion', 'nextLight', 'nextMind', 'nextMuse', 'nextPhoenix', 'nextPool',
   'nextEmp', 'nextNuke', 'nextQuake', 'nextRift', 'nextSand', 'nextStorm', 'nextSwarm', 'nextTempest', 'nextTsunami',
   'nextWall', 'nextWave'];
@@ -105,7 +104,9 @@ export const WOOD = { bow: { reload: 0.8 }, grace: { radius: 2.5, haste: 0.15 },
   venomBurst: { radius: 1, time: 4, dps: 0.4 }, plague: 0.1, absorb: { time: 0.35, size: 1.5 },
   cauldron: { every: 2.5, reach: 5, flight: 0.7, mul: 0.8, radius: 0.8, time: 8, dps: 0.3 } };
 export const HOLY = { angel: { reach: 1, interval: 1, mul: 2.6 }, monk: { reach: 2, interval: 0.4, mul: 0.8 },
-  inquisitor: { reach: 4, interval: 1.45, mul: 2.2, flight: FIREBALL_FLIGHT } };
+  inquisitor: { reach: 4, interval: 1.45, mul: 2.2, flight: FIREBALL_FLIGHT }, smite: { every: 5, boss: 11 },
+  mercy: { reach: 1, lives: 1 }, second: { charge: 1, awe: 10, lives: 10 },
+  holyGround: { every: 6, radius: 4, mul: 2, flight: 0.8 } };
 const STYLE_ELEMENTS = { witch: 'poison' };
 const STYLE_BALL = 11;
 const ROAD_ROUND = 0.9;
@@ -257,13 +258,12 @@ export class Battle {
     this.steel = 0;
     this.pulseAt = 0;
     this.whirls = [];
-    this.grounds = [];
     this.births = [];
     this.delayed = [];
     this.headwind = false;
     this.brittle = false;
     this.treasures = 0;
-    this.rescued = false;
+    this.ward = null;
     this.lastSpawn = 0;
     this.wild = false;
     this.family = null;
@@ -341,7 +341,7 @@ export class Battle {
       waveXp: 0, reloadUntil: 0, angle: this._homeAngle(x, y), aimMob: null, aimHold: 0,
       charge: null,
       nextActive: 0, nextWall: 0, pull: null,
-      nextCheer: 0, nextCleanse: 0, nextMuse: 0, cheerUntil: 0, rallyUntil: 0, wardUntil: 0, muses: [], lift: 1,
+      nextCheer: 0, nextMuse: 0, cheerUntil: 0, rallyUntil: 0, wardUntil: 0, muses: [], lift: 1,
       ownRange: 0, boost: { rate: 0, range: 0, damage: 0, crit: 0, wisdom: 0, cheer: false, muse: false },
       boostBy: new Set(), torch: null, torches: [],
       run: { damage: 0, kills: 0, assists: 0, xp: 0, coins: 0 },
@@ -471,7 +471,7 @@ export class Battle {
     if (at < 0) return;
     this.towers.splice(at, 1);
     if (!tower.rider) this.byCell.delete(tower.y * SIZE + tower.x);
-    for (const list of ['walls', 'whirls', 'patches', 'grounds',
+    for (const list of ['walls', 'whirls', 'patches',
       'zones', 'phoenixes', 'drones', 'traps', 'clouds', 'puddles']) {
       this[list] = this[list].filter((item) => item.tower !== tower);
     }
@@ -503,7 +503,6 @@ export class Battle {
     this.wave = wave;
     this.players = players;
     for (const t of this.towers) t.feast = 0;
-    this.spare = this.towers.find((t) => t.cls.id === 'healer' && !t.cocoon && open(t, 3)) || null;
     this.steel = 0;
     for (const t of this.towers) this._steelOf(t);
     const start = this.time, toughness = Math.max(FLOOR, 1 + this.foe.hp);
@@ -588,18 +587,18 @@ export class Battle {
     this.clouds = [];
     this.puddles = [];
     for (const trap of this.traps) trap.openAt = 0;
-    const healers = this.towers.filter((t) => t.cls.id === 'healer' && !t.cocoon);
-    if (healers.length && this.lives < this.maxLives) {
-      const base = healers[0].cls.base, heal = Math.min(base.healCap, base.heal * healers.length,
-        this.maxLives - this.lives);
-      this.lives += heal;
-      this._event({ kind: 'heal', tower: healers[0], lives: heal });
+    if (this.ward) {
+      this.lives = Math.min(this.maxLives, Math.max(0, this.lives) + HOLY.second.lives);
+      this._event({ kind: 'heal', tower: this.ward.tower, lives: HOLY.second.lives });
+      this.ward = null;
     }
-    const renew = healers.find((t) => open(t, 3));
-    if (renew && this.lives < this.maxLives) {
-      const extra = Math.min(renew.s[3].lives, this.maxLives - this.lives);
-      this.lives += extra;
-      this._event({ kind: 'heal', tower: renew, lives: extra });
+    const [hx, hy] = this.path[this.path.length - 1];
+    const menders = this.towers.filter((t) => t.style === 'angel' && t.runes.has('mercy') && !t.cocoon
+      && Math.abs(t.x - hx) <= HOLY.mercy.reach && Math.abs(t.y - hy) <= HOLY.mercy.reach);
+    if (menders.length && this.lives < this.maxLives) {
+      const heal = Math.min(menders.length * HOLY.mercy.lives, this.maxLives - this.lives);
+      this.lives += heal;
+      this._event({ kind: 'heal', tower: menders[0], lives: heal });
     }
     const fighters = this.towers.filter((t) => !t.cocoon);
     const share = fighters.reduce((sum, t) => sum + t.run.xp - t.waveXp, 0) / Math.max(1, fighters.length);
@@ -1023,6 +1022,7 @@ export class Battle {
     tower.interval = (shot && shot.interval || base.interval) / (Math.max(FLOOR, 1 + (mods.rate || 0))
       * (tower.runes.has('frenzy') ? 3 : 1));
     if (tower.style === 'dragon') tower.interval = PULSE / Math.max(FLOOR, 1 + (mods.rate || 0));
+    if (tower.style === 'angel' && tower.runes.has('smite')) tower.interval = HOLY.smite.every;
     if (tower.style === 'turret' && tower.runes.has('giant')) {
       tower.interval = MECH.giant.gap / Math.max(FLOOR, 1 + (mods.rate || 0));
     }
@@ -1134,9 +1134,8 @@ export class Battle {
     if (this.phoenixes.length) this._phoenixes(now);
     if (this.zones.length) this._zones(dt, now);
     if (this.whirls.length) this._whirls(dt, now);
-    if (this.grounds.length) this._grounds(dt, now);
     this._venom(dt, now);
-    if (this.walls.length) this._mend(dt);
+    if (this.ward) this._judge(now);
     for (const mob of this.mobs) {
       if (mob.dead) continue;
       if (mob.rot && !mob.dead && mob.rot.until <= now) mob.rot = null;
@@ -1441,14 +1440,16 @@ export class Battle {
     const stop = this.length - HEART_GAP, wind = this.headwind ? 1 - HEADWIND : 1;
     for (const mob of this.mobs) {
       if (mob.dead) continue;
+      if (mob.aweUntil > now) continue;
       if (mob.biting) {
         if (now - mob.biting < BITE_TIME) continue;
+        if (mob.fatal && !this.ward && this._lastStand(mob)) continue;
         mob.dead = true;
-        const shield = mob.fatal ? null : this._shield(mob) || this._spared();
-        if (shield) {
-          this._event({ kind: 'shield', mob, tower: shield });
+        if (this.ward && !mob.fatal) {
+          this._event({ kind: 'warded', mob });
           continue;
         }
+        if (mob.fatal) this.ward = null;
         if (!mob.fatal && this.steel > 0) {
           this.steel -= 1;
           this._event({ kind: 'steel', mob, left: this.steel });
@@ -1458,7 +1459,7 @@ export class Battle {
         this.lives -= lost;
         this.leaked += lost;
         this._event({ kind: 'leak', mob });
-        if (this.lives <= 0 && !mob.fatal) this._rescue();
+        if (this.lives <= 0 && !mob.fatal) this._lastStand(null);
         continue;
       }
       mob.wall = null;
@@ -1658,13 +1659,6 @@ export class Battle {
     this.steel += 1;
   }
 
-  _spared() {
-    const t = this.spare;
-    if (!t || !this.towers.includes(t)) return null;
-    this.spare = null;
-    return t;
-  }
-
   _rewind() {
     const t = this.towers.find((sage) => sage.cls.id === 'sage' && !sage.looped && open(sage, 4));
     if (!t) return;
@@ -1795,10 +1789,6 @@ export class Battle {
       boost.rate = muse + fade(haste) + fade(winds) + fade(team) + fade(grace) + fade(tuning) + fade(crimson);
       boost.damage = muse + fade(cheer);
       boost.range = fade(range);
-      if (t.blessUntil > now) {
-        boost.damage += t.bless.bonus;
-        by.add(t.bless.by);
-      }
       if (hero === t) {
         boost.damage += herald.s[6].bonus;
         by.add(herald);
@@ -2040,78 +2030,6 @@ export class Battle {
     t.busy = Math.max(t.busy, this.time + seconds);
     t.stunUntil = Math.max(t.stunUntil, this.time + seconds);
     return true;
-  }
-
-  _cleanse(t, now) {
-    const s = t.s[1], radius = s.radius + t.reach;
-    t.nextCleanse = now + s.every;
-    const freed = [];
-    for (const ally of this.towers) {
-      if (ally.rider || (ally.cx - t.cx) ** 2 + (ally.cy - t.cy) ** 2 > radius * radius) continue;
-      if (ally.stunUntil > now || ally.napUntil > now) ally.busy = Math.min(ally.busy, now);
-      if (ally.stunUntil > now || ally.napUntil > now || ally.webUntil > now) freed.push(ally);
-      ally.stunUntil = Math.min(ally.stunUntil, now);
-      ally.napUntil = Math.min(ally.napUntil, now);
-      ally.webUntil = Math.min(ally.webUntil, now);
-      ally.wardUntil = now + s.time;
-    }
-    this._event({ kind: 'cleanse', tower: t, radius, freed });
-  }
-
-  _hallow(t, now) {
-    const s = t.s[2];
-    let best = null, most = 0;
-    for (const mob of this.mobs) {
-      if (mob.dead || !grounded(mob, now) || this.covered(mob.x, mob.y)) continue;
-      let count = 0;
-      for (const other of this.mobs) {
-        if (!other.dead && grounded(other, now) && near(other, mob.x, mob.y, s.radius)) count++;
-      }
-      if (count > most) {
-        most = count;
-        best = mob;
-      }
-    }
-    if (!best) return;
-    t.nextActive = now + s.every;
-    this.grounds.push({ tower: t, x: best.x, y: best.y, radius: s.radius, until: now + s.time, born: now,
-      dps: t.skill * s.dps, vuln: s.vuln * t.lift });
-    this._event({ kind: 'hallow', tower: t, x: best.x, y: best.y, radius: s.radius, time: s.time });
-  }
-
-  _grounds(dt, now) {
-    this.grounds = this.grounds.filter((ground) => ground.until > now);
-    for (const ground of this.grounds) {
-      for (const mob of this.mobs) {
-        if (mob.dead || mob.flying || underground(mob, now) || !near(mob, ground.x, ground.y, ground.radius)) continue;
-        this._vulnerable(mob, ground.vuln, 0.25);
-        mob.helpers.add(ground.tower);
-        if (mob.undead) this._hurt(mob, ground.dps * dt, ground.tower, 'holy', true);
-      }
-    }
-  }
-
-  _mend(dt) {
-    for (const t of this.towers) {
-      if (t.cls.id !== 'healer' || t.cocoon) continue;
-      for (const wall of this.walls) {
-        if (wall.hp < wall.max && near(wall, t.cx, t.cy, t.range)) {
-          wall.hp = Math.min(wall.max, wall.hp + wall.max * t.cls.base.mend * dt);
-        }
-      }
-    }
-  }
-
-  _bless(t, now) {
-    const s = t.s[4], radius = s.radius + t.reach;
-    const pool = this.towers.filter((ally) => ally !== t && !ally.rider && !ally.cocoon && !(ally.blessUntil > now)
-      && (ally.cx - t.cx) ** 2 + (ally.cy - t.cy) ** 2 <= radius * radius);
-    if (!pool.length) return;
-    t.nextBless = now + s.every;
-    const ally = pool[Math.floor(this.random() * pool.length)];
-    ally.blessUntil = now + s.time;
-    ally.bless = { by: t, bonus: s.bonus * t.lift };
-    this._event({ kind: 'muse', tower: t, ally, flash: false });
   }
 
   _inspire(t, now) {
@@ -2525,29 +2443,35 @@ export class Battle {
     }
   }
 
-  _shield(mob) {
-    let best = null;
-    for (const t of this.towers) {
-      if (t.cls.id !== 'healer' || t.cocoon || !open(t, 0) || mob.info.boss && !t.runes.has('guardian')) continue;
-      if (!best || guard(t) > guard(best)) best = t;
+  _lastStand(diablo) {
+    const angel = this.towers.find((t) => t.style === 'angel' && t.runes.has('lastStand') && !t.planted && !t.cocoon);
+    if (!angel) return false;
+    const s = HOLY.second;
+    angel.planted = true;
+    angel.charge = null;
+    this.lives = diablo ? 0 : Math.max(0, this.lives);
+    this.ward = { tower: angel, blastAt: this.time + s.charge };
+    if (diablo) {
+      diablo.biting = 0;
+      diablo.aweUntil = this.time + s.charge + s.awe;
+      diablo.holdUntil = diablo.aweUntil;
     }
-    return best && this.random() < guard(best) ? best : null;
+    this._event({ kind: 'lastStand', tower: angel, time: s.charge });
+    return true;
   }
 
-  _rescue() {
-    if (this.rescued) return;
-    const savior = this.towers.find((t) => t.cls.id === 'healer' && !t.cocoon && t.runes.has('second'));
-    if (!savior) return;
-    this.rescued = true;
-    this.lives = SECOND;
-    const wiped = this.mobs.filter((mob) => !mob.dead);
+  _judge(now) {
+    const ward = this.ward;
+    if (!ward.blastAt || now < ward.blastAt) return;
+    ward.blastAt = 0;
+    const wiped = this.mobs.filter((mob) => !mob.dead && !mob.fatal);
     for (const mob of wiped) {
       mob.dead = true;
       mob.hp = 0;
     }
     this.spawns = [];
     this.births = [];
-    this._event({ kind: 'rescue', tower: savior, lives: SECOND, wiped });
+    this._event({ kind: 'judgement', tower: ward.tower, wiped });
   }
 
   reward(t, xp) {
@@ -2619,7 +2543,6 @@ export class Battle {
   }
 }
 
-const guard = (t) => t.s[0].chance * (t.runes.has('guardian') ? 2 : 1);
 
 const flame = (t) => (t.runes.has('blue') ? FIRE.blue : 1);
 
@@ -2838,6 +2761,26 @@ function witchThrow(b, t, target) {
   if (pools) b._later(WOOD.absorb.time, toss, t);
   else toss();
   return true;
+}
+
+function smite(b, t, target) {
+  b._event({ kind: 'strike', tower: t, x: target.x, y: target.y, crit: true, mob: target, smite: true });
+  const boss = target.info.boss;
+  b._hurt(target, boss ? t.damage * HOLY.smite.boss : target.hp * 1e3 + 1e6, t, 'holy', false, SHIELDS, true);
+  return true;
+}
+
+function holyGround(b, t, now) {
+  const pool = b.mobs.filter((mob) => !mob.dead && !hidden(mob, now) && !b.covered(mob.x, mob.y));
+  if (!pool.length) return;
+  const s = HOLY.holyGround, mob = pool[Math.floor(b.random() * pool.length)];
+  t.nextHoly = now + s.every;
+  b._event({ kind: 'holyOrb', tower: t, mob, x: mob.x, y: mob.y, time: s.flight });
+  b._later(s.flight, () => {
+    const x = mob.x, y = mob.y, crit = rollCrit(b, t);
+    b._event({ kind: 'holyRing', tower: t, x, y, radius: s.radius });
+    for (const other of b._around(x, y, s.radius)) b._hurt(other, t.damage * s.mul * (crit ? t.critMul : 1), t);
+  }, t);
 }
 
 function holyThrow(b, t, target) {
@@ -3547,15 +3490,21 @@ const SKILLS = {
   },
   priest: {
     fire(b, t) {
-      const target = b._target(t);
+      const target = t.planted ? null : b._target(t);
       if (!target) return false;
       if (t.style === 'inquisitor') return holyThrow(b, t, target);
+      if (t.style === 'angel' && t.runes.has('smite')) return smite(b, t, target);
       const crit = rollCrit(b, t);
       if (t.style === 'angel' || t.style === 'monk') {
         b._event({ kind: 'strike', tower: t, x: target.x, y: target.y, crit, mob: target });
       } else b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target });
       b._hurt(target, t.damage * (crit ? t.critMul : 1), t);
       return true;
+    },
+    every(b, t, now, alive) {
+      if (t.style === 'angel' && t.runes.has('holyGround') && !t.planted && alive && now >= (t.nextHoly || 0)) {
+        holyGround(b, t, now);
+      }
     },
   },
   sage: {
