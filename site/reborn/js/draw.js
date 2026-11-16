@@ -110,6 +110,9 @@ const VENOM = { toxic: 'rgba(132, 204, 22, .9)', plague: 'rgba(91, 33, 182, .9)'
 const GAS = { toxic: ['rgba(201, 246, 120, .8)', 'rgba(101, 163, 13, .45)'],
   plague: ['rgba(180, 160, 255, .75)', 'rgba(46, 16, 101, .5)'] };
 const NET = { bend: 0.55 };
+const POT_SCALE = 0.75 / 2 * 3;
+const STEAM = { toxic: ['rgba(236, 255, 214, .8)', 'rgba(163, 230, 53, .35)'],
+  plague: ['rgba(237, 233, 254, .75)', 'rgba(124, 58, 237, .35)'] };
 const HAIL = { count: 60, drop: 80, fall: 0.3, slant: 0.3, shaft: '#8b5a2b', head: '#d1d5db', fletch: '#f3f4f6', tip: '#84cc16' };
 const BOOM = { heat: 'rgba(255, 200, 80, .9)', core: '#ffd84a' };
 const BLACK_FLAME = ['#c084fc', '#7e22ce', '#3b0764', '#1c1917', '#0a0a0a'];
@@ -1655,15 +1658,45 @@ export class Scene {
     for (const trap of battle.traps) smooth(ctx, trapSprite(now < trap.openAt), at(trap.x), at(trap.y), trap.angle, 1.1);
     for (const puddle of battle.puddles) this._puddle(ctx, puddle, now);
     for (const cloud of battle.clouds) this._gas(ctx, cloud, now);
-    for (const pot of battle.cauldrons) {
-      const tone = pot.tower.runes.has('plague') ? 'plague' : 'toxic', x = at(pot.cx), y = at(pot.cy);
-      glow(ctx, x, y - 4, 16, VENOM[tone], 0.3 + 0.08 * Math.sin(this.clock * 4 + pot.x));
-      smooth(ctx, cauldronSprite(tone === 'plague'), x, y - 2, 0, 0.75);
-      for (let i = 0; i < 4; i++) {
-        const rise = (this.clock * 0.5 + i / 4 + pot.x * 0.31) % 1;
-        puff(ctx, x + Math.sin(rise * 4 + i * 2.1) * 4, y - 6 - rise * 18, 3 + rise * 5, GAS[tone][0], GAS[tone][1],
-          (1 - rise) * 0.8);
+    for (const pot of battle.cauldrons) this._cauldron(ctx, pot);
+  }
+
+  _cauldron(ctx, pot) {
+    const tone = pot.tower.runes.has('plague') ? 'plague' : 'toxic', brew = BREWS[tone], x = at(pot.cx), y = at(pot.cy);
+    const unit = POT_SCALE, lx = x, ly = y - 0.6 * unit, rx = 6.4 * unit, ry = 5.6 * unit;
+    glow(ctx, x, y - 2, 16, VENOM[tone], 0.3 + 0.08 * Math.sin(this.clock * 4 + pot.x));
+    smooth(ctx, cauldronSprite(tone === 'plague'), x, y, 0, 0.75);
+    ctx.save();
+    for (let i = 0; i < 6; i++) {
+      const cycle = this.clock * 1.2 + i * 0.41 + pot.x * 0.3, phase = cycle % 1, round = Math.floor(cycle);
+      const a = noise(round * 7 + i, pot.y) * Math.PI * 2, d = Math.sqrt(noise(round * 7 + i + 3, pot.x)) * 0.7;
+      const bx = lx + Math.cos(a) * rx * d, by = ly + Math.sin(a) * ry * d;
+      if (phase < 0.8) {
+        const r = 1 + phase * 2.4;
+        ctx.globalAlpha = 1;
+        lump(ctx, bx, by, r, r * 0.88, i + round, 0.12, 7);
+        ctx.fillStyle = brew[2];
+        ctx.fill();
+        ctx.lineWidth = 0.8;
+        ctx.strokeStyle = brew[0];
+        ctx.stroke();
+        lump(ctx, bx - r * 0.35, by - r * 0.35, r * 0.32, r * 0.24, i + round + 5, 0.1, 6);
+        ctx.fillStyle = brew[3];
+        ctx.fill();
+      } else {
+        const pop = (phase - 0.8) / 0.2;
+        ctx.globalAlpha = 1 - pop;
+        ctx.lineWidth = 0.7;
+        ctx.strokeStyle = brew[3];
+        lump(ctx, bx, by, 2.2 + pop * 2, 1.9 + pop * 1.6, i + round, 0.18, 7);
+        ctx.stroke();
       }
+    }
+    ctx.restore();
+    for (let i = 0; i < 6; i++) {
+      const rise = (this.clock * 0.45 + i / 6 + pot.x * 0.31) % 1, drift = Math.sin(rise * 3 + i * 2.1) * 4;
+      puff(ctx, lx + drift + (noise(i, pot.x) - 0.5) * rx, ly - rise * 22, 3 + rise * 7, STEAM[tone][0], STEAM[tone][1],
+        (1 - rise) * Math.min(1, rise * 5) * 0.95);
     }
   }
 

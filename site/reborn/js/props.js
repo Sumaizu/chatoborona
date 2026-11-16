@@ -269,34 +269,27 @@ export const BREWS = { toxic: ['#365314', '#65a30d', '#a3e635', '#ecfccb'], plag
 const POT = { iron: '#2c2e35', band: '#454a54', rim: '#3d414a', rivet: '#8b929c', leg: '#1f2127', handle: '#5b616b' };
 
 export function drawCauldron(plague) {
-  const m = new Model(72, 3), c = 36, brew = BREWS[plague ? 'plague' : 'toxic'], top = c - 3.5;
-  m.egg(c, c + 9, 0, 8.5, 2.6, 0.5, '#15161a', 0.1);
-  for (const dx of [-5.6, 0, 5.6]) {
-    m.limb(c + dx, c + 5, 2, c + dx * 1.15, c + 9 + (dx ? 0 : 0.8), 0.4, 1.15, POT.leg, 0.4, 0.75);
+  const m = new Model(72, 3), c = 36, brew = BREWS[plague ? 'plague' : 'toxic'];
+  for (const a of [Math.PI * 0.2, Math.PI * 0.8, Math.PI * 1.5]) {
+    m.limb(c + Math.cos(a) * 7.6, c + 1 + Math.sin(a) * 6.8, 1.5, c + Math.cos(a) * 9.6, c + 1.6 + Math.sin(a) * 8.6, 0.2,
+      1.05, POT.leg, 0.4, 0.75);
   }
-  m.egg(c, c + 2.6, 2, 9.6, 7.4, 7.4, POT.iron, 0.6);
-  for (let k = 0; k <= 30; k++) {
-    const a = Math.PI * (0.06 + 0.88 * k / 30), x = c - Math.cos(a) * 9.4, y = c + 2.4 + Math.sin(a) * 3.2;
-    m.ball(x, y, 6.2, 0.62, POT.band, 0.5);
-    if (k % 5 === 2) m.ball(x, y, 6.7, 0.42, POT.rivet, 0.9);
-  }
+  m.egg(c, c + 1.2, 1, 9.4, 8.6, 6.4, POT.iron, 0.6);
+  around(30, 0, c, c + 1.2, 9.3, 8.5, (x, y) => m.ball(x, y, 5, 0.6, POT.band, 0.5));
+  around(8, 0.35, c, c + 1.2, 9.4, 8.6, (x, y) => m.ball(x, y, 5.4, 0.42, POT.rivet, 0.9));
   for (const side of [-1, 1]) {
-    const hx = c + side * 9.2;
-    m.limb(hx, top + 0.6, 9.6, hx + side * 2.2, top + 1.4, 8.8, 0.6, POT.handle, 0.7);
-    m.limb(hx + side * 2.2, top + 1.4, 8.8, hx + side * 2, top + 3.6, 7.6, 0.6, POT.handle, 0.7);
-    m.limb(hx + side * 2, top + 3.6, 7.6, hx + side * 0.3, top + 4, 7.4, 0.6, POT.handle, 0.7);
+    const hx = c + side * 8.6;
+    m.limb(hx, c - 1.6, 8.6, hx + side * 2.4, c - 0.6, 8, 0.6, POT.handle, 0.7);
+    m.limb(hx + side * 2.4, c - 0.6, 8, hx + side * 2.3, c + 1.6, 7.6, 0.6, POT.handle, 0.7);
+    m.limb(hx + side * 2.3, c + 1.6, 7.6, hx + side * 0.2, c + 2.2, 7.6, 0.6, POT.handle, 0.7);
   }
-  around(48, 0, c, top, 8.6, 4.2, (x, y) => m.ball(x, y, 10.6, 1.15, POT.rim, 0.75));
-  m.egg(c, top, 10.2, 7.5, 3.4, 0.6, brew[0], 0.2);
-  m.egg(c - 0.4, top - 0.2, 10.6, 6.3, 2.7, 0.5, brew[1], 0.5);
-  m.egg(c - 2, top - 0.9, 11, 2.6, 0.9, 0.3, brew[2], 0.8);
-  for (const [bx, by, r] of [[c + 2.4, top + 0.3, 1], [c - 2.8, top + 1, 0.75], [c + 0.4, top + 1.4, 0.55]]) {
-    m.ball(bx, by, 11, r, brew[2], 0.9);
-    m.dot(bx - r * 0.4, by - r * 0.4, brew[3], 14);
-  }
-  for (const [dx, len] of [[-5, 3.4], [3.6, 2.4]]) {
-    m.limb(c + dx, top + 3.4, 10.4, c + dx * 1.05, top + 3.6 + len, 8.6, 0.6, brew[1], 0.6, 0.45);
-    m.ball(c + dx * 1.05, top + 3.9 + len, 8.4, 0.6, brew[2], 0.8);
+  around(52, 0, c, c - 0.5, 8.3, 7.5, (x, y) => m.ball(x, y, 9.4, 1.15, POT.rim, 0.75));
+  m.egg(c, c - 0.5, 9, 7.2, 6.4, 0.6, brew[0], 0.2);
+  m.egg(c - 0.3, c - 0.7, 9.4, 6.1, 5.4, 0.5, brew[1], 0.5);
+  m.egg(c - 2.2, c - 2.4, 9.8, 2.4, 1.3, 0.3, brew[2], 0.8);
+  for (const [dx, dy, len] of [[-5.6, 5.2, 2.2], [4.2, 6, 1.6]]) {
+    m.limb(c + dx, c + dy, 9.2, c + dx * 1.08, c + dy + len, 7.6, 0.55, brew[1], 0.6, 0.4);
+    m.ball(c + dx * 1.08, c + dy + len + 0.2, 7.4, 0.55, brew[2], 0.8);
   }
   return m.paint();
 }
