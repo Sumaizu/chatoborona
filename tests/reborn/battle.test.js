@@ -1181,13 +1181,18 @@ test('жрец-ангел: рубит мечом только того, кто �
   ok(battle.events.some((e) => e.kind === 'strike' && e.tower === t && e.mob === close), 'взмах мечом');
 });
 
-test('ангел: радиус ровно 1 клетка — ни оружие, ни ауры, ни интеллект его не меняют', () => {
+test('ангел: бьёт ровно все соседние клетки — ни оружие, ни ауры, ни интеллект это не меняют', () => {
   const battle = makeBattle(), t = priest(battle, 10, 4, ['angel']);
   eq(t.range, HOLY.angel.reach);
   battle.setMods(t, { runes: ['angel'], range: 2 });
   priest(battle, 11, 3, ['monk', 'mantraRange']);
   battle.step(TICK);
   eq(t.range, HOLY.angel.reach, 'мантра дальности и оружие не помогают');
+  const corner = walker(battle, 12, 1e9), beyond = walker(battle, 13, 1e9);
+  still(corner, beyond);
+  corner.y += 0.45;
+  ok(battle._targetable(t, corner), 'соседняя клетка по диагонали, у дальнего края — достаёт');
+  no(battle._targetable(t, beyond), 'через клетку — нет');
 });
 
 test('ангел, кара: бьёт раз в 5 секунд, но убивает любого моба одним ударом; боссу — огромный урон', () => {

@@ -2207,7 +2207,7 @@ export class Battle {
   }
 
   _targetable(t, mob, range = t.range, mode = t.cls.base.target) {
-    if (mob.dead || hidden(mob, this.time) || immune(mob, t.element) || !near(mob, t.cx, t.cy, range)
+    if (mob.dead || hidden(mob, this.time) || immune(mob, t.element) || !reaches(t, mob, range)
       || !this.sees(t, mob)) return false;
     if (mode === 'land' && mob.flying) return false;
     if (mode === 'toxic' && mob.undead) return false;
@@ -2634,6 +2634,8 @@ function fade(values) {
 const torchPower = (pyro) => (pyro.runes.has('blue') ? FIRE.blue : 1);
 
 const fixedRange = (t) => t.style === 'angel';
+const reaches = (t, mob, range) => (fixedRange(t) ? Math.max(Math.abs(mob.x - t.cx), Math.abs(mob.y - t.cy))
+  <= range + 0.5 : near(mob, t.cx, t.cy, range));
 
 function rollCrit(b, t) {
   t.striking = b.random() < 1 - (1 - t.critChance) * (1 - t.boost.crit);
@@ -2641,7 +2643,7 @@ function rollCrit(b, t) {
 }
 
 const canShoot = (b, t, mob, range = t.range) => !mob.dead && !immune(mob, t.element)
-  && !b.covered(mob.x, mob.y) && (t.deep || !hidden(mob, b.time)) && near(mob, t.cx, t.cy, range)
+  && !b.covered(mob.x, mob.y) && (t.deep || !hidden(mob, b.time)) && reaches(t, mob, range)
   && b.sees(t, mob);
 
 function aimOf(b, t) {
