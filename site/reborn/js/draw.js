@@ -111,12 +111,10 @@ const GAS = { toxic: ['rgba(201, 246, 120, .8)', 'rgba(101, 163, 13, .45)'],
   plague: ['rgba(180, 160, 255, .75)', 'rgba(46, 16, 101, .5)'] };
 const SMOGS = { toxic: ['rgba(122, 170, 60, 1)', 'rgba(160, 200, 90, 1)', 'rgba(86, 126, 46, 1)', 'rgba(140, 186, 70, 1)'],
   plague: ['rgba(92, 62, 156, 1)', 'rgba(124, 94, 196, 1)', 'rgba(58, 34, 110, 1)', 'rgba(104, 72, 176, 1)'] };
-const NET = { cells: 6, sag: 0.22, dome: 0.22,
-  rope: [[2.2, 'rgba(20, 12, 4, .5)', 0.6, 1.2], [1.5, '#9c7646', 0, 0], [0.9, '#d9bb84', -0.2, -0.25],
-    [0.4, '#f6e7c4', -0.35, -0.4]],
-  rim: [[2.8, 'rgba(20, 12, 4, .55)', 0.6, 1.2], [2, '#7f5a32', 0, 0], [1.2, '#b88f58', -0.25, -0.3],
-    [0.5, '#ead2a0', -0.45, -0.5]],
-  knot: ['#d8b67c', '#6b4c28'], weight: ['#15111d', '#6b7280', '#e2e8f0', '#374151'] };
+const NET = { res: 3, mesh: 3.8, wobble: 0.45, droop: 0.7,
+  grow: [[0, 0], [1.5, 0], [-1.5, 0], [0, 1.5], [0, -1.5], [1, 1], [-1, -1], [1, -1], [-1, 1]],
+  rope: [[1.4, 'rgba(20, 12, 4, .55)', 0.3, 0.5], [0.9, '#9c7646', 0, 0], [0.5, '#dcc08a', -0.12, -0.16],
+    [0.2, '#f6e7c4', -0.2, -0.25]] };
 const HAIL = { count: 60, drop: 80, fall: 0.3, slant: 0.3, shaft: '#8b5a2b', head: '#d1d5db', fletch: '#f3f4f6', tip: '#84cc16' };
 const BOOM = { heat: 'rgba(255, 200, 80, .9)', core: '#ffd84a' };
 const BLACK_FLAME = ['#c084fc', '#7e22ce', '#3b0764', '#1c1917', '#0a0a0a'];
@@ -1643,36 +1641,40 @@ export class Scene {
   _puddle(ctx, puddle, now) {
     const show = Math.max(0, Math.min(1, (now - puddle.born) / 0.25, (puddle.until - now) / 0.6));
     const tone = puddle.plague ? 'plague' : 'toxic', tones = FLAME_TONES[tone], [warm, core] = HEAT[tone];
-    const x = at(puddle.x), y = at(puddle.y), r = puddle.radius * CELL, seed = Math.round(puddle.born * 37) % 97;
-    const brew = BREWS[tone], pool = r * (0.6 + 0.4 * show);
-    glow(ctx, x, y, r * 1.1, 'rgba(16, 24, 6, .9)', 0.35 * show);
-    glow(ctx, x, y, r * 1.25, warm, 0.45 * show);
+    const brew = BREWS[tone], seed = Math.round(puddle.born * 37) % 97, grow = 0.6 + 0.4 * show;
+    const long = puddle.radius * CELL * 0.95 * grow, wide = (WALL_HALF - 1.5) * grow;
     ctx.save();
-    ctx.globalAlpha = 0.85 * show;
-    lump(ctx, x, y + 1, pool, pool * 0.62, seed, 0.22, 11);
-    const fill = ctx.createRadialGradient(x - pool * 0.25, y - pool * 0.15, pool * 0.1, x, y + 1, pool);
+    ctx.translate(at(puddle.x), at(puddle.y));
+    ctx.rotate(puddle.angle || 0);
+    for (const along of [-0.45, 0.45]) {
+      glow(ctx, along * long, 0, wide * 1.05, 'rgba(16, 24, 6, .9)', 0.35 * show);
+      glow(ctx, along * long, 0, wide * 1.1, warm, 0.4 * show);
+    }
+    ctx.globalAlpha = 0.88 * show;
+    lump(ctx, 0, 0, long, wide * 0.92, seed, 0.16, 12);
+    const fill = ctx.createRadialGradient(-long * 0.25, -wide * 0.2, wide * 0.1, 0, 0, long);
     fill.addColorStop(0, brew[2]);
-    fill.addColorStop(0.6, brew[1]);
+    fill.addColorStop(0.55, brew[1]);
     fill.addColorStop(1, brew[0]);
     ctx.fillStyle = fill;
     ctx.fill();
     ctx.globalAlpha = 0.45 * show;
-    lump(ctx, x - pool * 0.3, y - pool * 0.18, pool * 0.3, pool * 0.1, seed + 3, 0.3, 7);
+    lump(ctx, -long * 0.3, -wide * 0.3, long * 0.32, wide * 0.18, seed + 3, 0.3, 7);
     ctx.fillStyle = brew[3];
     ctx.fill();
+    glow(ctx, 0, -2, wide * 0.8, core, (0.25 + 0.1 * Math.sin(this.clock * 7 + seed)) * show);
     ctx.restore();
-    glow(ctx, x, y - 3, r * 0.55, core, (0.3 + 0.1 * Math.sin(this.clock * 7 + seed)) * show);
+    const turn = puddle.angle || 0, cos = Math.cos(turn), sin = Math.sin(turn);
     for (let i = 0; i < 12; i++) {
-      const a = noise(i, seed) * Math.PI * 2, d = r * 0.8 * Math.sqrt(noise(i + 20, seed));
-      const bx = x + Math.cos(a) * d, by = y + Math.sin(a) * d * 0.7;
+      const a = noise(i, seed) * Math.PI * 2, d = Math.sqrt(noise(i + 20, seed)) * 0.8;
+      const u = Math.cos(a) * d * long, v = Math.sin(a) * d * wide;
+      const bx = at(puddle.x) + u * cos - v * sin, by = at(puddle.y) + u * sin + v * cos;
       for (const shift of [0, 0.5]) {
         const rise = (this.clock * 1.6 + noise(i + 40, seed) + shift) % 1;
         ctx.globalAlpha = (1 - rise * 0.75) * show;
-        bit(ctx, bx + Math.sin(rise * 6 + i) * 1.5, by + 2 - rise * 14, rise < 0.35 ? 3 : 2,
+        bit(ctx, bx + Math.sin(rise * 6 + i) * 1.5, by - rise * 14, rise < 0.35 ? 3 : 2,
           tones[Math.min(tones.length - 1, Math.floor(rise * tones.length))], i * 2 + shift * 2 + this.clock * 7);
       }
-      ctx.globalAlpha = 0.9 * show;
-      bit(ctx, bx, by + 2, 3, tones[i % 2 ? 1 : 2], i + this.clock * 5);
     }
     ctx.globalAlpha = 1;
   }
@@ -1846,7 +1848,7 @@ export class Scene {
         reticle(ctx, x, y - lift, side / 2, 0.55 + 0.1 * Math.sin(this.clock * 6), 0, tone);
       }
       if (mob.charge && mob.charge.until > now) this._chargedOn(ctx, mob, x, y - lift, size);
-      if (mob.netUntil > now) this._netOn(ctx, mob, x, y - lift, size);
+      if (mob.netUntil > now) this._netOn(ctx, mob, image, x, y - lift, angle, size);
       if (mob.rootUntil > now) this._rootOn(ctx, mob, x, y - lift, size, now);
       if (mob.muteUntil > now) this._mutedOn(ctx, x, y - lift, size);
       if (mob.rot) this._rotOn(ctx, mob, x, y - lift, size);
@@ -1988,81 +1990,80 @@ export class Scene {
     ctx.drawImage(image, 0, cut, w, h - cut, Math.round(x - w / 2), Math.round(y - h / 2) + cut, w, h - cut);
   }
 
-  _netOn(ctx, mob, x, y, size) {
-    const r = Math.max(11, size * 0.6), n = NET.cells, seed = mob.id % 97;
-    const turn = Math.PI / 4 + ((mob.id % 7) - 3) * 0.09, stretch = [0, 1, 2, 3].map((i) => 0.88 + 0.24 * noise(i, seed));
-    const grid = [];
-    for (let i = 0; i <= n; i++) {
-      grid.push([]);
-      for (let j = 0; j <= n; j++) {
-        const u = i / n * 2 - 1, v = j / n * 2 - 1, dome = 1 + NET.dome * (1 - u * u) * (1 - v * v);
-        const s = ((1 - u) * (1 - v) * stretch[0] + (1 + u) * (1 - v) * stretch[1] + (1 - u) * (1 + v) * stretch[2]
-          + (1 + u) * (1 + v) * stretch[3]) / 4;
-        const rim = i === 0 || j === 0 || i === n || j === n, wobble = rim ? 0.03 : 0.12;
-        const ju = u + (noise(i * 7 + j, seed) - 0.5) * wobble, jv = v + (noise(i * 7 + j + 50, seed) - 0.5) * wobble;
-        const px = ju * (1 - NET.sag * (1 - v * v)) * dome * s * r * 0.8;
-        const py = jv * (1 - NET.sag * (1 - u * u)) * dome * s * r * 0.8;
-        grid[i].push([x + px * Math.cos(turn) - py * Math.sin(turn), y + (px * Math.sin(turn) + py * Math.cos(turn))
-          * 0.86 + 1]);
-      }
+  _netOn(ctx, mob, image, x, y, angle, size) {
+    const scale = ZOOM / (image.fine || 1), w = image.width * scale, h = image.height * scale, res = NET.res;
+    const cw = Math.ceil(w * res), ch = Math.ceil(h * res), seed = mob.id % 97;
+    if (!this.netPads) this.netPads = [document.createElement('canvas'), document.createElement('canvas')];
+    const [net, mask] = this.netPads;
+    for (const pad of this.netPads) {
+      pad.width = cw;
+      pad.height = ch;
     }
-    const strand = (points, dx, dy) => {
-      ctx.beginPath();
-      ctx.moveTo(points[0][0] + dx, points[0][1] + dy);
-      for (let k = 1; k < points.length; k++) {
-        const [ax, ay] = points[k - 1], [bx, by] = points[k], droop = 0.4 + Math.hypot(bx - ax, by - ay) * 0.05;
-        ctx.quadraticCurveTo((ax + bx) / 2 + dx, (ay + by) / 2 + droop + dy, bx + dx, by + dy);
-      }
-      ctx.stroke();
+    const m = mask.getContext('2d');
+    m.imageSmoothingEnabled = true;
+    for (const [ox, oy] of NET.grow) m.drawImage(image, ox * res, oy * res, cw, ch);
+    const g = net.getContext('2d'), cx = w / 2, cy = h / 2, reach = Math.max(w, h) * 0.5;
+    g.scale(res, res);
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    const warp = (px, py) => {
+      const dx = px - cx, dy = py - cy, d = Math.hypot(dx, dy) || 1, k = Math.min(1, d / reach);
+      const fold = reach * Math.sin(k * Math.PI / 2) / d;
+      return [cx + dx * fold, cy + dy * fold];
     };
     const lines = [];
-    for (let i = 0; i <= n; i++) {
-      lines.push(grid[i]);
-      lines.push(grid.map((row) => row[i]));
+    for (const dir of [1, -1]) {
+      for (let c = -reach * 2; c <= reach * 2; c += NET.mesh) {
+        const phase = noise(c * 3 + dir, seed) * Math.PI * 2, points = [];
+        for (let k = 0; k <= 16; k++) {
+          const t = k / 16 * 2 - 1, wave = Math.sin(t * Math.PI * 1.5 + phase) * NET.wobble;
+          const along = t * reach * 1.6, across = c + wave;
+          const px = cx + (along - across * dir) / Math.SQRT2, py = cy + (along * dir + across) / Math.SQRT2;
+          points.push(warp(px, py + Math.cos(t * Math.PI / 2) * NET.droop));
+        }
+        lines.push(points);
+      }
     }
-    const rims = [lines[0], lines[1], lines[lines.length - 2], lines[lines.length - 1]], inner = lines.slice(2, -2);
+    for (const [width, color, dx, dy] of NET.rope) {
+      g.lineWidth = width;
+      g.strokeStyle = color;
+      for (const points of lines) {
+        g.beginPath();
+        points.forEach(([px, py], k) => (k ? g.lineTo(px + dx, py + dy) : g.moveTo(px + dx, py + dy)));
+        g.stroke();
+      }
+    }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'destination-in';
+    g.drawImage(mask, 0, 0);
+    g.globalCompositeOperation = 'source-atop';
+    const shade = g.createRadialGradient(cw * 0.42, ch * 0.38, 0, cw / 2, ch / 2, Math.max(cw, ch) * 0.55);
+    shade.addColorStop(0, 'rgba(255, 244, 214, .25)');
+    shade.addColorStop(0.6, 'rgba(0, 0, 0, 0)');
+    shade.addColorStop(1, 'rgba(30, 18, 6, .55)');
+    g.fillStyle = shade;
+    g.fillRect(0, 0, cw, ch);
+    ctx.save();
+    ctx.translate(Math.round(x), Math.round(y));
+    ctx.rotate(turnOf(angle) * (Math.PI * 2 / TURN_STEPS));
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(net, -w / 2, -h / 2, w, h);
+    ctx.restore();
     ctx.save();
     ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    for (const [list, layers] of [[inner, NET.rope], [rims, NET.rim]]) {
-      for (const [width, color, dx, dy] of layers) {
+    for (let k = 0; k < 3; k++) {
+      const sx = x + (k - 1) * size * 0.22 + (noise(k, seed) - 0.5) * 3, sy = y + size * 0.26 + Math.abs(k - 1) * -2;
+      const sway = Math.sin(this.clock * 2 + k + seed) * 1.2, len = 4 + noise(k + 5, seed) * 4;
+      for (const [width, color, dx, dy] of NET.rope) {
         ctx.lineWidth = width;
         ctx.strokeStyle = color;
-        for (const line of list) strand(line, dx, dy);
+        ctx.beginPath();
+        ctx.moveTo(sx + dx, sy + dy);
+        ctx.quadraticCurveTo(sx + sway * 0.5 + dx, sy + len * 0.6 + dy, sx + sway + dx, sy + len + dy);
+        ctx.stroke();
       }
     }
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = NET.rope[1][1];
-    for (let k = 0; k < 3; k++) {
-      const i = 1 + Math.floor(noise(k + 20, seed) * (n - 1)), edge = [grid[i][n], grid[n][i], grid[i][0]][k];
-      const side = noise(k + 30, seed) < 0.5 ? -1 : 1;
-      ctx.beginPath();
-      ctx.moveTo(edge[0], edge[1]);
-      ctx.quadraticCurveTo(edge[0] + side * 3, edge[1] + 2, edge[0] + side * 1.5, edge[1] + 5 + noise(k, seed) * 2);
-      ctx.stroke();
-    }
-    for (let i = 1; i < n; i++) {
-      for (let j = 1; j < n; j++) {
-        const [kx, ky] = grid[i][j], fill = ctx.createRadialGradient(kx - 0.4, ky - 0.4, 0.1, kx, ky, 1.3);
-        fill.addColorStop(0, NET.knot[0]);
-        fill.addColorStop(1, NET.knot[1]);
-        ctx.fillStyle = fill;
-        lump(ctx, kx, ky, 1.15, 0.95, seed + i * 7 + j, 0.25, 6);
-        ctx.fill();
-      }
-    }
-    [[0, 0], [n, 0], [0, n], [n, n]].forEach(([i, j], k) => {
-      const [px, py] = grid[i][j], fill = ctx.createRadialGradient(px - 1, py - 0.2, 0.2, px, py + 1.2, 3.2);
-      fill.addColorStop(0, NET.weight[2]);
-      fill.addColorStop(0.5, NET.weight[1]);
-      fill.addColorStop(1, NET.weight[3]);
-      ctx.fillStyle = fill;
-      ctx.strokeStyle = NET.weight[0];
-      ctx.lineWidth = 0.8;
-      lump(ctx, px, py + 1.2, 2.7, 2.2, seed + k * 13, 0.3, 7);
-      ctx.fill();
-      ctx.stroke();
-    });
     ctx.restore();
   }
 

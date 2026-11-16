@@ -1903,6 +1903,25 @@ export class Battle {
     }
   }
 
+  _roadSpot(x, y) {
+    if (!this.curves) {
+      const lines = [this.path].concat(this.branch.length ? [this.branch.concat([this.path[this.merge]])] : []);
+      this.curves = lines.map(roadCurve);
+    }
+    let best = null, low = Infinity;
+    for (const curve of this.curves) {
+      curve.forEach(([px, py], j) => {
+        const d = (px - x) ** 2 + (py - y) ** 2;
+        if (d < low) {
+          low = d;
+          best = [curve, j];
+        }
+      });
+    }
+    const [curve, j] = best, a = curve[Math.max(0, j - 1)], b = curve[Math.min(curve.length - 1, j + 1)];
+    return { x: curve[j][0], y: curve[j][1], angle: Math.atan2(b[1] - a[1], b[0] - a[0]) };
+  }
+
   _stick(mob, t, kind, time, dps, boss = false) {
     const now = this.time;
     if (mob.dead || steady(mob, now) || mob.info.boss && !boss) return false;
@@ -2860,8 +2879,9 @@ function brew(b, t, now) {
     b._event({ kind: 'blob', tower: t, sx: pot.cx, sy: pot.cy, mob, time: s.flight, plague });
     b._later(s.flight, () => {
       if (!mob.dead) b._hurt(mob, t.damage * s.mul, t, 'poison');
-      b.puddles.push({ tower: t, x: mob.x, y: mob.y, radius: s.radius, until: b.time + s.time, born: b.time,
-        dps: t.damage * s.dps, plague });
+      const spot = b._roadSpot(mob.x, mob.y);
+      b.puddles.push({ tower: t, x: spot.x, y: spot.y, angle: spot.angle, radius: s.radius, until: b.time + s.time,
+        born: b.time, dps: t.damage * s.dps, plague });
     }, t);
   }
 }
