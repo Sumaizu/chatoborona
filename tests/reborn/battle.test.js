@@ -1285,11 +1285,11 @@ test('ангел, святая земля: шар света в случайно
   eq(hit(far), 0, 'дальше 4 клеток — нет');
 });
 
-test('жрец-монах: бьёт посохом на 2 клетки и очень часто', () => {
+test('жрец-монах: бьёт посохом на 1,3 клетки и очень часто', () => {
   const battle = makeBattle(), plain = priest(battle, 2, 4, []), t = priest(battle, 10, 4, ['monk']);
-  ok(t.range >= 2 && t.range < 3, 'на 2 клетки');
+  ok(t.range >= 4 / 3 && t.range < 2, 'на 1,3 клетки');
   ok(t.interval < plain.interval / 2, 'бьёт намного чаще');
-  const far = walker(battle, 14, 1e9), mob = walker(battle, 13, 1e9);
+  const far = walker(battle, 13, 1e9), mob = walker(battle, 12, 1e9);
   still(far, mob);
   ok(battle._fire(t));
   near(hit(mob), t.damage);
@@ -1299,14 +1299,14 @@ test('жрец-монах: бьёт посохом на 2 клетки и оче
 
 test('монах, тяжёлое древко: с шансом удар — критический и оглушает', () => {
   const battle = makeBattle(), t = priest(battle, 10, 4, ['monk', 'heavyShaft']);
-  const mob = walker(battle, 13, 1e9);
+  const mob = walker(battle, 12, 1e9);
   still(mob);
   battle.random = () => HOLY.heavy.chance / 2;
   ok(battle._fire(t));
   near(hit(mob), t.damage * t.critMul);
   ok(mob.holdUntil > battle.time, 'оглушён');
   ok(battle.events.some((e) => e.kind === 'strike' && e.heavy));
-  const calm = walker(battle, 12, 1e9);
+  const calm = walker(battle, 11, 1e9);
   still(calm);
   battle.random = () => 0.99;
   battle._fire(t);
