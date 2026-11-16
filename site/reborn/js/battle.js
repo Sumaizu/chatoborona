@@ -102,8 +102,8 @@ export const WOOD = { bow: { reload: 0.8 }, grace: { radius: 2.5, haste: 0.15 },
   roots: { cells: 5, reach: 0.7, slow: 0.4, mul: 0.15 }, snare: { chance: 0.15, time: 2.5, gap: 3 },
   catcher: { chance: 0.3, time: 2.5, dps: 0.25 }, trophy: { radius: 4.5, bonus: 0.25 },
   beartrap: { time: 3, reopen: 10, dps: 0.3, reach: 0.45 }, hail: { every: 10, radius: 4, fall: 0.6, poison: 0.5 },
-  venomBurst: { radius: 1, time: 2, dps: 0.4 }, plague: 0.1, absorb: { time: 0.35, size: 1.5 },
-  cauldron: { every: 2.5, reach: 4, flight: 0.7, mul: 0.8, radius: 0.6, time: 4, dps: 0.3 } };
+  venomBurst: { radius: 1, time: 4, dps: 0.4 }, plague: 0.1, absorb: { time: 0.35, size: 1.5 },
+  cauldron: { every: 2.5, reach: 5, flight: 0.7, mul: 0.8, radius: 0.8, time: 8, dps: 0.3 } };
 const STYLE_ELEMENTS = { witch: 'poison' };
 const STYLE_BALL = 11;
 const ROAD_ROUND = 0.9;
@@ -1881,25 +1881,14 @@ export class Battle {
   }
 
   _setTraps(t) {
-    const blaze = this._blazeOf(t, 5), count = t.style === 'hunter' ? Math.min(3, t.stacks.get('beartrap') || 0) : 0;
-    const key = blaze.key + ':' + count;
+    const count = t.style === 'hunter' && t.runes.has('beartrap') ? 3 : 0, key = t.x + ':' + t.y + ':' + count;
     if (t.trapKey === key) return;
     t.trapKey = key;
     this.traps = this.traps.filter((trap) => trap.tower !== t);
-    const { line, k } = blaze, curve = roadCurve(line);
-    for (const i of [k, k - 2, k + 2].slice(0, count)) {
-      if (i < 0 || i >= line.length) continue;
-      const cx = line[i][0] + 0.5, cy = line[i][1] + 0.5;
-      let best = 0, low = Infinity;
-      curve.forEach(([x, y], j) => {
-        const d = (x - cx) ** 2 + (y - cy) ** 2;
-        if (d < low) {
-          low = d;
-          best = j;
-        }
-      });
-      const [x, y] = curve[best], a = curve[Math.max(0, best - 1)], b = curve[Math.min(curve.length - 1, best + 1)];
-      this.traps.push({ tower: t, x, y, openAt: 0, angle: Math.atan2(b[1] - a[1], b[0] - a[0]) });
+    const cells = this.road.filter(([x, y]) => near({ x: x + 0.5, y: y + 0.5 }, t.cx, t.cy, t.range));
+    for (let k = 0; k < count && cells.length; k++) {
+      const [x, y] = cells.splice(Math.floor(this.random() * cells.length), 1)[0], spot = this._roadSpot(x + 0.5, y + 0.5);
+      this.traps.push({ tower: t, x: spot.x, y: spot.y, angle: spot.angle, openAt: 0 });
     }
   }
 

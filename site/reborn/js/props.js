@@ -274,19 +274,19 @@ export function drawCauldron(plague) {
     m.limb(c + Math.cos(a) * 7.6, c + 1 + Math.sin(a) * 6.8, 1.5, c + Math.cos(a) * 9.6, c + 1.6 + Math.sin(a) * 8.6, 0.2,
       1.05, POT.leg, 0.4, 0.75);
   }
-  m.egg(c, c + 1.2, 1, 9.4, 8.6, 6.4, POT.iron, 0.6);
-  around(30, 0, c, c + 1.2, 9.3, 8.5, (x, y) => m.ball(x, y, 5, 0.6, POT.band, 0.5));
-  around(8, 0.35, c, c + 1.2, 9.4, 8.6, (x, y) => m.ball(x, y, 5.4, 0.42, POT.rivet, 0.9));
+  m.egg(c, c + 2.2, 1, 9.6, 8.8, 7, POT.iron, 0.6);
+  around(30, 0, c, c + 2.4, 9.5, 8.7, (x, y) => m.ball(x, y, 5, 0.6, POT.band, 0.5));
+  around(8, 0.35, c, c + 2.4, 9.6, 8.8, (x, y) => m.ball(x, y, 5.4, 0.42, POT.rivet, 0.9));
   for (const side of [-1, 1]) {
     const hx = c + side * 8.6;
     m.limb(hx, c - 1.6, 8.6, hx + side * 2.4, c - 0.6, 8, 0.6, POT.handle, 0.7);
     m.limb(hx + side * 2.4, c - 0.6, 8, hx + side * 2.3, c + 1.6, 7.6, 0.6, POT.handle, 0.7);
     m.limb(hx + side * 2.3, c + 1.6, 7.6, hx + side * 0.2, c + 2.2, 7.6, 0.6, POT.handle, 0.7);
   }
-  around(52, 0, c, c - 0.5, 8.3, 7.5, (x, y) => m.ball(x, y, 9.4, 1.15, POT.rim, 0.75));
-  m.egg(c, c - 0.5, 9, 7.2, 6.4, 0.6, brew[0], 0.2);
-  m.egg(c - 0.3, c - 0.7, 9.4, 6.1, 5.4, 0.5, brew[1], 0.5);
-  m.egg(c - 2.2, c - 2.4, 9.8, 2.4, 1.3, 0.3, brew[2], 0.8);
+  around(52, 0, c, c - 1.2, 8.3, 7.3, (x, y) => m.ball(x, y, 9.6, 1.15, POT.rim, 0.75));
+  m.egg(c, c - 1.2, 9.2, 7.2, 6.2, 0.6, brew[0], 0.2);
+  m.egg(c - 0.3, c - 1.4, 9.6, 6.1, 5.2, 0.5, brew[1], 0.5);
+  m.egg(c - 2.2, c - 3, 10, 2.4, 1.3, 0.3, brew[2], 0.8);
   for (const [dx, dy, len] of [[-5.6, 5.2, 2.2], [4.2, 6, 1.6]]) {
     m.limb(c + dx, c + dy, 9.2, c + dx * 1.08, c + dy + len, 7.6, 0.55, brew[1], 0.6, 0.4);
     m.ball(c + dx * 1.08, c + dy + len + 0.2, 7.4, 0.55, brew[2], 0.8);

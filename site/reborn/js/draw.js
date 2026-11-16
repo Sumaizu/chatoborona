@@ -25,11 +25,9 @@ const FLIGHT_MIN = 0.05;
 const COG = ['.#.#.', '#####', '##.##', '#####', '.#.#.'];
 const SHELL = ['oo', '##', '##', '##', '##'];
 const LEAF = ['.#', '##', '#o', 'o.'];
-const COIN = ['.##.', '#oo#', '#o##', '.##.'];
 const AURAS = { team: { glow: 'rgba(100, 116, 139, 1)', tones: ['#64748b', '#475569', '#7c8a9e'], shape: COG },
   tuning: { glow: 'rgba(250, 204, 21, 1)', tones: ['#facc15', '#eab308', '#d4a017'], shape: SHELL, tip: '#b45309' },
-  grace: { glow: 'rgba(132, 204, 22, 1)', tones: ['#84cc16', '#65a30d', '#a3e635'], shape: LEAF, tip: '#3f6212' },
-  trophy: { glow: 'rgba(250, 204, 21, 1)', tones: ['#facc15', '#eab308', '#f59e0b'], shape: COIN, tip: '#fef3c7' } };
+  grace: { glow: 'rgba(132, 204, 22, 1)', tones: ['#84cc16', '#65a30d', '#a3e635'], shape: LEAF, tip: '#3f6212' } };
 const RETICLES = { red: { line: '#b91c1c', dot: '#fca5a5' }, green: { line: '#16a34a', eye: true } };
 const BLAST_TONES = { warm: ['#fff3b0', '#ffd84a', '#ff9a1f', '#e2531f', '#6b5a50'],
   blue: ['#f0f9ff', '#bae6fd', '#4aa3ff', '#2563eb', '#4b5563'] };
@@ -110,7 +108,7 @@ const VENOM = { toxic: 'rgba(132, 204, 22, .9)', plague: 'rgba(91, 33, 182, .9)'
 const GAS = { toxic: ['rgba(201, 246, 120, .8)', 'rgba(101, 163, 13, .45)'],
   plague: ['rgba(180, 160, 255, .75)', 'rgba(46, 16, 101, .5)'] };
 const NET = { bend: 0.55 };
-const POT_SCALE = 0.75 / 2 * 3;
+const POT_SCALE = 0.95 / 2 * 3;
 const STEAM = { toxic: ['rgba(236, 255, 214, .8)', 'rgba(163, 230, 53, .35)'],
   plague: ['rgba(237, 233, 254, .75)', 'rgba(124, 58, 237, .35)'] };
 const HAIL = { count: 60, drop: 80, fall: 0.3, slant: 0.3, shaft: '#8b5a2b', head: '#d1d5db', fletch: '#f3f4f6', tip: '#84cc16' };
@@ -287,15 +285,17 @@ const PUDDLES = {
 };
 const puddleShapes = new Map();
 
-function puddleShape(radius, seed, look) {
-  const size = Math.max(4, Math.round(radius)), key = size + ':' + seed + ':' + look, { tones, shine } = PUDDLES[look];
+function puddleShape(long, wide, seed, look) {
+  const size = Math.max(4, Math.round(long)), across = Math.max(3, Math.round(wide));
+  const key = size + ':' + across + ':' + seed + ':' + look, { tones, shine } = PUDDLES[look];
   if (puddleShapes.has(key)) return puddleShapes.get(key);
-  const canvas = document.createElement('canvas'), side = size * 2 + 2;
-  canvas.width = canvas.height = side;
-  const ctx = canvas.getContext('2d'), c = side / 2;
-  for (let y = 0; y < side; y++) {
-    for (let x = 0; x < side; x++) {
-      const dx = x + 0.5 - c, dy = (y + 0.5 - c) * 1.2, a = Math.atan2(dy, dx), d = Math.hypot(dx, dy);
+  const canvas = document.createElement('canvas');
+  canvas.width = size * 2 + 2;
+  canvas.height = across * 2 + 2;
+  const ctx = canvas.getContext('2d'), c = canvas.width / 2, ch = canvas.height / 2;
+  for (let y = 0; y < canvas.height; y++) {
+    for (let x = 0; x < canvas.width; x++) {
+      const dx = x + 0.5 - c, dy = (y + 0.5 - ch) * size / across, a = Math.atan2(dy, dx), d = Math.hypot(dx, dy);
       const edge = size * (0.82 + 0.1 * Math.sin(3 * a + seed) + 0.06 * Math.sin(5 * a + seed * 2)
         + 0.04 * Math.sin(7 * a + seed * 3));
       if (d > edge) continue;
@@ -307,10 +307,10 @@ function puddleShape(radius, seed, look) {
     }
   }
   ctx.fillStyle = shine[0];
-  ctx.fillRect(Math.round(c - size * 0.35), Math.round(c - size * 0.35), 2, 1);
-  ctx.fillRect(Math.round(c - size * 0.35), Math.round(c - size * 0.35) + 1, 1, 1);
+  ctx.fillRect(Math.round(c - size * 0.35), Math.round(ch - across * 0.35), 2, 1);
+  ctx.fillRect(Math.round(c - size * 0.35), Math.round(ch - across * 0.35) + 1, 1, 1);
   ctx.fillStyle = shine[1];
-  ctx.fillRect(Math.round(c + size * 0.25), Math.round(c - size * 0.1), 1, 1);
+  ctx.fillRect(Math.round(c + size * 0.25), Math.round(ch - across * 0.1), 1, 1);
   puddleShapes.set(key, canvas);
   return canvas;
 }
@@ -340,6 +340,46 @@ function puff(ctx, x, y, r, inner, outer, alpha) {
   ctx.fillStyle = fill;
   ctx.fillRect(x - r, y - r, r * 2, r * 2);
   ctx.globalAlpha = 1;
+}
+
+function coin(ctx, x, y, r, spin, alpha) {
+  if (alpha <= 0) return;
+  const face = Math.cos(spin), fill = ctx.createLinearGradient(x - r, y - r, x + r, y + r);
+  fill.addColorStop(0, '#fef3c7');
+  fill.addColorStop(0.45, face > 0 ? '#facc15' : '#eab308');
+  fill.addColorStop(1, '#b45309');
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  ctx.scale(Math.max(0.18, Math.abs(face)), 1);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, r, r, 0, 0, Math.PI * 2);
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.lineWidth = 0.7;
+  ctx.strokeStyle = '#92400e';
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.25, -r * 0.3, r * 0.35, r * 0.2, -0.6, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255, 255, 240, .75)';
+  ctx.fill();
+  ctx.restore();
+}
+
+function twinkle(ctx, x, y, size, alpha) {
+  if (alpha <= 0.05) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = '#fffbe0';
+  ctx.beginPath();
+  ctx.moveTo(x, y - size);
+  ctx.quadraticCurveTo(x, y, x + size, y);
+  ctx.quadraticCurveTo(x, y, x, y + size);
+  ctx.quadraticCurveTo(x, y, x - size, y);
+  ctx.quadraticCurveTo(x, y, x, y - size);
+  ctx.fill();
+  ctx.restore();
+  glow(ctx, x, y, size * 1.6, 'rgba(253, 224, 71, 1)', alpha * 0.5);
 }
 
 function smooth(ctx, image, x, y, angle, zoom) {
@@ -1556,12 +1596,30 @@ export class Scene {
     for (const t of battle.towers) {
       if (t.cocoon || t.rider) continue;
       if (t.cls.id === 'forester') {
-        const own = ['grace', 'trophy'].filter((id) => t.runes.has(id) && (id === 'grace' || t.style === 'hunter'));
-        own.forEach((id, n) => this._aura(ctx, t, AURAS[id], WOOD[id].radius, n));
+        if (t.runes.has('grace')) this._aura(ctx, t, AURAS.grace, WOOD.grace.radius, 0);
+        if (t.style === 'hunter' && t.runes.has('trophy')) this._trophy(ctx, t);
       }
       if (t.cls.id !== 'mechanic') continue;
       const own = ['team', 'tuning'].filter((id) => t.runes.has(id));
       own.forEach((id, n) => this._aura(ctx, t, AURAS[id], MECH[id].radius, n));
+    }
+  }
+
+  _trophy(ctx, t) {
+    const pose = this._pose(t), x = at(pose.x), y = at(pose.y), zone = WOOD.trophy.radius * CELL;
+    const seed = (t.x * 7 + t.y * 13) % 9;
+    glow(ctx, x, y, zone, 'rgba(250, 204, 21, 1)', 0.3 + 0.06 * Math.sin(this.clock * 2 + seed));
+    glow(ctx, x, y, zone * 0.5, 'rgba(254, 240, 138, 1)', 0.2);
+    for (let i = 0; i < 28; i++) {
+      const a = noise(i, seed) * Math.PI * 2, d = zone * 0.92 * Math.sqrt(noise(i + 30, seed));
+      const rise = (this.clock * 0.45 + noise(i + 60, seed)) % 1;
+      coin(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8 - rise * 30, 3.4, this.clock * 4 + i * 1.3,
+        (1 - rise) * Math.min(1, rise * 5));
+    }
+    for (let i = 0; i < 30; i++) {
+      const a = noise(i + 90, seed) * Math.PI * 2, d = zone * Math.sqrt(noise(i + 120, seed));
+      const phase = (this.clock * 0.7 + noise(i + 150, seed)) % 1, shine = Math.sin(phase * Math.PI);
+      twinkle(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8, 2 + shine * 4, shine);
     }
   }
 
@@ -1663,9 +1721,9 @@ export class Scene {
 
   _cauldron(ctx, pot) {
     const tone = pot.tower.runes.has('plague') ? 'plague' : 'toxic', brew = BREWS[tone], x = at(pot.cx), y = at(pot.cy);
-    const unit = POT_SCALE, lx = x, ly = y - 0.6 * unit, rx = 6.4 * unit, ry = 5.6 * unit;
+    const unit = POT_SCALE, lx = x, ly = y - 1.4 * unit, rx = 6.4 * unit, ry = 5.4 * unit;
     glow(ctx, x, y - 2, 16, VENOM[tone], 0.3 + 0.08 * Math.sin(this.clock * 4 + pot.x));
-    smooth(ctx, cauldronSprite(tone === 'plague'), x, y, 0, 0.75);
+    smooth(ctx, cauldronSprite(tone === 'plague'), x, y, 0, 0.95);
     ctx.save();
     for (let i = 0; i < 6; i++) {
       const cycle = this.clock * 1.2 + i * 0.41 + pot.x * 0.3, phase = cycle % 1, round = Math.floor(cycle);
@@ -1702,23 +1760,30 @@ export class Scene {
 
   _puddle(ctx, puddle, now) {
     const grow = Math.min(1, (now - puddle.born) / 0.25), fade = Math.min(1, (puddle.until - now) / 0.8);
-    const x = at(puddle.x), y = at(puddle.y), r = Math.min(puddle.radius * CELL, WALL_HALF), black = puddle.plague;
-    const seed = Math.round(puddle.x * 7 + puddle.y * 13) % 9, shape = puddleShape(r / ZOOM, seed, black ? 'plague' : 'poison');
-    const w = shape.width * ZOOM * grow, h = shape.height * ZOOM * grow;
+    const black = puddle.plague, seed = Math.round(puddle.x * 7 + puddle.y * 13) % 9;
+    const long = puddle.radius * CELL * 0.95, wide = CELL * 0.4;
+    const shape = puddleShape(long / ZOOM, wide / ZOOM, seed, black ? 'plague' : 'poison');
+    const x = at(puddle.x), y = at(puddle.y), turn = puddle.angle || 0, cos = Math.cos(turn), sin = Math.sin(turn);
     ctx.globalAlpha = 0.9 * fade;
-    ctx.drawImage(shape, Math.round(x - w / 2), Math.round(y - h / 2), Math.round(w), Math.round(h));
-    for (let i = 0; i < 4; i++) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(turn);
+    ctx.drawImage(shape, -shape.width * ZOOM * grow / 2, -shape.height * ZOOM * grow / 2, shape.width * ZOOM * grow,
+      shape.height * ZOOM * grow);
+    ctx.restore();
+    for (let i = 0; i < 7; i++) {
       const phase = (this.clock * 0.7 + i * 0.29 + puddle.x * 0.37) % 1, a = i * 1.9 + puddle.y * 3;
-      const bx = x + Math.cos(a) * r * 0.45, by = y + Math.sin(a) * r * 0.35, size = 1 + Math.round(phase * 3);
+      const u = Math.cos(a) * long * 0.6, v = Math.sin(a) * wide * 0.45, size = 1 + Math.round(phase * 3);
+      const bx = x + u * cos - v * sin, by = y + u * sin + v * cos;
       ctx.globalAlpha = fade * (phase < 0.85 ? 0.9 : 0.3);
       const bubble = bubbleSprite(), side = Math.round(bubble.width * (0.5 + size * 0.25));
       ctx.drawImage(bubble, Math.round(bx - side / 2), Math.round(by - side / 2), side, side);
       if (phase > 0.85) square(ctx, bx, by - 4 - (phase - 0.85) * 30, 2, black ? '#a78bfa' : '#d9f99d');
     }
-    for (let i = 0; i < 3; i++) {
-      const rise = (this.clock * 0.35 + i / 3 + puddle.y * 0.21) % 1;
+    for (let i = 0; i < 4; i++) {
+      const rise = (this.clock * 0.35 + i / 4 + puddle.y * 0.21) % 1, u = Math.sin(i * 2.3 + this.clock) * long * 0.5;
       ctx.globalAlpha = fade * 0.35 * (1 - rise);
-      square(ctx, x + Math.sin(i * 2.3 + this.clock) * r * 0.3, y - rise * 18, 3, black ? '#7c3aed' : '#a3e635');
+      square(ctx, x + u * cos, y + u * sin - rise * 18, 3, black ? '#7c3aed' : '#a3e635');
     }
     ctx.globalAlpha = 1;
   }
@@ -2919,6 +2984,44 @@ export class Scene {
     }
   }
 
+  _glob(ctx, e, share) {
+    if (!e.mob.dead) {
+      e.x2 = e.mob.x;
+      e.y2 = e.mob.y;
+    }
+    const brew = BREWS[e.tone], spot = (f) => [at(e.sx + (e.x2 - e.sx) * f), at(e.sy + (e.y2 - e.sy) * f)
+      - Math.sin(f * Math.PI) * 26];
+    const [gx, gy] = spot(share), [sx, sy] = [at(e.sx + (e.x2 - e.sx) * share), at(e.sy + (e.y2 - e.sy) * share)];
+    ctx.save();
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = '#000000';
+    lump(ctx, sx, sy + 2, 3.2, 1.4, 3, 0.1, 8);
+    ctx.fill();
+    for (let k = 1; k <= 3; k++) {
+      const [tx, ty] = spot(Math.max(0, share - k * 0.045));
+      ctx.globalAlpha = 0.8 - k * 0.2;
+      ctx.fillStyle = brew[1 + (k % 2)];
+      lump(ctx, tx, ty, 2 - k * 0.4, 2 - k * 0.4, k, 0.1, 7);
+      ctx.fill();
+    }
+    const [ax, ay] = spot(Math.max(0, share - 0.03)), turn = Math.atan2(gy - ay, gx - ax);
+    glow(ctx, gx, gy, 9, VENOM[e.tone], 0.45);
+    ctx.globalAlpha = 1;
+    ctx.translate(gx, gy);
+    ctx.rotate(turn);
+    const fill = ctx.createRadialGradient(0.8, -1, 0.3, 0, 0, 4.2);
+    fill.addColorStop(0, brew[3]);
+    fill.addColorStop(0.35, brew[2]);
+    fill.addColorStop(1, brew[0]);
+    ctx.fillStyle = fill;
+    lump(ctx, 0, 0, 4.2, 3, 5, 0.08, 9);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255, 255, 255, .55)';
+    lump(ctx, 1.2, -1.1, 1.2, 0.6, 7, 0.1, 6);
+    ctx.fill();
+    ctx.restore();
+  }
+
   _hail(ctx, e) {
     const x0 = at(e.x), y0 = at(e.y), r = e.radius * CELL, rise = Math.min(1, e.t / 0.2);
     glow(ctx, x0, y0, r, 'rgba(0, 0, 0, .9)', 0.14 * rise * Math.max(0, 1 - Math.max(0, e.t - e.fall - HAIL.fall) / 0.5));
@@ -3000,11 +3103,7 @@ export class Scene {
         continue;
       }
       if (e.kind === 'blob') {
-        const tx = e.mob.dead ? e.x2 : e.mob.x, ty = e.mob.dead ? e.y2 : e.mob.y;
-        const x = at(e.sx + (tx - e.sx) * share), y = at(e.sy + (ty - e.sy) * share) - Math.sin(share * Math.PI) * 26;
-        glow(ctx, x, y, 9, HEAT[e.tone][0], 0.6);
-        sprite(ctx, fireballSprite(e.tone, Math.floor(this.clock * 14) % FIREBALL_FRAMES), x, y,
-          Math.atan2(tx - e.sx, -(ty - e.sy)) + (share - 0.5) * 2, 0.9, 0, 64);
+        this._glob(ctx, e, share);
         continue;
       }
       if (e.kind === 'absorb') {

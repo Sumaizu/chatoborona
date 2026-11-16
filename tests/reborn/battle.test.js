@@ -1018,23 +1018,25 @@ test('охотник, трофей: за мобов, погибших в аур�
   near(coins(1, true), plain, 'вне ауры — как обычно');
 });
 
-test('охотник, медвежий капкан: до трёх через клетку, держит даже босса, травит ядом и снова открыт через 10 секунд', () => {
-  const battle = makeBattle(), t = forester(battle, 10, 4, ['hunter', 'beartrap', 'beartrap', 'beartrap']);
+test('охотник, медвежий капкан: сразу три на случайных клетках дороги в радиусе, держит даже босса, травит и снова открыт через 10 секунд', () => {
+  const battle = makeBattle(), t = forester(battle, 10, 4, ['hunter', 'beartrap']);
   t.reloadUntil = 1e9;
   battle.step(TICK);
-  eq(battle.traps.map((trap) => trap.x - 0.5), [10, 8, 12], 'ближняя клетка, через одну в стороны');
-  const boss = special(battle, 'boss', 'crusher');
-  const mob = walker(battle, 12.6, 1e9);
+  eq(battle.traps.length, 3, 'одна прокачка — три капкана');
+  ok(battle.traps.every((trap) => trap.y === 5.5 && Math.hypot(trap.x - t.cx, trap.y - t.cy) <= t.range + 0.75),
+    'на дороге, в радиусе');
+  eq(new Set(battle.traps.map((trap) => trap.x)).size, 3, 'на разных клетках');
+  const trap = battle.traps[0], boss = special(battle, 'boss', 'crusher');
+  const mob = walker(battle, trap.x + 0.1, 1e9);
   runFor(battle, 0.5);
   ok(mob.stuck && mob.stuck.kind === 'trap', 'попал');
   const d = mob.d, was = hit(mob);
   runFor(battle, 1);
   eq(mob.d, d, 'стоит');
   near(hit(mob) - was, t.damage * WOOD.beartrap.dps, 'травит ядом');
-  const trap = battle.traps.find((item) => item.x === 12.5);
   ok(trap.openAt > battle.time + 8, 'закрыт на 10 секунд');
   ok(battle._stick(boss, t, 'trap', 1, 1, true), 'босса держит');
-  const flyer = walker(battle, 9.1, 1e9, bat());
+  const left = battle.traps.find((item) => item.openAt === 0), flyer = walker(battle, left.x + 0.5, 1e9, bat());
   still(flyer);
   runFor(battle, 0.3);
   no(flyer.stuck, 'летучего капкан не ловит');
@@ -1065,7 +1067,7 @@ test('ведьма, ядовитый взрыв: где упал шар — об
   runFor(battle, 1);
   near(hit(other) - was, t.damage * WOOD.venomBurst.dps, 'облако травит соседа');
   no(other.marks && other.marks.has('poison'), 'без реакции — без метки');
-  runFor(battle, 2);
+  runFor(battle, WOOD.venomBurst.time);
   eq(battle.clouds.length, 0, 'облако рассеялось');
 });
 
