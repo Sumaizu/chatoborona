@@ -904,13 +904,15 @@ function crossbowman(m) {
   m.limb(13, 15.8, 13.6, 19, 15.8, 13.6, 0.45, '#5a3a1e');
 }
 
-function witch(m) {
+const HEX = { toxic: ['#22c55e', '#a3e635', '#ecfccb'], plague: ['#1e1033', '#6d28d9', '#c4b5fd'] };
+
+function witch(m, fire = HEX.toxic) {
   robed(m, {
     robe: '#6b21a8', dark: '#4c1d95', sleeve: '#7e22ce', trim: '#84cc16', hands: [11.6, 15, 20.6, 12],
     weapon: (q) => {
-      q.ball(20.6, 10.6, 11.4, 1.6, '#22c55e', 1);
-      q.ball(20.4, 9.4, 12.4, 1.2, '#a3e635', 1);
-      q.ball(20.8, 8.4, 13.2, 0.7, '#ecfccb', 1);
+      q.ball(20.6, 10.6, 11.4, 1.6, fire[0], 1);
+      q.ball(20.4, 9.4, 12.4, 1.2, fire[1], 1);
+      q.ball(20.8, 8.4, 13.2, 0.7, fire[2], 1);
     },
     head: (q) => {
       q.ball(16, 17, 11.2, 4.2, '#c4e7a8');
@@ -975,6 +977,7 @@ const SKINS = {
   'forester-druid': druid,
   'forester-hunter': crossbowman,
   'forester-witch': witch,
+  'forester-witch-plague': (m) => witch(m, HEX.plague),
   mechanic: wrench,
   'mechanic-ragged': wrench,
   'mechanic-turret': turreteer,
@@ -1081,7 +1084,7 @@ export const MUZZLES = {
   'pyro-dragon': MOUTH, 'pyro-dragon-blue': MOUTH, sniper: PISTOL, 'sniper-ragged': PISTOL,
   'sniper-scope': [[16, -7]], 'sniper-assault': [[16, -4.9]], 'sniper-marksman': [[16, -6]],
   forester: [[16.1, 6.4]], 'forester-ragged': [[16.1, 6.4]], 'forester-druid': [[21.6, 8.8]],
-  'forester-hunter': [[16, 2.4]], 'forester-witch': [[20.6, 8.6]],
+  'forester-hunter': [[16, 2.4]], 'forester-witch': [[20.6, 8.6]], 'forester-witch-plague': [[20.6, 8.6]],
   mechanic: [[19.2, 6.8]], 'mechanic-ragged': [[19.2, 6.8]], 'mechanic-turret': [[19.6, 6.4]],
   'mechanic-demo': [[21.2, 1]], 'mechanic-mortar': [[16, 8.6]],
   'mechanic-turret-giant': [[16, -6.6]],

@@ -224,9 +224,10 @@ test('классы: двенадцать, у каждого оружие, сво
     'lastRound', 'spotter', 'goldRounds', 'endless'], 'у штурмовика — только свои усиления');
   eq(['sniper-ragged', 'sniper-scope', 'sniper-assault', 'sniper-marksman'],
     [[], ['scope'], ['assault'], ['marksman']].map((taken) => skinOf('sniper', taken)));
-  eq(names('forester'), ['Друид', 'Охотник', 'Ведьма', 'Стена корней', 'Ястреб', 'Путы', 'Стая', 'Ядовитая реакция',
-    'Зов природы', 'Зоркий глаз',
-    'Природная ловкость']);
+  eq(names('forester'), ['Друид', 'Охотник', 'Ведьма', 'Стена корней', 'Ястреб', 'Путы', 'Стая', 'Ловчий', 'Трофей',
+    'Медвежий капкан', 'Град стрел', 'Ядовитый взрыв', 'Котёл яда', 'Чума', 'Поглощение', 'Ядовитая реакция',
+    'Зов природы', 'Зоркий глаз', 'Природная ловкость']);
+  eq(skinOf('forester', ['witch', 'plague']), 'forester-witch-plague', 'с чумой у ведьмы чёрный яд в руке');
   eq(['forester-ragged', 'forester-druid', 'forester-hunter', 'forester-witch'],
     [[], ['druid'], ['hunter'], ['witch']].map((taken) => skinOf('forester', taken)));
   eq(names('mechanic'), ['Турельщик', 'Подрывник', 'Ракетчик', 'Гигантская турель', 'Атакующий дрон', 'Лазерный дрон',

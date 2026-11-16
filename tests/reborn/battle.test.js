@@ -987,6 +987,150 @@ test('друид, стая: ещё птица, второй раз — ещё д
   near(hit(mob) / pecks, t.damage * WOOD.bird.mul * (1 + WOOD.flock.poison), 'клюёт и травит');
 });
 
+test('охотник, ловчий: сеть держит моба на месте и травит ядом; босса не держит', () => {
+  const battle = makeBattle(), t = forester(battle, 10, 4, ['hunter', 'catcher']);
+  const mob = walker(battle, 12, 1e9);
+  battle.random = () => 0;
+  ok(battle._fire(t));
+  ok(mob.stuck && mob.stuck.kind === 'net' && mob.netUntil > battle.time, 'в сети');
+  ok(battle.events.some((e) => e.kind === 'net' && e.tower === t));
+  const d = mob.d, was = hit(mob);
+  runFor(battle, 1);
+  eq(mob.d, d, 'стоит');
+  near(hit(mob) - was, t.damage * WOOD.catcher.dps, 'ядом — понемногу');
+  const boss = special(battle, 'boss', 'crusher');
+  no(battle._stick(boss, t, 'net', 1, 1), 'босса сеть не держит');
+});
+
+test('охотник, трофей: за мобов, погибших в ауре, монет на 25% больше; две ауры — ещё вполовину', () => {
+  const coins = (count, far) => {
+    const battle = makeBattle(), gun = mechanic(battle, 3, 4, []);
+    for (let i = 0; i < count; i++) forester(battle, 10 + i, 3, ['hunter', 'trophy']);
+    const mob = walker(battle, far ? 1 : 11, 10);
+    still(mob);
+    battle._hurt(mob, 100, gun);
+    ok(mob.dead);
+    return gun.run.coins;
+  };
+  const plain = coins(0, false);
+  near(coins(1, false), plain * 1.25);
+  near(coins(2, false), plain * 1.375, 'вторая аура — половина');
+  near(coins(1, true), plain, 'вне ауры — как обычно');
+});
+
+test('охотник, медвежий капкан: до трёх через клетку, держит даже босса, травит ядом и снова открыт через 10 секунд', () => {
+  const battle = makeBattle(), t = forester(battle, 10, 4, ['hunter', 'beartrap', 'beartrap', 'beartrap']);
+  t.reloadUntil = 1e9;
+  battle.step(TICK);
+  eq(battle.traps.map((trap) => trap.x - 0.5), [10, 8, 12], 'ближняя клетка, через одну в стороны');
+  const boss = special(battle, 'boss', 'crusher');
+  const mob = walker(battle, 12.6, 1e9);
+  runFor(battle, 0.5);
+  ok(mob.stuck && mob.stuck.kind === 'trap', 'попал');
+  const d = mob.d, was = hit(mob);
+  runFor(battle, 1);
+  eq(mob.d, d, 'стоит');
+  near(hit(mob) - was, t.damage * WOOD.beartrap.dps, 'травит ядом');
+  const trap = battle.traps.find((item) => item.x === 12.5);
+  ok(trap.openAt > battle.time + 8, 'закрыт на 10 секунд');
+  ok(battle._stick(boss, t, 'trap', 1, 1, true), 'босса держит');
+  const flyer = walker(battle, 9.1, 1e9, bat());
+  still(flyer);
+  runFor(battle, 0.3);
+  no(flyer.stuck, 'летучего капкан не ловит');
+});
+
+test('охотник, град стрел: раз в 10 секунд бьёт всех на 4 клетки вокруг цели как выстрел и ещё ядом', () => {
+  const battle = makeBattle(), t = forester(battle, 10, 4, ['hunter', 'hail']);
+  t.reloadUntil = 1e9;
+  const lead = walker(battle, 12, 1e9), side = walker(battle, 9, 1e9), far = walker(battle, 19, 1e9);
+  still(lead, side, far);
+  battle.step(TICK);
+  ok(battle.events.some((e) => e.kind === 'hail' && e.radius === WOOD.hail.radius));
+  runFor(battle, WOOD.hail.fall + 0.05);
+  for (const mob of [lead, side]) near(hit(mob), t.damage * (1 + WOOD.hail.poison), 'выстрел и яд');
+  eq(hit(far), 0, 'дальше 4 клеток — мимо');
+  runFor(battle, 5);
+  eq(battle.events.filter((e) => e.kind === 'hail').length, 1, 'следующий — не раньше чем через 10 секунд');
+});
+
+test('ведьма, ядовитый взрыв: где упал шар — облако на клетку, травит всех внутри; метит ядом только с реакцией', () => {
+  const battle = makeBattle(), t = forester(battle, 10, 4, ['witch', 'venomBurst']);
+  const mob = walker(battle, 12, 1e9), other = walker(battle, 12.6, 1e9);
+  still(mob, other);
+  ok(battle._fire(t));
+  runFor(battle, WOOD.witch.flight + 0.05);
+  eq(battle.clouds.length, 1);
+  const was = hit(other);
+  runFor(battle, 1);
+  near(hit(other) - was, t.damage * WOOD.venomBurst.dps, 'облако травит соседа');
+  no(other.marks && other.marks.has('poison'), 'без реакции — без метки');
+  runFor(battle, 2);
+  eq(battle.clouds.length, 0, 'облако рассеялось');
+});
+
+test('ведьма, котёл яда: рядом котёл до конца игры, кидает сгустки, лужи травят идущих и не складываются', () => {
+  const battle = makeBattle(), t = forester(battle, 10, 3, ['witch', 'cauldron']);
+  t.reloadUntil = 1e9;
+  const mob = walker(battle, 12, 1e9);
+  still(mob);
+  battle.step(TICK);
+  eq(battle.cauldrons.length, 1);
+  const pot = battle.cauldrons[0];
+  ok(Math.abs(pot.x - t.x) <= 1 && Math.abs(pot.y - t.y) <= 1 && !battle.free(pot.x, pot.y), 'рядом и занимает клетку');
+  runFor(battle, WOOD.cauldron.every + WOOD.cauldron.flight + 0.1);
+  ok(battle.events.some((e) => e.kind === 'blob'));
+  ok(battle.puddles.length >= 1, 'лужа');
+  const ground = walker(battle, 5, 1e9);
+  still(ground);
+  battle.puddles = [0, 1].map(() => ({ tower: t, x: ground.x, y: ground.y, radius: 0.6, until: battle.time + 5,
+    born: battle.time, dps: 10, plague: false }));
+  const was = hit(ground);
+  battle._venom(1, battle.time);
+  near(hit(ground) - was, 10, 'две лужи — как одна');
+  battle.endWave();
+  eq(battle.cauldrons.length, 1, 'котёл остаётся');
+});
+
+test('ведьма, чума: чёрный яд бьёт нежить, остальных — на 10% сильнее', () => {
+  const plain = makeBattle(), w = forester(plain, 10, 4, ['witch']), black = forester(plain, 10, 2, ['witch', 'plague']);
+  const ghost = walker(plain, 12, 1e9), mob = walker(plain, 11, 1e9);
+  ghost.undead = true;
+  still(ghost, mob);
+  plain._hurt(ghost, 10, w, 'poison');
+  eq(hit(ghost), 0, 'обычный яд нежить не берёт');
+  plain._hurt(ghost, 10, black, 'poison');
+  near(hit(ghost), 10, 'чума — берёт');
+  plain._hurt(mob, 10, black, 'poison');
+  near(hit(mob), 11);
+  plain.random = () => 0.99;
+  ok(plain._fire(black));
+  ok(plain.events.some((e) => e.kind === 'shot' && e.tower === black && e.tone === 'plague'), 'шар чёрный');
+});
+
+test('ведьма, поглощение: втягивает облака и лужи в радиусе — шар во столько раз сильнее; бросает вдвое реже', () => {
+  const battle = makeBattle(), t = forester(battle, 10, 4, ['witch', 'absorb', 'venomBurst']);
+  const plain = forester(battle, 10, 2, ['witch']);
+  near(t.interval, plain.interval * 2);
+  plain.reloadUntil = 1e9;
+  const mob = walker(battle, 13, 1e9);
+  still(mob);
+  const pool = (x, list) => battle[list].push({ tower: plain, x, y: 5.5, radius: 0.6, until: 1e9, born: 0, dps: 0,
+    plague: false });
+  pool(12.5, 'clouds');
+  pool(11.5, 'clouds');
+  pool(9.5, 'puddles');
+  pool(19.5, 'puddles');
+  ok(battle._fire(t));
+  eq([battle.clouds.length, battle.puddles.length], [0, 1], 'дальняя лужа осталась');
+  ok(battle.events.some((e) => e.kind === 'absorb' && e.points.length === 3));
+  runFor(battle, WOOD.absorb.time + WOOD.witch.flight + 0.05);
+  ok(hit(mob) >= t.damage * 3 - 1e-6 && hit(mob) < t.damage * 3.2, 'втянула три — ×3');
+  ok(battle.events.some((e) => e.kind === 'shot' && e.tower === t && e.size > 11), 'шар крупнее');
+  eq(battle.clouds.length, 1);
+  near(battle.clouds[0].dps, t.damage * WOOD.venomBurst.dps * 3, 'и облако ×3');
+});
+
 test('лесник, ядовитая реакция: метит ядом только ядовитые атаки — шары ведьмы', () => {
   const battle = makeBattle(), witch = forester(battle, 10, 4, ['witch', 'poisonReact']);
   const bow = forester(battle, 10, 2, ['poisonReact']);

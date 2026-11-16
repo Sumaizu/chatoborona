@@ -1,6 +1,6 @@
 import { HERO_IDS, drawHero, drawPhoenix } from './models.js';
 import { MOB_IDS, drawMelt, drawMob, drawSplit, gooColor } from './monsters.js';
-import { drawClod, drawCocoon, drawBird, drawHawk, drawSnare, drawCoinIcon, drawDrone, drawEmblem, drawFireball, drawGrenade, drawHeart,
+import { drawCauldron, drawClod, drawCocoon, drawBird, drawHawk, drawSnare, drawTrap, drawCoinIcon, drawDrone, drawEmblem, drawFireball, drawGrenade, drawHeart,
   drawMeteor, drawMound, drawNuke, drawVent, drawRocket, drawWall } from './props.js';
 
 const OUTLINE = '#15111d';
@@ -308,6 +308,8 @@ export const droneSprite = (kind, frame) => remember('drone:' + kind + frame, ()
 export const birdSprite = (frame) => remember('bird:' + frame, () => drawBird(frame));
 export const hawkSprite = (frame) => remember('hawk:' + frame, () => drawHawk(frame));
 export const snareSprite = (r) => remember('snare:' + r, () => drawSnare(r));
+export const trapSprite = (closed) => remember('trap:' + closed, () => drawTrap(closed));
+export const cauldronSprite = (plague) => remember('cauldron:' + plague, () => drawCauldron(plague));
 export const grenadeSprite = (kind, lit) => remember('grenade:' + kind + ':' + lit, () => drawGrenade(kind, lit));
 export const ventSprite = (lit, blue) => remember('vent:' + lit + blue, () => drawVent(lit, blue));
 const FLAPS = [1, 0.74, 0.5, 0.74];

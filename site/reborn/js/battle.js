@@ -99,8 +99,13 @@ const DRONE_KINDS = [['droneAttack', 'attack'], ['droneLaser', 'laser'], ['drone
 export const WOOD = { bow: { reload: 0.8 }, grace: { radius: 2.5, haste: 0.15 }, hunter: { range: 2, interval: 0.4, mul: 3.4, reload: 2.4 },
   witch: { range: 0, interval: 1.8, mul: 1.3, flight: FIREBALL_FLIGHT }, bird: { every: 0.9, mul: 0.45, speed: 5, orbit: 0.7 },
   hawk: { every: 1.4, mul: 1.6, speed: 5.5, poison: 0.5, orbit: 0.95 }, flock: { birds: [1, 2, 4], poison: 0.5 },
-  roots: { cells: 5, reach: 0.7, slow: 0.4, mul: 0.15 }, snare: { chance: 0.15, time: 2.5, gap: 3 } };
+  roots: { cells: 5, reach: 0.7, slow: 0.4, mul: 0.15 }, snare: { chance: 0.15, time: 2.5, gap: 3 },
+  catcher: { chance: 0.3, time: 2.5, dps: 0.25 }, trophy: { radius: 4.5, bonus: 0.25 },
+  beartrap: { time: 3, reopen: 10, dps: 0.3, reach: 0.45 }, hail: { every: 10, radius: 4, fall: 0.6, poison: 0.5 },
+  venomBurst: { radius: 1, time: 2, dps: 0.4 }, plague: 0.1, absorb: { time: 0.35, size: 1.5 },
+  cauldron: { every: 2.5, reach: 4, flight: 0.7, mul: 0.8, radius: 0.6, time: 4, dps: 0.3 } };
 const STYLE_ELEMENTS = { witch: 'poison' };
+const STYLE_BALL = 11;
 const DRONE_SHOTS = { attack: MECH.droneAttack, laser: MECH.droneLaser, air: MECH.droneAir, bird: WOOD.bird,
   hawk: WOOD.hawk };
 const STEEL_BLAST = { radius: 1.5, mul: 8, stun: 1 };
@@ -240,6 +245,10 @@ export class Battle {
     this.walls = [];
     this.zones = [];
     this.vents = [];
+    this.cauldrons = [];
+    this.traps = [];
+    this.clouds = [];
+    this.puddles = [];
     this.phoenixes = [];
     this.drones = [];
     this.steel = 0;
@@ -266,7 +275,8 @@ export class Battle {
 
   free(x, y) {
     return inside(x, y) && !this.blocked.has(y * SIZE + x) && !this.byCell.has(y * SIZE + x)
-      && !this.vents.some((vent) => vent.x === x && vent.y === y);
+      && !this.vents.some((vent) => vent.x === x && vent.y === y)
+      && !this.cauldrons.some((pot) => pot.x === x && pot.y === y);
   }
 
   bestCell(range) {
@@ -459,7 +469,7 @@ export class Battle {
     this.towers.splice(at, 1);
     if (!tower.rider) this.byCell.delete(tower.y * SIZE + tower.x);
     for (const list of ['walls', 'whirls', 'patches', 'grounds',
-      'zones', 'phoenixes', 'drones']) {
+      'zones', 'phoenixes', 'drones', 'traps', 'clouds', 'puddles']) {
       this[list] = this[list].filter((item) => item.tower !== tower);
     }
     for (const t of this.towers) if (t.perch && t.perch.tower === tower) t.perch = null;
@@ -572,6 +582,9 @@ export class Battle {
 
   endWave() {
     this.patches = [];
+    this.clouds = [];
+    this.puddles = [];
+    for (const trap of this.traps) trap.openAt = 0;
     const healers = this.towers.filter((t) => t.cls.id === 'healer' && !t.cocoon);
     if (healers.length && this.lives < this.maxLives) {
       const base = healers[0].cls.base, heal = Math.min(base.healCap, base.heal * healers.length,
@@ -687,7 +700,7 @@ export class Battle {
       chill: 0,
       mark: 0, markUntil: 0, vuln: 0, vulnUntil: 0, weak: 0, weakUntil: 0, weakBy: null, rush: 0, rushUntil: 0,
       charge: null, rot: null,
-      muteUntil: 0, netUntil: 0, rootAt: 0, rootUntil: 0, rootFree: 0, thicketUntil: 0,
+      muteUntil: 0, netUntil: 0, rootAt: 0, rootUntil: 0, rootFree: 0, stuck: null, thicketUntil: 0,
       rollAt: this.time + ROLL_EVERY, thornAt: 0, resist: resistOf(this.wave), holdUntil: 0, holdFree: 0,
       holdBy: '', pushed: 0, poison: null, burn: null, helpers: new Set(), last: null, dead: false, biting: 0,
       wall: null, fury: 0, sx: 0, sy: 0, placed: false,
@@ -1006,6 +1019,7 @@ export class Battle {
     tower.interval = (shot && shot.interval || base.interval) / (Math.max(FLOOR, 1 + (mods.rate || 0))
       * (tower.runes.has('frenzy') ? 3 : 1));
     if (tower.style === 'dragon') tower.interval = PULSE / Math.max(FLOOR, 1 + (mods.rate || 0));
+    if (tower.style === 'witch' && tower.runes.has('absorb')) tower.interval *= 2;
     if (tower.style === 'turret' && tower.runes.has('giant')) {
       tower.interval = MECH.giant.gap / Math.max(FLOOR, 1 + (mods.rate || 0));
     }
@@ -1117,6 +1131,7 @@ export class Battle {
     if (this.zones.length) this._zones(dt, now);
     if (this.whirls.length) this._whirls(dt, now);
     if (this.grounds.length) this._grounds(dt, now);
+    this._venom(dt, now);
     if (this.walls.length) this._mend(dt);
     for (const mob of this.mobs) {
       if (mob.dead) continue;
@@ -1445,6 +1460,7 @@ export class Battle {
       mob.wall = null;
       if (mob.holdUntil > now && !steady(mob, now)) continue;
       if (mob.rootUntil > now && !steady(mob, now)) continue;
+      if (mob.stuck && mob.stuck.until > now && !steady(mob, now)) continue;
       if (mob.madUntil > now) {
         this._rave(mob, dt);
         continue;
@@ -1818,7 +1834,7 @@ export class Battle {
     const k = main ? best : best - this.path.length;
     const from = Math.max(0, Math.min(k - Math.floor(size / 2), line.length - size));
     const cells = line.slice(from, from + size).map(([x, y]) => ({ x: x + 0.5, y: y + 0.5 }));
-    t.blaze = { key, line, from, size, cells };
+    t.blaze = { key, line, from, size, cells, k };
     return t.blaze;
   }
 
@@ -1847,6 +1863,93 @@ export class Battle {
       bird.s = end;
       return end < bird.cells.length - 1;
     });
+  }
+
+  _openCauldron(t) {
+    const spots = [];
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if ((dx || dy) && this.free(t.x + dx, t.y + dy)) spots.push([t.x + dx, t.y + dy]);
+      }
+    }
+    if (!spots.length) return;
+    const [x, y] = spots[Math.floor(this.random() * spots.length)];
+    this.cauldrons.push({ tower: t, x, y, cx: x + 0.5, cy: y + 0.5, next: this.time + WOOD.cauldron.every,
+      born: this.time });
+    this._event({ kind: 'cauldron', tower: t, x: x + 0.5, y: y + 0.5 });
+  }
+
+  _setTraps(t) {
+    const blaze = this._blazeOf(t, 5), count = t.style === 'hunter' ? Math.min(3, t.stacks.get('beartrap') || 0) : 0;
+    const key = blaze.key + ':' + count;
+    if (t.trapKey === key) return;
+    t.trapKey = key;
+    this.traps = this.traps.filter((trap) => trap.tower !== t);
+    const { line, k } = blaze;
+    for (const i of [k, k - 2, k + 2].slice(0, count)) {
+      if (i >= 0 && i < line.length) this.traps.push({ tower: t, x: line[i][0] + 0.5, y: line[i][1] + 0.5, openAt: 0 });
+    }
+  }
+
+  _stick(mob, t, kind, time, dps, boss = false) {
+    const now = this.time;
+    if (mob.dead || steady(mob, now) || mob.info.boss && !boss) return false;
+    mob.stuck = { until: now + time, by: t, dps, kind };
+    if (kind === 'net') mob.netUntil = Math.max(mob.netUntil, mob.stuck.until);
+    mob.helpers.add(t);
+    return true;
+  }
+
+  _cloud(t, x, y, mul) {
+    const s = WOOD.venomBurst;
+    this.clouds.push({ tower: t, x, y, radius: s.radius, until: this.time + s.time, born: this.time,
+      dps: t.damage * s.dps * mul, plague: t.runes.has('plague') });
+  }
+
+  _drain(t) {
+    const close = (pool) => near(pool, t.cx, t.cy, t.range);
+    const taken = this.clouds.filter(close).concat(this.puddles.filter(close));
+    if (!taken.length) return 0;
+    this.clouds = this.clouds.filter((cloud) => !taken.includes(cloud));
+    this.puddles = this.puddles.filter((puddle) => !taken.includes(puddle));
+    this._event({ kind: 'absorb', tower: t, points: taken.map((pool) => [pool.x, pool.y, pool.plague]),
+      time: WOOD.absorb.time });
+    return taken.length;
+  }
+
+  _venom(dt, now) {
+    this.clouds = this.clouds.filter((cloud) => cloud.until > now);
+    this.puddles = this.puddles.filter((puddle) => puddle.until > now);
+    const s = WOOD.beartrap;
+    for (const trap of this.traps) {
+      if (now < trap.openAt) continue;
+      const prey = this.mobs.find((mob) => !mob.dead && grounded(mob, now) && !(mob.stuck && mob.stuck.until > now)
+        && near(mob, trap.x, trap.y, s.reach));
+      if (!prey || !this._stick(prey, trap.tower, 'trap', s.time, trap.tower.damage * s.dps, true)) continue;
+      trap.openAt = now + s.reopen;
+      this._event({ kind: 'trap', tower: trap.tower, x: trap.x, y: trap.y, mob: prey });
+    }
+    for (const mob of this.mobs) {
+      if (mob.dead) continue;
+      if (mob.stuck && mob.stuck.until > now) this._dose(mob, mob.stuck.by, mob.stuck.dps * dt);
+      if (mob.dead || hidden(mob, now)) continue;
+      for (const cloud of this.clouds) {
+        if (!mob.dead && near(mob, cloud.x, cloud.y, cloud.radius)) this._dose(mob, cloud.tower, cloud.dps * dt);
+      }
+      if (mob.dead || !grounded(mob, now)) continue;
+      let pool = null;
+      for (const puddle of this.puddles) {
+        if (near(mob, puddle.x, puddle.y, puddle.radius) && (!pool || puddle.dps > pool.dps)) pool = puddle;
+      }
+      if (pool) this._dose(mob, pool.tower, pool.dps * dt);
+    }
+  }
+
+  _dose(mob, t, amount) {
+    this._hurt(mob, amount, t, 'poison', true);
+    if (t.react && !mob.dead && !immune(mob, 'poison') && (!mob.undead || t.runes.has('plague'))) {
+      this._mark(mob, 'poison', t);
+    }
   }
 
   _openVent(t) {
@@ -2212,7 +2315,9 @@ export class Battle {
     if (mob.dead || amount <= 0 || underground(mob, this.time) && !t.deep && !deep) return;
     if (!dot && !t.rider && !t.cls.through && this.covered(mob.x, mob.y)) return;
     const now = this.time;
-    if (element === 'poison' && mob.undead) return;
+    const plague = element === 'poison' && t.runes.has('plague');
+    if (element === 'poison' && mob.undead && !plague) return;
+    if (plague && !mob.undead) amount *= 1 + WOOD.plague;
     amount *= this._weak(element);
     if (immune(mob, element)) {
       mob.helpers.add(t);
@@ -2313,11 +2418,14 @@ export class Battle {
     const insight = mob.weakUntil > this.time && mob.weakBy && open(mob.weakBy, 2) ? mob.weakBy.s[2].xp : 1;
     const prize = mob.silver ? SILVER.xp : 1, purse = mob.silver ? SILVER.coins : 1;
     const killers = new Set(mob.party || [killer]);
+    const trophy = fade(this.towers.filter((h) => h.cls.id === 'forester' && h.style === 'hunter' && !h.cocoon
+      && h.runes.has('trophy') && near(mob, h.cx, h.cy, WOOD.trophy.radius)).map(() => WOOD.trophy.bonus));
+    if (trophy) this._event({ kind: 'trophy', x: mob.x, y: mob.y });
     for (const t of mob.helpers) {
       const earn = t.cls.earn || NO_EARN;
       this._grant(t, mob.info.xp * earn.xp * insight * prize);
       const coins = (killers.has(t) ? KILL_COINS : ASSIST_COINS) * mob.info.coins * earn.coins * purse
-        * Math.max(0, 1 + (t.mods.coins || 0));
+        * Math.max(0, 1 + (t.mods.coins || 0)) * (1 + trophy);
       t.player.coins += coins;
       t.run.coins += coins;
       if (killers.has(t)) {
@@ -2661,9 +2769,65 @@ function spend(b, t, now, count, target) {
   reload(t, now, shot.reload);
 }
 
+function witchThrow(b, t, target) {
+  const pools = t.runes.has('absorb') ? b._drain(t) : 0, mul = Math.max(1, pools), tone = t.runes.has('plague');
+  const toss = () => {
+    const mob = target.dead ? woodTarget(b, t) : target;
+    if (!mob) return;
+    const crit = rollCrit(b, t);
+    b._event({ kind: 'shot', tower: t, x: mob.x, y: mob.y, crit, mob, time: WOOD.witch.flight,
+      tone: tone ? 'plague' : '', size: pools ? STYLE_BALL * WOOD.absorb.size : 0 });
+    b._later(WOOD.witch.flight, () => {
+      if (!mob.dead) b._hurt(mob, t.damage * mul * (crit ? t.critMul : 1), t, 'poison');
+      if (t.runes.has('venomBurst')) b._cloud(t, mob.x, mob.y, mul);
+    }, t);
+  };
+  if (pools) b._later(WOOD.absorb.time, toss, t);
+  else toss();
+  return true;
+}
+
+function hail(b, t, now, alive) {
+  if (!t.runes.has('hail') || !alive || now < (t.nextHail || 0)) return;
+  const target = woodTarget(b, t), s = WOOD.hail;
+  if (!target) return;
+  const x = target.x, y = target.y;
+  t.nextHail = now + s.every;
+  b._event({ kind: 'hail', tower: t, x, y, radius: s.radius, time: s.fall });
+  b._later(s.fall, () => {
+    const crit = rollCrit(b, t), hit = t.damage * (crit ? t.critMul : 1);
+    for (const mob of b._around(x, y, s.radius)) {
+      b._hurt(mob, hit, t);
+      b._torchHit(t, mob, hit);
+      b._hurt(mob, t.damage * s.poison, t, 'poison');
+    }
+  }, t);
+}
+
+function brew(b, t, now) {
+  if (!t.runes.has('cauldron')) return;
+  if (!b.cauldrons.some((pot) => pot.tower === t)) b._openCauldron(t);
+  const s = WOOD.cauldron, plague = t.runes.has('plague');
+  for (const pot of b.cauldrons) {
+    if (pot.tower !== t || now < pot.next) continue;
+    const prey = b.mobs.filter((mob) => !mob.dead && !hidden(mob, now) && !b.covered(mob.x, mob.y)
+      && !immune(mob, 'poison') && (!mob.undead || plague) && near(mob, pot.cx, pot.cy, s.reach));
+    if (!prey.length) continue;
+    pot.next = now + s.every;
+    const mob = prey[Math.floor(b.random() * prey.length)];
+    b._event({ kind: 'blob', tower: t, sx: pot.cx, sy: pot.cy, mob, time: s.flight, plague });
+    b._later(s.flight, () => {
+      if (!mob.dead) b._hurt(mob, t.damage * s.mul, t, 'poison');
+      b.puddles.push({ tower: t, x: mob.x, y: mob.y, radius: s.radius, until: b.time + s.time, born: b.time,
+        dps: t.damage * s.dps, plague });
+    }, t);
+  }
+}
+
 function woodTarget(b, t) {
   if (t.style === 'druid') return null;
-  return b._target(t, { mode: t.style === 'hunter' ? 'bigFirst' : t.style === 'witch' ? 'toxic' : '' });
+  const toxic = t.style === 'witch' && !t.runes.has('plague');
+  return b._target(t, { mode: t.style === 'hunter' ? 'bigFirst' : toxic ? 'toxic' : '' });
 }
 
 function bend(a, b) {
@@ -2953,20 +3117,21 @@ const SKILLS = {
       if (t.style === 'druid' || t.reloadUntil > now) return false;
       const target = woodTarget(b, t);
       if (!target) return false;
-      if (t.style === 'witch') {
-        const crit = rollCrit(b, t);
-        b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target, time: WOOD.witch.flight });
-        b._later(WOOD.witch.flight, () => {
-          if (!target.dead) b._hurt(target, t.damage * (crit ? t.critMul : 1), t, 'poison');
-        }, t);
-        return true;
-      }
+      if (t.style === 'witch') return witchThrow(b, t, target);
       shoot(b, t, target);
-      if (t.style === 'hunter') reload(t, now, WOOD.hunter.reload);
-      else reload(t, now, Math.min(WOOD.bow.reload, b._intervalOf(t, now) / 2));
+      if (t.style === 'hunter') {
+        if (t.runes.has('catcher') && !target.dead && b.random() < WOOD.catcher.chance
+          && b._stick(target, t, 'net', WOOD.catcher.time, t.damage * WOOD.catcher.dps)) {
+          b._event({ kind: 'net', tower: t, mob: target });
+        }
+        reload(t, now, WOOD.hunter.reload);
+      } else reload(t, now, Math.min(WOOD.bow.reload, b._intervalOf(t, now) / 2));
       return true;
     },
     every(b, t, now, alive) {
+      b._setTraps(t);
+      if (t.style === 'hunter') hail(b, t, now, alive);
+      if (t.style === 'witch') brew(b, t, now);
       if (t.style !== 'druid' || !t.runes.has('roots') || !alive || now < (t.nextRoots || 0)) return;
       t.nextRoots = now + PULSE;
       const s = WOOD.roots, cells = b._blazeOf(t, s.cells).cells;
