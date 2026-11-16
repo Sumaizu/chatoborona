@@ -226,27 +226,39 @@ export function drawSnare(r) {
   return m.paint();
 }
 
+const TRAP = { steel: '#7d8792', jaw: '#8f98a3', tooth: '#e8edf2', pan: '#a9b2bc', spring: '#5d6670',
+  ground: '#2f343c', pin: '#c3cad2' };
+
 export function drawTrap(closed) {
-  const m = new Model(24, 1), cx = 12, cy = 12.5;
+  const m = new Model(48, 2), cx = 24, cy = 24, ring = 8;
+  for (const side of [-1, 1]) {
+    for (let k = 0; k < 8; k++) {
+      const a0 = (k / 8 - 0.5) * 1.5, a1 = ((k + 1) / 8 - 0.5) * 1.5, r0 = ring + 1.7, r1 = ring + 1.7;
+      m.limb(cx + side * Math.cos(a0) * r0, cy + Math.sin(a0) * r0, 0.9, cx + side * Math.cos(a1) * r1,
+        cy + Math.sin(a1) * r1, 0.9, 0.85, TRAP.spring, 0.5);
+    }
+    m.ball(cx + side * ring, cy, 1.6, 1.25, TRAP.pin, 0.7);
+  }
   if (!closed) {
-    m.egg(cx, cy, 0, 3.4, 3, 0.8, STEEL, 0.4);
-    m.ball(cx, cy, 1, 1, '#c0262d', 0.8);
-    around(14, 0, cx, cy, 7.6, 6.6, (x, y, a) => {
-      m.limb(x, y, 1.2, cx + Math.cos(a) * 4.6, cy + Math.sin(a) * 4, 2, 0.95, '#dfe5ea', 0.8, 0.15);
+    m.egg(cx, cy, 0, ring - 0.4, ring - 0.4, 0.4, TRAP.ground, 0.1);
+    m.egg(cx, cy, 0.6, 3, 3, 0.55, TRAP.pan, 0.7);
+    m.limb(cx - 2.2, cy + 0.4, 1.2, cx + 2.2, cy + 0.4, 1.2, 0.32, TRAP.spring, 0.6);
+    around(56, 0, cx, cy, ring, ring, (x, y) => m.ball(x, y, 1, 0.9, TRAP.jaw, 0.6));
+    around(18, 0.17, cx, cy, ring - 0.3, ring - 0.3, (x, y, a, i) => {
+      const len = i % 2 ? 2.4 : 3.3;
+      m.limb(x, y, 1.6, x - Math.cos(a) * len, y - Math.sin(a) * len, 2.4, 0.7, TRAP.tooth, 0.85, 0.06);
     });
-    around(40, 0, cx, cy, 8.4, 7.4, (x, y) => m.ball(x, y, 1.2, 1.15, '#8b939c', 0.5));
-    for (const side of [-1, 1]) m.egg(cx + side * 10, cy, 1, 1.6, 2.6, 1.4, STEEL, 0.4);
     return m.paint();
   }
-  for (const side of [-1, 1]) m.egg(cx + side * 9.6, cy + 1, 1, 1.8, 2.8, 1.6, STEEL, 0.4);
-  for (let i = 0; i <= 18; i++) {
-    const t = i / 18, x = cx - 8.5 + t * 17, lift = Math.sin(t * Math.PI);
-    m.ball(x, cy - 1.6 - lift * 2.4, 4 + lift * 2, 1.2, '#8b939c', 0.5);
-    m.ball(x, cy + 2.2 + lift * 1.2, 3 + lift * 1.6, 1.2, '#7a828b', 0.5);
+  for (let i = 0; i <= 30; i++) {
+    const t = i / 30, x = cx - ring + t * ring * 2, lift = Math.sin(t * Math.PI);
+    m.ball(x, cy - 1.1 - lift * 2.2, 2.4 + lift * 3, 0.9, TRAP.jaw, 0.6);
+    m.ball(x, cy + 1.1 + lift * 2.2, 2.4 + lift * 3, 0.9, '#7b848e', 0.55);
   }
-  for (let i = 0; i < 8; i++) {
-    const x = cx - 6.3 + i * 1.8, up = i % 2 === 0;
-    m.limb(x, up ? cy - 2.6 : cy + 2, 5, x, up ? cy + 0.8 : cy - 1.4, 5.5, 0.85, '#dfe5ea', 0.8, 0.15);
+  for (let i = 0; i < 10; i++) {
+    const x = cx - 6.3 + i * 1.4, up = i % 2 === 0, lift = Math.sin((x - cx + ring) / (ring * 2) * Math.PI);
+    m.limb(x, up ? cy - 2.6 : cy + 2.6, 3 + lift * 3, x + 0.15, up ? cy + 0.9 : cy - 0.9, 3.6 + lift * 3, 0.5,
+      TRAP.tooth, 0.85, 0.06);
   }
   return m.paint();
 }
@@ -255,7 +267,7 @@ export const BREWS = { toxic: ['#365314', '#65a30d', '#a3e635', '#ecfccb'], plag
   '#ddd6fe'] };
 
 export function drawCauldron(plague) {
-  const m = new Model(30, 1), c = 15, brew = BREWS[plague ? 'plague' : 'toxic'];
+  const m = new Model(60, 2), c = 30, brew = BREWS[plague ? 'plague' : 'toxic'];
   for (const [dx, dy] of [[-6.5, 4], [6.5, 4], [0, 8]]) {
     m.limb(c + dx * 1.15, c + dy + 1.5, 0, c + dx * 0.8, c + dy * 0.6, 3.5, 1.1, '#27272a', 0.3, 0.9);
   }

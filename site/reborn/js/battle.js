@@ -106,6 +106,7 @@ export const WOOD = { bow: { reload: 0.8 }, grace: { radius: 2.5, haste: 0.15 },
   cauldron: { every: 2.5, reach: 4, flight: 0.7, mul: 0.8, radius: 0.6, time: 4, dps: 0.3 } };
 const STYLE_ELEMENTS = { witch: 'poison' };
 const STYLE_BALL = 11;
+const ROAD_ROUND = 0.9;
 const DRONE_SHOTS = { attack: MECH.droneAttack, laser: MECH.droneLaser, air: MECH.droneAir, bird: WOOD.bird,
   hawk: WOOD.hawk };
 const STEEL_BLAST = { radius: 1.5, mul: 8, stun: 1 };
@@ -1885,9 +1886,20 @@ export class Battle {
     if (t.trapKey === key) return;
     t.trapKey = key;
     this.traps = this.traps.filter((trap) => trap.tower !== t);
-    const { line, k } = blaze;
+    const { line, k } = blaze, curve = roadCurve(line);
     for (const i of [k, k - 2, k + 2].slice(0, count)) {
-      if (i >= 0 && i < line.length) this.traps.push({ tower: t, x: line[i][0] + 0.5, y: line[i][1] + 0.5, openAt: 0 });
+      if (i < 0 || i >= line.length) continue;
+      const cx = line[i][0] + 0.5, cy = line[i][1] + 0.5;
+      let best = 0, low = Infinity;
+      curve.forEach(([x, y], j) => {
+        const d = (x - cx) ** 2 + (y - cy) ** 2;
+        if (d < low) {
+          low = d;
+          best = j;
+        }
+      });
+      const [x, y] = curve[best], a = curve[Math.max(0, best - 1)], b = curve[Math.min(curve.length - 1, best + 1)];
+      this.traps.push({ tower: t, x, y, openAt: 0, angle: Math.atan2(b[1] - a[1], b[0] - a[0]) });
     }
   }
 
@@ -2767,6 +2779,36 @@ function spend(b, t, now, count, target) {
   if (t.bullets < shot.mag) return;
   t.bullets = 0;
   reload(t, now, shot.reload);
+}
+
+export function roadCurve(line) {
+  const corners = [];
+  for (const [x, y] of line) {
+    const q = [x + 0.5, y + 0.5], a = corners[corners.length - 2], b = corners[corners.length - 1];
+    if (a && (b[0] - a[0]) * (q[1] - b[1]) === (b[1] - a[1]) * (q[0] - b[0])) corners[corners.length - 1] = q;
+    else corners.push(q);
+  }
+  const points = [corners[0]], step = 0.04;
+  const line2 = (p, q) => {
+    const n = Math.max(1, Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]) / step));
+    for (let k = 1; k <= n; k++) points.push([p[0] + (q[0] - p[0]) * k / n, p[1] + (q[1] - p[1]) * k / n]);
+  };
+  for (let i = 1; i < corners.length - 1; i++) {
+    const a = corners[i - 1], b = corners[i], c = corners[i + 1];
+    const la = Math.hypot(b[0] - a[0], b[1] - a[1]), lc = Math.hypot(c[0] - b[0], c[1] - b[1]);
+    const r = Math.min(ROAD_ROUND, la / 2, lc / 2);
+    const u = [(b[0] - a[0]) / la, (b[1] - a[1]) / la], v = [(c[0] - b[0]) / lc, (c[1] - b[1]) / lc];
+    const t1 = [b[0] - u[0] * r, b[1] - u[1] * r], center = [t1[0] + v[0] * r, t1[1] + v[1] * r];
+    line2(points[points.length - 1], t1);
+    const from = Math.atan2(t1[1] - center[1], t1[0] - center[0]), turn = u[0] * v[1] - u[1] * v[0] > 0 ? 1 : -1;
+    const n = Math.ceil(r * Math.PI / 2 / step);
+    for (let k = 1; k <= n; k++) {
+      const a2 = from + turn * Math.PI / 2 * k / n;
+      points.push([center[0] + Math.cos(a2) * r, center[1] + Math.sin(a2) * r]);
+    }
+  }
+  line2(points[points.length - 1], corners[corners.length - 1]);
+  return points;
 }
 
 function witchThrow(b, t, target) {

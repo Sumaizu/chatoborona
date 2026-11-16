@@ -1,6 +1,6 @@
 import { LETTERS, SIZE } from './field.js';
 import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintRoof } from './terrain.js';
-import { FIRE, MECH, WOOD, flightAt } from './battle.js';
+import { FIRE, MECH, WOOD, flightAt, roadCurve } from './battle.js';
 import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite, cocoonSprite,
   coinSprite, fireballSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
   meteorSprite, grenadeSprite, droneSprite, birdSprite, hawkSprite, snareSprite, trapSprite, cauldronSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
@@ -107,7 +107,17 @@ const BLUE_FLAME = ['#e0f2ff', '#9bd5ff', '#4aa3ff', '#2563eb', '#1e3a8a'];
 const FLAME_TONES = { warm: FLAME, blue: BLUE_FLAME, toxic: ['#f7fee7', '#d9f99d', '#a3e635', '#65a30d', '#3f6212'],
   plague: ['#ede9fe', '#a78bfa', '#6d28d9', '#3b0764', '#1e1033'] };
 const VENOM = { toxic: 'rgba(132, 204, 22, .9)', plague: 'rgba(91, 33, 182, .9)' };
-const HAIL = { count: 60, drop: 80, fall: 0.3, shaft: '#8b5a2b', head: '#d1d5db', fletch: '#f3f4f6', tip: '#84cc16' };
+const GAS = { toxic: ['rgba(201, 246, 120, .8)', 'rgba(101, 163, 13, .45)'],
+  plague: ['rgba(180, 160, 255, .75)', 'rgba(46, 16, 101, .5)'] };
+const SMOGS = { toxic: ['rgba(122, 170, 60, 1)', 'rgba(160, 200, 90, 1)', 'rgba(86, 126, 46, 1)', 'rgba(140, 186, 70, 1)'],
+  plague: ['rgba(92, 62, 156, 1)', 'rgba(124, 94, 196, 1)', 'rgba(58, 34, 110, 1)', 'rgba(104, 72, 176, 1)'] };
+const NET = { cells: 6, sag: 0.22, dome: 0.22,
+  rope: [[2.2, 'rgba(20, 12, 4, .5)', 0.6, 1.2], [1.5, '#9c7646', 0, 0], [0.9, '#d9bb84', -0.2, -0.25],
+    [0.4, '#f6e7c4', -0.35, -0.4]],
+  rim: [[2.8, 'rgba(20, 12, 4, .55)', 0.6, 1.2], [2, '#7f5a32', 0, 0], [1.2, '#b88f58', -0.25, -0.3],
+    [0.5, '#ead2a0', -0.45, -0.5]],
+  knot: ['#d8b67c', '#6b4c28'], weight: ['#15111d', '#6b7280', '#e2e8f0', '#374151'] };
+const HAIL = { count: 60, drop: 80, fall: 0.3, slant: 0.3, shaft: '#8b5a2b', head: '#d1d5db', fletch: '#f3f4f6', tip: '#84cc16' };
 const BOOM = { heat: 'rgba(255, 200, 80, .9)', core: '#ffd84a' };
 const BLACK_FLAME = ['#c084fc', '#7e22ce', '#3b0764', '#1c1917', '#0a0a0a'];
 const FIRE_SPARKS = new Set(FLAME.concat(BLUE_FLAME, BLACK_FLAME, ['#ffd84a', '#ff8a1f', '#ff4d1f', '#ff5a1f',
@@ -180,37 +190,6 @@ function pixels(ctx, x, y, shape, color, tip = color) {
 }
 
 const WALL_HALF = CELL * 0.38;
-const WALL_ROUND = 0.9;
-function roadCurve(line) {
-  const corners = [];
-  for (const [x, y] of line) {
-    const q = [x + 0.5, y + 0.5], a = corners[corners.length - 2], b = corners[corners.length - 1];
-    if (a && (b[0] - a[0]) * (q[1] - b[1]) === (b[1] - a[1]) * (q[0] - b[0])) corners[corners.length - 1] = q;
-    else corners.push(q);
-  }
-  const points = [corners[0]], step = 0.04;
-  const line2 = (p, q) => {
-    const n = Math.max(1, Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]) / step));
-    for (let k = 1; k <= n; k++) points.push([p[0] + (q[0] - p[0]) * k / n, p[1] + (q[1] - p[1]) * k / n]);
-  };
-  for (let i = 1; i < corners.length - 1; i++) {
-    const a = corners[i - 1], b = corners[i], c = corners[i + 1];
-    const la = Math.hypot(b[0] - a[0], b[1] - a[1]), lc = Math.hypot(c[0] - b[0], c[1] - b[1]);
-    const r = Math.min(WALL_ROUND, la / 2, lc / 2);
-    const u = [(b[0] - a[0]) / la, (b[1] - a[1]) / la], v = [(c[0] - b[0]) / lc, (c[1] - b[1]) / lc];
-    const t1 = [b[0] - u[0] * r, b[1] - u[1] * r], center = [t1[0] + v[0] * r, t1[1] + v[1] * r];
-    line2(points[points.length - 1], t1);
-    const from = Math.atan2(t1[1] - center[1], t1[0] - center[0]), turn = u[0] * v[1] - u[1] * v[0] > 0 ? 1 : -1;
-    const n = Math.ceil(r * Math.PI / 2 / step);
-    for (let k = 1; k <= n; k++) {
-      const a2 = from + turn * Math.PI / 2 * k / n;
-      points.push([center[0] + Math.cos(a2) * r, center[1] + Math.sin(a2) * r]);
-    }
-  }
-  line2(points[points.length - 1], corners[corners.length - 1]);
-  return points;
-}
-
 function wallBand(blaze) {
   const { line, from, size } = blaze, last = from + size - 1;
   const mid = (p, q) => [(p[0] + q[0]) / 2 + 0.5, (p[1] + q[1]) / 2 + 0.5];
@@ -305,6 +284,44 @@ function bit(ctx, x, y, size, color, seed) {
 }
 
 const turnOf = (angle, steps = TURN_STEPS) => Math.round(angle / (Math.PI * 2 / steps));
+
+function lump(ctx, x, y, rx, ry, seed, wobble = 0.25, count = 9) {
+  const points = [];
+  for (let i = 0; i < count; i++) {
+    const a = i / count * Math.PI * 2 + seed * 0.7, k = 1 + (noise(i, seed) - 0.5) * 2 * wobble;
+    points.push([x + Math.cos(a) * rx * k, y + Math.sin(a) * ry * k]);
+  }
+  const mid = (p, q) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2], start = mid(points[count - 1], points[0]);
+  ctx.beginPath();
+  ctx.moveTo(start[0], start[1]);
+  points.forEach((p, i) => {
+    const next = mid(p, points[(i + 1) % count]);
+    ctx.quadraticCurveTo(p[0], p[1], next[0], next[1]);
+  });
+  ctx.closePath();
+}
+
+function puff(ctx, x, y, r, inner, outer, alpha) {
+  const fill = ctx.createRadialGradient(x, y, 0, x, y, r);
+  fill.addColorStop(0, inner);
+  fill.addColorStop(0.55, outer);
+  fill.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = fill;
+  ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  ctx.globalAlpha = 1;
+}
+
+function smooth(ctx, image, x, y, angle, zoom) {
+  const scale = zoom / (image.fine || 1), w = image.width * scale, h = image.height * scale;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(image, -w / 2, -h / 2, w, h);
+  ctx.restore();
+}
 
 function sprite(ctx, image, x, y, angle, zoom = ZOOM, lift = 0, steps = TURN_STEPS) {
   const scale = zoom / (image.fine || 1), w = image.width * scale, h = image.height * scale;
@@ -644,6 +661,7 @@ export class Scene {
     this._onField(ctx, () => {
       this._flames(ctx, battle);
       this._whirls(ctx, battle);
+      for (const cloud of battle.clouds) this._gas(ctx, cloud, battle.time);
     });
     this._auras(ctx, battle);
     this._towers(ctx, battle, dt, highlight, still);
@@ -1608,58 +1626,66 @@ export class Scene {
 
   _venoms(ctx, battle) {
     const now = battle.time;
-    for (const trap of battle.traps) sprite(ctx, trapSprite(now < trap.openAt), at(trap.x), at(trap.y), 0, 2);
+    for (const trap of battle.traps) smooth(ctx, trapSprite(now < trap.openAt), at(trap.x), at(trap.y), trap.angle, 1.1);
     for (const puddle of battle.puddles) this._puddle(ctx, puddle, now);
     for (const pot of battle.cauldrons) {
-      const plague = pot.tower.runes.has('plague'), brew = BREWS[plague ? 'plague' : 'toxic'];
-      const x = at(pot.cx), y = at(pot.cy);
-      glow(ctx, x, y - 4, 16, VENOM[plague ? 'plague' : 'toxic'], 0.3 + 0.08 * Math.sin(this.clock * 4 + pot.x));
-      sprite(ctx, cauldronSprite(plague), x, y, 0, 2);
-      for (let i = 0; i < 5; i++) {
-        const rise = (this.clock * 0.6 + i / 5 + pot.x * 0.31) % 1;
-        ctx.globalAlpha = (1 - rise) * 0.9;
-        bit(ctx, x + Math.sin(rise * 4 + i * 2.1) * 4, y - 6 - rise * 16, rise < 0.3 ? 3 : 2, brew[2 + (i % 2)],
-          i + Math.floor(this.clock * 4));
+      const tone = pot.tower.runes.has('plague') ? 'plague' : 'toxic', x = at(pot.cx), y = at(pot.cy);
+      glow(ctx, x, y - 4, 16, VENOM[tone], 0.3 + 0.08 * Math.sin(this.clock * 4 + pot.x));
+      smooth(ctx, cauldronSprite(tone === 'plague'), x, y, 0, 1);
+      for (let i = 0; i < 4; i++) {
+        const rise = (this.clock * 0.5 + i / 4 + pot.x * 0.31) % 1;
+        puff(ctx, x + Math.sin(rise * 4 + i * 2.1) * 4, y - 6 - rise * 18, 3 + rise * 5, GAS[tone][0], GAS[tone][1],
+          (1 - rise) * 0.8);
       }
-      ctx.globalAlpha = 1;
     }
-    for (const cloud of battle.clouds) this._gas(ctx, cloud, now);
   }
 
   _puddle(ctx, puddle, now) {
     const show = Math.max(0, Math.min(1, (now - puddle.born) / 0.25, (puddle.until - now) / 0.6));
-    const brew = BREWS[puddle.plague ? 'plague' : 'toxic'], x = at(puddle.x), y = at(puddle.y), r = puddle.radius * CELL;
-    const seed = Math.round(puddle.born * 37) % 97, reach = r * (0.55 + 0.45 * show);
-    glow(ctx, x, y, r * 1.1, VENOM[puddle.plague ? 'plague' : 'toxic'], 0.25 * show);
+    const tone = puddle.plague ? 'plague' : 'toxic', tones = FLAME_TONES[tone], [warm, core] = HEAT[tone];
+    const x = at(puddle.x), y = at(puddle.y), r = puddle.radius * CELL, seed = Math.round(puddle.born * 37) % 97;
+    const brew = BREWS[tone], pool = r * (0.6 + 0.4 * show);
+    glow(ctx, x, y, r * 1.1, 'rgba(16, 24, 6, .9)', 0.35 * show);
+    glow(ctx, x, y, r * 1.25, warm, 0.45 * show);
+    ctx.save();
     ctx.globalAlpha = 0.85 * show;
-    for (let dy = -reach; dy <= reach; dy += 2) {
-      for (let dx = -reach; dx <= reach; dx += 2) {
-        const a = Math.atan2(dy, dx), edge = reach * (0.8 + 0.2 * Math.sin(a * 3 + seed) * Math.cos(a * 2 - seed));
-        const d = Math.hypot(dx, dy * 1.5);
-        if (d > edge) continue;
-        square(ctx, x + dx, y + dy, 2, brew[d > edge - 2.5 ? 0 : d < edge * 0.4 ? 2 : 1]);
+    lump(ctx, x, y + 1, pool, pool * 0.62, seed, 0.22, 11);
+    const fill = ctx.createRadialGradient(x - pool * 0.25, y - pool * 0.15, pool * 0.1, x, y + 1, pool);
+    fill.addColorStop(0, brew[2]);
+    fill.addColorStop(0.6, brew[1]);
+    fill.addColorStop(1, brew[0]);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.globalAlpha = 0.45 * show;
+    lump(ctx, x - pool * 0.3, y - pool * 0.18, pool * 0.3, pool * 0.1, seed + 3, 0.3, 7);
+    ctx.fillStyle = brew[3];
+    ctx.fill();
+    ctx.restore();
+    glow(ctx, x, y - 3, r * 0.55, core, (0.3 + 0.1 * Math.sin(this.clock * 7 + seed)) * show);
+    for (let i = 0; i < 12; i++) {
+      const a = noise(i, seed) * Math.PI * 2, d = r * 0.8 * Math.sqrt(noise(i + 20, seed));
+      const bx = x + Math.cos(a) * d, by = y + Math.sin(a) * d * 0.7;
+      for (const shift of [0, 0.5]) {
+        const rise = (this.clock * 1.6 + noise(i + 40, seed) + shift) % 1;
+        ctx.globalAlpha = (1 - rise * 0.75) * show;
+        bit(ctx, bx + Math.sin(rise * 6 + i) * 1.5, by + 2 - rise * 14, rise < 0.35 ? 3 : 2,
+          tones[Math.min(tones.length - 1, Math.floor(rise * tones.length))], i * 2 + shift * 2 + this.clock * 7);
       }
-    }
-    for (let i = 0; i < 3; i++) {
-      const pop = (this.clock * 0.8 + i / 3 + seed * 0.1) % 1, a = i * 2.1 + seed;
-      ctx.globalAlpha = show * (1 - pop);
-      square(ctx, x + Math.cos(a) * reach * 0.45, y + Math.sin(a) * reach * 0.3, pop < 0.6 ? 2 : 3, brew[3]);
+      ctx.globalAlpha = 0.9 * show;
+      bit(ctx, bx, by + 2, 3, tones[i % 2 ? 1 : 2], i + this.clock * 5);
     }
     ctx.globalAlpha = 1;
   }
 
   _gas(ctx, cloud, now) {
-    const show = Math.max(0, Math.min(1, (now - cloud.born) / 0.25, (cloud.until - now) / 0.5));
-    const brew = BREWS[cloud.plague ? 'plague' : 'toxic'], x = at(cloud.x), y = at(cloud.y), r = cloud.radius * CELL;
+    const show = Math.max(0, Math.min(1, (now - cloud.born) / 0.3, (cloud.until - now) / 0.6));
+    const tones = SMOGS[cloud.plague ? 'plague' : 'toxic'], x = at(cloud.x), y = at(cloud.y), r = cloud.radius * CELL;
     const seed = Math.round(cloud.born * 53) % 89;
-    glow(ctx, x, y, r, VENOM[cloud.plague ? 'plague' : 'toxic'], 0.5 * show);
-    for (let i = 0; i < 20; i++) {
-      const a = i / 20 * Math.PI * 2 + this.clock * (i % 2 ? 0.5 : -0.4) + seed;
-      const d = r * (0.15 + 0.65 * noise(i, seed)), drift = Math.sin(this.clock * 1.3 + i) * 2;
-      ctx.globalAlpha = (0.6 + 0.25 * noise(i + 3, seed)) * show;
-      bit(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.75 + drift - 3, i % 3 ? 5 : 7, brew[1 + (i % 3)], i + seed);
+    for (let i = 0; i < 22; i++) {
+      const a = i * 2.39 + seed + this.clock * 0.25 * (i % 2 ? 1 : -1), d = r * 0.75 * Math.sqrt(noise(i, 31 + seed));
+      glow(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.85, r * (0.38 + 0.22 * noise(i, 37 + seed)),
+        tones[i % tones.length], show * (0.5 + 0.1 * Math.sin(this.clock * 1.5 + i)));
     }
-    ctx.globalAlpha = 1;
   }
 
   _walls(ctx, battle, still) {
@@ -1820,7 +1846,7 @@ export class Scene {
         reticle(ctx, x, y - lift, side / 2, 0.55 + 0.1 * Math.sin(this.clock * 6), 0, tone);
       }
       if (mob.charge && mob.charge.until > now) this._chargedOn(ctx, mob, x, y - lift, size);
-      if (mob.netUntil > now) this._netOn(ctx, x, y - lift, size);
+      if (mob.netUntil > now) this._netOn(ctx, mob, x, y - lift, size);
       if (mob.rootUntil > now) this._rootOn(ctx, mob, x, y - lift, size, now);
       if (mob.muteUntil > now) this._mutedOn(ctx, x, y - lift, size);
       if (mob.rot) this._rotOn(ctx, mob, x, y - lift, size);
@@ -1962,33 +1988,82 @@ export class Scene {
     ctx.drawImage(image, 0, cut, w, h - cut, Math.round(x - w / 2), Math.round(y - h / 2) + cut, w, h - cut);
   }
 
-  _netOn(ctx, x, y, size) {
-    const r = Math.max(10, size * 0.5);
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.clip();
-    ctx.strokeStyle = 'rgba(214, 180, 120, .95)';
-    ctx.lineWidth = 1;
-    for (let i = -3; i <= 3; i++) {
-      const o = i * r / 2.6;
+  _netOn(ctx, mob, x, y, size) {
+    const r = Math.max(11, size * 0.6), n = NET.cells, seed = mob.id % 97;
+    const turn = Math.PI / 4 + ((mob.id % 7) - 3) * 0.09, stretch = [0, 1, 2, 3].map((i) => 0.88 + 0.24 * noise(i, seed));
+    const grid = [];
+    for (let i = 0; i <= n; i++) {
+      grid.push([]);
+      for (let j = 0; j <= n; j++) {
+        const u = i / n * 2 - 1, v = j / n * 2 - 1, dome = 1 + NET.dome * (1 - u * u) * (1 - v * v);
+        const s = ((1 - u) * (1 - v) * stretch[0] + (1 + u) * (1 - v) * stretch[1] + (1 - u) * (1 + v) * stretch[2]
+          + (1 + u) * (1 + v) * stretch[3]) / 4;
+        const rim = i === 0 || j === 0 || i === n || j === n, wobble = rim ? 0.03 : 0.12;
+        const ju = u + (noise(i * 7 + j, seed) - 0.5) * wobble, jv = v + (noise(i * 7 + j + 50, seed) - 0.5) * wobble;
+        const px = ju * (1 - NET.sag * (1 - v * v)) * dome * s * r * 0.8;
+        const py = jv * (1 - NET.sag * (1 - u * u)) * dome * s * r * 0.8;
+        grid[i].push([x + px * Math.cos(turn) - py * Math.sin(turn), y + (px * Math.sin(turn) + py * Math.cos(turn))
+          * 0.86 + 1]);
+      }
+    }
+    const strand = (points, dx, dy) => {
       ctx.beginPath();
-      ctx.moveTo(x + o - r, y - r);
-      ctx.lineTo(x + o + r, y + r);
-      ctx.moveTo(x + o + r, y - r);
-      ctx.lineTo(x + o - r, y + r);
+      ctx.moveTo(points[0][0] + dx, points[0][1] + dy);
+      for (let k = 1; k < points.length; k++) {
+        const [ax, ay] = points[k - 1], [bx, by] = points[k], droop = 0.4 + Math.hypot(bx - ax, by - ay) * 0.05;
+        ctx.quadraticCurveTo((ax + bx) / 2 + dx, (ay + by) / 2 + droop + dy, bx + dx, by + dy);
+      }
+      ctx.stroke();
+    };
+    const lines = [];
+    for (let i = 0; i <= n; i++) {
+      lines.push(grid[i]);
+      lines.push(grid.map((row) => row[i]));
+    }
+    const rims = [lines[0], lines[1], lines[lines.length - 2], lines[lines.length - 1]], inner = lines.slice(2, -2);
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const [list, layers] of [[inner, NET.rope], [rims, NET.rim]]) {
+      for (const [width, color, dx, dy] of layers) {
+        ctx.lineWidth = width;
+        ctx.strokeStyle = color;
+        for (const line of list) strand(line, dx, dy);
+      }
+    }
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = NET.rope[1][1];
+    for (let k = 0; k < 3; k++) {
+      const i = 1 + Math.floor(noise(k + 20, seed) * (n - 1)), edge = [grid[i][n], grid[n][i], grid[i][0]][k];
+      const side = noise(k + 30, seed) < 0.5 ? -1 : 1;
+      ctx.beginPath();
+      ctx.moveTo(edge[0], edge[1]);
+      ctx.quadraticCurveTo(edge[0] + side * 3, edge[1] + 2, edge[0] + side * 1.5, edge[1] + 5 + noise(k, seed) * 2);
       ctx.stroke();
     }
-    ctx.restore();
-    ctx.strokeStyle = '#8a6a3c';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.stroke();
-    for (let i = 0; i < 6; i++) {
-      const a = i * Math.PI / 3 + 0.3;
-      square(ctx, x + Math.cos(a) * r, y + Math.sin(a) * r, 3, '#d6b478');
+    for (let i = 1; i < n; i++) {
+      for (let j = 1; j < n; j++) {
+        const [kx, ky] = grid[i][j], fill = ctx.createRadialGradient(kx - 0.4, ky - 0.4, 0.1, kx, ky, 1.3);
+        fill.addColorStop(0, NET.knot[0]);
+        fill.addColorStop(1, NET.knot[1]);
+        ctx.fillStyle = fill;
+        lump(ctx, kx, ky, 1.15, 0.95, seed + i * 7 + j, 0.25, 6);
+        ctx.fill();
+      }
     }
+    [[0, 0], [n, 0], [0, n], [n, n]].forEach(([i, j], k) => {
+      const [px, py] = grid[i][j], fill = ctx.createRadialGradient(px - 1, py - 0.2, 0.2, px, py + 1.2, 3.2);
+      fill.addColorStop(0, NET.weight[2]);
+      fill.addColorStop(0.5, NET.weight[1]);
+      fill.addColorStop(1, NET.weight[3]);
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = NET.weight[0];
+      ctx.lineWidth = 0.8;
+      lump(ctx, px, py + 1.2, 2.7, 2.2, seed + k * 13, 0.3, 7);
+      ctx.fill();
+      ctx.stroke();
+    });
+    ctx.restore();
   }
 
   _rotOn(ctx, mob, x, y, size) {
@@ -2831,6 +2906,8 @@ export class Scene {
   _hail(ctx, e) {
     const x0 = at(e.x), y0 = at(e.y), r = e.radius * CELL, rise = Math.min(1, e.t / 0.2);
     glow(ctx, x0, y0, r, 'rgba(0, 0, 0, .9)', 0.14 * rise * Math.max(0, 1 - Math.max(0, e.t - e.fall - HAIL.fall) / 0.5));
+    ctx.save();
+    ctx.lineCap = 'round';
     for (let i = 0; i < HAIL.count; i++) {
       const a = noise(i, e.seed) * Math.PI * 2, d = Math.sqrt(noise(i + 50, e.seed)) * r;
       const x = x0 + Math.cos(a) * d, y = y0 + Math.sin(a) * d * 0.8;
@@ -2839,24 +2916,46 @@ export class Scene {
       if (f < 1) {
         const lift = (1 - f) * HAIL.drop;
         ctx.globalAlpha = Math.min(1, f * 4);
-        this._arrow(ctx, x - lift * 0.3, y - lift, 11, i);
+        this._arrow(ctx, x - lift * HAIL.slant, y - lift, 13, i);
         continue;
       }
       const stay = (e.t - start - HAIL.fall) / 0.6;
       if (stay > 1) continue;
+      if (stay < 0.4) puff(ctx, x, y + 1, 5, 'rgba(214, 200, 170, .7)', 'rgba(150, 130, 100, .35)', 1 - stay / 0.4);
       ctx.globalAlpha = 1 - stay * stay;
-      if (stay < 0.25) bit(ctx, x, y + 1, 4, '#a8977a', i);
-      this._arrow(ctx, x, y, 6, i);
+      this._arrow(ctx, x, y, 7, i);
     }
-    ctx.globalAlpha = 1;
+    ctx.restore();
   }
 
   _arrow(ctx, x, y, length, i) {
-    const dx = 0.3;
-    for (let k = 0; k < length; k++) square(ctx, x - dx * k, y - k, 3, '#1c130b');
-    square(ctx, x + 0.5, y + 1, 4, '#1c130b');
-    for (let k = 1; k < length; k++) square(ctx, x - dx * k, y - k, 1, k > length - 4 ? HAIL.fletch : HAIL.shaft);
-    square(ctx, x + 0.5, y + 0.5, 2, i % 3 ? HAIL.head : HAIL.tip);
+    const len = Math.hypot(HAIL.slant, 1), dx = -HAIL.slant / len, dy = -1 / len, tx = x + dx * length;
+    const ty = y + dy * length, nx = -dy, ny = dx;
+    ctx.strokeStyle = 'rgba(16, 10, 4, .55)';
+    ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(tx, ty);
+    ctx.stroke();
+    ctx.strokeStyle = HAIL.shaft;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.strokeStyle = HAIL.fletch;
+    ctx.lineWidth = 1;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(tx - dx * 4, ty - dy * 4);
+      ctx.quadraticCurveTo(tx - dx * 2 + nx * side * 1.2, ty - dy * 2 + ny * side * 1.2, tx + nx * side * 2,
+        ty + ny * side * 2);
+      ctx.stroke();
+    }
+    const hx = x - dx * 3, hy = y - dy * 3;
+    ctx.fillStyle = i % 3 ? HAIL.head : HAIL.tip;
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    ctx.quadraticCurveTo(x + nx * 1.9, y + ny * 1.9, x + dx, y + dy);
+    ctx.quadraticCurveTo(x - nx * 1.9, y - ny * 1.9, hx, hy);
+    ctx.fill();
   }
 
   _effects(ctx, dt) {
@@ -2893,18 +2992,28 @@ export class Scene {
         continue;
       }
       if (e.kind === 'absorb') {
-        const tip = this._muzzle(e.tower);
+        const tip = this._muzzle(e.tower), from = (px, py, f, a) => {
+          const ease = f * f, off = (1 - f) * 8;
+          return [at(px + (tip.x - px) * ease) + Math.cos(a) * off, at(py + (tip.y - py) * ease) + Math.sin(a) * off];
+        };
+        ctx.save();
+        ctx.lineCap = 'round';
         e.points.forEach(([px, py, plague], j) => {
-          const brew = BREWS[plague ? 'plague' : 'toxic'];
+          const brew = BREWS[plague ? 'plague' : 'toxic'], tone = GAS[plague ? 'plague' : 'toxic'];
           for (let k = 0; k < 6; k++) {
-            const lag = k * 0.06, f = Math.max(0, Math.min(1, (share - lag) / (1 - lag))), ease = f * f;
-            const a = k * 1.7 + j, off = (1 - f) * 8;
-            const x = at(px + (tip.x - px) * ease) + Math.cos(a) * off, y = at(py + (tip.y - py) * ease) + Math.sin(a) * off;
-            ctx.globalAlpha = 0.5 + 0.5 * f;
-            bit(ctx, x, y, f < 0.7 ? 3 : 2, brew[2 + (k % 2)], k + j * 7);
+            const lag = k * 0.06, f = Math.max(0, Math.min(1, (share - lag) / (1 - lag))), a = k * 1.7 + j;
+            const [x, y] = from(px, py, f, a), [bx, by] = from(px, py, Math.max(0, f - 0.12), a);
+            puff(ctx, x, y, 5, tone[0], tone[1], 0.5 + 0.4 * f);
+            ctx.globalAlpha = 0.6 + 0.4 * f;
+            ctx.strokeStyle = brew[2 + (k % 2)];
+            ctx.lineWidth = 2.2 - f;
+            ctx.beginPath();
+            ctx.moveTo(bx, by);
+            ctx.lineTo(x, y);
+            ctx.stroke();
           }
         });
-        ctx.globalAlpha = 1;
+        ctx.restore();
         glow(ctx, at(tip.x), at(tip.y), 8 + share * 8, VENOM.toxic, 0.4 * share);
         continue;
       }
