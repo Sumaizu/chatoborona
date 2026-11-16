@@ -1054,6 +1054,15 @@ test('охотник, град стрел: раз в 10 секунд бьёт в
   eq(hit(far), 0, 'дальше 4 клеток — мимо');
   runFor(battle, 5);
   eq(battle.events.filter((e) => e.kind === 'hail').length, 1, 'следующий — не раньше чем через 10 секунд');
+  const nets = makeBattle(), h = forester(nets, 10, 4, ['hunter', 'hail', 'catcher']);
+  h.reloadUntil = 1e9;
+  const crowd = [12, 11, 9, 8].map((d) => walker(nets, d, 1e9));
+  still(...crowd);
+  let roll = 0;
+  nets.random = () => [0.99, 0.1, 0.99, 0.1, 0.99][roll++ % 5];
+  nets.step(TICK);
+  runFor(nets, WOOD.hail.fall + 0.05);
+  eq(crowd.filter((mob) => mob.stuck && mob.stuck.kind === 'net').length, 2, 'у каждого свой бросок: двое в сетях');
 });
 
 test('ведьма, ядовитый взрыв: где упал шар — облако на клетку, травит всех внутри; метит ядом только с реакцией', () => {
@@ -1110,10 +1119,10 @@ test('ведьма, чума: чёрный яд бьёт нежить, оста�
   ok(plain.events.some((e) => e.kind === 'shot' && e.tower === black && e.tone === 'plague'), 'шар чёрный');
 });
 
-test('ведьма, поглощение: втягивает облака и лужи в радиусе — шар во столько раз сильнее; бросает вдвое реже', () => {
+test('ведьма, поглощение: втягивает все облака и лужи на карте — шар во столько раз сильнее; бросает так же часто', () => {
   const battle = makeBattle(), t = forester(battle, 10, 4, ['witch', 'absorb', 'venomBurst']);
   const plain = forester(battle, 10, 2, ['witch']);
-  near(t.interval, plain.interval * 2);
+  near(t.interval, plain.interval);
   plain.reloadUntil = 1e9;
   const mob = walker(battle, 13, 1e9);
   still(mob);
@@ -1124,13 +1133,13 @@ test('ведьма, поглощение: втягивает облака и л�
   pool(9.5, 'puddles');
   pool(19.5, 'puddles');
   ok(battle._fire(t));
-  eq([battle.clouds.length, battle.puddles.length], [0, 1], 'дальняя лужа осталась');
-  ok(battle.events.some((e) => e.kind === 'absorb' && e.points.length === 3));
+  eq([battle.clouds.length, battle.puddles.length], [0, 0], 'и дальнюю лужу тоже');
+  ok(battle.events.some((e) => e.kind === 'absorb' && e.points.length === 4));
   runFor(battle, WOOD.absorb.time + WOOD.witch.flight + 0.05);
-  ok(hit(mob) >= t.damage * 3 - 1e-6 && hit(mob) < t.damage * 3.2, 'втянула три — ×3');
+  ok(hit(mob) >= t.damage * 4 - 1e-6 && hit(mob) < t.damage * 4.3, 'втянула четыре — ×4');
   ok(battle.events.some((e) => e.kind === 'shot' && e.tower === t && e.size > 11), 'шар крупнее');
   eq(battle.clouds.length, 1);
-  near(battle.clouds[0].dps, t.damage * WOOD.venomBurst.dps * 3, 'и облако ×3');
+  near(battle.clouds[0].dps, t.damage * WOOD.venomBurst.dps * 4, 'и облако ×4');
 });
 
 test('лесник, ядовитая реакция: метит ядом только ядовитые атаки — шары ведьмы', () => {

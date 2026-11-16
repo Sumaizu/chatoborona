@@ -1021,7 +1021,6 @@ export class Battle {
     tower.interval = (shot && shot.interval || base.interval) / (Math.max(FLOOR, 1 + (mods.rate || 0))
       * (tower.runes.has('frenzy') ? 3 : 1));
     if (tower.style === 'dragon') tower.interval = PULSE / Math.max(FLOOR, 1 + (mods.rate || 0));
-    if (tower.style === 'witch' && tower.runes.has('absorb')) tower.interval *= 2;
     if (tower.style === 'turret' && tower.runes.has('giant')) {
       tower.interval = MECH.giant.gap / Math.max(FLOOR, 1 + (mods.rate || 0));
     }
@@ -1929,11 +1928,10 @@ export class Battle {
   }
 
   _drain(t) {
-    const close = (pool) => near(pool, t.cx, t.cy, t.range);
-    const taken = this.clouds.filter(close).concat(this.puddles.filter(close));
+    const taken = this.clouds.concat(this.puddles);
     if (!taken.length) return 0;
-    this.clouds = this.clouds.filter((cloud) => !taken.includes(cloud));
-    this.puddles = this.puddles.filter((puddle) => !taken.includes(puddle));
+    this.clouds = [];
+    this.puddles = [];
     this._event({ kind: 'absorb', tower: t, points: taken.map((pool) => [pool.x, pool.y, pool.plague]),
       time: WOOD.absorb.time });
     return taken.length;
@@ -2839,6 +2837,11 @@ function witchThrow(b, t, target) {
   return true;
 }
 
+function throwNet(b, t, mob) {
+  if (!t.runes.has('catcher') || mob.dead || b.random() >= WOOD.catcher.chance) return;
+  if (b._stick(mob, t, 'net', WOOD.catcher.time, t.damage * WOOD.catcher.dps)) b._event({ kind: 'net', tower: t, mob });
+}
+
 function hail(b, t, now, alive) {
   if (!t.runes.has('hail') || !alive || now < (t.nextHail || 0)) return;
   const target = woodTarget(b, t), s = WOOD.hail;
@@ -2852,6 +2855,7 @@ function hail(b, t, now, alive) {
       b._hurt(mob, hit, t);
       b._torchHit(t, mob, hit);
       b._hurt(mob, t.damage * s.poison, t, 'poison');
+      throwNet(b, t, mob);
     }
   }, t);
 }
@@ -3173,10 +3177,7 @@ const SKILLS = {
       if (t.style === 'witch') return witchThrow(b, t, target);
       shoot(b, t, target);
       if (t.style === 'hunter') {
-        if (t.runes.has('catcher') && !target.dead && b.random() < WOOD.catcher.chance
-          && b._stick(target, t, 'net', WOOD.catcher.time, t.damage * WOOD.catcher.dps)) {
-          b._event({ kind: 'net', tower: t, mob: target });
-        }
+        throwNet(b, t, target);
         reload(t, now, WOOD.hunter.reload);
       } else reload(t, now, Math.min(WOOD.bow.reload, b._intervalOf(t, now) / 2));
       return true;
