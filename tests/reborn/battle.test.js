@@ -1285,9 +1285,9 @@ test('ангел, святая земля: шар света в случайно
   eq(hit(far), 0, 'дальше 4 клеток — нет');
 });
 
-test('жрец-монах: бьёт посохом на 1,3 клетки и очень часто', () => {
+test('жрец-монах: бьёт посохом на 1,5 клетки и очень часто', () => {
   const battle = makeBattle(), plain = priest(battle, 2, 4, []), t = priest(battle, 10, 4, ['monk']);
-  ok(t.range >= 4 / 3 && t.range < 2, 'на 1,3 клетки');
+  ok(t.range >= 1.5 && t.range < 2.2, 'на 1,5 клетки');
   ok(t.interval < plain.interval / 2, 'бьёт намного чаще');
   const far = walker(battle, 13, 1e9), mob = walker(battle, 12, 1e9);
   still(far, mob);

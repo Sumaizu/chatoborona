@@ -103,7 +103,7 @@ export const WOOD = { bow: { reload: 0.8 }, grace: { radius: 2.5, haste: 0.15 },
   beartrap: { time: 3, reopen: 10, dps: 0.3, reach: 0.45 }, hail: { every: 10, radius: 4, fall: 0.6, poison: 0.5 },
   venomBurst: { radius: 1, time: 4, dps: 0.4 }, plague: 0.1, absorb: { time: 0.35, size: 1.5 },
   cauldron: { every: 2.5, reach: 5, flight: 0.7, mul: 0.8, radius: 0.8, time: 8, dps: 0.3 } };
-export const HOLY = { angel: { reach: 1, interval: 1, mul: 2.6 }, monk: { reach: 4 / 3, interval: 0.4, mul: 0.8 },
+export const HOLY = { angel: { reach: 1, interval: 1, mul: 2.6 }, monk: { reach: 1.5, interval: 0.4, mul: 0.8 },
   inquisitor: { reach: 4, interval: 1.45, mul: 2.2, flight: FIREBALL_FLIGHT }, smite: { every: 5, boss: 11 },
   mercy: { reach: 1, lives: 1 }, second: { charge: 1, awe: 10, lives: 10 },
   holyGround: { every: 6, radius: 4, mul: 2, flight: 0.8 }, heavy: { chance: 0.15, stun: 1 },
