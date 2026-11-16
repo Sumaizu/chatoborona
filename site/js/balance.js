@@ -66,8 +66,8 @@ export const POWERS = {
     + 'и его не остановить', every: 8, time: 3, boost: 0.8, steady: true },
   steadfast: { id: 'steadfast', name: 'Каменная кожа', text: 'не замедляется, не оглушается, не отбрасывается '
     + 'и получает на 20% меньше урона', cut: 0.2, firm: true },
-  doom: { id: 'doom', name: 'Владыка ужаса', text: 'огонь его не берёт; не замедляется, не оглушается и не '
-    + 'отбрасывается; дойдёт до сердца — разобьёт его одним ударом', firm: true },
+  doom: { id: 'doom', name: 'Владыка ужаса', text: 'не замедляется, не оглушается и не отбрасывается; дойдёт до '
+    + 'сердца — разобьёт его одним ударом', firm: true },
   hex: { id: 'hex', name: 'Сглаз', text: 'раз в 6 секунд оглушает ближайшего защитника на 1,5 секунды', every: 6,
     range: 3, hold: 1.5 },
   leech: { id: 'leech', name: 'Кровосос', text: 'лечится, когда рядом гибнут мобы', range: 2.5, drain: 0.1 },
@@ -183,8 +183,8 @@ export const BOSSES = [
   { id: 'warlord', name: 'Вождь орды', power: 'drums', glow: '#84cc16', from: 30 },
 ];
 
-export const DIABLO = { id: 'diablo', name: 'Диабло', title: 'Последний босс', power: 'doom', element: 'fire',
-  glow: '#dc2626', hp: 4, fatal: true };
+export const DIABLO = { id: 'diablo', name: 'Диабло', title: 'Последний босс', power: 'doom', glow: '#dc2626',
+  hp: 4, fatal: true, pace: 2 / 3, nettable: true };
 
 export const LOOKS = {
   normal: [{ id: 'zombie', name: 'Зомби', undead: true },
@@ -346,10 +346,15 @@ export function levelOf(xp) {
 
 export const xpForLevel = (level) => totals()[Math.max(1, Math.min(LEVEL_MAX, level))];
 
-export const TEMPO = { low: 30, high: 70, mid: 50, from: 10 };
+export const TEMPO = { low: 30, high: 70, mid: 50, from: 10, odds: [0.25, 0.25, 0.5] };
 
-export const rollTempo = (random) => (TEMPO.mid - TEMPO.from)
-  / (TEMPO.low + random() * (TEMPO.high - TEMPO.low) - TEMPO.from);
+export function rollTempo(random) {
+  const { low, high, mid, odds } = TEMPO, part = (high - low) / odds.length;
+  let roll = random(), band = 0;
+  while (band < odds.length - 1 && roll >= odds[band]) roll -= odds[band++];
+  const end = low + (band + Math.min(1, roll / odds[band])) * part;
+  return (mid - TEMPO.from) / (end - TEMPO.from);
+}
 
 export function waveHp(wave, type, players, tempo = 1) {
   const calm = Math.max(0, wave - WAVE.calm), n = wave - 1 - calm;

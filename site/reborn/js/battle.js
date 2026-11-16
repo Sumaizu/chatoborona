@@ -697,7 +697,8 @@ export class Battle {
       skill: kind && kind.skill ? POWERS[kind.skill] : null, skillAt: this.time + (kind && kind.skill
         ? POWERS[kind.skill].first : 0), hook: null,
       y: 0, speed: WAVE.speed * info.speed * Math.max(FLOOR, 1 + this.foe.speed) * ((shape && shape.flying
-        ? this.rules.air : this.rules.ground) || 1) * (1 + (silver && silver.speed || 0)), slow: 0, slowUntil: 0,
+        ? this.rules.air : this.rules.ground) || 1) * (1 + (silver && silver.speed || 0)) * (kind && kind.pace || 1),
+      slow: 0, slowUntil: 0,
       chill: 0,
       mark: 0, markUntil: 0, vuln: 0, vulnUntil: 0, weak: 0, weakUntil: 0, weakBy: null, rush: 0, rushUntil: 0,
       charge: null, rot: null,
@@ -1461,7 +1462,7 @@ export class Battle {
       mob.wall = null;
       if (mob.holdUntil > now && !steady(mob, now)) continue;
       if (mob.rootUntil > now && !steady(mob, now)) continue;
-      if (mob.stuck && mob.stuck.until > now && !steady(mob, now)) continue;
+      if (mob.stuck && mob.stuck.until > now && (!steady(mob, now) || mob.stuck.kind === 'net')) continue;
       if (mob.madUntil > now) {
         this._rave(mob, dt);
         continue;
@@ -1913,7 +1914,8 @@ export class Battle {
 
   _stick(mob, t, kind, time, dps, boss = false) {
     const now = this.time;
-    if (mob.dead || steady(mob, now) || mob.info.boss && !boss) return false;
+    const nettable = kind === 'net' && Boolean(mob.kind && mob.kind.nettable);
+    if (mob.dead || steady(mob, now) && !nettable || mob.info.boss && !boss && !nettable) return false;
     mob.stuck = { until: now + time, by: t, dps, kind };
     if (kind === 'net') mob.netUntil = Math.max(mob.netUntil, mob.stuck.until);
     mob.helpers.add(t);

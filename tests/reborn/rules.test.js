@@ -175,6 +175,11 @@ test('крутизна волн у каждой игры своя: обычны�
   const gentle = rollTempo(() => 1), steep = rollTempo(() => 0);
   near(gentle, 40 / 60);
   near(steep, 2);
+  const end = (tempo) => TEMPO.from + (TEMPO.mid - TEMPO.from) / tempo;
+  const games = Array.from({ length: 1000 }, (_, i) => end(rollTempo(() => (i + 0.5) / 1000)));
+  const third = (TEMPO.high - TEMPO.low) / 3, count = (from, to) => games.filter((at) => at >= from && at < to).length;
+  eq([count(30, 30 + third), count(30 + third, 30 + third * 2), count(30 + third * 2, 71)], [250, 250, 500],
+    'тяжёлых — четверть, средних — четверть, лёгких — половина');
   near(waveHp(41, 'normal', 10, gentle), waveHp(31, 'normal', 10), 'пологая: 41-я — как обычная 31-я');
   near(waveHp(31, 'normal', 10, steep), waveHp(51, 'normal', 10), 'крутая: 31-я — как обычная 51-я');
   for (const wave of [1, 5, 11]) near(waveHp(wave, 'normal', 10, steep), waveHp(wave, 'normal', 10), 'начало общее');

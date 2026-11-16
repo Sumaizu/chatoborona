@@ -1040,7 +1040,7 @@ test('паразит: с 50-го раз в 30 с забирает монеты �
   no(alone.perch);
 });
 
-test('Диабло: на 100-й волне выходит один, без мобов, крепче обычного босса вчетверо, огонь его не берёт', () => {
+test('Диабло: на 100-й волне выходит один, без мобов, крепче обычного босса вчетверо, в полтора раза медленнее, огонь и сети его берут', () => {
   const battle = makeBattle();
   eq(battle.planFamily(99) === FINALE, false);
   eq(battle.planFamily(100), FINALE);
@@ -1059,9 +1059,18 @@ test('Диабло: на 100-й волне выходит один, без мо�
   const fire = battle.place(level(50), 'pyro', 3, 4), devil = battle._spawn(spawn, 5);
   still(devil);
   battle._hurt(devil, 1000, fire, 'fire');
-  eq(devil.hp, devil.max, 'огонь не берёт');
+  ok(devil.hp < devil.max, 'огонь берёт');
   battle._hold(devil, 5, fire);
   ok(!(devil.holdUntil > battle.time), 'не оглушается');
+  const kin = BOSSES.find((boss) => !boss.flying && !boss.pace);
+  const plain = battle._spawn({ type: 'boss', kind: kin, hp: 1e6 }, 4);
+  near(battle._spawn(spawn, 3).speed, plain.speed * 2 / 3, 'в полтора раза медленнее');
+  const hunter = battle.place(level(50), 'hunter', 3, 2), walking = battle._spawn(spawn, 6);
+  battle._net(hunter, walking);
+  ok(walking.holdUntil > battle.time, 'сеть охотника держит');
+  const at = walking.d;
+  runFor(battle, 0.5);
+  eq(walking.d, at, 'в сети стоит');
   battle.planFamily(200);
   eq(battle.nextFamily, FINALE, 'и на 200-й');
 });

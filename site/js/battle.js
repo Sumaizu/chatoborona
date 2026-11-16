@@ -588,7 +588,8 @@ export class Battle {
       skill: kind && kind.skill ? POWERS[kind.skill] : null, skillAt: this.time + (kind && kind.skill
         ? POWERS[kind.skill].first : 0), hook: null,
       y: 0, speed: WAVE.speed * info.speed * Math.max(FLOOR, 1 + this.foe.speed) * ((shape && shape.flying
-        ? this.rules.air : this.rules.ground) || 1) * (1 + (silver && silver.speed || 0)), slow: 0, slowUntil: 0,
+        ? this.rules.air : this.rules.ground) || 1) * (1 + (silver && silver.speed || 0)) * (kind && kind.pace || 1),
+      slow: 0, slowUntil: 0,
       chill: 0,
       mark: 0, markUntil: 0, vuln: 0, vulnUntil: 0, weak: 0, weakUntil: 0, weakBy: null, rush: 0, rushUntil: 0,
       charge: null, rot: null,
@@ -927,8 +928,9 @@ export class Battle {
     this.brittle = rune('frost', 'brittle');
   }
 
-  _hold(mob, seconds, tower, full = false) {
-    if (mob.dead || steady(mob, this.time) || !full && this.time < mob.holdFree) return;
+  _hold(mob, seconds, tower, full = false, net = false) {
+    if (mob.dead || steady(mob, this.time) && !(net && mob.kind && mob.kind.nettable)
+      || !full && this.time < mob.holdFree) return;
     const time = (full ? seconds : seconds * (mob.info.boss ? BOSS_HOLD : mob.info.elite ? ELITE_HOLD : 1))
       * (1 - mob.resist);
     mob.holdUntil = Math.max(mob.holdUntil, this.time + time);
@@ -1215,7 +1217,7 @@ export class Battle {
 
   _net(t, mob) {
     const s = t.s[1], twice = t.runes.has('master') ? 2 : 1, time = s.time * twice;
-    this._hold(mob, time, t, true);
+    this._hold(mob, time, t, true, true);
     this._vulnerable(mob, s.bonus * twice, time);
     mob.netUntil = this.time + time;
     this._event({ kind: 'net', tower: t, mob });
@@ -1274,7 +1276,7 @@ export class Battle {
         continue;
       }
       mob.wall = null;
-      if (mob.holdUntil > now && !steady(mob, now)) continue;
+      if (mob.holdUntil > now && (!steady(mob, now) || mob.netUntil > now)) continue;
       let slow = steady(mob, now) ? 0 : Math.max(mob.slowUntil > now ? mob.slow : 0, mob.chill);
       if (mob.info.boss) slow *= BOSS_SLOW;
       let speed = mob.speed * (1 + mob.fury) * (mob.wild ? 1 + OVERTIME_SPEED : 1) * wind
