@@ -109,12 +109,7 @@ const FLAME_TONES = { warm: FLAME, blue: BLUE_FLAME, toxic: ['#f7fee7', '#d9f99d
 const VENOM = { toxic: 'rgba(132, 204, 22, .9)', plague: 'rgba(91, 33, 182, .9)' };
 const GAS = { toxic: ['rgba(201, 246, 120, .8)', 'rgba(101, 163, 13, .45)'],
   plague: ['rgba(180, 160, 255, .75)', 'rgba(46, 16, 101, .5)'] };
-const SMOGS = { toxic: ['rgba(122, 170, 60, 1)', 'rgba(160, 200, 90, 1)', 'rgba(86, 126, 46, 1)', 'rgba(140, 186, 70, 1)'],
-  plague: ['rgba(92, 62, 156, 1)', 'rgba(124, 94, 196, 1)', 'rgba(58, 34, 110, 1)', 'rgba(104, 72, 176, 1)'] };
-const NET = { res: 3, mesh: 3.8, wobble: 0.45, droop: 0.7,
-  grow: [[0, 0], [1.5, 0], [-1.5, 0], [0, 1.5], [0, -1.5], [1, 1], [-1, -1], [1, -1], [-1, 1]],
-  rope: [[1.4, 'rgba(20, 12, 4, .55)', 0.3, 0.5], [0.9, '#9c7646', 0, 0], [0.5, '#dcc08a', -0.12, -0.16],
-    [0.2, '#f6e7c4', -0.2, -0.25]] };
+const NET = { bend: 0.55 };
 const HAIL = { count: 60, drop: 80, fall: 0.3, slant: 0.3, shaft: '#8b5a2b', head: '#d1d5db', fletch: '#f3f4f6', tip: '#84cc16' };
 const BOOM = { heat: 'rgba(255, 200, 80, .9)', core: '#ffd84a' };
 const BLACK_FLAME = ['#c084fc', '#7e22ce', '#3b0764', '#1c1917', '#0a0a0a'];
@@ -282,6 +277,40 @@ function bit(ctx, x, y, size, color, seed) {
 }
 
 const turnOf = (angle, steps = TURN_STEPS) => Math.round(angle / (Math.PI * 2 / steps));
+
+const PUDDLES = {
+  poison: { tones: ['#2f4f0e', '#3f6212', '#4d7c0f', '#65a30d', '#84cc16'], shine: ['#d9f99d', '#bef264'] },
+  plague: { tones: ['#0b0a10', '#17141f', '#231d2e', '#2f2540', '#4c1d95'], shine: ['#a78bfa', '#7c3aed'] },
+};
+const puddleShapes = new Map();
+
+function puddleShape(radius, seed, look) {
+  const size = Math.max(4, Math.round(radius)), key = size + ':' + seed + ':' + look, { tones, shine } = PUDDLES[look];
+  if (puddleShapes.has(key)) return puddleShapes.get(key);
+  const canvas = document.createElement('canvas'), side = size * 2 + 2;
+  canvas.width = canvas.height = side;
+  const ctx = canvas.getContext('2d'), c = side / 2;
+  for (let y = 0; y < side; y++) {
+    for (let x = 0; x < side; x++) {
+      const dx = x + 0.5 - c, dy = (y + 0.5 - c) * 1.2, a = Math.atan2(dy, dx), d = Math.hypot(dx, dy);
+      const edge = size * (0.82 + 0.1 * Math.sin(3 * a + seed) + 0.06 * Math.sin(5 * a + seed * 2)
+        + 0.04 * Math.sin(7 * a + seed * 3));
+      if (d > edge) continue;
+      const k = d / edge;
+      let color = k > 0.86 ? tones[0] : k > 0.7 ? tones[1] : k > 0.35 ? tones[2] : tones[3];
+      if (k < 0.55 && Math.sin(x * 1.7 + seed) + Math.cos(y * 2.1 + seed) > 1.4) color = tones[4];
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+  ctx.fillStyle = shine[0];
+  ctx.fillRect(Math.round(c - size * 0.35), Math.round(c - size * 0.35), 2, 1);
+  ctx.fillRect(Math.round(c - size * 0.35), Math.round(c - size * 0.35) + 1, 1, 1);
+  ctx.fillStyle = shine[1];
+  ctx.fillRect(Math.round(c + size * 0.25), Math.round(c - size * 0.1), 1, 1);
+  puddleShapes.set(key, canvas);
+  return canvas;
+}
 
 function lump(ctx, x, y, rx, ry, seed, wobble = 0.25, count = 9) {
   const points = [];
@@ -659,7 +688,6 @@ export class Scene {
     this._onField(ctx, () => {
       this._flames(ctx, battle);
       this._whirls(ctx, battle);
-      for (const cloud of battle.clouds) this._gas(ctx, cloud, battle.time);
     });
     this._auras(ctx, battle);
     this._towers(ctx, battle, dt, highlight, still);
@@ -1626,10 +1654,11 @@ export class Scene {
     const now = battle.time;
     for (const trap of battle.traps) smooth(ctx, trapSprite(now < trap.openAt), at(trap.x), at(trap.y), trap.angle, 1.1);
     for (const puddle of battle.puddles) this._puddle(ctx, puddle, now);
+    for (const cloud of battle.clouds) this._gas(ctx, cloud, now);
     for (const pot of battle.cauldrons) {
       const tone = pot.tower.runes.has('plague') ? 'plague' : 'toxic', x = at(pot.cx), y = at(pot.cy);
       glow(ctx, x, y - 4, 16, VENOM[tone], 0.3 + 0.08 * Math.sin(this.clock * 4 + pot.x));
-      smooth(ctx, cauldronSprite(tone === 'plague'), x, y, 0, 1);
+      smooth(ctx, cauldronSprite(tone === 'plague'), x, y - 2, 0, 0.75);
       for (let i = 0; i < 4; i++) {
         const rise = (this.clock * 0.5 + i / 4 + pot.x * 0.31) % 1;
         puff(ctx, x + Math.sin(rise * 4 + i * 2.1) * 4, y - 6 - rise * 18, 3 + rise * 5, GAS[tone][0], GAS[tone][1],
@@ -1639,55 +1668,40 @@ export class Scene {
   }
 
   _puddle(ctx, puddle, now) {
-    const show = Math.max(0, Math.min(1, (now - puddle.born) / 0.25, (puddle.until - now) / 0.6));
-    const tone = puddle.plague ? 'plague' : 'toxic', tones = FLAME_TONES[tone], [warm, core] = HEAT[tone];
-    const brew = BREWS[tone], seed = Math.round(puddle.born * 37) % 97, grow = 0.6 + 0.4 * show;
-    const long = puddle.radius * CELL * 0.95 * grow, wide = (WALL_HALF - 1.5) * grow;
-    ctx.save();
-    ctx.translate(at(puddle.x), at(puddle.y));
-    ctx.rotate(puddle.angle || 0);
-    for (const along of [-0.45, 0.45]) {
-      glow(ctx, along * long, 0, wide * 1.05, 'rgba(16, 24, 6, .9)', 0.35 * show);
-      glow(ctx, along * long, 0, wide * 1.1, warm, 0.4 * show);
+    const grow = Math.min(1, (now - puddle.born) / 0.25), fade = Math.min(1, (puddle.until - now) / 0.8);
+    const x = at(puddle.x), y = at(puddle.y), r = Math.min(puddle.radius * CELL, WALL_HALF), black = puddle.plague;
+    const seed = Math.round(puddle.x * 7 + puddle.y * 13) % 9, shape = puddleShape(r / ZOOM, seed, black ? 'plague' : 'poison');
+    const w = shape.width * ZOOM * grow, h = shape.height * ZOOM * grow;
+    ctx.globalAlpha = 0.9 * fade;
+    ctx.drawImage(shape, Math.round(x - w / 2), Math.round(y - h / 2), Math.round(w), Math.round(h));
+    for (let i = 0; i < 4; i++) {
+      const phase = (this.clock * 0.7 + i * 0.29 + puddle.x * 0.37) % 1, a = i * 1.9 + puddle.y * 3;
+      const bx = x + Math.cos(a) * r * 0.45, by = y + Math.sin(a) * r * 0.35, size = 1 + Math.round(phase * 3);
+      ctx.globalAlpha = fade * (phase < 0.85 ? 0.9 : 0.3);
+      const bubble = bubbleSprite(), side = Math.round(bubble.width * (0.5 + size * 0.25));
+      ctx.drawImage(bubble, Math.round(bx - side / 2), Math.round(by - side / 2), side, side);
+      if (phase > 0.85) square(ctx, bx, by - 4 - (phase - 0.85) * 30, 2, black ? '#a78bfa' : '#d9f99d');
     }
-    ctx.globalAlpha = 0.88 * show;
-    lump(ctx, 0, 0, long, wide * 0.92, seed, 0.16, 12);
-    const fill = ctx.createRadialGradient(-long * 0.25, -wide * 0.2, wide * 0.1, 0, 0, long);
-    fill.addColorStop(0, brew[2]);
-    fill.addColorStop(0.55, brew[1]);
-    fill.addColorStop(1, brew[0]);
-    ctx.fillStyle = fill;
-    ctx.fill();
-    ctx.globalAlpha = 0.45 * show;
-    lump(ctx, -long * 0.3, -wide * 0.3, long * 0.32, wide * 0.18, seed + 3, 0.3, 7);
-    ctx.fillStyle = brew[3];
-    ctx.fill();
-    glow(ctx, 0, -2, wide * 0.8, core, (0.25 + 0.1 * Math.sin(this.clock * 7 + seed)) * show);
-    ctx.restore();
-    const turn = puddle.angle || 0, cos = Math.cos(turn), sin = Math.sin(turn);
-    for (let i = 0; i < 12; i++) {
-      const a = noise(i, seed) * Math.PI * 2, d = Math.sqrt(noise(i + 20, seed)) * 0.8;
-      const u = Math.cos(a) * d * long, v = Math.sin(a) * d * wide;
-      const bx = at(puddle.x) + u * cos - v * sin, by = at(puddle.y) + u * sin + v * cos;
-      for (const shift of [0, 0.5]) {
-        const rise = (this.clock * 1.6 + noise(i + 40, seed) + shift) % 1;
-        ctx.globalAlpha = (1 - rise * 0.75) * show;
-        bit(ctx, bx + Math.sin(rise * 6 + i) * 1.5, by - rise * 14, rise < 0.35 ? 3 : 2,
-          tones[Math.min(tones.length - 1, Math.floor(rise * tones.length))], i * 2 + shift * 2 + this.clock * 7);
-      }
+    for (let i = 0; i < 3; i++) {
+      const rise = (this.clock * 0.35 + i / 3 + puddle.y * 0.21) % 1;
+      ctx.globalAlpha = fade * 0.35 * (1 - rise);
+      square(ctx, x + Math.sin(i * 2.3 + this.clock) * r * 0.3, y - rise * 18, 3, black ? '#7c3aed' : '#a3e635');
     }
     ctx.globalAlpha = 1;
   }
 
   _gas(ctx, cloud, now) {
-    const show = Math.max(0, Math.min(1, (now - cloud.born) / 0.3, (cloud.until - now) / 0.6));
-    const tones = SMOGS[cloud.plague ? 'plague' : 'toxic'], x = at(cloud.x), y = at(cloud.y), r = cloud.radius * CELL;
+    const show = Math.max(0, Math.min(1, (now - cloud.born) / 0.25, (cloud.until - now) / 0.5));
+    const brew = BREWS[cloud.plague ? 'plague' : 'toxic'], x = at(cloud.x), y = at(cloud.y), r = cloud.radius * CELL;
     const seed = Math.round(cloud.born * 53) % 89;
-    for (let i = 0; i < 22; i++) {
-      const a = i * 2.39 + seed + this.clock * 0.25 * (i % 2 ? 1 : -1), d = r * 0.75 * Math.sqrt(noise(i, 31 + seed));
-      glow(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.85, r * (0.38 + 0.22 * noise(i, 37 + seed)),
-        tones[i % tones.length], show * (0.5 + 0.1 * Math.sin(this.clock * 1.5 + i)));
+    glow(ctx, x, y, r, VENOM[cloud.plague ? 'plague' : 'toxic'], 0.5 * show);
+    for (let i = 0; i < 20; i++) {
+      const a = i / 20 * Math.PI * 2 + this.clock * (i % 2 ? 0.5 : -0.4) + seed;
+      const d = r * (0.15 + 0.65 * noise(i, seed)), drift = Math.sin(this.clock * 1.3 + i) * 2;
+      ctx.globalAlpha = (0.6 + 0.25 * noise(i + 3, seed)) * show;
+      bit(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.75 + drift - 3, i % 3 ? 5 : 7, brew[1 + (i % 3)], i + seed);
     }
+    ctx.globalAlpha = 1;
   }
 
   _walls(ctx, battle, still) {
@@ -1848,7 +1862,7 @@ export class Scene {
         reticle(ctx, x, y - lift, side / 2, 0.55 + 0.1 * Math.sin(this.clock * 6), 0, tone);
       }
       if (mob.charge && mob.charge.until > now) this._chargedOn(ctx, mob, x, y - lift, size);
-      if (mob.netUntil > now) this._netOn(ctx, mob, image, x, y - lift, angle, size);
+      if (mob.netUntil > now) this._netOn(ctx, x, y - lift, size);
       if (mob.rootUntil > now) this._rootOn(ctx, mob, x, y - lift, size, now);
       if (mob.muteUntil > now) this._mutedOn(ctx, x, y - lift, size);
       if (mob.rot) this._rotOn(ctx, mob, x, y - lift, size);
@@ -1990,81 +2004,49 @@ export class Scene {
     ctx.drawImage(image, 0, cut, w, h - cut, Math.round(x - w / 2), Math.round(y - h / 2) + cut, w, h - cut);
   }
 
-  _netOn(ctx, mob, image, x, y, angle, size) {
-    const scale = ZOOM / (image.fine || 1), w = image.width * scale, h = image.height * scale, res = NET.res;
-    const cw = Math.ceil(w * res), ch = Math.ceil(h * res), seed = mob.id % 97;
-    if (!this.netPads) this.netPads = [document.createElement('canvas'), document.createElement('canvas')];
-    const [net, mask] = this.netPads;
-    for (const pad of this.netPads) {
-      pad.width = cw;
-      pad.height = ch;
+  _netOn(ctx, x, y, size) {
+    const r = Math.max(9, size * 0.46), ties = [];
+    for (let i = 0; i < 6; i++) {
+      const a = i * Math.PI / 3 + 0.3;
+      ties.push([x + Math.cos(a) * r, y + Math.sin(a) * r]);
     }
-    const m = mask.getContext('2d');
-    m.imageSmoothingEnabled = true;
-    for (const [ox, oy] of NET.grow) m.drawImage(image, ox * res, oy * res, cw, ch);
-    const g = net.getContext('2d'), cx = w / 2, cy = h / 2, reach = Math.max(w, h) * 0.5;
-    g.scale(res, res);
-    g.lineCap = 'round';
-    g.lineJoin = 'round';
-    const warp = (px, py) => {
-      const dx = px - cx, dy = py - cy, d = Math.hypot(dx, dy) || 1, k = Math.min(1, d / reach);
-      const fold = reach * Math.sin(k * Math.PI / 2) / d;
-      return [cx + dx * fold, cy + dy * fold];
+    const outline = () => {
+      ctx.beginPath();
+      ctx.moveTo(ties[0][0], ties[0][1]);
+      ties.forEach((p, i) => {
+        const q = ties[(i + 1) % ties.length], mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2;
+        ctx.quadraticCurveTo(x + (mx - x) * NET.bend, y + (my - y) * NET.bend, q[0], q[1]);
+      });
+      ctx.closePath();
     };
-    const lines = [];
-    for (const dir of [1, -1]) {
-      for (let c = -reach * 2; c <= reach * 2; c += NET.mesh) {
-        const phase = noise(c * 3 + dir, seed) * Math.PI * 2, points = [];
-        for (let k = 0; k <= 16; k++) {
-          const t = k / 16 * 2 - 1, wave = Math.sin(t * Math.PI * 1.5 + phase) * NET.wobble;
-          const along = t * reach * 1.6, across = c + wave;
-          const px = cx + (along - across * dir) / Math.SQRT2, py = cy + (along * dir + across) / Math.SQRT2;
-          points.push(warp(px, py + Math.cos(t * Math.PI / 2) * NET.droop));
-        }
-        lines.push(points);
-      }
-    }
-    for (const [width, color, dx, dy] of NET.rope) {
-      g.lineWidth = width;
-      g.strokeStyle = color;
-      for (const points of lines) {
-        g.beginPath();
-        points.forEach(([px, py], k) => (k ? g.lineTo(px + dx, py + dy) : g.moveTo(px + dx, py + dy)));
-        g.stroke();
-      }
-    }
-    g.setTransform(1, 0, 0, 1, 0, 0);
-    g.globalCompositeOperation = 'destination-in';
-    g.drawImage(mask, 0, 0);
-    g.globalCompositeOperation = 'source-atop';
-    const shade = g.createRadialGradient(cw * 0.42, ch * 0.38, 0, cw / 2, ch / 2, Math.max(cw, ch) * 0.55);
-    shade.addColorStop(0, 'rgba(255, 244, 214, .25)');
-    shade.addColorStop(0.6, 'rgba(0, 0, 0, 0)');
-    shade.addColorStop(1, 'rgba(30, 18, 6, .55)');
-    g.fillStyle = shade;
-    g.fillRect(0, 0, cw, ch);
     ctx.save();
-    ctx.translate(Math.round(x), Math.round(y));
-    ctx.rotate(turnOf(angle) * (Math.PI * 2 / TURN_STEPS));
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(net, -w / 2, -h / 2, w, h);
-    ctx.restore();
-    ctx.save();
-    ctx.lineCap = 'round';
-    for (let k = 0; k < 3; k++) {
-      const sx = x + (k - 1) * size * 0.22 + (noise(k, seed) - 0.5) * 3, sy = y + size * 0.26 + Math.abs(k - 1) * -2;
-      const sway = Math.sin(this.clock * 2 + k + seed) * 1.2, len = 4 + noise(k + 5, seed) * 4;
-      for (const [width, color, dx, dy] of NET.rope) {
-        ctx.lineWidth = width;
-        ctx.strokeStyle = color;
+    outline();
+    ctx.clip();
+    const fill = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, 0, x, y, r);
+    fill.addColorStop(0, 'rgba(255, 240, 200, .18)');
+    fill.addColorStop(0.7, 'rgba(0, 0, 0, 0)');
+    fill.addColorStop(1, 'rgba(40, 24, 8, .3)');
+    ctx.fillStyle = fill;
+    ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    for (const [width, color, shift] of [[1.6, 'rgba(30, 18, 6, .45)', 0.8], [1, 'rgba(214, 180, 120, .95)', 0]]) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      for (let i = -3; i <= 3; i++) {
+        const o = i * r / 2.6;
         ctx.beginPath();
-        ctx.moveTo(sx + dx, sy + dy);
-        ctx.quadraticCurveTo(sx + sway * 0.5 + dx, sy + len * 0.6 + dy, sx + sway + dx, sy + len + dy);
+        ctx.moveTo(x + o - r + shift, y - r + shift);
+        ctx.quadraticCurveTo(x + o + shift, y + shift - Math.abs(o) * 0.12, x + o + r + shift, y + r + shift);
+        ctx.moveTo(x + o + r + shift, y - r + shift);
+        ctx.quadraticCurveTo(x + o + shift, y + shift - Math.abs(o) * 0.12, x + o - r + shift, y + r + shift);
         ctx.stroke();
       }
     }
     ctx.restore();
+    ctx.strokeStyle = '#8a6a3c';
+    ctx.lineWidth = 2;
+    outline();
+    ctx.stroke();
+    for (const [tx, ty] of ties) square(ctx, tx, ty, 3, '#d6b478');
   }
 
   _rotOn(ctx, mob, x, y, size) {
