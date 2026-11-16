@@ -1121,12 +1121,12 @@ export class Scene {
   _sight(battle, t) {
     const solid = battle.screen(t), range = t.range;
     const key = t.x + ',' + t.y + ',' + range.toFixed(2) + (solid === battle.tall ? ',high' : '') + (t.style === 'angel'
-      ? ',square' : '');
+      ? ',near' : '');
     if (this.sights.has(key)) return this.sights.get(key);
     const outline = [], own = t.y * SIZE + t.x;
     for (let i = 0; i < SIGHT_RAYS; i++) {
       const a = i / SIGHT_RAYS * Math.PI * 2, dx = Math.cos(a), dy = Math.sin(a);
-      let reach = t.style === 'angel' ? (range + 0.5) / Math.max(Math.abs(dx), Math.abs(dy)) : range;
+      let reach = t.style === 'angel' ? range + 0.5 : range;
       if (solid) {
         for (let d = 0.05; d <= reach; d += 0.05) {
           const x = t.cx + dx * d, y = t.cy + dy * d, cell = Math.floor(y) * SIZE + Math.floor(x);

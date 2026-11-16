@@ -2634,8 +2634,7 @@ function fade(values) {
 const torchPower = (pyro) => (pyro.runes.has('blue') ? FIRE.blue : 1);
 
 const fixedRange = (t) => t.style === 'angel';
-const reaches = (t, mob, range) => (fixedRange(t) ? Math.max(Math.abs(mob.x - t.cx), Math.abs(mob.y - t.cy))
-  <= range + 0.5 : near(mob, t.cx, t.cy, range));
+const reaches = (t, mob, range) => near(mob, t.cx, t.cy, fixedRange(t) ? range + 0.5 : range);
 
 function rollCrit(b, t) {
   t.striking = b.random() < 1 - (1 - t.critChance) * (1 - t.boost.crit);

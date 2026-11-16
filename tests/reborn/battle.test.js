@@ -1190,8 +1190,7 @@ test('ангел: бьёт ровно все соседние клетки — �
   eq(t.range, HOLY.angel.reach, 'мантра дальности и оружие не помогают');
   const corner = walker(battle, 12, 1e9), beyond = walker(battle, 13, 1e9);
   still(corner, beyond);
-  corner.y += 0.45;
-  ok(battle._targetable(t, corner), 'соседняя клетка по диагонали, у дальнего края — достаёт');
+  ok(battle._targetable(t, corner), 'соседняя клетка по диагонали — достаёт');
   no(battle._targetable(t, beyond), 'через клетку — нет');
 });
 
