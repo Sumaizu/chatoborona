@@ -284,14 +284,16 @@ const PUDDLES = {
   plague: { tones: ['#0b0a10', '#17141f', '#231d2e', '#2f2540', '#4c1d95'], shine: ['#a78bfa', '#7c3aed'] },
 };
 const puddleShapes = new Map();
+const PUDDLE_RES = 3;
 
 function puddleShape(long, wide, seed, look) {
-  const size = Math.max(4, Math.round(long)), across = Math.max(3, Math.round(wide));
+  const res = PUDDLE_RES, size = Math.max(4, Math.round(long * res)), across = Math.max(3, Math.round(wide * res));
   const key = size + ':' + across + ':' + seed + ':' + look, { tones, shine } = PUDDLES[look];
   if (puddleShapes.has(key)) return puddleShapes.get(key);
   const canvas = document.createElement('canvas');
   canvas.width = size * 2 + 2;
   canvas.height = across * 2 + 2;
+  canvas.res = res;
   const ctx = canvas.getContext('2d'), c = canvas.width / 2, ch = canvas.height / 2;
   for (let y = 0; y < canvas.height; y++) {
     for (let x = 0; x < canvas.width; x++) {
@@ -299,18 +301,21 @@ function puddleShape(long, wide, seed, look) {
       const edge = size * (0.82 + 0.1 * Math.sin(3 * a + seed) + 0.06 * Math.sin(5 * a + seed * 2)
         + 0.04 * Math.sin(7 * a + seed * 3));
       if (d > edge) continue;
-      const k = d / edge;
-      let color = k > 0.86 ? tones[0] : k > 0.7 ? tones[1] : k > 0.35 ? tones[2] : tones[3];
-      if (k < 0.55 && Math.sin(x * 1.7 + seed) + Math.cos(y * 2.1 + seed) > 1.4) color = tones[4];
+      const k = d / edge, sx = x / res, sy = y / res;
+      let color = k > 0.88 ? tones[0] : k > 0.72 ? tones[1] : k > 0.36 ? tones[2] : tones[3];
+      if (k < 0.58 && Math.sin(sx * 1.7 + seed) + Math.cos(sy * 2.1 + seed) > 1.4) color = tones[4];
       ctx.fillStyle = color;
       ctx.fillRect(x, y, 1, 1);
     }
   }
-  ctx.fillStyle = shine[0];
-  ctx.fillRect(Math.round(c - size * 0.35), Math.round(ch - across * 0.35), 2, 1);
-  ctx.fillRect(Math.round(c - size * 0.35), Math.round(ch - across * 0.35) + 1, 1, 1);
-  ctx.fillStyle = shine[1];
-  ctx.fillRect(Math.round(c + size * 0.25), Math.round(ch - across * 0.1), 1, 1);
+  const glint = (gx, gy, w, h, color) => {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.ellipse(gx, gy, w, h, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  glint(c - size * 0.35, ch - across * 0.35, res * 1.1, res * 0.55, shine[0]);
+  glint(c + size * 0.25, ch - across * 0.1, res * 0.5, res * 0.4, shine[1]);
   puddleShapes.set(key, canvas);
   return canvas;
 }
@@ -1761,29 +1766,42 @@ export class Scene {
   _puddle(ctx, puddle, now) {
     const grow = Math.min(1, (now - puddle.born) / 0.25), fade = Math.min(1, (puddle.until - now) / 0.8);
     const black = puddle.plague, seed = Math.round(puddle.x * 7 + puddle.y * 13) % 9;
-    const long = puddle.radius * CELL * 0.95, wide = CELL * 0.4;
+    const long = puddle.radius * CELL * 0.95, wide = CELL * 0.47;
     const shape = puddleShape(long / ZOOM, wide / ZOOM, seed, black ? 'plague' : 'poison');
     const x = at(puddle.x), y = at(puddle.y), turn = puddle.angle || 0, cos = Math.cos(turn), sin = Math.sin(turn);
     ctx.globalAlpha = 0.9 * fade;
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(turn);
-    ctx.drawImage(shape, -shape.width * ZOOM * grow / 2, -shape.height * ZOOM * grow / 2, shape.width * ZOOM * grow,
-      shape.height * ZOOM * grow);
+    const scale = ZOOM * grow / shape.res;
+    ctx.drawImage(shape, -shape.width * scale / 2, -shape.height * scale / 2, shape.width * scale, shape.height * scale);
     ctx.restore();
     for (let i = 0; i < 7; i++) {
       const phase = (this.clock * 0.7 + i * 0.29 + puddle.x * 0.37) % 1, a = i * 1.9 + puddle.y * 3;
       const u = Math.cos(a) * long * 0.6, v = Math.sin(a) * wide * 0.45, size = 1 + Math.round(phase * 3);
       const bx = x + u * cos - v * sin, by = y + u * sin + v * cos;
-      ctx.globalAlpha = fade * (phase < 0.85 ? 0.9 : 0.3);
-      const bubble = bubbleSprite(), side = Math.round(bubble.width * (0.5 + size * 0.25));
-      ctx.drawImage(bubble, Math.round(bx - side / 2), Math.round(by - side / 2), side, side);
-      if (phase > 0.85) square(ctx, bx, by - 4 - (phase - 0.85) * 30, 2, black ? '#a78bfa' : '#d9f99d');
+      const look = PUDDLES[black ? 'plague' : 'poison'], r = 0.8 + size * 0.55;
+      ctx.globalAlpha = fade * (phase < 0.85 ? 0.95 : 0.35 * (1 - (phase - 0.85) / 0.15));
+      lump(ctx, bx, by, phase < 0.85 ? r : r + (phase - 0.85) * 12, (phase < 0.85 ? r : r + (phase - 0.85) * 10) * 0.85,
+        i, 0.1, 8);
+      ctx.lineWidth = 0.8;
+      ctx.strokeStyle = look.tones[0];
+      if (phase < 0.85) {
+        ctx.fillStyle = look.tones[3];
+        ctx.fill();
+        ctx.stroke();
+        lump(ctx, bx - r * 0.35, by - r * 0.35, r * 0.3, r * 0.22, i + 9, 0.1, 6);
+        ctx.fillStyle = look.shine[0];
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = look.shine[0];
+        ctx.stroke();
+      }
     }
     for (let i = 0; i < 4; i++) {
       const rise = (this.clock * 0.35 + i / 4 + puddle.y * 0.21) % 1, u = Math.sin(i * 2.3 + this.clock) * long * 0.5;
-      ctx.globalAlpha = fade * 0.35 * (1 - rise);
-      square(ctx, x + u * cos, y + u * sin - rise * 18, 3, black ? '#7c3aed' : '#a3e635');
+      puff(ctx, x + u * cos, y + u * sin - rise * 18, 2.5 + rise * 3, black ? 'rgba(167, 139, 250, .8)'
+        : 'rgba(217, 249, 157, .8)', black ? 'rgba(124, 58, 237, .4)' : 'rgba(163, 230, 53, .4)', 0.6 * fade * (1 - rise));
     }
     ctx.globalAlpha = 1;
   }
