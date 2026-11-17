@@ -134,6 +134,7 @@ const SWORD = { hand: [5, -3.2], blade: 14.6, grip: 3, wide: 2.6, guard: 3.2, ri
   cut: 0.55, back: 0.9, sweep: 1.3, drift: [0.05, 0.04] };
 const JUDGEMENT = { life: 1.6, reach: 30, band: 1.4 };
 const HOLY_RING = { life: 0.9, band: 0.7 };
+const AEGIS_SHOW = 0.6;
 const STAFF_HIT = { life: 0.3 };
 const FLAME_HOLD = 0.3;
 const FLAME_BITS = 34;
@@ -2854,12 +2855,13 @@ export class Scene {
     const hit = this._hurtAt !== undefined && this.clock - this._hurtAt < 0.35;
     const bitten = battle.mobs.some((mob) => mob.biting && !mob.dead);
     const shake = bitten ? Math.sin(this.clock * 40) * 1.2 : 0;
-    const image = heartSprite(battle.ward ? 'holy' : battle.steel > 0 ? 'steel' : ''), scale = ZOOM / (image.fine || 1)
+    const holy = battle.ward || this._aegisAt !== undefined && this.clock - this._aegisAt < AEGIS_SHOW;
+    const image = heartSprite(holy ? 'holy' : battle.steel > 0 ? 'steel' : ''), scale = ZOOM / (image.fine || 1)
       * (1 + 0.08 * beat);
     const w = image.width * scale, h = image.height * scale;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    glow(ctx, x, y, 32 + 6 * beat, hit || battle.ward ? 'rgba(255, 244, 200, .95)' : 'rgba(255, 70, 100, .9)',
+    glow(ctx, x, y, 32 + 6 * beat, hit || holy ? 'rgba(255, 244, 200, .95)' : 'rgba(255, 70, 100, .9)',
       0.35 + 0.25 * beat);
     ctx.restore();
     ctx.drawImage(image, Math.round(x - w / 2 + shake), Math.round(y - h / 2), Math.round(w), Math.round(h));
@@ -2985,6 +2987,13 @@ export class Scene {
         const spot = this.shown.get(mob.id) || mob;
         this._sparks(spot.x, spot.y, ['#ffffff', '#fff7cc', '#fde68a'], 8, 1.6, 0.6, 2);
       }
+    } else if (event.kind === 'aegis') {
+      const [bx, by] = this.battle.path[this.battle.path.length - 1];
+      this._aegisAt = this.clock;
+      this._sparks(bx + 0.5, by + 0.5, ['#ffffff', '#fff7cc', '#fde68a'], 12, 2, 0.5);
+    } else if (event.kind === 'banished') {
+      const spot = this.shown.get(event.mob.id) || event.mob;
+      this._sparks(spot.x, spot.y, ['#fffbe6', '#fde68a'], 6, 1.2, 0.5);
     } else if (event.kind === 'warded') {
       const [bx, by] = this.battle.path[this.battle.path.length - 1];
       this._sparks(bx + 0.5, by + 0.5, ['#ffffff', '#fde68a'], 8, 1.6, 0.4);

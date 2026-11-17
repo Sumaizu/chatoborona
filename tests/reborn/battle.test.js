@@ -1725,6 +1725,69 @@ const lookOf = (id) => Object.values(LOOKS).flat().find((look) => look.id === id
 const typeOf = (id) => Object.keys(LOOKS).find((type) => LOOKS[type].some((look) => look.id === id));
 const creature = (battle, id, d = 5, hp = 1e6) => battle._spawn({ type: typeOf(id), look: lookOf(id), hp }, d);
 
+test('инквизитор, изгнание: задетый светом не встаёт, не призывает и не делится', () => {
+  const battle = makeBattle(), t = priest(battle, 2, 4, ['inquisitor', 'banish']), gun = battle.place(player(), 'mechanic', 2, 6);
+  gun.busy = 1e9;
+  t.busy = 1e9;
+  const skeleton = creature(battle, 'skeleton', 6, 100), slime = creature(battle, 'slime3', 7, 100);
+  battle._hurt(skeleton, 1, t);
+  battle._hurt(slime, 1, t);
+  battle._hurt(skeleton, 1e6, gun);
+  battle._hurt(slime, 1e6, gun);
+  runFor(battle, 2);
+  eq(battle.mobs.filter((m) => m.look === 'skeleton' || m.look === 'slime2').length, 0, 'скелет не встал, слизень цел');
+  const boss = special(battle, 'boss', 'archdemon', 1e9);
+  battle._hurt(boss, 1, t);
+  runFor(battle, 2.2);
+  eq(battle.mobs.filter((m) => m.summoned).length, 0, 'бесят не призвал');
+});
+
+test('инквизитор, упокоение: нежить и демонов бьёт втрое сильнее', () => {
+  const battle = makeBattle(), t = priest(battle, 2, 4, ['inquisitor', 'repose']);
+  const zombie = creature(battle, 'zombie', 6, 1e6), imp = creature(battle, 'imp', 7, 1e6), rat = walker(battle, 8, 1e6);
+  for (const mob of [zombie, imp, rat]) battle._hurt(mob, 10, t);
+  near(hit(rat), 10);
+  near(hit(zombie), 10 * HOLY.repose);
+  near(hit(imp), 10 * HOLY.repose);
+});
+
+test('инквизитор, священный взрыв и цепной свет: волна на 2 клетки, шар дважды перескакивает', () => {
+  const battle = makeBattle(), t = priest(battle, 10, 4, ['inquisitor', 'holyBurst', 'chainLight']);
+  battle.random = () => 0;
+  const first = walker(battle, 15, 1e9), a = walker(battle, 14, 1e9), b = walker(battle, 16, 1e9);
+  const far = walker(battle, 20, 1e9);
+  still(first, a, b, far);
+  ok(battle._fire(t));
+  runFor(battle, HOLY.inquisitor.flight * 3 + 0.1);
+  for (const mob of [first, a, b]) ok(hit(mob) >= t.damage - 1e-6, 'каждого достал шар');
+  eq(hit(far), 0, 'дальний не задет');
+  eq(battle.events.filter((e) => e.kind === 'shot' && e.tower === t).length, 3, 'два прыжка');
+  eq(battle.events.filter((e) => e.kind === 'holyRing' && e.tower === t).length, 3, 'каждый шар взрывается');
+});
+
+test('жрец, общие: благодать, божественная защита, благословение, просветление', () => {
+  const battle = makeBattle(), ally = battle.place(player(), 'forester', 5, 4);
+  const holy = priest(battle, 2, 6, ['inquisitor', 'sanctity', 'aegis', 'blessing', 'insight']);
+  priest(battle, 6, 6, ['monk', 'mantraPower']);
+  battle.step(TICK);
+  no(battle._daze(ally, 2), 'союзника не оглушить');
+  near(ally.boost.damage, HOLY.mantra.damage * (1 + HOLY.blessing), 'аура сильнее на 10%');
+  near(ally.boost.clarity, HOLY.insight);
+  near(battle._aegis(), HOLY.aegis);
+  priest(battle, 3, 6, ['monk', 'blessing', 'insight', 'aegis']);
+  battle.step(TICK);
+  near(ally.boost.damage, HOLY.mantra.damage * (1 + 2 * HOLY.blessing), 'два жреца — +20%');
+  near(ally.boost.clarity, HOLY.insight * 1.5, 'просветление — как ауры');
+  near(battle._aegis(), HOLY.aegis * 1.5, 'защита — как ауры');
+  battle.random = () => 0.1;
+  const lives = battle.lives;
+  walker(battle, battle.length - 1, 1e9);
+  runFor(battle, 3);
+  eq(battle.lives, lives, 'сердце не пострадало');
+  ok(battle.events.some((e) => e.kind === 'aegis'));
+  ok(holy.runes.has('sanctity'));
+});
+
 test('паразит: первые 10 волн — кокон на клетке: не кусает, за волну 1–500 монет и опыт наравне с отрядом', () => {
   const battle = makeBattle(), larva = player(), bug = battle.place(larva, 'parasite', 3, 4);
   battle.place(level(30), 'mechanic', 2, 6);

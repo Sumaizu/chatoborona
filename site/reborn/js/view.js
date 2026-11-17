@@ -51,7 +51,7 @@ const BATTLE_SOUNDS = { strike: 'hit', wall: 'build', crumble: 'crumble', leap: 
   trophy: 'clink', cauldron: 'splash', cocoon: 'clink',
   hatch: 'hatch', heist: 'jackpot', share: 'treasure', shatter: 'freeze', snow: 'snow', gust: 'wind',
   wind: 'wind', cheer: 'rally', rally: 'rally', muse: 'cast', expose: 'hex',
-  heal: 'heal', lastStand: 'rise', judgement: 'divine', holyRing: 'holy', warded: 'block',
+  heal: 'heal', lastStand: 'rise', judgement: 'divine', holyRing: 'holy', warded: 'block', aegis: 'block',
   thorns: 'rock' };
 const GOOD_EVENTS = new Set(['buff', 'blessing']);
 const COIN_FINDS = { handful: ' находит горстку монет', bag: ' находит мешок монет!',

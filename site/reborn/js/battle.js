@@ -40,7 +40,7 @@ const STICKY_SLOW = 0.3;
 const COOLDOWNS = ['nextActive', 'nextBlaze', 'nextCheer', 'nextCloud', 'nextEye',
   'nextFar', 'nextGale', 'nextInferno', 'nextLegion', 'nextLight', 'nextMind', 'nextMuse', 'nextPhoenix', 'nextPool',
   'nextEmp', 'nextNuke', 'nextQuake', 'nextRift', 'nextSand', 'nextStorm', 'nextSwarm', 'nextTempest', 'nextTsunami',
-  'nextWall', 'nextWave'];
+  'nextWall', 'nextWave', 'nextHail', 'nextHoly', 'nextBeam', 'nextRain'];
 const WARD_AURA = 0.25;
 const FIREBALL_FLIGHT = 0.3;
 const ZONE_PULSE = 0.5;
@@ -107,7 +107,9 @@ export const HOLY = { angel: { reach: 1, interval: 1, mul: 2.6 }, monk: { reach:
   inquisitor: { reach: 4, interval: 1.45, mul: 2.2, flight: FIREBALL_FLIGHT }, smite: { every: 5, boss: 11 },
   mercy: { reach: 1, lives: 1 }, second: { charge: 1, awe: 10, lives: 10 },
   holyGround: { every: 6, radius: 4, mul: 2, flight: 0.8 }, heavy: { chance: 0.15, stun: 1 },
-  mantra: { radius: 3, haste: 0.15, damage: 0.15, range: 0.15, might: 0.2 } };
+  mantra: { radius: 3, haste: 0.15, damage: 0.15, range: 0.15, might: 0.2 }, burst: { radius: 2, share: 0.5 },
+  repose: 3, chain: { jumps: 2, reach: 2 }, aegis: 0.2, blessing: 0.1, insight: 0.1 };
+const DEMONS = new Set(['imp', 'hellhound', 'demon', 'devilkin', 'gatekeeper', 'archdemon', 'diablo']);
 export const MANTRAS = ['mantraSpeed', 'mantraPower', 'mantraRange'];
 const STYLE_ELEMENTS = { witch: 'poison' };
 const STYLE_BALL = 11;
@@ -749,7 +751,7 @@ export class Battle {
         mob.powerAt = now + power.every;
         mob.powerUntil = now + (power.time || 0);
         this._event({ kind: 'power', mob });
-        for (let i = 0; i < (power.count || 0); i++) this._summon(mob, power.summon, power.look, power.hp, i);
+        if (!mob.banished) for (let i = 0; i < (power.count || 0); i++) this._summon(mob, power.summon, power.look, power.hp, i);
         if (power.id === 'blink' && !mob.biting) {
           const from = [mob.x, mob.y];
           mob.d = Math.min(this.length - HEART_GAP, mob.d + power.jump);
@@ -1452,6 +1454,11 @@ export class Battle {
           this._event({ kind: 'warded', mob });
           continue;
         }
+        const aegis = mob.fatal ? 0 : this._aegis();
+        if (aegis > 0 && this.random() < aegis) {
+          this._event({ kind: 'aegis', mob });
+          continue;
+        }
         if (mob.fatal) this.ward = null;
         if (!mob.fatal && this.steel > 0) {
           this.steel -= 1;
@@ -1715,7 +1722,11 @@ export class Battle {
 
   _buffs(now) {
     const banners = [], sages = [], shamans = [], pyros = [], mechanics = [], teams = [], tuners = [], graces = [];
-    const monks = [];
+    const monks = [], priests = this.towers.filter((t) => t.cls.id === 'priest' && !t.cocoon);
+    const graced = (id) => priests.filter((t) => t.runes.has(id)).length;
+    const bless = 1 + HOLY.blessing * graced('blessing'), sanctity = graced('sanctity') > 0;
+    const insight = fade(priests.filter((t) => t.runes.has('insight')).map(() => HOLY.insight));
+    this.blessed = bless;
     for (const t of this.towers) {
       if (t.cocoon || t.rider) continue;
       if (t.cls.id === 'mechanic') {
@@ -1799,11 +1810,12 @@ export class Battle {
         }
       }
       const chant = (id, value) => fade(mantras[id].map(() => value));
-      boost.rate = muse + fade(haste) + fade(winds) + fade(team) + fade(grace) + fade(tuning) + fade(crimson)
-        + chant('mantraSpeed', HOLY.mantra.haste);
-      boost.damage = muse + fade(cheer) + chant('mantraPower', HOLY.mantra.damage);
-      boost.range = fade(range) + chant('mantraRange', HOLY.mantra.range);
-      boost.might = fade(might);
+      boost.rate = muse + bless * (fade(haste) + fade(winds) + fade(team) + fade(grace) + fade(tuning) + fade(crimson)
+        + chant('mantraSpeed', HOLY.mantra.haste));
+      boost.damage = muse + bless * (fade(cheer) + chant('mantraPower', HOLY.mantra.damage));
+      boost.range = bless * (fade(range) + chant('mantraRange', HOLY.mantra.range));
+      boost.might = bless * fade(might);
+      if (sanctity) t.wardUntil = Math.max(t.wardUntil, now + WARD_AURA);
       if (hero === t) {
         boost.damage += herald.s[6].bonus;
         by.add(herald);
@@ -1812,9 +1824,9 @@ export class Battle {
         boost.rate += rally.s[2].haste * rally.lift;
         by.add(rally);
       }
-      boost.crit = fade(crit);
-      boost.wisdom = fade(wisdom);
-      boost.clarity = fade(clarity);
+      boost.crit = bless * fade(crit);
+      boost.wisdom = bless * fade(wisdom);
+      boost.clarity = bless * fade(clarity) + insight;
       t.torches = TORCH_USERS.has(t.cls.id) ? pyros.filter((pyro) => close(pyro, t, FIRE.torch.radius + pyro.reach))
         .sort((x, y) => torchPower(y) - torchPower(x)) : [];
       t.torch = t.torches[0] || null;
@@ -2029,7 +2041,7 @@ export class Battle {
   _torchHit(t, mob, damage) {
     t.torches.filter((pyro) => this.towers.includes(pyro)).forEach((pyro, i) => {
       if (mob.dead || immune(mob, 'fire')) return;
-      this._hurt(mob, damage * FIRE.torch.share * torchPower(pyro) / 2 ** i, t, 'fire', true);
+      this._hurt(mob, damage * FIRE.torch.share * torchPower(pyro) / 2 ** i * (this.blessed || 1), t, 'fire', true);
       if (pyro.react && mob.hp > 0) this._mark(mob, 'fire', pyro);
     });
   }
@@ -2275,6 +2287,8 @@ export class Battle {
     if (element === 'poison' && mob.undead && !plague) return;
     if (plague && !mob.undead) amount *= 1 + WOOD.plague;
     amount *= this._weak(element);
+    if (t.style === 'inquisitor' && t.runes.has('repose') && (mob.undead || DEMONS.has(mob.look)
+      || mob.kind && DEMONS.has(mob.kind.id))) amount *= HOLY.repose;
     if (immune(mob, element)) {
       mob.helpers.add(t);
       if (now >= mob.immuneAt) {
@@ -2318,6 +2332,7 @@ export class Battle {
     }
     t.run.damage += Math.min(dealt, mob.hp);
     mob.hp -= dealt;
+    if (t.style === 'inquisitor' && t.runes.has('banish')) mob.banished = true;
     if (!dot) mob.hitAt = now;
     mob.helpers.add(t);
     if (mob.party) for (const ally of mob.party) mob.helpers.add(ally);
@@ -2375,7 +2390,8 @@ export class Battle {
     const prize = mob.silver ? SILVER.xp : 1, purse = mob.silver ? SILVER.coins : 1;
     const killers = new Set(mob.party || [killer]);
     const trophy = fade(this.towers.filter((h) => h.cls.id === 'forester' && h.style === 'hunter' && !h.cocoon
-      && h.runes.has('trophy') && near(mob, h.cx, h.cy, WOOD.trophy.radius)).map(() => WOOD.trophy.bonus));
+      && h.runes.has('trophy') && near(mob, h.cx, h.cy, WOOD.trophy.radius)).map(() => WOOD.trophy.bonus))
+      * (this.blessed || 1);
     if (trophy) this._event({ kind: 'trophy', x: mob.x, y: mob.y });
     for (const t of mob.helpers) {
       const earn = t.cls.earn || NO_EARN;
@@ -2405,20 +2421,22 @@ export class Battle {
         if (!t.rider && near({ x: t.cx, y: t.cy }, mob.x, mob.y, SILVER.burst)) this._daze(t, SILVER.daze);
       }
     }
-    if (mob.silver && mob.silver.split) {
+    if (mob.silver && mob.silver.split && !mob.banished) {
       for (const shift of [-0.3, 0.3]) {
         this.births.push({ spawn: { type: mob.type, look: lookOfMob(mob), hp: mob.max * SILVER.split / SILVER.hp },
           d: Math.max(0, mob.d + shift), r: mob.r, at: this.time });
       }
     }
-    if (mob.power && mob.power.brood) {
+    if (mob.power && mob.power.brood && !mob.banished) {
       const hp = this._waveHp('swarm') * mob.power.hp;
       for (let i = 0; i < mob.power.brood; i++) {
         this.births.push({ spawn: { type: 'swarm', look: lookOf('spiderling'), hp }, d: Math.max(0, mob.d - i * 0.2),
           r: mob.r, at: this.time });
       }
     }
-    if (mob.revive > 0 && !(killer && killer.cls.id === 'priest' && mob.undead)) {
+    if (mob.banished) {
+      this._event({ kind: 'banished', mob });
+    } else if (mob.revive > 0 && !(killer && killer.cls.id === 'priest' && mob.undead)) {
       const spawn = { type: mob.type, kind: mob.kind, look: mob.kind ? null : lookOfMob(mob), hp: mob.max };
       this.births.push({ spawn, d: mob.d, r: mob.r, at: this.time + REVIVE_TIME, risen: true,
         raise: mob.power && mob.power.raise || 0 });
@@ -2444,7 +2462,7 @@ export class Battle {
       this.treasures += 1;
       this._event({ kind: 'treasure', mob, coins });
     }
-    const pieces = mob.power && mob.power.id === 'split' ? 3 : mob.slime > 1 ? mob.slime - 1 : 0;
+    const pieces = mob.banished ? 0 : mob.power && mob.power.id === 'split' ? 3 : mob.slime > 1 ? mob.slime - 1 : 0;
     if (pieces) {
       const type = SLIMES[pieces - 1], look = LOOKS[type].find((item) => item.slime === pieces), spots = [];
       for (const shift of [-SPLIT_GAP, SPLIT_GAP]) {
@@ -2456,6 +2474,11 @@ export class Battle {
       }
       this._event({ kind: 'split', mob, spots });
     }
+  }
+
+  _aegis() {
+    return fade(this.towers.filter((t) => t.cls.id === 'priest' && !t.cocoon && t.runes.has('aegis'))
+      .map(() => HOLY.aegis));
   }
 
   _lastStand(diablo) {
@@ -2802,12 +2825,28 @@ function holyGround(b, t, now) {
 }
 
 function holyThrow(b, t, target) {
-  const crit = rollCrit(b, t), flight = HOLY.inquisitor.flight;
-  b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target, time: flight });
-  b._later(flight, () => {
-    if (!target.dead) b._hurt(target, t.damage * (crit ? t.critMul : 1), t);
-  }, t);
+  holyBall(b, t, target, rollCrit(b, t), null, t.runes.has('chainLight') ? HOLY.chain.jumps : 0, new Set());
   return true;
+}
+
+function holyBall(b, t, mob, crit, from, jumps, struck) {
+  const flight = HOLY.inquisitor.flight, hit = t.damage * (crit ? t.critMul : 1);
+  struck.add(mob);
+  b._event(Object.assign({ kind: 'shot', tower: t, x: mob.x, y: mob.y, crit, mob, time: flight },
+    from ? { sx: from.x, sy: from.y } : {}));
+  b._later(flight, () => {
+    const x = mob.x, y = mob.y;
+    if (!mob.dead) b._hurt(mob, hit, t);
+    if (t.runes.has('holyBurst')) {
+      const s = HOLY.burst;
+      b._event({ kind: 'holyRing', tower: t, x, y, radius: s.radius });
+      for (const other of b._around(x, y, s.radius, mob)) b._hurt(other, hit * s.share, t);
+    }
+    if (jumps <= 0) return;
+    const pool = b.mobs.filter((other) => !other.dead && !struck.has(other) && !hidden(other, b.time)
+      && !b.covered(other.x, other.y) && near(other, x, y, HOLY.chain.reach));
+    if (pool.length) holyBall(b, t, pool[Math.floor(b.random() * pool.length)], crit, { x, y }, jumps - 1, struck);
+  }, t);
 }
 
 function throwNet(b, t, mob) {
