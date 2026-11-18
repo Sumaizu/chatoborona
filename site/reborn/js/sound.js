@@ -623,11 +623,27 @@ function createStudio(context) {
   };
 }
 
+const LENGTHS = { bell: 2, chime: 2, pluck: 2, horn: 2, thump: 3, pop: 3, swish: 3, hiss: 1, crunch: 1, whistle: 3,
+  rumble: 1, pad: 2 };
+
+function hastened(studio, start, speed) {
+  if (speed === 1) return studio;
+  const quick = Object.assign({}, studio);
+  for (const [name, slot] of Object.entries(LENGTHS)) {
+    quick[name] = (...args) => {
+      args[0] = start + (args[0] - start) / speed;
+      args[slot] /= speed;
+      return studio[name](...args);
+    };
+  }
+  return quick;
+}
+
 const gainFor = (volume) => Math.max(0, Math.min(100, Number(volume) || 0)) / 100 * LOUDNESS;
 
 let context = null, studio = null;
 
-export function play(name, volume, length) {
+export function play(name, volume, length, speed = 1) {
   const recipe = RECIPES[name], gain = gainFor(volume);
   const AudioContext = window.AudioContext || window.webkitAudioContext;
   if (!recipe || !gain || !AudioContext) return;
@@ -638,7 +654,8 @@ export function play(name, volume, length) {
     }
     if (context.state === 'suspended') context.resume().catch(() => {});
     studio.master.gain.value = gain;
-    recipe(studio, context.currentTime + 0.03, length);
+    const start = context.currentTime + 0.03;
+    recipe(hastened(studio, start, Math.max(1, speed)), start, length && length / Math.max(1, speed));
   } catch (error) {
     context = null;
   }

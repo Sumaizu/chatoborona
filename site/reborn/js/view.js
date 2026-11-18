@@ -308,6 +308,7 @@ export class View {
     const ranges = new Set(this._ranges.keys());
     for (const note of game.notes) if (note.kind === 'card') ranges.add(note.login);
     const pace = game.paused ? 1 : game.speed;
+    this._pace = pace;
     const fresh = this.scene.draw(showField ? game.battle : null, dt * pace,
       { names, highlight: this._lit(game), still, ranges, pace });
     for (const event of fresh) this._battleEvent(event);
@@ -375,7 +376,7 @@ export class View {
     if (!this.settings || !this.settings.sound) return;
     for (const [name, length] of picked) {
       this.heard.push(name);
-      play(name, this.settings.volume, length);
+      play(name, this.settings.volume, length, this._pace || 1);
     }
     if (this.heard.length > 80) this.heard.splice(0, this.heard.length - 80);
   }

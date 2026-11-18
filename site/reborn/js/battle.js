@@ -1479,6 +1479,7 @@ export class Battle {
     for (const mob of this.mobs) {
       if (mob.dead) continue;
       if (mob.aweUntil > now) continue;
+      if (mob.biting && this.sirenUntil > now && !mob.info.boss) mob.biting = 0;
       if (mob.biting) {
         if (now - mob.biting < BITE_TIME) continue;
         if (mob.fatal && !this.ward && this._lastStand(mob)) continue;
@@ -1527,7 +1528,8 @@ export class Battle {
       if (power && power.boost && power.time && mob.powerUntil > now) speed *= 1 + power.boost;
       if (power && power.id === 'rage') speed *= 1 + power.boost * (1 - mob.hp / mob.max);
       const back = this.sirenUntil > now && !mob.info.boss;
-      let next = Math.max(0, mob.d + speed * (1 - slow) * dt * (back ? -SONG.back : 1));
+      let next = mob.d + speed * (1 - slow) * dt * (back ? -SONG.back : 1);
+      if (back && !this._retreats(mob, next)) next = mob.d;
       if (grounded(mob, now) && !mob.wild && this.walls.length) {
         let wall = null, at = Infinity;
         for (const w of this.walls) {
@@ -2467,6 +2469,12 @@ export class Battle {
   _totems(mob, kind) {
     return fade(this.banners.filter((banner) => banner.kind === kind && near(mob, banner.cx, banner.cy,
       SPELL.totem.radius)).map(() => SPELL.totem[kind]));
+  }
+
+  _retreats(mob, d) {
+    if (d < 0) return false;
+    const spot = this._roadPoint(mob.r, d);
+    return spot.x >= 0 && spot.y >= 0 && spot.x < SIZE && spot.y < SIZE && !this.covered(spot.x, spot.y);
   }
 
   _resistOf(mob) {

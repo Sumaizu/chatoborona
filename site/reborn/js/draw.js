@@ -6,7 +6,7 @@ import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite
   meteorSprite, grenadeSprite, droneSprite, birdSprite, hawkSprite, snareSprite, trapSprite, cauldronSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
   rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, ventSprite, wallSprite } from './sprites.js';
 import { BREWS, SOILS, drawRootWall } from './props.js';
-import { ANGEL_BODY, FINE_HEROES, MUZZLES, RELOAD_FRAMES } from './models.js';
+import { ANGEL_BODY, FINE_HEROES, HERO, MUZZLES, RELOAD_FRAMES, sizeOf } from './models.js';
 import { gearColor } from './gacha.js';
 
 export const BOARD = EDGE * 2 + CELL * SIZE;
@@ -42,7 +42,8 @@ const TURN_STEPS = 8;
 const KICK = 0.1;
 const FLASH = 0.06;
 const TRAVEL = 0.1;
-const MODEL_UNIT = 1.08;
+const MODEL_UNIT = 1.08 * HERO.scale;
+const [HERO_X, HERO_Y] = HERO.center;
 const LASER = { life: 0.45, layers: [[11, 4, 0.55], [8, 3, 0.9], [5, 2, 1], [2.5, 0, 1]] };
 const WALK = 7;
 const BEAT = 1.1;
@@ -126,9 +127,9 @@ const HEAT = { warm: ['rgba(255, 110, 30, .9)', 'rgba(255, 220, 120, .9)'],
   holy: ['rgba(250, 204, 21, .9)', 'rgba(255, 251, 230, .95)'],
   azure: ['rgba(56, 189, 248, .9)', 'rgba(224, 247, 255, .95)'] };
 const TOTEM_LOOKS = {
-  slow: { aura: '244, 114, 182', cloth: ['#f9a8d4', '#db2777'], edge: '#fce7f3', sign: '#fff1f8' },
-  purge: { aura: '226, 232, 240', cloth: ['#f3f4f6', '#9ca3af'], edge: '#ffffff', sign: '#4b5563' },
-  power: { aura: '220, 38, 38', cloth: ['#ef4444', '#7f1d1d'], edge: '#fca5a5', sign: '#fcd34d' } };
+  slow: { aura: '244, 114, 182', cloth: ['#f9a8d4', '#db2777'], edge: '#fce7f3' },
+  purge: { aura: '226, 232, 240', cloth: ['#f3f4f6', '#9ca3af'], edge: '#ffffff' },
+  power: { aura: '220, 38, 38', cloth: ['#ef4444', '#7f1d1d'], edge: '#fca5a5' } };
 const SPELLS = { wave: 7, chord: '94, 234, 212', shock: '251, 191, 36', lute: 'rgba(45, 212, 191, 1)',
   wisp: 'rgba(196, 181, 253, 1)', act: 0.32, strum: 0.3, beat: 0.28, play: 5,
   songs: { siren: 'rgba(244, 114, 182, 1)', dirge: 'rgba(185, 28, 28, 1)' },
@@ -137,10 +138,10 @@ const HOLY_LIGHT = { core: 'rgba(255, 251, 230, 1)', warm: 'rgba(253, 224, 120, 
   motes: 5, wave: 4 };
 const HOVER = { lift: 4, bob: 1.5, rate: 1.2, frames: [2, 1, 0, 1] };
 const MANTRA_LOOKS = { mantraSpeed: '251, 146, 60', mantraPower: '239, 68, 68', mantraRange: '244, 114, 182' };
-const STAFF_ROD = { rear: [5.4, 2.6], wide: 2, cap: 3.2, reach: 0.4, back: 0.3, lunge: 3 };
+const STAFF_ROD = { rear: [21.4, 18.6], wide: 2, cap: 3.2, reach: 0.4, back: 0.3, lunge: 3 };
 const HOLY_BLADE = ['#8a6410', '#e0b43a', '#fffbe6', '#f5d77a', '#8a6410'];
 const RED_BLADE = ['#7f1d1d', '#dc2626', '#fecaca', '#ef4444', '#7f1d1d'];
-const SWORD = { hand: [5, -3.2], blade: 14.6, grip: 3, wide: 2.6, guard: 3.2, ring: 2.3, life: 0.36, wind: 0.25,
+const SWORD = { hand: [21, 12.8], blade: 14.6, grip: 3, wide: 2.6, guard: 3.2, ring: 2.3, life: 0.36, wind: 0.25,
   cut: 0.55, back: 0.9, sweep: 1.3, drift: [0.05, 0.04] };
 const JUDGEMENT = { life: 1.6, reach: 30, band: 1.4 };
 const HOLY_RING = { life: 0.9, band: 0.7 };
@@ -1133,7 +1134,7 @@ export class Scene {
     const pose = this._pose(t), points = MUZZLES[t.look] || MUZZLES[t.cls.id] || [[16, 4]];
     const [mx, my] = points[Math.min(hand, points.length - 1)];
     const a = turnOf(pose.angle, HERO_TURN_STEPS) * (Math.PI * 2 / HERO_TURN_STEPS);
-    const dx = (mx - 16) * MODEL_UNIT, dy = (my - 16) * MODEL_UNIT;
+    const u = MODEL_UNIT * sizeOf(t.look), dx = (mx - HERO_X) * u, dy = (my - HERO_Y) * u;
     return { x: pose.x + (dx * Math.cos(a) - dy * Math.sin(a)) / CELL,
       y: pose.y + (dx * Math.sin(a) + dy * Math.cos(a) - (pose.lift || 0)) / CELL };
   }
@@ -1602,7 +1603,8 @@ export class Scene {
   }
 
   _halo(ctx, t, x, y) {
-    const a = turnOf(this._pose(t).angle, HERO_TURN_STEPS) * Math.PI * 2 / HERO_TURN_STEPS, back = 1.8 * MODEL_UNIT;
+    const a = turnOf(this._pose(t).angle, HERO_TURN_STEPS) * Math.PI * 2 / HERO_TURN_STEPS;
+    const back = (HERO_Y - 17.8) * MODEL_UNIT * (t.style === 'angel' ? ANGEL_BODY : 1);
     const hx = x - Math.sin(a) * back, hy = y + Math.cos(a) * back, rings = t.style === 'angel' ? [6.5] : [5.5, 8];
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -1669,103 +1671,191 @@ export class Scene {
   }
 
   _standard(ctx, x, foot, banner, look, flash) {
-    const top = foot - 27, sway = Math.sin(this.clock * 2.2 + banner.seed * 9) * 1.3;
+    const top = foot - 30, sway = Math.sin(this.clock * 2.2 + banner.seed * 9) * 1.1, w = 13, h = 18, cy = top + 6;
+    const left = x - w / 2, right = x + w / 2, bottom = cy + h;
     ctx.save();
     ctx.fillStyle = 'rgba(0, 0, 0, .3)';
     ctx.beginPath();
-    ctx.ellipse(x + 3, foot, 5, 2, 0, 0, Math.PI * 2);
+    ctx.ellipse(x + 2, foot, 6, 2.2, 0, 0, Math.PI * 2);
     ctx.fill();
-    const pole = ctx.createLinearGradient(x - 1, 0, x + 1, 0);
-    pole.addColorStop(0, '#1f2328');
-    pole.addColorStop(0.5, '#6b7280');
-    pole.addColorStop(1, '#16191d');
+    const pole = ctx.createLinearGradient(x - 1.1, 0, x + 1.1, 0);
+    pole.addColorStop(0, '#15181c');
+    pole.addColorStop(0.45, '#6b7280');
+    pole.addColorStop(1, '#101215');
     ctx.fillStyle = pole;
     ctx.beginPath();
-    ctx.moveTo(x - 0.9, top + 2);
-    ctx.lineTo(x + 0.9, top + 2);
-    ctx.lineTo(x + 0.9, foot - 2);
-    ctx.lineTo(x, foot + 1);
-    ctx.lineTo(x - 0.9, foot - 2);
+    ctx.moveTo(x - 1.1, top + 2);
+    ctx.lineTo(x + 1.1, top + 2);
+    ctx.lineTo(x + 1.1, foot - 2.5);
+    ctx.lineTo(x, foot + 1.5);
+    ctx.lineTo(x - 1.1, foot - 2.5);
     ctx.closePath();
     ctx.fill();
-    const cy = top + 4, w = 11, h = 17, lx = x + 1, bottom = cy + h;
-    const cloth = ctx.createLinearGradient(lx, cy, lx + w, bottom);
+    const edge = (k) => sway * k * k;
+    const shape = () => {
+      ctx.beginPath();
+      ctx.moveTo(left + 1.5, cy);
+      ctx.lineTo(right - 1.5, cy);
+      ctx.lineTo(right, cy + 1.5);
+      ctx.quadraticCurveTo(right + edge(0.5) + 0.6, cy + h * 0.5, right + edge(1), bottom);
+      ctx.lineTo(x + edge(1), bottom - 3.6);
+      ctx.lineTo(left + edge(1), bottom);
+      ctx.quadraticCurveTo(left + edge(0.5) - 0.6, cy + h * 0.5, left, cy + 1.5);
+      ctx.closePath();
+    };
+    shape();
+    const cloth = ctx.createLinearGradient(0, cy, 0, bottom);
     cloth.addColorStop(0, look.cloth[0]);
     cloth.addColorStop(1, look.cloth[1]);
     ctx.fillStyle = cloth;
+    ctx.fill();
+    ctx.save();
+    shape();
+    ctx.clip();
+    const folds = ctx.createLinearGradient(left, 0, right, 0);
+    for (const [stop, alpha] of [[0, 0.32], [0.18, 0], [0.38, 0.18], [0.55, 0], [0.75, 0.2], [0.9, 0.02], [1, 0.34]]) {
+      folds.addColorStop(stop, 'rgba(10, 4, 8, ' + alpha + ')');
+    }
+    ctx.fillStyle = folds;
+    ctx.fillRect(left - 3, cy, w + 6, h);
+    const sheen = ctx.createLinearGradient(left, cy, right, bottom);
+    sheen.addColorStop(0, 'rgba(255, 255, 255, .22)');
+    sheen.addColorStop(0.45, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = sheen;
+    ctx.fillRect(left - 3, cy, w + 6, h);
+    ctx.restore();
     ctx.strokeStyle = look.edge;
-    ctx.lineWidth = 0.7;
+    ctx.lineWidth = 0.8;
+    shape();
+    ctx.stroke();
+    this._sign(ctx, x + edge(0.45) * 0.7, cy + h * 0.44, banner.kind);
+    const bar = ctx.createLinearGradient(0, cy - 1.2, 0, cy + 1.2);
+    bar.addColorStop(0, '#9ca3af');
+    bar.addColorStop(1, '#1f2328');
+    ctx.fillStyle = bar;
     ctx.beginPath();
-    ctx.moveTo(lx, cy);
-    ctx.quadraticCurveTo(lx + w / 2, cy + 1, lx + w, cy);
-    ctx.quadraticCurveTo(lx + w + sway * 0.6, cy + h * 0.55, lx + w + sway, bottom);
-    ctx.lineTo(lx + w / 2 + sway * 0.8, bottom - 3);
-    ctx.lineTo(lx + sway * 0.6, bottom);
-    ctx.quadraticCurveTo(lx + sway * 0.2, cy + h * 0.5, lx, cy);
+    ctx.moveTo(left - 1.5, cy - 1);
+    ctx.lineTo(right + 1.5, cy - 1);
+    ctx.lineTo(right + 2.4, cy);
+    ctx.lineTo(right + 1.5, cy + 1);
+    ctx.lineTo(left - 1.5, cy + 1);
+    ctx.lineTo(left - 2.4, cy);
     ctx.closePath();
     ctx.fill();
-    ctx.stroke();
-    this._sign(ctx, lx + w / 2 + sway * 0.4, cy + h * 0.45, banner.kind, look.sign);
-    ctx.strokeStyle = '#2b2f36';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(x - 1, cy);
-    ctx.lineTo(lx + w + 0.5, cy);
-    ctx.stroke();
-    ctx.fillStyle = '#3a3f47';
-    ctx.strokeStyle = '#111317';
-    ctx.lineWidth = 0.5;
-    for (const [dx, dy, long] of [[0, -1, 6], [1, 0, 4], [-1, 0, 4], [0.7, 0.7, 3], [-0.7, 0.7, 3]]) {
+    for (const [dx, dy, long, wide] of [[0, -1, 7, 1.3], [1, -0.25, 4.5, 1], [-1, -0.25, 4.5, 1]]) {
+      const metal = ctx.createLinearGradient(x - 2, top, x + 2, top);
+      metal.addColorStop(0, '#2b2f36');
+      metal.addColorStop(0.5, '#9ca3af');
+      metal.addColorStop(1, '#22262c');
+      ctx.fillStyle = metal;
       ctx.beginPath();
-      ctx.moveTo(x - dy * 1.1, top - dx * 1.1);
-      ctx.lineTo(x + dx * long, top + dy * long);
-      ctx.lineTo(x + dy * 1.1, top + dx * 1.1);
+      ctx.moveTo(x - dy * wide, top + 1 + dx * wide);
+      ctx.lineTo(x + dx * long, top + 1 + dy * long);
+      ctx.lineTo(x + dy * wide, top + 1 - dx * wide);
       ctx.closePath();
       ctx.fill();
-      ctx.stroke();
     }
+    const gem = ctx.createRadialGradient(x - 0.5, top + 0.5, 0.2, x, top + 1, 2.2);
+    gem.addColorStop(0, '#ffffff');
+    gem.addColorStop(0.35, 'rgba(' + look.aura + ', 1)');
+    gem.addColorStop(1, 'rgba(20, 8, 12, 1)');
+    ctx.fillStyle = gem;
+    ctx.beginPath();
+    ctx.ellipse(x, top + 1, 1.9, 2.3, 0, 0, Math.PI * 2);
+    ctx.fill();
     ctx.globalCompositeOperation = 'lighter';
-    glow(ctx, x, top, 3.5 + 2 * flash, 'rgba(' + look.aura + ', 1)', 0.7 + 0.3 * flash);
-    glow(ctx, x, top, 1.4, 'rgba(255, 240, 240, 1)', 0.9);
+    glow(ctx, x, top + 1, 4 + 2.5 * flash, 'rgba(' + look.aura + ', 1)', 0.55 + 0.35 * flash);
     ctx.restore();
   }
 
-  _sign(ctx, x, y, kind, color) {
+  _sign(ctx, x, y, kind) {
     ctx.save();
-    ctx.strokeStyle = color;
-    ctx.fillStyle = color;
-    ctx.lineWidth = 0.9;
     ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const disc = ctx.createRadialGradient(x, y, 0.5, x, y, 5);
+    disc.addColorStop(0, 'rgba(255, 255, 255, .28)');
+    disc.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = disc;
     ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.fill();
     if (kind === 'slow') {
-      for (let i = 0; i <= 20; i++) {
-        const a = i * 0.55, d = 0.3 + i * 0.16;
+      for (let n = 0; n < 5; n++) {
+        const a = n * Math.PI * 2 / 5 - Math.PI / 2, tx = x + Math.cos(a) * 3.8, ty = y + Math.sin(a) * 3.8;
+        const petal = ctx.createLinearGradient(x, y, tx, ty);
+        petal.addColorStop(0, '#fdf2f8');
+        petal.addColorStop(0.6, '#f472b6');
+        petal.addColorStop(1, '#9d174d');
+        ctx.fillStyle = petal;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.quadraticCurveTo(x + Math.cos(a - 0.6) * 3, y + Math.sin(a - 0.6) * 3, tx, ty);
+        ctx.quadraticCurveTo(x + Math.cos(a + 0.6) * 3, y + Math.sin(a + 0.6) * 3, x, y);
+        ctx.fill();
+      }
+      ctx.strokeStyle = '#831843';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      for (let i = 0; i <= 16; i++) {
+        const a = i * 0.62, d = 0.2 + i * 0.1;
         if (i) ctx.lineTo(x + Math.cos(a) * d, y + Math.sin(a) * d);
-        else ctx.moveTo(x + Math.cos(a) * d, y + Math.sin(a) * d);
+        else ctx.moveTo(x, y);
       }
       ctx.stroke();
     } else if (kind === 'purge') {
-      ctx.moveTo(x - 2.6, y);
-      ctx.quadraticCurveTo(x, y - 2.4, x + 2.6, y);
-      ctx.quadraticCurveTo(x, y + 2.4, x - 2.6, y);
-      ctx.stroke();
+      const white = ctx.createLinearGradient(x, y - 2.6, x, y + 2.6);
+      white.addColorStop(0, '#ffffff');
+      white.addColorStop(1, '#cbd5e1');
+      ctx.fillStyle = white;
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 0.6;
       ctx.beginPath();
-      ctx.moveTo(x - 0.8, y);
-      ctx.quadraticCurveTo(x, y - 0.9, x + 0.8, y);
-      ctx.quadraticCurveTo(x, y + 0.9, x - 0.8, y);
+      ctx.moveTo(x - 4, y);
+      ctx.quadraticCurveTo(x, y - 3.4, x + 4, y);
+      ctx.quadraticCurveTo(x, y + 3.4, x - 4, y);
+      ctx.fill();
+      ctx.stroke();
+      const iris = ctx.createRadialGradient(x - 0.4, y - 0.4, 0.2, x, y, 1.9);
+      iris.addColorStop(0, '#e0f2fe');
+      iris.addColorStop(0.5, '#38bdf8');
+      iris.addColorStop(1, '#0c4a6e');
+      ctx.fillStyle = iris;
+      ctx.beginPath();
+      ctx.arc(x, y, 1.9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#0b1220';
+      ctx.beginPath();
+      ctx.arc(x, y, 0.75, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(x - 0.6, y - 0.7, 0.4, 0, Math.PI * 2);
       ctx.fill();
     } else {
-      for (let i = 0; i < 8; i++) {
-        const a = i * Math.PI / 4, long = i % 2 ? 2.2 : 3.6;
-        ctx.moveTo(x + Math.cos(a) * 0.9, y + Math.sin(a) * 0.9);
+      for (let i = 0; i < 12; i++) {
+        const a = i * Math.PI / 6, long = i % 2 ? 3.4 : 4.8, side = 0.75;
+        const ray = ctx.createLinearGradient(x, y, x + Math.cos(a) * long, y + Math.sin(a) * long);
+        ray.addColorStop(0, '#fff7d6');
+        ray.addColorStop(1, i % 2 ? '#f59e0b' : '#fbbf24');
+        ctx.fillStyle = ray;
+        ctx.beginPath();
+        ctx.moveTo(x + Math.cos(a - side) * 1.6, y + Math.sin(a - side) * 1.6);
         ctx.lineTo(x + Math.cos(a) * long, y + Math.sin(a) * long);
+        ctx.lineTo(x + Math.cos(a + side) * 1.6, y + Math.sin(a + side) * 1.6);
+        ctx.closePath();
+        ctx.fill();
       }
-      ctx.stroke();
+      const core = ctx.createRadialGradient(x - 0.5, y - 0.5, 0.2, x, y, 2.2);
+      core.addColorStop(0, '#fffbe6');
+      core.addColorStop(0.5, '#fbbf24');
+      core.addColorStop(1, '#b45309');
+      ctx.fillStyle = core;
       ctx.beginPath();
-      ctx.moveTo(x - 1, y);
-      ctx.quadraticCurveTo(x, y - 1.1, x + 1, y);
-      ctx.quadraticCurveTo(x, y + 1.1, x - 1, y);
+      ctx.arc(x, y, 2.2, 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = '#7c2d12';
+      ctx.lineWidth = 0.4;
+      ctx.stroke();
     }
     ctx.restore();
   }
@@ -1835,7 +1925,7 @@ export class Scene {
 
   _handAt(t, mx, my) {
     const pose = this._pose(t), a = turnOf(pose.angle, HERO_TURN_STEPS) * Math.PI * 2 / HERO_TURN_STEPS;
-    const dx = (mx - 16) * MODEL_UNIT, dy = (my - 16) * MODEL_UNIT;
+    const u = MODEL_UNIT * sizeOf(t.look), dx = (mx - HERO_X) * u, dy = (my - HERO_Y) * u;
     return [at(pose.x) + dx * Math.cos(a) - dy * Math.sin(a), at(pose.y) - (pose.lift || 0) + dx * Math.sin(a)
       + dy * Math.cos(a)];
   }
@@ -1932,7 +2022,7 @@ export class Scene {
   }
 
   _hand(t, x, y, facing) {
-    const [dx, dy] = SWORD.hand, u = MODEL_UNIT * ANGEL_BODY;
+    const dx = SWORD.hand[0] - HERO_X, dy = SWORD.hand[1] - HERO_Y, u = MODEL_UNIT * ANGEL_BODY;
     return [x + (dx * Math.cos(facing) - dy * Math.sin(facing)) * u, y + (dx * Math.sin(facing) + dy * Math.cos(facing)) * u];
   }
 
@@ -2073,8 +2163,8 @@ export class Scene {
 
   _vigil(ctx, e, share) {
     const pose = this._pose(e.tower), facing = turnOf(pose.angle, HERO_TURN_STEPS) * Math.PI * 2 / HERO_TURN_STEPS;
-    const x = at(pose.x) + Math.sin(facing) * 5.6 * MODEL_UNIT * ANGEL_BODY;
-    const y = at(pose.y) - Math.cos(facing) * 5.6 * MODEL_UNIT * ANGEL_BODY;
+    const hilt = (HERO_Y - 10.4) * MODEL_UNIT * ANGEL_BODY;
+    const x = at(pose.x) + Math.sin(facing) * hilt, y = at(pose.y) - Math.cos(facing) * hilt;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     glow(ctx, x, y, 8 + 26 * share, HOLY_LIGHT.warm, 0.35 + 0.5 * share);
@@ -2104,7 +2194,7 @@ export class Scene {
 
   _rod(ctx, t, x, y, facing, out) {
     const pose = this._pose(t), job = pose.staff, u = MODEL_UNIT;
-    const [rx, ry] = STAFF_ROD.rear, px = x + (rx * Math.cos(facing) - ry * Math.sin(facing)) * u;
+    const rx = STAFF_ROD.rear[0] - HERO_X, ry = STAFF_ROD.rear[1] - HERO_Y, px = x + (rx * Math.cos(facing) - ry * Math.sin(facing)) * u;
     const py = y + (rx * Math.sin(facing) + ry * Math.cos(facing)) * u;
     const spot = job.mob && !job.mob.dead ? this.shown.get(job.mob.id) || job.mob : null;
     const tx = spot ? at(spot.x) : at(job.x2), ty = spot ? at(spot.y) - (spot.lift || 0) : at(job.y2);

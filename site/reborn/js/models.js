@@ -28,12 +28,13 @@ function ramp(color) {
 }
 
 class Model {
-  constructor(size, k, center = size / 2) {
+  constructor(size, k, center = size / 2, centerY = center) {
     this.reload = -1;
     this.w = size;
     this.h = size;
     this.k = k;
     this.center = center;
+    this.centerY = centerY;
     this.pad = Math.ceil(size * PAD);
     this.side = size + this.pad * 2;
     const cells = this.side * this.side;
@@ -45,7 +46,7 @@ class Model {
   }
 
   place(x, y) {
-    return [this.pad + this.w / 2 + (x - this.center) * this.k, this.pad + this.h / 2 + (y - this.center) * this.k];
+    return [this.pad + this.w / 2 + (x - this.center) * this.k, this.pad + this.h / 2 + (y - this.centerY) * this.k];
   }
 
   plot(x, y, z, color, n, flat, gloss) {
@@ -1448,15 +1449,18 @@ export const MUZZLES = {
 export const RELOAD_FRAMES = RELOAD.frames;
 
 export const FINE_HEROES = /^(priest|sorceress)/;
-export const ANGEL_BODY = 0.8;
-const COMPACT = new Map(['w0', 'w1', 'w2', 'w3', 'kneel'].map((frame) => ['priest-angel-' + frame, ANGEL_BODY]));
+export const ANGEL_BODY = 0.62;
+export const HERO = { scale: 1.3, center: [16, 18] };
+export const sizeOf = (id) => (/^priest-angel-/.test(id) ? ANGEL_BODY : /^sorceress/.test(id) ? 1.2 : 1);
 
 export function drawHero(id, reload = -1) {
-  const fine = FINE_HEROES.test(id) ? 2 : 1, m = new Model(32 * fine, 1.08 * fine * (COMPACT.get(id) || 1), 16);
+  const fine = FINE_HEROES.test(id) ? 2 : 1;
+  const m = new Model(40 * fine, 1.08 * fine * HERO.scale * sizeOf(id), HERO.center[0], HERO.center[1]);
   m.reload = reload;
   HEROES[id](m);
   const canvas = m.paint();
   canvas.fine *= fine;
+  canvas.span = 32 * fine * HERO.scale;
   return canvas;
 }
 

@@ -1,4 +1,4 @@
-import { HERO_IDS, drawHero, drawPhoenix } from './models.js';
+import { HERO, HERO_IDS, drawHero, drawPhoenix } from './models.js';
 import { MOB_IDS, drawMelt, drawMob, drawSplit, gooColor } from './monsters.js';
 import { drawCauldron, drawClod, drawCocoon, drawBird, drawHawk, drawSnare, drawTrap, drawCoinIcon, drawDrone, drawEmblem, drawFireball, drawGrenade, drawHeart,
   drawMeteor, drawMound, drawNuke, drawVent, drawRocket, drawWall } from './props.js';
@@ -112,7 +112,7 @@ class Pix {
   }
 }
 
-export const HERO_SIZE = 16;
+export const HERO_SIZE = 16 * HERO.scale;
 
 const cache = new Map();
 const owned = new WeakMap();

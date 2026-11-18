@@ -1436,6 +1436,14 @@ test('менестрель, песнь сирен: 3 секунды все вр�
   ok(mob.d > back, 'песня кончилась — снова вперёд');
 });
 
+test('менестрель, песнь сирен: только что вышедшие не уходят назад в пещеру и за карту', () => {
+  const battle = makeBattle();
+  sorc(battle, 2, 2, ['minstrel', 'siren']);
+  const fresh = walker(battle, 1.2, 1e9);
+  runFor(battle, SONG.time);
+  ok(fresh.x >= 0 && !battle.covered(fresh.x, fresh.y), 'на поле: ' + fresh.x.toFixed(2));
+});
+
 test('менестрель, похоронный марш: 3 секунды все враги на карте теряют здоровье', () => {
   const battle = makeBattle(), t = sorc(battle, 2, 2, ['minstrel', 'dirge']);
   const near1 = walker(battle, 3, 1e9), far = walker(battle, 18, 1e9);
