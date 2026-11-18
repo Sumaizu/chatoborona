@@ -1,4 +1,4 @@
-import { Battle } from './battle.js';
+import { Battle, flier } from './battle.js';
 import { makeMap, parseCell, parseMove } from './field.js';
 import { CLASSES, CLASS_BY_ID, STONE_CHANCE, choiceOf, skillOf, skinOf, stonesAt } from './classes.js';
 import { FINALE, LEVEL_MAX, SLEEP_AFTER, TICK, levelOf, rollTempo, waveReward } from './balance.js';
@@ -591,7 +591,7 @@ export class Game {
   }
 
   _place(member, cell = null) {
-    if (cell && !this.battle.free(cell.x, cell.y)) return null;
+    if (cell && !this.battle.free(cell.x, cell.y, flier(member.skills))) return null;
     const spot = cell || this.battle.randomCell(NEAR_PATH);
     if (!spot) return null;
     member.tower = this.battle.place(member, member.cls, spot.x, spot.y, this.modsOf(member));
@@ -884,7 +884,7 @@ export class Game {
     member.quiet = 0;
     if (!member.asleep || !this.battle) return;
     member.asleep = false;
-    const free = (spot) => (spot && this.battle.free(spot.x, spot.y) ? spot : null);
+    const free = (spot) => (spot && this.battle.free(spot.x, spot.y, flier(member.skills)) ? spot : null);
     this._place(member, free(cell) || free(member.seat));
     if (member.tower && member.held) Object.assign(member.tower.run, member.held);
     member.held = null;

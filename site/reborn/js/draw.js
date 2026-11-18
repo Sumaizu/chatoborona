@@ -127,11 +127,14 @@ const HEAT = { warm: ['rgba(255, 110, 30, .9)', 'rgba(255, 220, 120, .9)'],
   holy: ['rgba(250, 204, 21, .9)', 'rgba(255, 251, 230, .95)'],
   azure: ['rgba(56, 189, 248, .9)', 'rgba(224, 247, 255, .95)'] };
 const TOTEM_LOOKS = {
-  slow: { aura: '244, 114, 182', cloth: ['#f9a8d4', '#db2777'], edge: '#fce7f3' },
-  purge: { aura: '226, 232, 240', cloth: ['#f3f4f6', '#9ca3af'], edge: '#ffffff' },
-  power: { aura: '220, 38, 38', cloth: ['#ef4444', '#7f1d1d'], edge: '#fca5a5' } };
+  slow: { aura: '244, 114, 182', cloth: ['#fbcfe8', '#ec4899', '#9d174d'], shade: '80, 7, 36', deep: '#500724',
+    trim: '#fdf2f8', edge: '#fce7f3', feather: ['#fdf2f8', '#f472b6'], gem: ['#fbcfe8', '#be185d'] },
+  purge: { aura: '226, 232, 240', ray: '160, 196, 240', cloth: ['#ffffff', '#e2e8f0', '#94a3b8'], shade: '30, 41, 59', deep: '#334155',
+    trim: '#93c5fd', edge: '#ffffff', feather: ['#ffffff', '#cbd5e1'], gem: ['#e0f2fe', '#0ea5e9'] },
+  power: { aura: '220, 38, 38', cloth: ['#f87171', '#dc2626', '#7f1d1d'], shade: '50, 4, 4', deep: '#450a0a',
+    trim: '#fbbf24', edge: '#fca5a5', feather: ['#fca5a5', '#991b1b'], gem: ['#fecaca', '#b91c1c'] } };
 const SPELLS = { wave: 7, chord: '94, 234, 212', shock: '251, 191, 36', lute: 'rgba(45, 212, 191, 1)',
-  wisp: 'rgba(196, 181, 253, 1)', act: 0.32, strum: 0.3, beat: 0.28, play: 5,
+  wisp: 'rgba(196, 181, 253, 1)', chevron: 8, act: 0.32, strum: 0.3, beat: 0.28, play: 5,
   songs: { siren: 'rgba(244, 114, 182, 1)', dirge: 'rgba(185, 28, 28, 1)' },
   notes: { siren: '#f9a8d4', dirge: '#dc2626', anthem: '#fde68a' } };
 const HOLY_LIGHT = { core: 'rgba(255, 251, 230, 1)', warm: 'rgba(253, 224, 120, 1)', ray: 'rgba(255, 244, 200, ',
@@ -159,6 +162,310 @@ const RESOLUTION_MAX = 2.5;
 const HERO_TURN_STEPS = 32;
 const LABELS_MAX = 400;
 const piles = new WeakMap();
+const FLAG = { q: 4, margin: 4, strip: 1 };
+const WRAPS = { slow: ['#3f0d24', '#9d4b6e'], purge: ['#1e293b', '#94a3b8'], power: ['#2a0606', '#8b2c2c'] };
+const flagCloths = new Map();
+const flagSheets = new Map();
+
+function smoothNoise(x, y, seed) {
+  const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi;
+  const h = (a, b) => noise(a * 57 + b * 131, seed);
+  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+  const upper = h(xi, yi) + (h(xi + 1, yi) - h(xi, yi)) * sx;
+  const lower = h(xi, yi + 1) + (h(xi + 1, yi + 1) - h(xi, yi + 1)) * sx;
+  return upper + (lower - upper) * sy;
+}
+
+const FLAG_SHAPES = {
+  slow: { w: 13, h: 20, edge: (g) => {
+    g.moveTo(0, 0);
+    g.lineTo(13, 0);
+    g.quadraticCurveTo(13.4, 8, 12.6, 15);
+    const tears = [[12.9, 19.4], [11.6, 15.8], [10.6, 18.8], [9.7, 16.4], [8.4, 20.2], [7.1, 15.6], [6.2, 17.9],
+      [5.2, 15.4], [4, 19.6], [2.9, 16.2], [1.6, 18.4], [0.6, 15.6]];
+    for (const [tx, ty] of tears) g.lineTo(tx, ty);
+    g.quadraticCurveTo(-0.4, 8, 0, 0);
+  }, holes: [[3.4, 11.6, 0.7, 0.45], [9.8, 13.2, 0.5, 0.8]] },
+  purge: { w: 12, h: 21, edge: (g) => {
+    g.moveTo(0, 0);
+    g.lineTo(12, 0);
+    g.bezierCurveTo(12.4, 6, 11.4, 13, 11.8, 21);
+    g.quadraticCurveTo(8.2, 16.8, 6, 13.4);
+    g.quadraticCurveTo(3.8, 16.8, 0.2, 21);
+    g.bezierCurveTo(0.6, 13, -0.4, 6, 0, 0);
+  }, holes: [] },
+  power: { w: 14, h: 20, edge: (g) => {
+    g.moveTo(0, 0);
+    g.lineTo(14, 0);
+    g.quadraticCurveTo(15.2, 8, 14.2, 14.6);
+    g.quadraticCurveTo(14.8, 18, 13.2, 20.2);
+    g.quadraticCurveTo(12.6, 16.4, 10.4, 15.2);
+    g.quadraticCurveTo(9.4, 18.6, 7.2, 21);
+    g.quadraticCurveTo(6.2, 17, 3.8, 15.2);
+    g.quadraticCurveTo(2.4, 17.4, 0.8, 20.2);
+    g.quadraticCurveTo(-0.8, 17, -0.2, 14.6);
+    g.quadraticCurveTo(-1.2, 8, 0, 0);
+  }, holes: [[11.2, 6.4, 0.45, 0.6]] },
+};
+
+function flagCloth(kind) {
+  if (flagCloths.has(kind)) return flagCloths.get(kind);
+  const look = TOTEM_LOOKS[kind], shape = FLAG_SHAPES[kind], q = FLAG.q, pad = 2 * q;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.ceil(shape.w * q) + pad * 2;
+  canvas.height = Math.ceil((shape.h + 1.5) * q);
+  canvas.w = shape.w;
+  canvas.h = shape.h + 1.5;
+  canvas.pad = pad;
+  canvas.shade = look.shade;
+  const g = canvas.getContext('2d');
+  g.setTransform(q, 0, 0, q, pad, 0);
+  g.beginPath();
+  shape.edge(g);
+  g.closePath();
+  g.save();
+  g.clip();
+  const body = g.createLinearGradient(0, 0, 0, shape.h);
+  body.addColorStop(0, look.cloth[0]);
+  body.addColorStop(0.7, look.cloth[1]);
+  body.addColorStop(1, look.cloth[2]);
+  g.fillStyle = body;
+  g.fillRect(-2, 0, shape.w + 4, shape.h + 2);
+  const sleeve = g.createLinearGradient(0, 0, 0, 2.6);
+  sleeve.addColorStop(0, 'rgba(' + look.shade + ', .55)');
+  sleeve.addColorStop(1, 'rgba(' + look.shade + ', .15)');
+  g.fillStyle = sleeve;
+  g.fillRect(-2, 0, shape.w + 4, 2.6);
+  g.strokeStyle = look.trim;
+  g.lineWidth = 0.45;
+  g.beginPath();
+  g.moveTo(-1, 2.8);
+  g.lineTo(shape.w + 1, 2.8);
+  g.stroke();
+  g.setLineDash([0.6, 0.5]);
+  g.strokeStyle = 'rgba(' + look.shade + ', .8)';
+  g.lineWidth = 0.22;
+  g.stroke();
+  g.setLineDash([]);
+  EMBLEMS[kind](g, shape.w / 2, shape.h * 0.45);
+  g.restore();
+  g.save();
+  g.globalCompositeOperation = 'destination-out';
+  for (const [hx, hy, rx, ry] of shape.holes) {
+    g.beginPath();
+    g.ellipse(hx, hy, rx, ry, 0.6, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.restore();
+  const image = g.getImageData(0, 0, canvas.width, canvas.height), data = image.data;
+  for (let y = 0; y < canvas.height; y++) {
+    for (let x = 0; x < canvas.width; x++) {
+      const i = (y * canvas.width + x) * 4;
+      if (!data[i + 3]) continue;
+      const broad = smoothNoise(x / (2.2 * q), y / (2.2 * q), 3), fine = smoothNoise(x / (0.6 * q), y / (0.6 * q), 5);
+      const weave = ((x >> 1) + (y >> 1)) % 2 ? 0.035 : -0.035, wear = y / canvas.height;
+      const k = 0.86 + broad * 0.22 + (fine - 0.5) * 0.12 + weave - wear * wear * 0.18;
+      for (let c = 0; c < 3; c++) data[i + c] = Math.max(0, Math.min(255, data[i + c] * k));
+    }
+  }
+  g.putImageData(image, 0, 0);
+  g.setTransform(q, 0, 0, q, pad, 0);
+  g.beginPath();
+  shape.edge(g);
+  g.closePath();
+  g.strokeStyle = look.deep;
+  g.lineWidth = 0.4;
+  g.stroke();
+  if (kind === 'slow') {
+    g.strokeStyle = 'rgba(' + look.shade + ', .7)';
+    g.lineWidth = 0.16;
+    for (const [tx, ty, dx, dy] of [[8.4, 20.2, -0.3, 1.2], [4, 19.6, 0.4, 1.1], [12.9, 19.4, 0.2, 1], [1.6, 18.4, -0.4, 0.9]]) {
+      g.beginPath();
+      g.moveTo(tx, ty - 0.3);
+      g.quadraticCurveTo(tx + dx, ty + dy * 0.5, tx + dx * 0.4, ty + dy);
+      g.stroke();
+    }
+  }
+  flagCloths.set(kind, canvas);
+  return canvas;
+}
+
+function flagSheet(cloth) {
+  if (!flagSheets.has(cloth)) {
+    const sheet = document.createElement('canvas');
+    sheet.width = cloth.width + FLAG.margin * 2 * FLAG.q;
+    sheet.height = cloth.height;
+    flagSheets.set(cloth, sheet);
+  }
+  return flagSheets.get(cloth);
+}
+
+const EMBLEMS = {
+  slow: (g, x, y) => {
+    g.lineJoin = 'round';
+    const glass = g.createLinearGradient(x - 3, 0, x + 3, 0);
+    glass.addColorStop(0, 'rgba(255, 240, 250, .5)');
+    glass.addColorStop(0.35, 'rgba(255, 255, 255, .85)');
+    glass.addColorStop(1, 'rgba(250, 205, 230, .45)');
+    const bulb = () => {
+      g.beginPath();
+      g.moveTo(x - 2.9, y - 4);
+      g.bezierCurveTo(x - 2.9, y - 1.6, x - 0.5, y - 0.9, x - 0.5, y);
+      g.bezierCurveTo(x - 0.5, y + 0.9, x - 2.9, y + 1.6, x - 2.9, y + 4);
+      g.lineTo(x + 2.9, y + 4);
+      g.bezierCurveTo(x + 2.9, y + 1.6, x + 0.5, y + 0.9, x + 0.5, y);
+      g.bezierCurveTo(x + 0.5, y - 0.9, x + 2.9, y - 1.6, x + 2.9, y - 4);
+      g.closePath();
+    };
+    bulb();
+    g.fillStyle = glass;
+    g.fill();
+    g.save();
+    bulb();
+    g.clip();
+    const sand = g.createLinearGradient(0, y, 0, y + 4);
+    sand.addColorStop(0, '#fde68a');
+    sand.addColorStop(1, '#d97706');
+    g.fillStyle = sand;
+    g.beginPath();
+    g.moveTo(x - 3, y + 4);
+    g.quadraticCurveTo(x, y + 0.9, x + 3, y + 4);
+    g.fill();
+    g.beginPath();
+    g.moveTo(x - 1.7, y - 2.2);
+    g.quadraticCurveTo(x, y - 1.6, x + 1.7, y - 2.2);
+    g.lineTo(x + 0.6, y - 0.4);
+    g.lineTo(x - 0.6, y - 0.4);
+    g.closePath();
+    g.fill();
+    g.fillRect(x - 0.16, y - 0.6, 0.32, 3);
+    g.restore();
+    bulb();
+    g.strokeStyle = '#500724';
+    g.lineWidth = 0.4;
+    g.stroke();
+    for (const cy of [y - 4.4, y + 4.4]) {
+      const cap = g.createLinearGradient(0, cy - 0.6, 0, cy + 0.6);
+      cap.addColorStop(0, '#c08a4f');
+      cap.addColorStop(1, '#3b2410');
+      g.fillStyle = cap;
+      g.beginPath();
+      g.ellipse(x, cy, 3.7, 0.75, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.fillStyle = '#5a3718';
+    for (const side of [-1, 1]) g.fillRect(x + side * 3.2 - 0.25, y - 4.2, 0.5, 8.4);
+  },
+  purge: (g, x, y) => {
+    g.lineJoin = 'round';
+    const shield = (dx) => {
+      g.beginPath();
+      g.moveTo(x + dx - 3.6, y - 4.2);
+      g.lineTo(x + dx + 3.6, y - 4.2);
+      g.bezierCurveTo(x + dx + 3.6, y + 0.6, x + dx + 2, y + 3.2, x + dx, y + 4.6);
+      g.bezierCurveTo(x + dx - 2, y + 3.2, x + dx - 3.6, y + 0.6, x + dx - 3.6, y - 4.2);
+      g.closePath();
+    };
+    const steel = g.createLinearGradient(x - 3.6, y - 4, x + 3.6, y + 4);
+    steel.addColorStop(0, '#94a3b8');
+    steel.addColorStop(0.4, '#475569');
+    steel.addColorStop(1, '#0f172a');
+    for (const [side, dx] of [[-1, -0.45], [1, 0.45]]) {
+      g.save();
+      g.beginPath();
+      if (side < 0) {
+        g.moveTo(x - 6, y - 6);
+        g.lineTo(x + 0.4, y - 6);
+        g.lineTo(x - 0.6, y - 2);
+        g.lineTo(x + 0.7, y + 0.6);
+        g.lineTo(x - 0.4, y + 6);
+        g.lineTo(x - 6, y + 6);
+      } else {
+        g.moveTo(x + 6, y - 6);
+        g.lineTo(x + 0.4, y - 6);
+        g.lineTo(x - 0.6, y - 2);
+        g.lineTo(x + 0.7, y + 0.6);
+        g.lineTo(x - 0.4, y + 6);
+        g.lineTo(x + 6, y + 6);
+      }
+      g.closePath();
+      g.translate(dx, side * 0.25);
+      g.clip();
+      shield(0);
+      g.fillStyle = steel;
+      g.fill();
+      g.strokeStyle = '#e2e8f0';
+      g.lineWidth = 0.55;
+      g.stroke();
+      g.restore();
+    }
+    g.strokeStyle = '#7dd3fc';
+    g.lineWidth = 0.35;
+    g.beginPath();
+    g.moveTo(x + 0.4, y - 4.6);
+    g.lineTo(x - 0.6, y - 2);
+    g.lineTo(x + 0.7, y + 0.6);
+    g.lineTo(x - 0.4, y + 4.8);
+    g.stroke();
+    g.fillStyle = 'rgba(224, 242, 254, .9)';
+    for (const [sx, sy] of [[-1.6, -1.2], [1.8, 1.8], [-1.2, 2.6]]) {
+      g.beginPath();
+      g.moveTo(x + sx, y + sy - 0.6);
+      g.lineTo(x + sx + 0.25, y + sy);
+      g.lineTo(x + sx, y + sy + 0.6);
+      g.lineTo(x + sx - 0.25, y + sy);
+      g.closePath();
+      g.fill();
+    }
+  },
+  power: (g, x, y) => {
+    g.lineJoin = 'round';
+    const rays = g.createRadialGradient(x, y - 1, 0.5, x, y - 1, 6);
+    rays.addColorStop(0, 'rgba(255, 236, 170, .55)');
+    rays.addColorStop(1, 'rgba(255, 236, 170, 0)');
+    g.fillStyle = rays;
+    g.beginPath();
+    g.arc(x, y - 1, 6, 0, Math.PI * 2);
+    g.fill();
+    const blade = g.createLinearGradient(x - 1, 0, x + 1, 0);
+    blade.addColorStop(0, '#9ca3af');
+    blade.addColorStop(0.48, '#ffffff');
+    blade.addColorStop(0.52, '#cbd5e1');
+    blade.addColorStop(1, '#4b5563');
+    g.fillStyle = blade;
+    g.beginPath();
+    g.moveTo(x, y - 6);
+    g.lineTo(x + 1.05, y - 4.4);
+    g.lineTo(x + 0.9, y + 2.2);
+    g.lineTo(x - 0.9, y + 2.2);
+    g.lineTo(x - 1.05, y - 4.4);
+    g.closePath();
+    g.fill();
+    g.strokeStyle = '#1f2937';
+    g.lineWidth = 0.3;
+    g.stroke();
+    const gold = g.createLinearGradient(0, y + 2, 0, y + 3.2);
+    gold.addColorStop(0, '#fde68a');
+    gold.addColorStop(1, '#b45309');
+    g.fillStyle = gold;
+    g.beginPath();
+    g.moveTo(x - 3.4, y + 2.1);
+    g.quadraticCurveTo(x, y + 1.5, x + 3.4, y + 2.1);
+    g.lineTo(x + 3, y + 3.1);
+    g.quadraticCurveTo(x, y + 2.7, x - 3, y + 3.1);
+    g.closePath();
+    g.fill();
+    g.stroke();
+    g.fillStyle = '#3b1d0b';
+    g.fillRect(x - 0.55, y + 3.1, 1.1, 2.6);
+    g.fillStyle = gold;
+    g.beginPath();
+    g.arc(x, y + 6.2, 0.85, 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+  },
+};
+
 const glows = new Map();
 
 const at = (v) => EDGE + v * CELL;
@@ -1131,7 +1438,7 @@ export class Scene {
   }
 
   _muzzle(t, hand = 0) {
-    const pose = this._pose(t), points = MUZZLES[t.look] || MUZZLES[t.cls.id] || [[16, 4]];
+    const pose = this._pose(t), points = MUZZLES[pose.look] || MUZZLES[t.look] || MUZZLES[t.cls.id] || [[16, 4]];
     const [mx, my] = points[Math.min(hand, points.length - 1)];
     const a = turnOf(pose.angle, HERO_TURN_STEPS) * (Math.PI * 2 / HERO_TURN_STEPS);
     const u = MODEL_UNIT * sizeOf(t.look), dx = (mx - HERO_X) * u, dy = (my - HERO_Y) * u;
@@ -1604,7 +1911,7 @@ export class Scene {
 
   _halo(ctx, t, x, y) {
     const a = turnOf(this._pose(t).angle, HERO_TURN_STEPS) * Math.PI * 2 / HERO_TURN_STEPS;
-    const back = (HERO_Y - 17.8) * MODEL_UNIT * (t.style === 'angel' ? ANGEL_BODY : 1);
+    const back = (HERO_Y - 17.8) * MODEL_UNIT * sizeOf(t.look);
     const hx = x - Math.sin(a) * back, hy = y + Math.cos(a) * back, rings = t.style === 'angel' ? [6.5] : [5.5, 8];
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -1655,209 +1962,372 @@ export class Scene {
 
   _totem(ctx, banner) {
     const look = TOTEM_LOOKS[banner.kind], x = at(banner.cx), y = at(banner.cy), r = SPELL.totem.radius * CELL;
-    const seed = banner.seed * 10, flash = banner.flashAt ? Math.max(0, 1 - (this.clock - banner.flashAt) / 0.5) : 0;
+    const flash = banner.flashAt ? Math.max(0, 1 - (this.clock - banner.flashAt) / 0.5) : 0;
     ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    glow(ctx, x, y, r, 'rgba(' + look.aura + ', 1)', 0.07 + 0.02 * Math.sin(this.clock * 1.4 + seed) + 0.2 * flash);
-    rim(ctx, x, y, r, look.aura, 0.26);
-    for (let i = 0; i < 7; i++) {
-      const k = (this.clock * 0.2 + noise(i, seed) + i / 7) % 1, a = i * 0.9 + seed + noise(i + 9, seed);
-      const d = r * (0.2 + 0.72 * noise(i + 17, seed)), px = x + Math.cos(a) * d, py = y + Math.sin(a) * d - k * 14;
-      glow(ctx, px, py, 5.5, 'rgba(' + look.aura + ', 1)', 0.65 * Math.sin(k * Math.PI));
-      glow(ctx, px, py, 2, 'rgba(255, 250, 250, 1)', 0.7 * Math.sin(k * Math.PI));
-    }
+    ctx.beginPath();
+    ctx.rect(EDGE, EDGE, CELL * SIZE, CELL * SIZE);
+    ctx.clip();
+    if (banner.kind === 'slow') this._mist(ctx, x, y, r, banner, look, flash);
+    else if (banner.kind === 'purge') this._radiance(ctx, x, y, r, banner, look, flash);
+    else this._embers(ctx, x, y, r, banner, look, flash);
     ctx.restore();
     this._standard(ctx, x, y + 7, banner, look, flash);
   }
 
-  _standard(ctx, x, foot, banner, look, flash) {
-    const top = foot - 30, sway = Math.sin(this.clock * 2.2 + banner.seed * 9) * 1.1, w = 13, h = 18, cy = top + 6;
-    const left = x - w / 2, right = x + w / 2, bottom = cy + h;
-    ctx.save();
-    ctx.fillStyle = 'rgba(0, 0, 0, .3)';
-    ctx.beginPath();
-    ctx.ellipse(x + 2, foot, 6, 2.2, 0, 0, Math.PI * 2);
-    ctx.fill();
-    const pole = ctx.createLinearGradient(x - 1.1, 0, x + 1.1, 0);
-    pole.addColorStop(0, '#15181c');
-    pole.addColorStop(0.45, '#6b7280');
-    pole.addColorStop(1, '#101215');
-    ctx.fillStyle = pole;
-    ctx.beginPath();
-    ctx.moveTo(x - 1.1, top + 2);
-    ctx.lineTo(x + 1.1, top + 2);
-    ctx.lineTo(x + 1.1, foot - 2.5);
-    ctx.lineTo(x, foot + 1.5);
-    ctx.lineTo(x - 1.1, foot - 2.5);
-    ctx.closePath();
-    ctx.fill();
-    const edge = (k) => sway * k * k;
-    const shape = () => {
-      ctx.beginPath();
-      ctx.moveTo(left + 1.5, cy);
-      ctx.lineTo(right - 1.5, cy);
-      ctx.lineTo(right, cy + 1.5);
-      ctx.quadraticCurveTo(right + edge(0.5) + 0.6, cy + h * 0.5, right + edge(1), bottom);
-      ctx.lineTo(x + edge(1), bottom - 3.6);
-      ctx.lineTo(left + edge(1), bottom);
-      ctx.quadraticCurveTo(left + edge(0.5) - 0.6, cy + h * 0.5, left, cy + 1.5);
-      ctx.closePath();
-    };
-    shape();
-    const cloth = ctx.createLinearGradient(0, cy, 0, bottom);
-    cloth.addColorStop(0, look.cloth[0]);
-    cloth.addColorStop(1, look.cloth[1]);
-    ctx.fillStyle = cloth;
-    ctx.fill();
-    ctx.save();
-    shape();
-    ctx.clip();
-    const folds = ctx.createLinearGradient(left, 0, right, 0);
-    for (const [stop, alpha] of [[0, 0.32], [0.18, 0], [0.38, 0.18], [0.55, 0], [0.75, 0.2], [0.9, 0.02], [1, 0.34]]) {
-      folds.addColorStop(stop, 'rgba(10, 4, 8, ' + alpha + ')');
+  _mist(ctx, x, y, r, banner, look, flash) {
+    const seed = banner.seed * 10, spin = this.clock * 0.22 + seed, tint = 'rgba(' + look.aura + ', 1)';
+    glow(ctx, x, y, r, tint, 0.05 + 0.15 * flash);
+    for (let arm = 0; arm < 3; arm++) {
+      for (let i = 0; i < 9; i++) {
+        const f = (i + 1) / 10, a = spin + arm * Math.PI * 2 / 3 + f * 2.8, d = r * f;
+        glow(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.92, 6 + f * 10, tint, (0.5 - f * 0.28) * (1 + flash));
+      }
     }
-    ctx.fillStyle = folds;
-    ctx.fillRect(left - 3, cy, w + 6, h);
-    const sheen = ctx.createLinearGradient(left, cy, right, bottom);
-    sheen.addColorStop(0, 'rgba(255, 255, 255, .22)');
-    sheen.addColorStop(0.45, 'rgba(255, 255, 255, 0)');
-    ctx.fillStyle = sheen;
-    ctx.fillRect(left - 3, cy, w + 6, h);
-    ctx.restore();
-    ctx.strokeStyle = look.edge;
-    ctx.lineWidth = 0.8;
-    shape();
-    ctx.stroke();
-    this._sign(ctx, x + edge(0.45) * 0.7, cy + h * 0.44, banner.kind);
-    const bar = ctx.createLinearGradient(0, cy - 1.2, 0, cy + 1.2);
-    bar.addColorStop(0, '#9ca3af');
-    bar.addColorStop(1, '#1f2328');
-    ctx.fillStyle = bar;
+    for (let i = 0; i < 26; i++) {
+      const a = i * Math.PI * 2 / 26 - this.clock * 0.12 + seed, drift = smoothNoise(i * 0.7 + this.clock * 0.4, 3, seed);
+      const d = r * (0.9 + 0.12 * drift);
+      glow(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d, 8 + 5 * drift, tint, 0.32 + 0.24 * drift);
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 5; i++) {
+      const k = (this.clock * 0.08 + i / 5 + noise(i, seed)) % 1, a = noise(i + 7, seed) * Math.PI * 2;
+      const d = r * (0.25 + 0.6 * noise(i + 3, seed)), px = x + Math.cos(a) * d, py = y + Math.sin(a) * d + k * 8;
+      glow(ctx, px, py, 3, 'rgba(255, 228, 240, 1)', 0.55 * Math.sin(k * Math.PI));
+    }
+  }
+
+  _radiance(ctx, x, y, r, banner, look, flash) {
+    const seed = banner.seed * 10, turn = this.clock * 0.18 + seed;
+    glow(ctx, x, y, r, 'rgba(' + look.ray + ', 1)', 0.14 + 0.15 * flash);
+    for (let i = 0; i < 6; i++) {
+      const a = turn + i * Math.PI / 3 + 0.3 * Math.sin(this.clock * 0.6 + i), pulse = 0.6 + 0.4 * Math.sin(this.clock * 1.3 + i * 2);
+      for (let n = 1; n <= 7; n++) {
+        const f = n / 8, d = r * f;
+        glow(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d, 4 + f * 7, 'rgba(' + look.ray + ', 1)',
+          (0.6 - f * 0.45) * pulse * (1 + flash));
+      }
+    }
+    for (let i = 0; i < 18; i++) {
+      const a = i * Math.PI * 2 / 18 + turn * 0.5, twinkle = 0.5 + 0.5 * Math.sin(this.clock * 3 + i * 1.7 + seed);
+      const d = r * (0.94 + 0.05 * Math.sin(i * 2.1 + seed)), px = x + Math.cos(a) * d, py = y + Math.sin(a) * d;
+      glow(ctx, px, py, 5 + 3 * twinkle, 'rgba(' + look.ray + ', 1)', 0.45 + 0.3 * twinkle);
+      ctx.globalCompositeOperation = 'lighter';
+      glow(ctx, px, py, 2.5, 'rgba(255, 255, 255, 1)', 0.4 * twinkle);
+      if (twinkle > 0.75) this._twinkle(ctx, px, py, 2.6 * twinkle, 0.8 * (twinkle - 0.75) * 4);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 7; i++) {
+      const k = (this.clock * 0.35 + i / 7 + noise(i, seed)) % 1, a = noise(i + 5, seed) * Math.PI * 2;
+      const d = r * (0.15 + 0.75 * noise(i + 11, seed)), px = x + Math.cos(a) * d, py = y + Math.sin(a) * d - k * 16;
+      glow(ctx, px, py, 4, 'rgba(255, 255, 255, 1)', 0.5 * Math.sin(k * Math.PI));
+      glow(ctx, px, py, 1.5, 'rgba(255, 255, 255, 1)', 0.9 * Math.sin(k * Math.PI));
+    }
+  }
+
+  _twinkle(ctx, x, y, arm, alpha) {
+    ctx.strokeStyle = 'rgba(255, 255, 255, ' + alpha + ')';
+    ctx.lineWidth = 0.7;
     ctx.beginPath();
-    ctx.moveTo(left - 1.5, cy - 1);
-    ctx.lineTo(right + 1.5, cy - 1);
-    ctx.lineTo(right + 2.4, cy);
-    ctx.lineTo(right + 1.5, cy + 1);
-    ctx.lineTo(left - 1.5, cy + 1);
-    ctx.lineTo(left - 2.4, cy);
-    ctx.closePath();
+    ctx.moveTo(x - arm, y);
+    ctx.lineTo(x + arm, y);
+    ctx.moveTo(x, y - arm);
+    ctx.lineTo(x, y + arm);
+    ctx.stroke();
+  }
+
+  _embers(ctx, x, y, r, banner, look, flash) {
+    const seed = banner.seed * 10, beat = Math.pow(Math.max(0, Math.sin(this.clock * 5.2 + seed)), 6);
+    const ground = ctx.createRadialGradient(x, y, r * 0.2, x, y, r);
+    ground.addColorStop(0, 'rgba(' + look.aura + ', ' + (0.06 + 0.08 * beat + 0.15 * flash) + ')');
+    ground.addColorStop(0.75, 'rgba(' + look.aura + ', ' + (0.18 + 0.1 * beat) + ')');
+    ground.addColorStop(1, 'rgba(' + look.aura + ', 0)');
+    ctx.fillStyle = ground;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
-    for (const [dx, dy, long, wide] of [[0, -1, 7, 1.3], [1, -0.25, 4.5, 1], [-1, -0.25, 4.5, 1]]) {
-      const metal = ctx.createLinearGradient(x - 2, top, x + 2, top);
-      metal.addColorStop(0, '#2b2f36');
-      metal.addColorStop(0.5, '#9ca3af');
-      metal.addColorStop(1, '#22262c');
-      ctx.fillStyle = metal;
+    for (let i = 0; i < 30; i++) {
+      const a = i * Math.PI * 2 / 30 + seed, lick = smoothNoise(i * 0.9, this.clock * 2.6, seed);
+      const tall = 6 + 10 * lick + 4 * beat, wide = 2.6 + lick, cx = Math.cos(a), cy = Math.sin(a);
+      const bx = x + cx * r * 0.93, by = y + cy * r * 0.93, tx = bx + cx * tall * 0.5, ty = by + cy * tall * 0.5 - tall * 0.6;
+      const flame = ctx.createLinearGradient(bx, by, tx, ty);
+      flame.addColorStop(0, 'rgba(255, 150, 50, ' + (0.75 + 0.2 * lick) + ')');
+      flame.addColorStop(0.5, 'rgba(' + look.aura + ', ' + (0.6 + 0.2 * lick) + ')');
+      flame.addColorStop(1, 'rgba(' + look.aura + ', 0)');
+      ctx.fillStyle = flame;
       ctx.beginPath();
-      ctx.moveTo(x - dy * wide, top + 1 + dx * wide);
-      ctx.lineTo(x + dx * long, top + 1 + dy * long);
-      ctx.lineTo(x + dy * wide, top + 1 - dx * wide);
+      ctx.moveTo(bx - cy * wide, by + cx * wide);
+      ctx.quadraticCurveTo(bx + cx * tall * 0.3 - cy * wide * 0.6, by + cy * tall * 0.3 - tall * 0.2, tx, ty);
+      ctx.quadraticCurveTo(bx + cx * tall * 0.3 + cy * wide * 0.6, by + cy * tall * 0.3 - tall * 0.2,
+        bx + cy * wide, by - cx * wide);
       ctx.closePath();
       ctx.fill();
     }
-    const gem = ctx.createRadialGradient(x - 0.5, top + 0.5, 0.2, x, top + 1, 2.2);
-    gem.addColorStop(0, '#ffffff');
-    gem.addColorStop(0.35, 'rgba(' + look.aura + ', 1)');
-    gem.addColorStop(1, 'rgba(20, 8, 12, 1)');
-    ctx.fillStyle = gem;
-    ctx.beginPath();
-    ctx.ellipse(x, top + 1, 1.9, 2.3, 0, 0, Math.PI * 2);
-    ctx.fill();
     ctx.globalCompositeOperation = 'lighter';
-    glow(ctx, x, top + 1, 4 + 2.5 * flash, 'rgba(' + look.aura + ', 1)', 0.55 + 0.35 * flash);
+    for (let i = 0; i < 9; i++) {
+      const k = (this.clock * 0.45 + i / 9 + noise(i, seed)) % 1, a = noise(i + 4, seed) * Math.PI * 2;
+      const d = r * (0.1 + 0.85 * noise(i + 8, seed)), sway = Math.sin(this.clock * 3 + i) * 3 * k;
+      const px = x + Math.cos(a) * d + sway, py = y + Math.sin(a) * d - k * 20;
+      glow(ctx, px, py, 3.5, 'rgba(255, 120, 40, 1)', 0.6 * Math.sin(k * Math.PI));
+      glow(ctx, px, py, 1.3, 'rgba(255, 230, 160, 1)', 0.95 * Math.sin(k * Math.PI));
+    }
+  }
+
+  _standard(ctx, x, foot, banner, look, flash) {
+    const cloth = flagCloth(banner.kind), top = foot - 32, sway = Math.sin(this.clock * 2.1 + banner.seed * 9);
+    const left = x - cloth.w / 2, hang = top + 5.5;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, .32)';
+    ctx.beginPath();
+    ctx.ellipse(x + 2, foot, 6.5, 2.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    this._pole(ctx, x, top, foot, banner.kind);
+    const sheet = this._flagSheet(cloth, sway, banner.seed);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(sheet, left - FLAG.margin, hang, sheet.width / FLAG.q, sheet.height / FLAG.q);
+    ctx.imageSmoothingEnabled = false;
+    this._crossbar(ctx, x, hang + 1.2, cloth.w, sway, look);
+    this._finial(ctx, x, top, banner.kind, look, flash);
     ctx.restore();
   }
 
-  _sign(ctx, x, y, kind) {
-    ctx.save();
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    const disc = ctx.createRadialGradient(x, y, 0.5, x, y, 5);
-    disc.addColorStop(0, 'rgba(255, 255, 255, .28)');
-    disc.addColorStop(1, 'rgba(255, 255, 255, 0)');
-    ctx.fillStyle = disc;
+  _pole(ctx, x, top, foot, kind) {
+    const half = 1.15, wood = ctx.createLinearGradient(x - half, 0, x + half, 0);
+    wood.addColorStop(0, '#1c1008');
+    wood.addColorStop(0.3, '#6b4220');
+    wood.addColorStop(0.45, '#b07a42');
+    wood.addColorStop(0.62, '#5a3718');
+    wood.addColorStop(1, '#140a04');
+    ctx.fillStyle = wood;
     ctx.beginPath();
-    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.moveTo(x - half * 0.85, top + 2);
+    ctx.lineTo(x + half * 0.85, top + 2);
+    ctx.lineTo(x + half, foot - 3);
+    ctx.lineTo(x - half, foot - 3);
+    ctx.closePath();
     ctx.fill();
-    if (kind === 'slow') {
-      for (let n = 0; n < 5; n++) {
-        const a = n * Math.PI * 2 / 5 - Math.PI / 2, tx = x + Math.cos(a) * 3.8, ty = y + Math.sin(a) * 3.8;
-        const petal = ctx.createLinearGradient(x, y, tx, ty);
-        petal.addColorStop(0, '#fdf2f8');
-        petal.addColorStop(0.6, '#f472b6');
-        petal.addColorStop(1, '#9d174d');
-        ctx.fillStyle = petal;
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.quadraticCurveTo(x + Math.cos(a - 0.6) * 3, y + Math.sin(a - 0.6) * 3, tx, ty);
-        ctx.quadraticCurveTo(x + Math.cos(a + 0.6) * 3, y + Math.sin(a + 0.6) * 3, x, y);
-        ctx.fill();
-      }
-      ctx.strokeStyle = '#831843';
-      ctx.lineWidth = 0.5;
+    ctx.strokeStyle = 'rgba(30, 14, 4, .55)';
+    ctx.lineWidth = 0.25;
+    for (const [dx, seed] of [[-0.45, 1], [0.1, 2], [0.5, 3]]) {
       ctx.beginPath();
-      for (let i = 0; i <= 16; i++) {
-        const a = i * 0.62, d = 0.2 + i * 0.1;
-        if (i) ctx.lineTo(x + Math.cos(a) * d, y + Math.sin(a) * d);
-        else ctx.moveTo(x, y);
+      for (let yy = top + 3; yy <= foot - 3; yy += 1.5) {
+        const wob = (smoothNoise(yy * 0.3, seed, 4) - 0.5) * 0.5;
+        if (yy === top + 3) ctx.moveTo(x + dx + wob, yy);
+        else ctx.lineTo(x + dx + wob, yy);
       }
       ctx.stroke();
-    } else if (kind === 'purge') {
-      const white = ctx.createLinearGradient(x, y - 2.6, x, y + 2.6);
-      white.addColorStop(0, '#ffffff');
-      white.addColorStop(1, '#cbd5e1');
-      ctx.fillStyle = white;
-      ctx.strokeStyle = '#334155';
-      ctx.lineWidth = 0.6;
-      ctx.beginPath();
-      ctx.moveTo(x - 4, y);
-      ctx.quadraticCurveTo(x, y - 3.4, x + 4, y);
-      ctx.quadraticCurveTo(x, y + 3.4, x - 4, y);
-      ctx.fill();
-      ctx.stroke();
-      const iris = ctx.createRadialGradient(x - 0.4, y - 0.4, 0.2, x, y, 1.9);
-      iris.addColorStop(0, '#e0f2fe');
-      iris.addColorStop(0.5, '#38bdf8');
-      iris.addColorStop(1, '#0c4a6e');
-      ctx.fillStyle = iris;
-      ctx.beginPath();
-      ctx.arc(x, y, 1.9, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#0b1220';
-      ctx.beginPath();
-      ctx.arc(x, y, 0.75, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(x - 0.6, y - 0.7, 0.4, 0, Math.PI * 2);
-      ctx.fill();
-    } else {
-      for (let i = 0; i < 12; i++) {
-        const a = i * Math.PI / 6, long = i % 2 ? 3.4 : 4.8, side = 0.75;
-        const ray = ctx.createLinearGradient(x, y, x + Math.cos(a) * long, y + Math.sin(a) * long);
-        ray.addColorStop(0, '#fff7d6');
-        ray.addColorStop(1, i % 2 ? '#f59e0b' : '#fbbf24');
-        ctx.fillStyle = ray;
+    }
+    const strap = WRAPS[kind];
+    for (const at0 of [foot - 12, foot - 8.5]) {
+      for (let i = 0; i < 3; i++) {
+        const yy = at0 + i * 1.05, band = ctx.createLinearGradient(x - half, 0, x + half, 0);
+        band.addColorStop(0, strap[0]);
+        band.addColorStop(0.45, strap[1]);
+        band.addColorStop(1, strap[0]);
+        ctx.fillStyle = band;
         ctx.beginPath();
-        ctx.moveTo(x + Math.cos(a - side) * 1.6, y + Math.sin(a - side) * 1.6);
-        ctx.lineTo(x + Math.cos(a) * long, y + Math.sin(a) * long);
-        ctx.lineTo(x + Math.cos(a + side) * 1.6, y + Math.sin(a + side) * 1.6);
+        ctx.moveTo(x - half * 1.15, yy + 0.35);
+        ctx.lineTo(x + half * 1.15, yy - 0.25);
+        ctx.lineTo(x + half * 1.15, yy + 0.45);
+        ctx.lineTo(x - half * 1.15, yy + 1.05);
         ctx.closePath();
         ctx.fill();
       }
-      const core = ctx.createRadialGradient(x - 0.5, y - 0.5, 0.2, x, y, 2.2);
-      core.addColorStop(0, '#fffbe6');
-      core.addColorStop(0.5, '#fbbf24');
-      core.addColorStop(1, '#b45309');
-      ctx.fillStyle = core;
-      ctx.beginPath();
-      ctx.arc(x, y, 2.2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#7c2d12';
-      ctx.lineWidth = 0.4;
-      ctx.stroke();
     }
+    const iron = ctx.createLinearGradient(x - half, 0, x + half, 0);
+    iron.addColorStop(0, '#1f2328');
+    iron.addColorStop(0.45, '#9ca3af');
+    iron.addColorStop(1, '#16181c');
+    ctx.fillStyle = iron;
+    ctx.beginPath();
+    ctx.moveTo(x - half * 1.1, foot - 3.4);
+    ctx.lineTo(x + half * 1.1, foot - 3.4);
+    ctx.lineTo(x + 0.4, foot + 0.6);
+    ctx.lineTo(x, foot + 1.8);
+    ctx.lineTo(x - 0.4, foot + 0.6);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  _flagSheet(cloth, sway, seed) {
+    const q = FLAG.q, m = FLAG.margin, sheet = flagSheet(cloth), g = sheet.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'source-over';
+    g.clearRect(0, 0, sheet.width, sheet.height);
+    const rows = Math.ceil(cloth.h / FLAG.strip), shift = (row) => {
+      const f = row / cloth.h;
+      return sway * Math.pow(f, 1.5) * 2.4 + Math.sin(this.clock * 3.1 + row * 0.45 + seed * 7) * 0.45 * f;
+    };
+    for (let i = 0; i < rows; i++) {
+      const y0 = i * FLAG.strip, dx = shift(y0 + FLAG.strip / 2);
+      g.drawImage(cloth, 0, y0 * q, cloth.width, FLAG.strip * q + 1, (m + dx) * q - cloth.pad, y0 * q, cloth.width,
+        FLAG.strip * q + 1);
+    }
+    g.globalCompositeOperation = 'source-atop';
+    g.setTransform(q, 0, sway * 0.09 * q, q, 0, 0);
+    const folds = g.createLinearGradient(m - 1, 0, m + cloth.w + 1, 0), phase = this.clock * 0.9 + seed * 5;
+    for (let j = 0; j <= 16; j++) {
+      const v = Math.sin(j / 16 * Math.PI * 2 * 2.5 + phase + sway * 0.8);
+      folds.addColorStop(j / 16, v < 0 ? 'rgba(' + cloth.shade + ', ' + (-v * 0.42) + ')'
+        : 'rgba(255, 255, 255, ' + (v * 0.16) + ')');
+    }
+    g.fillStyle = folds;
+    g.fillRect(-4, 0, cloth.w + m * 2 + 8, cloth.h + 2);
+    g.setTransform(q, 0, 0, q, 0, 0);
+    const light = g.createLinearGradient(m, 0, m + cloth.w, cloth.h);
+    light.addColorStop(0, 'rgba(255, 255, 255, .18)');
+    light.addColorStop(0.5, 'rgba(255, 255, 255, 0)');
+    light.addColorStop(1, 'rgba(' + cloth.shade + ', .3)');
+    g.fillStyle = light;
+    g.fillRect(0, 0, cloth.w + m * 2, cloth.h + 2);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'source-over';
+    return sheet;
+  }
+
+  _crossbar(ctx, x, y, w, sway, look) {
+    const reach = w / 2 + 1.6, bar = ctx.createLinearGradient(0, y - 1, 0, y + 1);
+    bar.addColorStop(0, '#c08a4f');
+    bar.addColorStop(0.5, '#6b4220');
+    bar.addColorStop(1, '#1c1008');
+    ctx.fillStyle = bar;
+    ctx.beginPath();
+    ctx.moveTo(x - reach, y - 0.7);
+    ctx.quadraticCurveTo(x, y - 1.3, x + reach, y - 0.7);
+    ctx.lineTo(x + reach, y + 0.8);
+    ctx.quadraticCurveTo(x, y + 0.3, x - reach, y + 0.8);
+    ctx.closePath();
+    ctx.fill();
+    for (const side of [-1, 1]) {
+      const ex = x + side * reach, knob = ctx.createRadialGradient(ex - 0.4, y - 0.4, 0.1, ex, y, 1.3);
+      knob.addColorStop(0, '#e9c08a');
+      knob.addColorStop(1, '#3b2410');
+      ctx.fillStyle = knob;
+      ctx.beginPath();
+      ctx.arc(ex, y, 1.25, 0, Math.PI * 2);
+      ctx.fill();
+      const swing = Math.sin(this.clock * 2.4 + side) * 0.9 + sway * 0.6, cord = 4.5;
+      const bx = ex + swing, by = y + cord;
+      ctx.strokeStyle = 'rgba(60, 35, 15, .9)';
+      ctx.lineWidth = 0.35;
+      ctx.beginPath();
+      ctx.moveTo(ex, y + 1);
+      ctx.quadraticCurveTo(ex + swing * 0.3, y + cord * 0.6, bx, by);
+      ctx.stroke();
+      this._charm(ctx, bx, by, swing * 0.25, look);
+    }
+  }
+
+  _charm(ctx, x, y, tilt, look) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(tilt);
+    const vane = ctx.createLinearGradient(-1.2, 0, 1.2, 0);
+    vane.addColorStop(0, look.feather[1]);
+    vane.addColorStop(0.5, look.feather[0]);
+    vane.addColorStop(1, look.feather[1]);
+    ctx.fillStyle = vane;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(1.6, 1.6, 0.5, 4.6);
+    ctx.lineTo(0, 5.4);
+    ctx.lineTo(-0.5, 4.6);
+    ctx.quadraticCurveTo(-1.6, 1.6, 0, 0);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(40, 20, 10, .7)';
+    ctx.lineWidth = 0.2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0.2);
+    ctx.lineTo(0, 5.2);
+    ctx.stroke();
+    ctx.fillStyle = '#e7dcc4';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 0.7, 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
+  }
+
+  _finial(ctx, x, top, kind, look, flash) {
+    const tint = 'rgba(' + look.aura + ', 1)';
+    ctx.lineCap = 'round';
+    if (kind === 'slow') {
+      ctx.strokeStyle = '#3b2410';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      for (let i = 0; i <= 22; i++) {
+        const a = Math.PI * 0.5 - i * 0.42, d = 3.4 - i * 0.13, px = x + 0.2 + Math.cos(a) * d - 0.2, py = top - 1.5 - Math.sin(a) * d;
+        if (i) ctx.lineTo(px, py);
+        else ctx.moveTo(x, top + 2.5);
+      }
+      ctx.stroke();
+      ctx.strokeStyle = '#a0703c';
+      ctx.lineWidth = 0.6;
+      ctx.stroke();
+      this._gem(ctx, x + 0.2, top - 1.6, 1.3, look.gem, tint, flash);
+    } else if (kind === 'purge') {
+      const ring = ctx.createLinearGradient(x - 3, top - 5, x + 3, top + 1);
+      ring.addColorStop(0, '#ffffff');
+      ring.addColorStop(0.5, '#94a3b8');
+      ring.addColorStop(1, '#e2e8f0');
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(x, top - 2, 2.7, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = ring;
+      ctx.lineWidth = 0.9;
+      ctx.stroke();
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillRect(x - 0.5, top + 0.6, 1, 1.6);
+      this._gem(ctx, x, top - 2, 1.5, look.gem, tint, flash);
+    } else {
+      const steel = ctx.createLinearGradient(x - 1.6, 0, x + 1.6, 0);
+      steel.addColorStop(0, '#374151');
+      steel.addColorStop(0.5, '#f3f4f6');
+      steel.addColorStop(0.52, '#6b7280');
+      steel.addColorStop(1, '#1f2937');
+      ctx.fillStyle = steel;
+      ctx.beginPath();
+      ctx.moveTo(x, top - 7);
+      ctx.quadraticCurveTo(x + 2.2, top - 3, x + 0.6, top + 1);
+      ctx.lineTo(x - 0.6, top + 1);
+      ctx.quadraticCurveTo(x - 2.2, top - 3, x, top - 7);
+      ctx.fill();
+      ctx.fillStyle = '#7f1d1d';
+      ctx.beginPath();
+      ctx.ellipse(x, top + 1.6, 1.3, 0.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      for (let i = 0; i < 5; i++) {
+        const swing = Math.sin(this.clock * 2.6 + i) * 0.4;
+        ctx.strokeStyle = i % 2 ? '#dc2626' : '#991b1b';
+        ctx.lineWidth = 0.55;
+        ctx.beginPath();
+        ctx.moveTo(x - 0.9 + i * 0.45, top + 2);
+        ctx.quadraticCurveTo(x - 1.2 + i * 0.45 + swing, top + 3.6, x - 1.3 + i * 0.5 + swing * 2, top + 5);
+        ctx.stroke();
+      }
+      ctx.globalCompositeOperation = 'lighter';
+      glow(ctx, x, top - 3, 4 + 3 * flash, tint, 0.35 + 0.4 * flash);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+  }
+
+  _gem(ctx, x, y, r, tones, tint, flash) {
+    const gem = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, 0.1, x, y, r);
+    gem.addColorStop(0, '#ffffff');
+    gem.addColorStop(0.35, tones[0]);
+    gem.addColorStop(1, tones[1]);
+    ctx.fillStyle = gem;
+    ctx.beginPath();
+    ctx.moveTo(x, y - r * 1.25);
+    ctx.lineTo(x + r, y);
+    ctx.lineTo(x, y + r * 1.25);
+    ctx.lineTo(x - r, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalCompositeOperation = 'lighter';
+    glow(ctx, x, y, 4 + 3 * flash, tint, 0.5 + 0.4 * flash);
+    ctx.globalCompositeOperation = 'source-over';
   }
 
   _spellGlow(ctx, t) {
@@ -1949,34 +2419,46 @@ export class Scene {
   }
 
   _chord(ctx, e, share) {
-    const x = at(e.x), y = at(e.y), reach = e.reach * CELL, r = 6 + (reach - 6) * share;
-    const fade = Math.pow(1 - share, 1.4);
+    const fx = Math.cos(e.angle), fy = Math.sin(e.angle), sx = -fy, sy = fx, travel = e.reach * CELL * share;
+    const fade = share < 0.65 ? 1 : Math.pow((1 - share) / 0.35, 1.3), size = SPELLS.chevron * (0.8 + 0.4 * share);
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     ctx.lineCap = 'round';
-    for (let band = 0; band < 3; band++) {
-      const rr = r - band * 5;
-      if (rr <= 2) continue;
-      for (const [width, alpha] of [[6, 0.12], [3, 0.3], [1.4, 0.75]]) {
-        ctx.strokeStyle = 'rgba(' + SPELLS.chord + ', ' + alpha * fade * (1 - band * 0.28) + ')';
-        ctx.lineWidth = width;
+    ctx.lineJoin = 'miter';
+    for (let echo = 0; echo < 3; echo++) {
+      const back = echo * size * 0.55, d = travel - back;
+      if (d < 2) continue;
+      const x = at(e.x) + fx * d, y = at(e.y) + fy * d, wing = size * (1 - echo * 0.18), bend = Math.sin(this.clock * 30 + echo) * 0.6;
+      const alpha = fade * (1 - echo * 0.32);
+      const lx = x - fx * wing * 1.25 + sx * wing, ly = y - fy * wing * 1.25 + sy * wing;
+      const rx = x - fx * wing * 1.25 - sx * wing, ry = y - fy * wing * 1.25 - sy * wing;
+      const mx = x - fx * wing * 0.45, my = y - fy * wing * 0.45;
+      for (const [width, tone] of [[5.5, 0.14], [2.8, 0.35], [1.2, 0.9]]) {
+        ctx.strokeStyle = 'rgba(' + SPELLS.chord + ', ' + tone * alpha + ')';
+        ctx.lineWidth = width * (1 - echo * 0.2);
         ctx.beginPath();
-        for (let i = 0; i <= 24; i++) {
-          const a = e.angle - 0.85 + 1.7 * i / 24, wob = Math.sin(i * 0.6 + this.clock * 12 + band) * 0.5;
-          const px = x + Math.cos(a) * (rr + wob), py = y + Math.sin(a) * (rr + wob);
-          if (i) ctx.lineTo(px, py);
-          else ctx.moveTo(px, py);
-        }
+        ctx.moveTo(lx, ly);
+        ctx.quadraticCurveTo(mx + sx * wing * (0.55 + bend * 0.1), my + sy * wing * (0.55 + bend * 0.1), x, y);
+        ctx.quadraticCurveTo(mx - sx * wing * (0.55 - bend * 0.1), my - sy * wing * (0.55 - bend * 0.1), rx, ry);
         ctx.stroke();
       }
+      if (!echo) glow(ctx, x - fx * 2, y - fy * 2, 9, 'rgba(' + SPELLS.chord + ', 1)', 0.35 * alpha);
     }
     ctx.restore();
+  }
+
+  _beyond(ctx, from, radius) {
+    ctx.beginPath();
+    ctx.rect(0, 0, BOARD, BOARD);
+    ctx.arc(at(from.x), at(from.y), radius * CELL, 0, Math.PI * 2);
+    ctx.clip('evenodd');
   }
 
   _shock(ctx, e, share) {
     const x = at(e.x), y = at(e.y), grow = 1 - Math.pow(1 - share, 2), r = Math.max(3, e.radius * CELL * grow);
     const fade = 1 - share, band = 0.55 * CELL, rgb = e.rgb || SPELLS.shock;
     ctx.save();
+    if (e.from) this._beyond(ctx, e.from, e.radius);
     ctx.globalCompositeOperation = 'lighter';
     const ring = ctx.createRadialGradient(x, y, Math.max(0, r - band), x, y, r + band * 0.3);
     ring.addColorStop(0, 'rgba(' + rgb + ', 0)');
@@ -1989,6 +2471,7 @@ export class Scene {
     ctx.fill();
     ctx.restore();
     ctx.save();
+    if (e.from) this._beyond(ctx, e.from, e.radius);
     for (let i = 0; i < 16; i++) {
       const a = i * 0.39 + e.seed, d = r * (0.85 + 0.15 * Math.sin(i * 2.3));
       glow(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.9, 4, 'rgba(180, 150, 110, 1)', 0.35 * fade);
@@ -2193,7 +2676,7 @@ export class Scene {
   }
 
   _rod(ctx, t, x, y, facing, out) {
-    const pose = this._pose(t), job = pose.staff, u = MODEL_UNIT;
+    const pose = this._pose(t), job = pose.staff, u = MODEL_UNIT * sizeOf(t.look);
     const rx = STAFF_ROD.rear[0] - HERO_X, ry = STAFF_ROD.rear[1] - HERO_Y, px = x + (rx * Math.cos(facing) - ry * Math.sin(facing)) * u;
     const py = y + (rx * Math.sin(facing) + ry * Math.cos(facing)) * u;
     const spot = job.mob && !job.mob.dead ? this.shown.get(job.mob.id) || job.mob : null;
@@ -2909,6 +3392,10 @@ export class Scene {
         spot.y += SWORD.drift[1] * Math.sin(this.clock * 0.9 + seed * 1.3);
         look = t.look + '-w' + HOVER.frames[Math.floor(((u + 0.25) % 1) * 4)];
       }
+      else if (t.style === 'dragon' && !t.cocoon && battle.aloft(t) && !(t.pull && now < t.pull.end)) {
+        spot.lift = HOVER.lift + HOVER.bob * Math.sin((this.clock * HOVER.rate + t.x * 0.37) * Math.PI * 2);
+        look = t.look + (Math.floor(this.clock * 4 + t.x) % 2 ? '-flap' : '-fly');
+      }
       if (t.style === 'monk' && pose.staff && this.clock < pose.staff.until) look = t.look + '-strike';
       const act = pose.act && this.clock < pose.act.until ? pose.act : null;
       if (act) look = t.look + '-' + (act.cast && this.clock >= act.cast ? 'cast' : act.frame);
@@ -2918,6 +3405,7 @@ export class Scene {
       pose.x = spot.x;
       pose.y = spot.y;
       pose.lift = spot.lift;
+      pose.look = look;
       if (t.rider && battle.covered(spot.x, spot.y)) continue;
       const x = at(spot.x), y = at(spot.y) - spot.lift;
       if (!still) {
@@ -2928,8 +3416,9 @@ export class Scene {
         pose.flash = Math.max(0, pose.flash - dt);
       }
       if (!spot.riding || spot.lift > 6) {
-        const hover = t.style === 'angel' ? 1 - (spot.lift - HOVER.lift) / (HOVER.bob * 6) : 1;
-        ctx.fillStyle = t.style === 'angel' ? 'rgba(0, 0, 0, .22)' : 'rgba(0, 0, 0, .32)';
+        const aloft = t.style === 'angel' || t.style === 'dragon' && spot.lift > 0;
+        const hover = aloft ? 1 - (spot.lift - HOVER.lift) / (HOVER.bob * 6) : 1;
+        ctx.fillStyle = aloft ? 'rgba(0, 0, 0, .22)' : 'rgba(0, 0, 0, .32)';
         ctx.beginPath();
         ctx.ellipse(at(spot.x), at(spot.y) + 7, 12 * hover, 5 * hover, 0, 0, Math.PI * 2);
         ctx.fill();
@@ -3275,7 +3764,7 @@ export class Scene {
       const banner = this.battle.banners.find((item) => item.cx === event.x && item.cy === event.y);
       if (banner) banner.flashAt = this.clock;
       add({ kind: 'shock', life: 0.45, x: event.x, y: event.y, radius: event.radius, seed: Math.random() * 6,
-        rgb: TOTEM_LOOKS[event.totem].aura });
+        rgb: TOTEM_LOOKS[event.totem].aura, from: { x: event.fromX, y: event.fromY } });
     } else if (event.kind === 'drum') {
       this._pose(t).act = { frame: 'beat', until: this.clock + SPELLS.beat };
       add({ kind: 'shock', life: 0.45, x: t.cx, y: t.cy, radius: event.radius, seed: Math.random() * 6 });

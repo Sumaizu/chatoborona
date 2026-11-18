@@ -1386,15 +1386,19 @@ test('волшебница: шар магии летит волной в тог�
   eq(hit(back), 0);
 });
 
-test('менестрель: звуковая волна полукругом к врагу ранит всех на пути до конца радиуса', () => {
-  const battle = makeBattle(), t = sorc(battle, 10, 4, ['minstrel']);
-  const a = walker(battle, 12, 1e9), b = walker(battle, 14, 1e9), behind = walker(battle, 6, 1e9);
-  still(a, b, behind);
+test('менестрель: острая звуковая волна летит во врага насквозь до конца радиуса и ранит всех на линии', () => {
+  const battle = mapWith(), t = sorc(battle, 10, 6, ['minstrel']);
+  const a = battle._spawn({ type: 'normal', hp: 1e9 }, 5, 1), b = battle._spawn({ type: 'normal', hp: 1e9 }, 4, 1);
+  const side = walker(battle, 7.5, 1e9);
+  still(a, b, side);
+  battle.step(TICK);
+  ok(Math.abs(a.x - t.cx) < 0.1 && Math.abs(b.x - t.cx) < 0.1 && b.y < a.y, 'оба на одной линии с ней');
+  ok(Math.hypot(side.x - t.cx, side.y - t.cy) < t.range, 'сбоку — тоже в радиусе');
   ok(battle._fire(t));
   ok(battle.events.some((e) => e.kind === 'chord' && e.tower === t));
   runFor(battle, t.range / SPELL.minstrel.speed + 0.05);
-  ok(hit(a) > 0 && hit(b) > 0, 'двоих на пути задело');
-  eq(hit(behind), 0, 'позади — нет');
+  ok(hit(a) > 0 && hit(b) > 0, 'волна прошла насквозь и задела обоих');
+  eq(hit(side), 0, 'сбоку от линии — нет');
 });
 
 test('чародейка: достаёт сферу из книги, бросает — урон по прилёту', () => {
@@ -1503,6 +1507,7 @@ test('шаманка, резонанс: сильнее, бьёт на 5 клет
   runFor(battle, SPELL.resonance.hop + 0.05);
   ok(battle.events.some((e) => e.kind === 'resonate'), 'знамя отозвалось');
   near(hit(far), t.damage, 'волна от чужого знамени достала дальнего');
+  near(hit(close), t.damage, 'назад, где волна уже прошла, — не идёт');
 });
 
 test('жрец-инквизитор: светлый шар летит и бьёт по прилёту', () => {
@@ -3201,6 +3206,23 @@ test('мясник: раз в 10 секунд крюк летит пару се�
   eq(butcher.hook, null, 'дотащил');
   const second = butcher.skillAt;
   ok(Math.abs(second - (POWERS.hook.first + POWERS.hook.every)) < 0.2, 'следующий — через 10 секунд');
+});
+
+test('полёт: ангел и дракон встают над горами, озёрами, реками и кратерами, но не на дорогу; остальные — нет', () => {
+  const battle = mapWith({ mountain: [[6, 3], [6, 4]], lake: [[7, 3]], river: [[8, 3]], crater: [[9, 3]] });
+  no(battle.place(player(), 'sniper', 6, 3), 'стрелок на гору не встаёт');
+  const angel = battle.place(player(), 'priest', 6, 3, { runes: ['angel'] });
+  ok(angel && angel.x === 6 && angel.y === 3, 'ангел — над горой');
+  ok(battle.aloft(angel));
+  const mob = walker(battle, 6.5, 1e9);
+  ok(battle.covered(6.5, 4.5) && battle.sees(angel, mob), 'сверху гора не мешает');
+  for (const [x, y] of [[7, 3], [8, 3], [9, 3]]) ok(battle.move(angel, x, y), 'и над ' + battle.tiles[y * SIZE + x]);
+  no(battle.move(angel, 5, 5), 'на дорогу нельзя');
+  const dragon = battle.place(player(), 'pyro', 2, 2, { runes: ['dragon'] });
+  ok(battle.move(dragon, 7, 3), 'дракон над озером');
+  battle.setMods(dragon, { runes: [] });
+  no(battle.aloft(dragon), 'без полёта спускается на ближайшую обычную клетку');
+  ok(Math.abs(dragon.x - 7) + Math.abs(dragon.y - 3) <= 2 && battle.towerAt(dragon.x, dragon.y) === dragon);
 });
 
 test('карта: с вышки бьют на 2,5 клетки дальше и поверх гор, на вышке — один защитник', () => {

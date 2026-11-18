@@ -107,7 +107,7 @@ export const HOLY = { angel: { reach: 1, interval: 1, mul: 2.6 }, monk: { reach:
   holyGround: { every: 6, radius: 4, mul: 2, flight: 0.8 }, heavy: { chance: 0.15, stun: 1 },
   mantra: { radius: 3, haste: 0.15, damage: 0.15, range: 0.15, might: 0.2 }, burst: { radius: 2, share: 0.5 },
   repose: 3, chain: { jumps: 2, reach: 2 }, aegis: 0.2, blessing: 0.1, insight: 0.1 };
-export const SPELL = { wisp: 0.45, minstrel: { reach: 3.5, interval: 1.6, mul: 1.3, arc: 0.85, speed: 7 },
+export const SPELL = { wisp: 0.45, minstrel: { reach: 3.5, interval: 1.6, mul: 1.3, wide: 0.5, speed: 7 },
   enchantress: { reach: 4, interval: 1.45, mul: 2.2, wind: 0.3, flight: FIREBALL_FLIGHT },
   shamaness: { reach: 2, interval: 1.8, mul: 1.2 }, resonance: { reach: 5, mul: 1.5, hop: 0.2 },
   totem: { radius: 3, slow: 0.1, power: 0.1, hold: 0.3, spot: [0.82, 0.2] } };
@@ -116,6 +116,8 @@ export const TOTEMS = { totemSlow: 'slow', totemPurge: 'purge', totemPower: 'pow
 export const HELP = { assist: 1, control: 1, react: 2, heart: 10, heal: 10, save: 50 };
 const DEMONS = new Set(['imp', 'hellhound', 'demon', 'devilkin', 'gatekeeper', 'archdemon', 'diablo']);
 export const MANTRAS = ['mantraSpeed', 'mantraPower', 'mantraRange'];
+export const FLIERS = new Set(['angel', 'dragon']);
+export const flier = (runes) => Array.from(runes || []).some((id) => FLIERS.has(id));
 const STYLE_ELEMENTS = { witch: 'poison' };
 const STYLE_BALL = 11;
 const ROAD_ROUND = 0.9;
@@ -222,6 +224,7 @@ export class Battle {
     this.joinShift = this.merge - this.branch.length;
     this.bends = this.routes.map((route, r) => bendsOf(r ? route.slice(0, -1) : route));
     this.blocked = pathCells(this.road);
+    this.rough = new Set();
     this.solid = null;
     this.tall = null;
     this.sight = null;
@@ -234,7 +237,7 @@ export class Battle {
       this.tiles.forEach((tile, at) => {
         if (SOLID.has(tile)) this.solid[at] = 1;
         if (TALL.has(tile)) this.tall[at] = 1;
-        if (UNSAFE.has(tile) && !(this.rules.ice && FROZEN.has(tile))) this.blocked.add(at);
+        if (UNSAFE.has(tile) && !(this.rules.ice && FROZEN.has(tile))) this.rough.add(at);
       });
     }
     this.starts = this.routes.map((route) => {
@@ -290,8 +293,9 @@ export class Battle {
     this._scores = new Map();
   }
 
-  free(x, y) {
-    return inside(x, y) && !this.blocked.has(y * SIZE + x) && !this.byCell.has(y * SIZE + x)
+  free(x, y, flying = false) {
+    const at = y * SIZE + x;
+    return inside(x, y) && !this.blocked.has(at) && (flying || !this.rough.has(at)) && !this.byCell.has(at)
       && !this.vents.some((vent) => vent.x === x && vent.y === y)
       && !this.cauldrons.some((pot) => pot.x === x && pot.y === y);
   }
@@ -380,7 +384,7 @@ export class Battle {
   }
 
   place(player, classId, x, y, mods = NO_MODS) {
-    if (!this.free(x, y)) return null;
+    if (!this.free(x, y, flier(mods.runes))) return null;
     const tower = this._tower(player, classId, x, y, mods);
     if (tower.cls.rider) tower.cocoon = tower.cls.base.cocoon;
     this.byCell.set(y * SIZE + x, tower);
@@ -407,6 +411,10 @@ export class Battle {
     this._event({ kind: 'hatch', tower: t });
   }
 
+  aloft(t) {
+    return !t.rider && this.rough.has(t.y * SIZE + t.x);
+  }
+
   covered(x, y) {
     const cx = Math.floor(x), cy = Math.floor(y);
     return Boolean(this.solid && inside(cx, cy) && this.solid[cy * SIZE + cx]);
@@ -421,7 +429,7 @@ export class Battle {
   }
 
   screen(t) {
-    if (!this.solid || t.cls.through || LOFTY.has(t.style) || this.onWatch(t)) return null;
+    if (!this.solid || t.cls.through || LOFTY.has(t.style) || this.onWatch(t) || this.aloft(t)) return null;
     return this.onHill(t) ? this.tall : this.solid;
   }
 
@@ -451,7 +459,7 @@ export class Battle {
   }
 
   move(tower, x, y) {
-    if (tower.rider || tower.cocoon || !this.free(x, y)) return false;
+    if (tower.rider || tower.cocoon || !this.free(x, y, flier(tower.runes))) return false;
     this._relocate(tower, x, y);
     tower.busy = this.time + MOVE_PAUSE;
     return true;
@@ -479,6 +487,16 @@ export class Battle {
   setMods(tower, mods) {
     tower.mods = mods;
     this._stats(tower);
+    if (this.aloft(tower) && !flier(tower.runes)) this._land(tower);
+  }
+
+  _land(tower) {
+    let best = null;
+    for (let at = 0; at < SIZE * SIZE; at++) {
+      const x = at % SIZE, y = (at - x) / SIZE, gap = (x - tower.x) ** 2 + (y - tower.y) ** 2;
+      if (this.free(x, y) && (!best || gap < best.gap)) best = { x, y, gap };
+    }
+    if (best) this._relocate(tower, best.x, best.y);
   }
 
   remove(tower) {
@@ -2004,7 +2022,7 @@ export class Battle {
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         const x = cx + dx, y = cy + dy;
-        if (!this.free(x, y)) continue;
+        if (!this.free(x, y, true)) continue;
         const gap = (x + 0.5 - lead.x) ** 2 + (y + 0.5 - lead.y) ** 2;
         if (!best || gap < best.gap) best = { x, y, gap };
       }
@@ -2854,11 +2872,12 @@ function chord(b, t, target, crit, hit) {
   const s = SPELL.minstrel, angle = Math.atan2(target.y - t.cy, target.x - t.cx);
   b._event({ kind: 'chord', tower: t, mob: target, x: target.x, y: target.y, angle, reach: t.range,
     time: t.range / s.speed, crit });
+  const ax = Math.cos(angle), ay = Math.sin(angle);
   for (const mob of b.mobs) {
     if (!b._targetable(t, mob)) continue;
-    const turn = Math.atan2(mob.y - t.cy, mob.x - t.cx) - angle;
-    if (Math.abs(Math.atan2(Math.sin(turn), Math.cos(turn))) > s.arc) continue;
-    b._later(Math.hypot(mob.x - t.cx, mob.y - t.cy) / s.speed, () => {
+    const along = (mob.x - t.cx) * ax + (mob.y - t.cy) * ay, aside = Math.abs((mob.y - t.cy) * ax - (mob.x - t.cx) * ay);
+    if (along < 0 || aside > s.wide) continue;
+    b._later(along / s.speed, () => {
       if (!mob.dead) b._hurt(mob, hit, t);
     }, t);
   }
@@ -2871,9 +2890,11 @@ function resonate(b, t, x, y, hit, rung) {
     rung.add(banner);
     b._later(SPELL.resonance.hop, () => {
       if (!b.banners.includes(banner)) return;
-      b._event({ kind: 'resonate', tower: t, x: banner.cx, y: banner.cy, radius: t.range, totem: banner.kind });
+      b._event({ kind: 'resonate', tower: t, x: banner.cx, y: banner.cy, radius: t.range, totem: banner.kind,
+        fromX: x, fromY: y });
       for (const mob of b.mobs.slice()) {
-        if (!mob.dead && !hidden(mob, b.time) && !b.covered(mob.x, mob.y) && near(mob, banner.cx, banner.cy, t.range)) {
+        if (!mob.dead && !hidden(mob, b.time) && !b.covered(mob.x, mob.y) && near(mob, banner.cx, banner.cy, t.range)
+          && !near(mob, x, y, t.range)) {
           b._hurt(mob, hit, t);
         }
       }

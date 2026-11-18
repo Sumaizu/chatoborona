@@ -1012,10 +1012,12 @@ function pilgrim(m) {
 const WING = { white: '#fffaf0', cream: '#f2e3bd', gold: '#e8c25a', bone: '#f8f0dc' };
 
 const FLAPS = [0.05, 0.45, 0.85, 0.45];
+const WING_SPAN = 0.65;
 
 function wing(m, side, flap) {
   const lean = FLAPS[flap], c = Math.cos(lean), rise = Math.sin(lean);
-  const at = (x, y, z) => [16 + side * (2 + (x - 2) * c), y, z + (x - 2) * rise * 1.1];
+  const at = (x, y, z) => [16 + side * (2 + (x - 2) * c * WING_SPAN), 19.4 + (y - 19.4) * WING_SPAN,
+    z + (x - 2) * rise * 1.1 * WING_SPAN];
   const arm = [[2.6, 19.4, 9.6], [7.4, 21.4, 10.4], [12, 24.4, 11], [15.6, 28.6, 11.4]];
   const along = (f) => {
     const k = f * (arm.length - 1), j = Math.min(arm.length - 2, Math.floor(k)), u = k - j;
@@ -1428,11 +1430,13 @@ const STICK = [[12.4, 3]];
 const PALM = [[20.5, 10.6]];
 const PALMS = [[20.5, 10.6], [11.5, 10.6]];
 const MOUTH = [[16, 2.7]];
+const HIGH_MOUTH = [[16, 1.7]];
 
 export const MUZZLES = {
   pyro: STICK, 'pyro-ragged': STICK, 'pyro-fireball': PALM, 'pyro-fireball-blue': PALM, 'pyro-fireball-twin': PALMS,
   'pyro-fireball-twin-blue': PALMS, 'pyro-ignite': [[20.5, 7.5]], 'pyro-ignite-blue': [[20.5, 7.5]],
-  'pyro-dragon': MOUTH, 'pyro-dragon-blue': MOUTH, sniper: PISTOL, 'sniper-ragged': PISTOL,
+  'pyro-dragon': MOUTH, 'pyro-dragon-blue': MOUTH, 'pyro-dragon-fly': HIGH_MOUTH, 'pyro-dragon-flap': HIGH_MOUTH,
+  'pyro-dragon-blue-fly': HIGH_MOUTH, 'pyro-dragon-blue-flap': HIGH_MOUTH, sniper: PISTOL, 'sniper-ragged': PISTOL,
   'sniper-scope': [[16, -7]], 'sniper-assault': [[16, -4.9]], 'sniper-marksman': [[16, -6]],
   forester: [[16.1, 6.4]], 'forester-ragged': [[16.1, 6.4]], 'forester-druid': [[21.6, 8.8]],
   'forester-hunter': [[16, 2.4]], 'forester-witch': [[20.6, 8.6]], 'forester-witch-plague': [[20.6, 8.6]],
@@ -1449,13 +1453,19 @@ export const MUZZLES = {
 export const RELOAD_FRAMES = RELOAD.frames;
 
 export const FINE_HEROES = /^(priest|sorceress)/;
-export const ANGEL_BODY = 0.62;
+export const ANGEL_BODY = 1.15;
 export const HERO = { scale: 1.3, center: [16, 18] };
-export const sizeOf = (id) => (/^priest-angel-/.test(id) ? ANGEL_BODY : /^sorceress/.test(id) ? 1.2 : 1);
+const BODIES = [[/^priest-angel/, ANGEL_BODY], [/^priest-(monk|inquisitor)/, 1.25], [/^priest/, 1.08],
+  [/^sorceress-shamaness/, 1.2], [/^sorceress/, 1.35], [/^forester(-ragged)?$|^forester-hunter/, 1.2],
+  [/^mechanic-(turret|mortar)$/, 1.3], [/^mechanic-demo/, 1.2], [/^mechanic-turret-giant/, 1.1], [/^sniper-marksman/, 1.2]];
+export const sizeOf = (id) => {
+  const body = BODIES.find(([kind]) => kind.test(id));
+  return body ? body[1] : 1;
+};
 
 export function drawHero(id, reload = -1) {
-  const fine = FINE_HEROES.test(id) ? 2 : 1;
-  const m = new Model(40 * fine, 1.08 * fine * HERO.scale * sizeOf(id), HERO.center[0], HERO.center[1]);
+  const fine = FINE_HEROES.test(id) ? 2 : 1, size = sizeOf(id), side = Math.ceil(28 * size) * 2;
+  const m = new Model(side * fine, 1.08 * fine * HERO.scale * size, HERO.center[0], HERO.center[1]);
   m.reload = reload;
   HEROES[id](m);
   const canvas = m.paint();

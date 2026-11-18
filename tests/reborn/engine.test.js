@@ -9,7 +9,7 @@ import { ASCEND_AT, EXTRA_SLOTS, PRICE, QUEUE_CAP, RARITIES, RUSH, SHOW_FAST, SH
   makeWeapon, weaponName } from '../../site/reborn/js/gacha.js';
 import { CLASSES, CLASS_BY_ID, STONE_CHANCE, poolOf } from '../../site/reborn/js/classes.js';
 import { ODDS, effectOf, rollEvent } from '../../site/reborn/js/events.js';
-import { cellName } from '../../site/reborn/js/field.js';
+import { SIZE, cellName } from '../../site/reborn/js/field.js';
 
 const MOD = { mod: true };
 const say = (game, user, text, details = {}) => game.feed(user, text, Object.assign({ login: user.toLowerCase() },
@@ -147,6 +147,32 @@ test('игра: перебежка сразу — и во время волны,
   ok(until(game, () => game.state === 'break'));
   const free = game.battle.bestCell(2.5);
   eq(say(game, 'Гена', cellName(free.x, free.y)), 'move', 'в подготовку тоже');
+});
+
+test('игра: ангел встаёт с поля в клетку над горой или озером, обычный герой — нет', () => {
+  let game = null, spot = null;
+  for (let seed = 1; !game; seed++) {
+    const made = makeGame({ seed }).game;
+    made.open();
+    say(made, 'Вика', 'привет');
+    say(made, 'Гена', 'привет');
+    ok(until(made, () => made.state === 'placing'));
+    const b = made.battle, at = Array.from(b.rough).find((cell) => b.free(cell % SIZE, Math.floor(cell / SIZE), true));
+    if (at === undefined || made.members.get('вика').tower.rider) continue;
+    game = made;
+    spot = { x: at % SIZE, y: Math.floor(at / SIZE) };
+  }
+  const vika = game.members.get('вика'), gena = game.members.get('гена');
+  no(game.battle.free(spot.x, spot.y), 'для обычного героя клетка закрыта');
+  game.battle.remove(gena.tower);
+  gena.tower = null;
+  eq(game._place(gena, spot), null, 'обычный герой туда не встаёт');
+  game.battle.remove(vika.tower);
+  vika.cls = 'priest';
+  vika.skills = ['angel'];
+  vika.tower = null;
+  const angel = game._place(vika, spot);
+  ok(angel && angel.x === spot.x && angel.y === spot.y, 'ангел встал');
 });
 
 test('игра: механик с гигантской турелью на другую клетку не переходит', () => {

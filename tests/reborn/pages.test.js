@@ -1,5 +1,6 @@
 import { SFX_GAPS, SOUNDS, measure } from '../../site/reborn/js/sound.js';
 import { CLASSES } from '../../site/reborn/js/classes.js';
+import { HERO_IDS } from '../../site/reborn/js/models.js';
 import { BOSSES, ELITES, LEVEL_MAX, TICK, xpForLevel } from '../../site/reborn/js/balance.js';
 import { HERO_SIZE, MOB_KINDS, coinUrl, heroSprite, heroUrl, mobSprite, prizeUrl } from '../../site/reborn/js/sprites.js';
 import { PAGES } from '../../site/reborn/js/guide.js';
@@ -649,8 +650,8 @@ test('спрайты: герои, мобы, оружие и монета рис�
   for (const cls of CLASSES) {
     ok(heroUrl(cls.id).startsWith('data:image/png'), cls.id);
     eq(heroSprite(cls.id).span / heroSprite(cls.id).fine, HERO_SIZE);
-    no(clipped(heroSprite(cls.id)), 'герой обрезан: ' + cls.id);
   }
+  for (const id of HERO_IDS) no(clipped(heroSprite(id)), 'герой обрезан: ' + id);
   for (const kind of MOB_KINDS) {
     ok(mobSprite(kind).width >= 8, kind);
     for (const frame of [0, 1]) no(clipped(mobSprite(kind, frame)), 'моб обрезан: ' + kind + ' ' + frame);
