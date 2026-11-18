@@ -383,8 +383,9 @@ test('гача: частица бога — 0,3%, у кого она есть, �
   eq(seen, 2000);
 });
 
-test('гача: камень навыка — первый с шансом 20%, следующие — 3%, и только тому, кому он положен', () => {
-  eq([STONE_CHANCE.first, STONE_CHANCE.next], [0.2, 0.03]);
+test('гача: камень навыка — первый с шансом 20%, следующие — 5%, и только тому, кому он положен', () => {
+  eq([STONE_CHANCE.first, STONE_CHANCE.next], [0.2, 0.05]);
+  eq(OUTCOMES.find((outcome) => outcome.id === 'stone').color, '#ff2e4d', 'цвет — божественный');
   eq(OUTCOMES.find((outcome) => outcome.id === 'stone').chance, 0, 'в общей таблице камня нет');
   eq(spin(() => 0.19, 'sniper', { stone: 0.2 }).kind, 'stone');
   no(spin(() => 0.21, 'sniper', { stone: 0.2 }).kind === 'stone');

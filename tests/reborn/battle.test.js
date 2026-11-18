@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { AIM, BITE_TIME, Battle, CRIMSON, HOLY, WOOD, DISCHARGE, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, FIRE,
+import { AIM, BITE_TIME, Battle, CRIMSON, HELP, HOLY, WOOD, DISCHARGE, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, FIRE,
   PLANTED, PULSE, REACTIONS, ROT, SHOT, SPLIT_TIME, THORN }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
@@ -1192,6 +1192,25 @@ test('ангел: бьёт ровно все соседние клетки — �
   still(corner, beyond);
   ok(battle._targetable(t, corner), 'соседняя клетка по диагонали — достаёт');
   no(battle._targetable(t, beyond), 'через клетку — нет');
+});
+
+test('одноразовые навыки — за игроком: заново на карте щит и второй шанс не возвращаются', () => {
+  const battle = makeBattle(), smith = player(), saint = player();
+  let mech = battle.place(smith, 'mechanic', 2, 6, { runes: ['turret', 'bulwark'] });
+  battle.startWave(1, 2);
+  eq(battle.steel, 1);
+  battle.remove(mech);
+  mech = battle.place(smith, 'mechanic', 2, 6, { runes: ['turret', 'bulwark'] });
+  eq(battle.steel, 1, 'в той же волне щит второй раз не ставится');
+  let angel = battle.place(saint, 'priest', 3, 6, { runes: ['angel', 'lastStand'] });
+  battle.lives = 0;
+  ok(battle._lastStand(null));
+  battle.endWave();
+  battle.remove(angel);
+  angel = battle.place(saint, 'priest', 3, 6, { runes: ['angel', 'lastStand'] });
+  ok(angel.planted, 'так и стоит с мечом в земле');
+  no(battle._lastStand(null), 'второй шанс — один раз за игру');
+  ok(mech && saint.assists >= HELP.save, 'спасение — очки помощи игроку');
 });
 
 test('ангел, кара: бьёт раз в 5 секунд, но убивает любого моба одним ударом; боссу — огромный урон', () => {
@@ -2421,7 +2440,8 @@ test('реакции: стихию накладывают только «… р�
   weak.hp = 1;
   battle._pulse(battle.time);
   ok(weak.dead);
-  eq([towers.fire.run.kills, towers.fire2.run.kills, towers.water.run.kills], [1, 1, 1], 'убийство — всем участникам');
+  eq(towers.fire.run.kills + towers.fire2.run.kills + towers.water.run.kills, 1, 'убийство — только добившему');
+  ok(towers.fire2.run.assists >= HELP.react && towers.water.run.assists >= HELP.react, 'остальным — очки помощи');
 });
 
 test('реакции: шанс выше у стихии, наложенной чаще; несколько реакций сразу, если не мешают', () => {

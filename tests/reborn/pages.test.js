@@ -235,13 +235,15 @@ test('страницы: камень навыка — окно выбора по
   game.slots[0] = slot;
   game._apply(slot);
   await until(() => !element(w, 'pick').hidden, 'окно выбора на экране');
-  const options = w.document.querySelectorAll('#pick-options li');
+  const options = w.document.querySelectorAll('#pick-options li:not(.split)');
+  ok(Array.from(w.document.querySelectorAll('#pick-options li.split')).some((li) => li.textContent.startsWith('Навыки')),
+    'группы разделены чертой с подписью');
   eq(options.length, game.optionsOf(game.choice).length);
   ok(text(w, 'pick-who').includes('Аня'));
   ok(text(w, 'pick-how').includes('цифру от 1 до ' + options.length));
   eq(text(w, 'status'), 'Выбор навыка');
   const name = game.optionsOf(game.choice)[1].skill.name;
-  ok(options[1].textContent.startsWith('2' + name + 'способность'));
+  ok(options[1].textContent.startsWith('2' + name + ' — '));
   eq(game.feed('Аня', '2', { login: 'аня' }), 'skill');
   await until(() => element(w, 'pick').hidden, 'окно закрылось');
   await until(() => text(w, 'cards').includes(name), 'плашка «Новый навык»');

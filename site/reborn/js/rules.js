@@ -1,6 +1,6 @@
 import { MIGHT, SLEEP_AFTER } from './balance.js';
 import { QUEUE_CAP } from './gacha.js';
-import { CLASSES, STONES } from './classes.js';
+import { CLASSES, STONE_CHANCE, STONES } from './classes.js';
 
 const POOL = Math.max(...CLASSES.map((cls) => cls.skills.length + cls.runes.length));
 
@@ -50,7 +50,7 @@ export const RULES = [
         + 'гачи к концу игры — и уровень снова 1, а перед ним золотой флаг с номером.'],
       [b('Навыки.'), ' Гача может выдать ', b('камень навыка'), '. Первый — с 1 уровня, шанс 20%: игрок выбирает '
         + 'стиль игры (у мага огня — огненный шар, дракон или возгорание), и меняется его вид. Следующие — на '
-        + STONES.slice(1, -1).join(', ') + ' и ' + STONES[STONES.length - 1] + ' уровне, шанс 3%: усиления своего '
+        + STONES.slice(1, -1).join(', ') + ' и ' + STONES[STONES.length - 1] + ' уровне, шанс ' + Math.round(STONE_CHANCE.next * 100) + '%: усиления своего '
         + 'стиля или способности. Игра встаёт на паузу, по центру — навыки, игрок пишет в чат цифру. Навык — до конца '
         + 'игры; не выбрал за минуту — выпадет случайный.'],
       [b('Тик и стихии.'), ' Тик — полсекунды. Способности «… реакция» накладывают на мобов свою стихию: огонь, воду, '

@@ -20,7 +20,7 @@ export const OUTCOMES = [
   { id: 'bag', name: 'Мешок монет', color: '#e8a33d', chance: 0.0675, coins: [51, 150] },
   { id: 'chest', name: 'Сундук монет', color: '#ffb020', chance: 0.0075, coins: [151, 500] },
   { id: 'particle', name: 'Частица бога', color: '#ff2e4d', chance: 0.003 },
-  { id: 'stone', name: 'Камень навыка', color: '#e879f9', chance: 0 },
+  { id: 'stone', name: 'Камень навыка', color: '#ff2e4d', chance: 0 },
 ];
 
 export const RARITIES = [

@@ -109,6 +109,7 @@ export const HOLY = { angel: { reach: 1, interval: 1, mul: 2.6 }, monk: { reach:
   holyGround: { every: 6, radius: 4, mul: 2, flight: 0.8 }, heavy: { chance: 0.15, stun: 1 },
   mantra: { radius: 3, haste: 0.15, damage: 0.15, range: 0.15, might: 0.2 }, burst: { radius: 2, share: 0.5 },
   repose: 3, chain: { jumps: 2, reach: 2 }, aegis: 0.2, blessing: 0.1, insight: 0.1 };
+export const HELP = { assist: 1, control: 1, react: 2, heart: 10, heal: 10, save: 50 };
 const DEMONS = new Set(['imp', 'hellhound', 'demon', 'devilkin', 'gatekeeper', 'archdemon', 'diablo']);
 export const MANTRAS = ['mantraSpeed', 'mantraPower', 'mantraRange'];
 const STYLE_ELEMENTS = { witch: 'poison' };
@@ -268,6 +269,9 @@ export class Battle {
     this.brittle = false;
     this.treasures = 0;
     this.ward = null;
+    this.steeled = new Map();
+    this.stood = new Set();
+    this.shields = [];
     this.lastSpawn = 0;
     this.wild = false;
     this.family = null;
@@ -376,6 +380,7 @@ export class Battle {
     this.byCell.set(y * SIZE + x, tower);
     this.towers.push(tower);
     this._level(tower);
+    if (this.stood.has(player) && tower.style === 'angel') tower.planted = true;
     return tower;
   }
 
@@ -508,6 +513,7 @@ export class Battle {
     this.players = players;
     for (const t of this.towers) t.feast = 0;
     this.steel = 0;
+    this.shields = [];
     for (const t of this.towers) this._steelOf(t);
     const start = this.time, toughness = Math.max(FLOOR, 1 + this.foe.hp);
     const family = this.nextFamily || this.planFamily(wave);
@@ -593,6 +599,7 @@ export class Battle {
     for (const trap of this.traps) trap.openAt = 0;
     if (this.ward) {
       this.lives = Math.min(this.maxLives, Math.max(0, this.lives) + HOLY.second.lives);
+      if (this.towers.includes(this.ward.tower)) this._help(this.ward.tower, HOLY.second.lives * HELP.heal);
       this._event({ kind: 'heal', tower: this.ward.tower, lives: HOLY.second.lives });
       this.ward = null;
     }
@@ -602,6 +609,7 @@ export class Battle {
     if (menders.length && this.lives < this.maxLives) {
       const heal = Math.min(menders.length * HOLY.mercy.lives, this.maxLives - this.lives);
       this.lives += heal;
+      for (const t of menders) this._help(t, heal / menders.length * HELP.heal);
       this._event({ kind: 'heal', tower: menders[0], lives: heal });
     }
     const fighters = this.towers.filter((t) => !t.cocoon);
@@ -1072,6 +1080,7 @@ export class Battle {
       * (1 - mob.resist);
     mob.holdUntil = Math.max(mob.holdUntil, this.time + time);
     mob.holdFree = mob.holdUntil + HOLD_GAP;
+    if (tower && tower.run) this._help(tower, HELP.control);
     mob.holdBy = tower ? tower.cls.id : '';
     this._event({ kind: 'hold', mob, by: mob.holdBy });
   }
@@ -1266,6 +1275,7 @@ export class Battle {
       if (item) for (const t of item.by) if (this.towers.includes(t)) party.add(t);
     }
     if (!party.size) return;
+    for (const t of party) this._help(t, HELP.react);
     const towers = Array.from(party), lead = towers[0], blue = towers.some((t) => t.runes.has('blue'));
     const fiery = marks.includes('fire') || name === 'blast' || name === 'lava';
     const power = towers.reduce((sum, t) => sum + t.skill, 0) * (blue && fiery ? BLUE_REACT : 1);
@@ -1451,17 +1461,22 @@ export class Battle {
         if (mob.fatal && !this.ward && this._lastStand(mob)) continue;
         mob.dead = true;
         if (this.ward && !mob.fatal) {
+          if (this.towers.includes(this.ward.tower)) this._help(this.ward.tower, HELP.heart);
           this._event({ kind: 'warded', mob });
           continue;
         }
         const aegis = mob.fatal ? 0 : this._aegis();
         if (aegis > 0 && this.random() < aegis) {
+          const guard = this.towers.find((t) => t.cls.id === 'priest' && !t.cocoon && t.runes.has('aegis'));
+          if (guard) this._help(guard, HELP.heart);
           this._event({ kind: 'aegis', mob });
           continue;
         }
         if (mob.fatal) this.ward = null;
         if (!mob.fatal && this.steel > 0) {
           this.steel -= 1;
+          const keeper = this.shields.shift();
+          if (keeper && this.towers.includes(keeper)) this._help(keeper, HELP.heart);
           this._event({ kind: 'steel', mob, left: this.steel });
           continue;
         }
@@ -1664,9 +1679,10 @@ export class Battle {
   }
 
   _steelOf(t) {
-    if (t.cls.id !== 'mechanic' || t.cocoon || !t.runes.has('bulwark') || t.steeled === this.wave) return;
-    t.steeled = this.wave;
+    if (t.cls.id !== 'mechanic' || t.cocoon || !t.runes.has('bulwark') || this.steeled.get(t.player) === this.wave) return;
+    this.steeled.set(t.player, this.wave);
     this.steel += 1;
+    this.shields.push(t);
   }
 
   _rewind() {
@@ -2330,7 +2346,9 @@ export class Battle {
       mob.clinkAt = now + CLINK_GAP;
       this._event({ kind: 'clink', mob });
     }
-    t.run.damage += Math.min(dealt, mob.hp);
+    const share = Math.min(dealt, mob.hp);
+    if (mob.party && mob.party.length) for (const ally of mob.party) ally.run.damage += share / mob.party.length;
+    else t.run.damage += share;
     mob.hp -= dealt;
     if (t.style === 'inquisitor' && t.runes.has('banish')) mob.banished = true;
     if (!dot) mob.hitAt = now;
@@ -2400,13 +2418,10 @@ export class Battle {
         * Math.max(0, 1 + (t.mods.coins || 0)) * (1 + trophy);
       t.player.coins += coins;
       t.run.coins += coins;
-      if (killers.has(t)) {
+      if (t === killer) {
         t.run.kills += 1;
         t.player.kills += 1;
-      } else {
-        t.run.assists += 1;
-        t.player.assists += 1;
-      }
+      } else this._help(t, HELP.assist);
     }
     this._event({ kind: 'kill', mob, by: killer });
     if (mob.stolen && killer) {
@@ -2476,14 +2491,23 @@ export class Battle {
     }
   }
 
+  _help(t, points) {
+    points = Math.round(points);
+    t.run.assists += points;
+    t.player.assists += points;
+  }
+
   _aegis() {
     return fade(this.towers.filter((t) => t.cls.id === 'priest' && !t.cocoon && t.runes.has('aegis'))
       .map(() => HOLY.aegis));
   }
 
   _lastStand(diablo) {
-    const angel = this.towers.find((t) => t.style === 'angel' && t.runes.has('lastStand') && !t.planted && !t.cocoon);
+    const angel = this.towers.find((t) => t.style === 'angel' && t.runes.has('lastStand') && !t.planted && !t.cocoon
+      && !this.stood.has(t.player));
     if (!angel) return false;
+    this.stood.add(angel.player);
+    this._help(angel, HELP.save);
     const s = HOLY.second;
     angel.planted = true;
     angel.charge = null;

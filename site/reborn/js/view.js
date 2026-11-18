@@ -28,7 +28,7 @@ const BIOME_GLOW = { grass: '#4ade80', volcano: '#fb923c', swamp: '#a3e635', sno
 const LOW_LIVES = 5;
 const BOSS_EVERY = 10;
 const FINAL_SECONDS = 3;
-const ROWS = { over: 5, pause: 10, pauseShort: 8, queue: 3, cards: 4, player: 22 };
+const ROWS = { over: 10, pause: 10, pauseShort: 8, queue: 3, cards: 4, player: 22 };
 const CARD_GAP = 6;
 const REEL = { cells: 26, result: 21, width: 34 };
 const BIG_PRIZES = new Set(['epic', 'legendary']);
@@ -136,6 +136,13 @@ function luminance(red, green, blue) {
 
 function mightOfMember(member) {
   return member.tower ? member.tower.might : mightOf(member.weapon ? member.weapon.power : 0, member.paragon || 0);
+}
+
+function shortNumber(value) {
+  const n = Math.round(value);
+  if (n >= 1e6) return (Math.round(n / 1e5) / 10).toString().replace('.', ',') + ' млн';
+  if (n >= 1e4) return Math.round(n / 1e3) + ' тыс.';
+  return String(n);
 }
 
 const stacked = (skill, count) => skill.name + (skill.max ? ' ' + count + '/' + skill.max : '');
@@ -721,12 +728,15 @@ export class View {
       list.textContent = '';
       list.style.setProperty('--own', cls.color);
       list.classList.toggle('many', options.length > 6);
+      let group = null;
       options.forEach(({ skill, state, count }, i) => {
+        const kind = skill.kind === 'style' ? null : skill.kind === 'upgrade' ? 'upgrade' : 'ability';
+        if (kind && kind !== group) {
+          group = kind;
+          list.append(el('li', 'split', 'Навыки ' + (kind === 'upgrade' && style ? style.of : cls.of)));
+        }
         const item = el('li', state), text = el('div');
         text.append(el('b', '', stacked(skill, count)));
-        if (skill.kind !== 'style') {
-          text.append(el('span', 'kind', skill.kind === 'upgrade' ? 'усиление' : 'способность'));
-        }
         text.append(' — ' + skill.text);
         item.append(el('i', 'digit', String(i + 1)), text);
         list.append(item);
@@ -816,7 +826,7 @@ export class View {
     const summit = game.state === 'summit';
     const results = summit ? { passed: game.wave, victory: true, rows: Array.from(game.members.values())
       .filter((m) => m.tower).map((m) => ({ login: m.login, name: m.name, kills: m.tower.run.kills,
-        assists: m.tower.run.assists })) } : game.results;
+        assists: m.tower.run.assists, damage: m.tower.run.damage })) } : game.results;
     $('over-next').textContent = summit ? 'Игра завершится сама через ' + clockText(game.left) + '. Хотите испытать '
       + 'себя и продолжить — напишите !чатоборона-дальше' : 'Новая игра через ' + clockText(game.left);
     this._once('over', JSON.stringify([summit, results]), () => {
@@ -826,9 +836,10 @@ export class View {
       passed.textContent = summit ? 'Вы прошли ' + results.passed + ' волн — поздравляем!'
         : 'Пройдено волн: ' + results.passed;
       if (results.record) passed.append(el('span', 'badge', 'Новый рекорд!'));
-      for (const [id, field] of [['over-kills', 'kills'], ['over-assists', 'assists']]) {
+      for (const [id, field] of [['over-damage', 'damage'], ['over-kills', 'kills'], ['over-assists', 'assists']]) {
         const rows = results.rows.filter((r) => r[field] > 0).sort((a, b) => b[field] - a[field]).slice(0, ROWS.over);
-        this._fillList($(id), rows.map((r) => ({ name: r.name, login: r.login, value: r[field] })), 'никого');
+        this._fillList($(id), rows.map((r) => ({ name: r.name, login: r.login, value: shortNumber(r[field]) })),
+          'никого');
       }
     });
   }
@@ -1167,6 +1178,7 @@ export class View {
       const label = detail.style ? 'стиль' : 'навык';
       text.append(el('b', 'title', detail.auto ? 'Случайный ' + label : 'Новый ' + label), nick, ': ',
         el('b', 'what', skill ? skill.name : ''));
+      if (skill) text.append(el('span', 'desc', skill.text[0].toUpperCase() + skill.text.slice(1)));
       node.append(image(heroUrl(skinOf(member.cls, member.skills), 64)), text);
     } else if (note.kind === 'divine') {
       node.className = 'note divine';
