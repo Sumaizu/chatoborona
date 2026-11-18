@@ -188,6 +188,15 @@ const RECIPES = {
     s.crunch(at, 0.4, 0.14);
     s.swish(at, 500, 150, 0.4, 0.1);
   },
+  lute(s, at) {
+    [D4, FS4, A4, D5].forEach((note, i) => s.pluck(at + i * 0.035, note, 0.7, 0.09, -0.3 + i * 0.2, 0.9));
+    s.chime(at + 0.14, FS5, 0.6, 0.03, 0.2);
+  },
+  drum(s, at) {
+    s.thump(at, 120, 48, 0.4, 0.55);
+    s.crunch(at, 0.05, 0.05);
+    [2794, 3322, 3951].forEach((note, i) => s.chime(at + 0.02 + i * 0.03, note, 0.25, 0.025, spread()));
+  },
   holy(s, at) {
     s.chime(at, 1568, 0.4, 0.07, 0);
     s.swish(at, 3000, 6000, 0.15, 0.05);
@@ -364,7 +373,7 @@ const RECIPES = {
 };
 
 export const SFX_GAPS = {
-  gun: 0.07, hit: 0.05, kill: 0.07, crack: 0.15, launch: 0.12, rock: 0.12, boom: 0.12, mine: 0.15, zap: 0.12,
+  lute: 0.25, drum: 0.3, gun: 0.07, hit: 0.05, kill: 0.07, crack: 0.15, launch: 0.12, rock: 0.12, boom: 0.12, mine: 0.15, zap: 0.12,
   flame: 0.3, bolt: 0.08, ice: 0.1, wind: 0.2, cast: 0.12, crit: 0.15, freeze: 0.25, stun: 0.2,
   storm: 0.3, rally: 0.5, heal: 0.5, block: 0.3, roar: 1, growl: 0.8, summon: 0.4, build: 0.4,
   crumble: 0.4, bite: 0.15, leap: 0.3, chomp: 0.25, nuke: 2, fall: 1, join: 0.4, card: 0.3, holy: 0.12, splash: 0.15,

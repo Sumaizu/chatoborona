@@ -196,9 +196,9 @@ test('с 91-й волны мобы крепчают спокойно — на 10
   }
 });
 
-test('классы: двенадцать, у каждого оружие, свой склад и набор навыков; у стрелков — по плану Реборна', () => {
-  eq(CLASSES.length, 12);
-  eq(new Set(CLASSES.map((c) => c.id)).size, 12);
+test('классы: тринадцать, у каждого оружие, свой склад и набор навыков; у стрелков — по плану Реборна', () => {
+  eq(CLASSES.length, 13);
+  eq(new Set(CLASSES.map((c) => c.id)).size, 13);
   eq(PERKS, [10, 30, 50]);
   const runes = CLASSES.flatMap((cls) => cls.runes.map((rune) => rune.id));
   eq(new Set(runes).size, runes.length, 'руны не повторяются');

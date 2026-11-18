@@ -1209,6 +1209,144 @@ function inquisitor(m) {
   m.limb(16, 13.6, 14.6, 16, 21.6, 14.2, 0.5, INQ.gold, 1, 0.3);
 }
 
+function gown(m, o) {
+  const spread = o.spread || 6.4;
+  for (let i = 0; i < 11; i++) {
+    const a = Math.PI * (0.1 + 0.8 * i / 10), x = 16 + Math.cos(a) * spread, y = 21.6 + Math.sin(a) * (spread + 1);
+    m.limb(16, 20, 3.4, x, y, 1.6, 0.8, i % 2 ? o.dress : o.fold, 0, 1.25);
+  }
+  if (o.trim) {
+    for (let i = 0; i < 6; i++) {
+      const a = Math.PI * (0.18 + 0.64 * i / 5), x = 16 + Math.cos(a) * (spread - 0.4), y = 21.6 + Math.sin(a) * spread;
+      m.limb(x - 0.9, y + 0.2, 2, x + 0.9, y + 0.4, 2, 0.28, o.trim, 0.8);
+    }
+  }
+}
+
+function lady(m, o) {
+  gown(m, o);
+  m.limb(11.8, 17, 7.2, 20.2, 17, 7.2, 1.7, o.top, 0.2);
+  m.limb(16, 17.2, 7, 16, 21.6, 5.8, 3.4, o.top, 0.2, 2.1);
+  if (o.belt) m.limb(13.4, 21, 6.6, 18.6, 21, 6.6, 0.5, o.belt, 0.8);
+  const [lx, ly, lz, rx, ry, rz] = o.hands;
+  for (const [sx, hx, hy, hz] of [[11.8, lx, ly, lz], [20.2, rx, ry, rz]]) {
+    m.limb(sx, 17.2, 7.6, hx, hy + 1, hz - 0.6, 1.05, o.sleeve, 0.1, o.wide || 1.1);
+  }
+  if (o.weapon) o.weapon(m);
+  m.ball(lx, ly, lz, 1.05, SKIN);
+  m.ball(rx, ry, rz, 1.05, SKIN);
+  m.egg(16, 15.2, 11.2, 2.1, 1.5, 1.6, SKIN);
+  m.egg(16, 17.4, 11.6, 3.3, 3.5, 3.1, o.hair);
+  for (let k = -3; k <= 3; k++) {
+    m.limb(16 + k * 0.6, 16.6 + Math.abs(k) * 0.3, 13.8 - Math.abs(k) * 0.4, 16 + k * 0.85, 22.4 + Math.abs(k) * 0.3,
+      9.4, 0.62, k % 2 ? o.hair : o.shade, 0.3, 0.4);
+  }
+  m.limb(16, 15.2, 14.6, 16, 18.4, 14.8, 0.3, o.shade);
+  if (o.bun) m.egg(16, 19.2, 14.8, 1.7, 1.5, 1.4, o.hair, 0.3);
+  if (o.head) o.head(m);
+}
+
+function sorceress(m) {
+  lady(m, {
+    dress: '#f5f1e8', fold: '#d8d0bf', top: '#f5f1e8', sleeve: '#efe9dc', wide: 1.6, belt: '#d9a521',
+    hair: '#e6c36a', shade: '#c39a40', trim: '#e2c27a', hands: [10.6, 18.4, 8, 20.6, 10.2, 13],
+    weapon: (q) => {
+      q.ball(20.6, 8.8, 14.4, 1, '#ede9fe', 1);
+      q.ball(20.4, 8.6, 15.2, 0.5, '#ffffff', 1);
+    },
+  });
+}
+
+const LUTE = { wood: '#b8864b', dark: '#7a5230', face: '#d6a866', string: '#efe6d2' };
+
+function minstrel(m, strum = false) {
+  lady(m, {
+    dress: '#3a5d7d', fold: '#2b465f', top: '#2f5f80', sleeve: '#2f5f80', hair: '#b8622f', shade: '#8a4420',
+    bun: true, trim: '#a3c4d8', hands: strum ? [13.4, 8.8, 10.4, 18.2, 12, 10.8] : [13.4, 8.8, 10.4, 21.8, 15.6, 10],
+    weapon: (q) => {
+      q.egg(19.8, 13.8, 9.4, 2.8, 3, 1.3, LUTE.wood, 0.6);
+      q.egg(19.6, 13.5, 10.4, 2.1, 2.3, 0.5, LUTE.face, 0.4);
+      q.ball(19.1, 12.8, 10.8, 0.7, '#3b2414');
+      q.limb(18, 11.8, 10.6, 13, 7.6, 11, 0.55, LUTE.dark, 0.4, 0.45);
+      q.limb(13, 7.6, 11, 11.8, 6.4, 11.2, 0.62, LUTE.wood, 0.5, 0.5);
+      for (const off of [-0.3, 0.3]) {
+        q.limb(20.3 + off, 15 + off, 10.9, 13.2 + off, 8 - off, 11.3, 0.1, LUTE.string, 1);
+      }
+      q.limb(13, 21.4, 7.4, 21.4, 12.4, 9, 0.35, '#5c3d22');
+    },
+  });
+  m.limb(11.4, 16.4, 8.4, 20.6, 16.4, 8.4, 1.1, '#26465f', 0.2);
+}
+
+function enchantress(m, pose = '') {
+  const hands = pose === 'cast' ? [11.6, 12.8, 9.8, 20.2, 6.8, 11] : pose === 'draw' ? [11.6, 12.8, 9.8, 14, 12.2, 10.6]
+    : [11.6, 12.8, 9.8, 20.4, 16.4, 8.6];
+  lady(m, {
+    dress: '#2a3350', fold: '#1c2336', top: '#efe9dc', sleeve: '#46557a', hair: '#1c1a22', shade: '#3a3646', bun: true,
+    trim: '#5b6b8f', belt: '#4b5563', hands,
+    weapon: (q) => {
+      q.egg(11.6, 12.6, 9.6, 3.2, 2.2, 0.6, '#5c3a1e', 0.4);
+      q.egg(10.3, 12.4, 10.2, 1.5, 1.9, 0.4, '#f3ead6');
+      q.egg(12.9, 12.4, 10.2, 1.5, 1.9, 0.4, '#efe4cc');
+      q.limb(11.6, 10.8, 10.4, 11.6, 14, 10.4, 0.18, '#a08060');
+      for (const y of [11.4, 12.2, 13]) {
+        q.limb(9.4, y, 10.6, 11, y, 10.6, 0.1, '#b8a888');
+        q.limb(12.2, y, 10.6, 13.8, y, 10.6, 0.1, '#b8a888');
+      }
+      if (pose) {
+        const [x, y, z] = pose === 'cast' ? [20.2, 5.4, 12] : [14, 10.9, 11.6];
+        q.ball(x, y, z, 1.1, '#38bdf8', 1);
+        q.ball(x - 0.3, y - 0.3, z + 0.8, 0.5, '#e0f7ff', 1);
+      }
+    },
+  });
+}
+
+const FEATHER = { white: '#f5f3ee', tip: '#1f1b1a', shaft: '#8a8070' };
+
+function shamaness(m, beat = false) {
+  lady(m, {
+    dress: '#4a3426', fold: '#36261b', top: '#3a2a20', sleeve: '#c9a882', hair: '#6b4a2f', shade: '#4a311d',
+    hands: beat ? [11, 13.6, 9.8, 14.4, 12.8, 10.6] : [11, 13.6, 9.8, 21, 12.6, 10],
+    weapon: (q) => {
+      q.egg(10.8, 13.2, 9.2, 3.4, 3.4, 1, '#7c2d12', 0.5);
+      q.egg(10.8, 13.2, 9.9, 2.9, 2.9, 0.5, '#e2d2b0', 0.2);
+      for (let i = 0; i < 10; i++) {
+        const a = i * Math.PI / 5, x = 10.8 + Math.cos(a) * 3.1, y = 13.2 + Math.sin(a) * 3.1;
+        q.limb(x, y, 10, 10.8 + Math.cos(a) * 2.5, 13.2 + Math.sin(a) * 2.5, 10.1, 0.14, '#1f1410');
+      }
+      for (const a of [2.4, 3.3, 4.1]) {
+        const x = 10.8 + Math.cos(a) * 3.4, y = 13.2 + Math.sin(a) * 3.4;
+        q.limb(x, y, 9, x + Math.cos(a) * 2.2, y + Math.sin(a) * 2.2 + 0.8, 8, 0.32, FEATHER.white, 0.2, 0.12);
+        q.limb(x + Math.cos(a) * 1.6, y + Math.sin(a) * 1.6 + 0.6, 8.3, x + Math.cos(a) * 2.2, y + Math.sin(a) * 2.2 + 0.8,
+          8, 0.3, FEATHER.tip, 0.2, 0.1);
+      }
+      const [hx, hy, tx, ty] = beat ? [14.4, 12.8, 11.6, 12.4] : [21, 12.6, 20.4, 7.6];
+      q.limb(hx, hy + 0.8, 10.6, tx, ty, 11.2, 0.42, '#6b4423', 0.3, 0.55);
+      q.ball(tx, ty, 11.4, 0.8, '#8a5a2e', 0.3);
+      for (const [dx, dy] of [[-0.8, 0.6], [0.8, 0.4], [0, -0.8]]) q.ball(tx + dx, ty + dy, 11.6, 0.42, '#e0b43a', 1);
+    },
+    head: (q) => {
+      for (let i = 0; i < 11; i++) {
+        const a = Math.PI * (0.18 + 0.64 * i / 10), long = 7 + (i % 3) * 0.7;
+        const bx = 16 + Math.cos(a) * 3.2, by = 17.6 + Math.sin(a) * 3.2, ex = 16 + Math.cos(a) * (3.2 + long);
+        const ey = 17.6 + Math.sin(a) * (3.2 + long);
+        q.limb(bx, by, 14.2, ex, ey, 12.4, 0.75, FEATHER.white, 0.2, 0.35);
+        q.limb(bx + (ex - bx) * 0.68, by + (ey - by) * 0.68, 13, ex, ey, 12.4, 0.62, FEATHER.tip, 0.2, 0.25);
+        q.limb(bx, by, 14.6, ex, ey, 12.8, 0.08, FEATHER.shaft);
+      }
+      for (let i = 0; i < 14; i++) {
+        const a = Math.PI * (1.05 + 0.9 * i / 13);
+        const bead = ['#dc2626', '#2563eb', '#f5f3ee', '#f59e0b'][i % 4];
+        q.ball(16 + Math.cos(a) * 3.2, 17.4 + Math.sin(a) * 3.3, 14.4, 0.42, bead);
+      }
+    },
+  });
+  for (const [x, y] of [[11.6, 18], [13, 20.4], [16, 21.4], [19, 20.4], [20.4, 18]]) {
+    m.egg(x, y, 7.8, 1.9, 1.6, 1.4, '#d6c7ad', 0.1);
+  }
+}
+
 const SKINS = {
   pyro: ragged,
   forester,
@@ -1252,6 +1390,15 @@ const SKINS = {
   'priest-monk': (m) => monk(m),
   'priest-monk-strike': (m) => monk(m, true),
   'priest-inquisitor': inquisitor,
+  sorceress,
+  'sorceress-ragged': sorceress,
+  'sorceress-minstrel': (m) => minstrel(m),
+  'sorceress-minstrel-strum': (m) => minstrel(m, true),
+  'sorceress-enchantress': (m) => enchantress(m),
+  'sorceress-enchantress-draw': (m) => enchantress(m, 'draw'),
+  'sorceress-enchantress-cast': (m) => enchantress(m, 'cast'),
+  'sorceress-shamaness': (m) => shamaness(m),
+  'sorceress-shamaness-beat': (m) => shamaness(m, true),
 };
 
 const HEROES = {
@@ -1324,12 +1471,14 @@ export const MUZZLES = {
   'mechanic-turret-giant': [[16, -6.6]],
   banner: [[19, 11]], priest: [[20.5, 4.4]], 'priest-ragged': [[20.5, 4.4]],
   'priest-angel': [[21, -1]], 'priest-monk': [[21, 3.4]], 'priest-inquisitor': [[20.6, 3]],
+  sorceress: [[20.6, 8.6]], 'sorceress-ragged': [[20.6, 8.6]], 'sorceress-minstrel': [[18.4, 15]],
+  'sorceress-enchantress': [[20.2, 5.4]], 'sorceress-shamaness': [[10.8, 13.2]],
   sage: [[16, 11.2]], frost: STAFF, earth: STAFF, shaman: STAFF, thunder: STAFF,
 };
 
 export const RELOAD_FRAMES = RELOAD.frames;
 
-export const FINE_HEROES = /^priest/;
+export const FINE_HEROES = /^(priest|sorceress)/;
 export const ANGEL_BODY = 0.8;
 const COMPACT = new Map(['w0', 'w1', 'w2', 'w3', 'kneel'].map((frame) => ['priest-angel-' + frame, ANGEL_BODY]));
 

@@ -109,6 +109,9 @@ export const HOLY = { angel: { reach: 1, interval: 1, mul: 2.6 }, monk: { reach:
   holyGround: { every: 6, radius: 4, mul: 2, flight: 0.8 }, heavy: { chance: 0.15, stun: 1 },
   mantra: { radius: 3, haste: 0.15, damage: 0.15, range: 0.15, might: 0.2 }, burst: { radius: 2, share: 0.5 },
   repose: 3, chain: { jumps: 2, reach: 2 }, aegis: 0.2, blessing: 0.1, insight: 0.1 };
+export const SPELL = { wisp: 0.45, minstrel: { reach: 3.5, interval: 1.6, mul: 1.3, arc: 0.85, speed: 7 },
+  enchantress: { reach: 4, interval: 1.45, mul: 2.2, wind: 0.3, flight: FIREBALL_FLIGHT },
+  shamaness: { reach: 2, interval: 1.8, mul: 1.2 } };
 export const HELP = { assist: 1, control: 1, react: 2, heart: 10, heal: 10, save: 50 };
 const DEMONS = new Set(['imp', 'hellhound', 'demon', 'devilkin', 'gatekeeper', 'archdemon', 'diablo']);
 export const MANTRAS = ['mantraSpeed', 'mantraPower', 'mantraRange'];
@@ -1029,7 +1032,8 @@ export class Battle {
     tower.skill = base.skill * boost;
     tower.element = cls.element || STYLE_ELEMENTS[tower.style] || null;
     const shot = cls.id === 'sniper' && SHOT[tower.style] || cls.id === 'mechanic' && MECH[tower.style]
-      || cls.id === 'forester' && WOOD[tower.style] || cls.id === 'priest' && HOLY[tower.style] || null;
+      || cls.id === 'forester' && WOOD[tower.style] || cls.id === 'priest' && HOLY[tower.style]
+      || cls.id === 'sorceress' && SPELL[tower.style] || null;
     if (shot) tower.damage *= shot.mul;
     tower.interval = (shot && shot.interval || base.interval) / (Math.max(FLOOR, 1 + (mods.rate || 0))
       * (tower.runes.has('frenzy') ? 3 : 1));
@@ -1065,6 +1069,7 @@ export class Battle {
     if (tower.style === 'turret' || tower.style === 'demo') return b.range + MECH[tower.style].range;
     if (tower.style === 'hunter' || tower.style === 'witch') return b.range + WOOD[tower.style].range;
     if (tower.cls.id === 'priest' && HOLY[tower.style]) return HOLY[tower.style].reach;
+    if (tower.cls.id === 'sorceress' && SPELL[tower.style]) return SPELL[tower.style].reach;
     return b.range || 0;
   }
 
@@ -2848,6 +2853,35 @@ function holyGround(b, t, now) {
   }, t);
 }
 
+function chord(b, t, target, crit, hit) {
+  const s = SPELL.minstrel, angle = Math.atan2(target.y - t.cy, target.x - t.cx);
+  b._event({ kind: 'chord', tower: t, mob: target, x: target.x, y: target.y, angle, reach: t.range,
+    time: t.range / s.speed, crit });
+  for (const mob of b.mobs) {
+    if (!b._targetable(t, mob)) continue;
+    const turn = Math.atan2(mob.y - t.cy, mob.x - t.cx) - angle;
+    if (Math.abs(Math.atan2(Math.sin(turn), Math.cos(turn))) > s.arc) continue;
+    b._later(Math.hypot(mob.x - t.cx, mob.y - t.cy) / s.speed, () => {
+      if (!mob.dead) b._hurt(mob, hit, t);
+    }, t);
+  }
+  return true;
+}
+
+function conjure(b, t, target, crit, hit) {
+  const s = SPELL.enchantress;
+  b._event({ kind: 'conjure', tower: t, mob: target, x: target.x, y: target.y, time: s.wind });
+  b._later(s.wind, () => {
+    const mob = target.dead ? b._target(t) : target;
+    if (!mob) return;
+    b._event({ kind: 'shot', tower: t, x: mob.x, y: mob.y, crit, mob, time: s.flight });
+    b._later(s.flight, () => {
+      if (!mob.dead) b._hurt(mob, hit, t);
+    }, t);
+  }, t);
+  return true;
+}
+
 function holyThrow(b, t, target) {
   holyBall(b, t, target, rollCrit(b, t), null, t.runes.has('chainLight') ? HOLY.chain.jumps : 0, new Set());
   return true;
@@ -3588,6 +3622,25 @@ const SKILLS = {
       if (t.style === 'angel' && t.runes.has('holyGround') && !t.planted && alive && now >= (t.nextHoly || 0)) {
         holyGround(b, t, now);
       }
+    },
+  },
+  sorceress: {
+    fire(b, t) {
+      const target = b._target(t);
+      if (!target) return false;
+      const crit = rollCrit(b, t), hit = t.damage * (crit ? t.critMul : 1);
+      if (t.style === 'minstrel') return chord(b, t, target, crit, hit);
+      if (t.style === 'shamaness') {
+        b._event({ kind: 'drum', tower: t, radius: t.range, crit });
+        for (const mob of b.mobs.filter((other) => b._targetable(t, other))) b._hurt(mob, hit, t);
+        return true;
+      }
+      if (t.style === 'enchantress') return conjure(b, t, target, crit, hit);
+      b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target, time: SPELL.wisp });
+      b._later(SPELL.wisp, () => {
+        if (!target.dead) b._hurt(target, hit, t);
+      }, t);
+      return true;
     },
   },
   sage: {

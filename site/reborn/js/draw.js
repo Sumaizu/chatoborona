@@ -88,7 +88,8 @@ const MUTED = 'rgba(166, 162, 189, .85)';
 const DARK = '#100e1f';
 const STYLE_BOLTS = { hunter: { look: 'bolt', color: '#e7e5e4', width: 3 },
   witch: { look: 'fireball', color: '#84cc16', size: 11, tone: 'toxic' },
-  inquisitor: { look: 'fireball', color: '#fde68a', size: 11, tone: 'holy' } };
+  inquisitor: { look: 'fireball', color: '#fde68a', size: 11, tone: 'holy' },
+  enchantress: { look: 'fireball', color: '#7dd3fc', size: 11, tone: 'azure' } };
 const BOLTS = {
   sniper: { look: 'tracer', color: '#fff3b0', width: 2, bullet: true },
   mechanic: { look: 'tracer', color: '#ffe8a3', width: 1.5, bullet: true },
@@ -99,12 +100,14 @@ const BOLTS = {
   shaman: { look: 'dot', color: '#5eead4', size: 3 },
   banner: { look: 'dot', color: '#ff5fb0', size: 3 },
   priest: { look: 'light', color: '#fde68a', size: 3 },
+  sorceress: { look: 'wisp', color: '#c4b5fd', size: 3 },
   sage: { look: 'dot', color: '#d8b4fe', size: 3 },
 };
 const FLAME = ['#fff3b0', '#ffd84a', '#ff9a1f', '#ff5a1f', '#b8320f'];
 const BLUE_FLAME = ['#e0f2ff', '#9bd5ff', '#4aa3ff', '#2563eb', '#1e3a8a'];
 const FLAME_TONES = { warm: FLAME, blue: BLUE_FLAME, toxic: ['#f7fee7', '#d9f99d', '#a3e635', '#65a30d', '#3f6212'],
   holy: ['#fffef5', '#fff7cc', '#fde68a', '#facc15', '#d4a017'],
+  azure: ['#f0fbff', '#c7f0ff', '#7dd3fc', '#38bdf8', '#0284c7'],
   plague: ['#ede9fe', '#a78bfa', '#6d28d9', '#3b0764', '#1e1033'] };
 const VENOM = { toxic: 'rgba(132, 204, 22, .9)', plague: 'rgba(91, 33, 182, .9)' };
 const GAS = { toxic: ['rgba(201, 246, 120, .8)', 'rgba(101, 163, 13, .45)'],
@@ -122,7 +125,10 @@ const HEAT = { warm: ['rgba(255, 110, 30, .9)', 'rgba(255, 220, 120, .9)'],
   blue: ['rgba(74, 163, 255, .9)', 'rgba(224, 242, 255, .9)'],
   toxic: ['rgba(132, 204, 22, .9)', 'rgba(217, 249, 157, .9)'],
   plague: ['rgba(91, 33, 182, .9)', 'rgba(196, 181, 253, .9)'],
-  holy: ['rgba(250, 204, 21, .9)', 'rgba(255, 251, 230, .95)'] };
+  holy: ['rgba(250, 204, 21, .9)', 'rgba(255, 251, 230, .95)'],
+  azure: ['rgba(56, 189, 248, .9)', 'rgba(224, 247, 255, .95)'] };
+const SPELLS = { wave: 7, chord: '94, 234, 212', shock: '251, 191, 36', lute: 'rgba(45, 212, 191, 1)',
+  wisp: 'rgba(196, 181, 253, 1)', act: 0.32, strum: 0.3, beat: 0.28 };
 const HOLY_LIGHT = { core: 'rgba(255, 251, 230, 1)', warm: 'rgba(253, 224, 120, 1)', ray: 'rgba(255, 244, 200, ',
   motes: 5, wave: 4 };
 const HOVER = { lift: 4, bob: 1.5, rate: 1.2, frames: [2, 1, 0, 1] };
@@ -1690,6 +1696,103 @@ export class Scene {
     ctx.restore();
   }
 
+  _spellGlow(ctx, t) {
+    const pose = this._pose(t), act = pose.act && this.clock < pose.act.until ? pose.act : null;
+    if (t.style === 'shamaness' || t.style === 'enchantress' && !act) return;
+    const tip = this._muzzle(t), x = at(tip.x), y = at(tip.y), beat = 0.5 + 0.5 * Math.sin(this.clock * 2.6 + t.x);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    if (t.style === 'minstrel') {
+      glow(ctx, x, y, 11 + 3 * beat, SPELLS.lute, 0.28 + 0.14 * beat);
+      for (let i = 0; i < 3; i++) {
+        const k = (this.clock * 0.5 + i / 3 + t.y * 0.1) % 1, a = i * 2.1 + this.clock * 0.7;
+        glow(ctx, x + Math.cos(a) * (3 + k * 6), y + Math.sin(a) * (3 + k * 6) - k * 5, 2.4, SPELLS.lute,
+          0.8 * Math.sin(k * Math.PI));
+      }
+    } else if (t.style === 'enchantress') {
+      const [hx, hy] = this.clock < act.cast ? this._handAt(t, 14, 10.9) : [x, y];
+      glow(ctx, hx, hy, 8, HEAT.azure[0], 0.6);
+      glow(ctx, hx, hy, 3.5, HEAT.azure[1], 0.9);
+    } else {
+      glow(ctx, x, y, 9 + 2 * beat, SPELLS.wisp, 0.4 + 0.15 * beat);
+      glow(ctx, x, y, 3.2, 'rgba(255, 255, 255, 1)', 0.8);
+    }
+    ctx.restore();
+  }
+
+  _handAt(t, mx, my) {
+    const pose = this._pose(t), a = turnOf(pose.angle, HERO_TURN_STEPS) * Math.PI * 2 / HERO_TURN_STEPS;
+    const dx = (mx - 16) * MODEL_UNIT, dy = (my - 16) * MODEL_UNIT;
+    return [at(pose.x) + dx * Math.cos(a) - dy * Math.sin(a), at(pose.y) - (pose.lift || 0) + dx * Math.sin(a)
+      + dy * Math.cos(a)];
+  }
+
+  _wisp(ctx, e, share) {
+    const dx = at(e.x2) - at(e.x1), dy = at(e.y2) - at(e.y1), len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len;
+    const point = (k) => {
+      const side = Math.sin(k * Math.PI * 2) * SPELLS.wave * Math.sin(k * Math.PI);
+      return [at(e.x1) + dx * k + nx * side, at(e.y1) + dy * k + ny * side];
+    };
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 4; i >= 1; i--) {
+      const [tx, ty] = point(Math.max(0, share - i * 0.04));
+      glow(ctx, tx, ty, 3.4 - i * 0.5, SPELLS.wisp, 0.35 * (1 - i / 5));
+    }
+    const [x, y] = point(share);
+    glow(ctx, x, y, e.crit ? 8 : 6.5, SPELLS.wisp, 0.75);
+    glow(ctx, x, y, 2.6, 'rgba(255, 255, 255, 1)', 1);
+    ctx.restore();
+  }
+
+  _chord(ctx, e, share) {
+    const x = at(e.x), y = at(e.y), reach = e.reach * CELL, r = 6 + (reach - 6) * share;
+    const fade = Math.pow(1 - share, 1.4);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    for (let band = 0; band < 3; band++) {
+      const rr = r - band * 5;
+      if (rr <= 2) continue;
+      for (const [width, alpha] of [[6, 0.12], [3, 0.3], [1.4, 0.75]]) {
+        ctx.strokeStyle = 'rgba(' + SPELLS.chord + ', ' + alpha * fade * (1 - band * 0.28) + ')';
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        for (let i = 0; i <= 24; i++) {
+          const a = e.angle - 0.85 + 1.7 * i / 24, wob = Math.sin(i * 0.6 + this.clock * 12 + band) * 0.5;
+          const px = x + Math.cos(a) * (rr + wob), py = y + Math.sin(a) * (rr + wob);
+          if (i) ctx.lineTo(px, py);
+          else ctx.moveTo(px, py);
+        }
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  _shock(ctx, e, share) {
+    const x = at(e.x), y = at(e.y), grow = 1 - Math.pow(1 - share, 2), r = Math.max(3, e.radius * CELL * grow);
+    const fade = 1 - share, band = 0.55 * CELL;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const ring = ctx.createRadialGradient(x, y, Math.max(0, r - band), x, y, r + band * 0.3);
+    ring.addColorStop(0, 'rgba(' + SPELLS.shock + ', 0)');
+    ring.addColorStop(0.75, 'rgba(' + SPELLS.shock + ', ' + 0.55 * fade + ')');
+    ring.addColorStop(1, 'rgba(' + SPELLS.shock + ', 0)');
+    ctx.fillStyle = ring;
+    ctx.beginPath();
+    ctx.arc(x, y, r + band * 0.3, 0, Math.PI * 2);
+    ctx.arc(x, y, Math.max(0, r - band), 0, Math.PI * 2, true);
+    ctx.fill();
+    ctx.restore();
+    ctx.save();
+    for (let i = 0; i < 16; i++) {
+      const a = i * 0.39 + e.seed, d = r * (0.85 + 0.15 * Math.sin(i * 2.3));
+      glow(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.9, 4, 'rgba(180, 150, 110, 1)', 0.35 * fade);
+    }
+    ctx.restore();
+  }
+
   _holyMotes(ctx, e, share) {
     const dx = at(e.x2) - at(e.x1), dy = at(e.y2) - at(e.y1), len = Math.hypot(dx, dy) || 1;
     const nx = -dy / len, ny = dx / len;
@@ -2624,6 +2727,8 @@ export class Scene {
         look = t.look + '-w' + HOVER.frames[Math.floor(((u + 0.25) % 1) * 4)];
       }
       if (t.style === 'monk' && pose.staff && this.clock < pose.staff.until) look = t.look + '-strike';
+      const act = pose.act && this.clock < pose.act.until ? pose.act : null;
+      if (act) look = t.look + '-' + (act.cast && this.clock >= act.cast ? 'cast' : act.frame);
       pose.x = spot.x;
       pose.y = spot.y;
       pose.lift = spot.lift;
@@ -2663,8 +2768,9 @@ export class Scene {
         } else sprite(ctx, heroSprite(look, reload), x, y, pose.angle, ZOOM, lift, HERO_TURN_STEPS);
       }
       if (t.cls.id === 'priest' && !t.cocoon && t.style !== 'monk' && t.style !== 'angel') this._holyTip(ctx, t);
+      if (t.cls.id === 'sorceress' && !t.cocoon) this._spellGlow(ctx, t);
       if (t.style === 'angel' || t.style === 'inquisitor') this._halo(ctx, t, x, y);
-      if (pose.flash > 0 && !t.rider && !t.cocoon && t.cls.id !== 'priest') {
+      if (pose.flash > 0 && !t.rider && !t.cocoon && t.cls.id !== 'priest' && t.cls.id !== 'sorceress') {
         const tip = this._muzzle(t), fx = at(tip.x), fy = at(tip.y);
         glow(ctx, fx, fy, 7, 'rgba(255, 236, 160, .95)', 0.9);
         square(ctx, fx, fy, 3, '#ffffff');
@@ -2971,6 +3077,18 @@ export class Scene {
           event.crit ? '#ffffff' : '#fbbf24'], big ? 16 : event.crit ? 8 : 4, big ? 2.4 : 1.6, 0.35);
         if (event.smite) add({ kind: 'holyRing', life: 0.45, x: x2, y: y2, radius: 0.8, seed: Math.random() * 6 });
       }, life);
+    } else if (event.kind === 'chord') {
+      this._fire(t, event.x, event.y, event.mob, () => {
+        const tip = this._muzzle(t);
+        this._pose(t).act = { frame: 'strum', until: this.clock + SPELLS.strum };
+        add({ kind: 'chord', life: event.time, x: tip.x, y: tip.y, angle: event.angle, reach: event.reach });
+      }, SPELLS.strum);
+    } else if (event.kind === 'drum') {
+      this._pose(t).act = { frame: 'beat', until: this.clock + SPELLS.beat };
+      add({ kind: 'shock', life: 0.45, x: t.cx, y: t.cy, radius: event.radius, seed: Math.random() * 6 });
+    } else if (event.kind === 'conjure') {
+      this._face(t, event.x, event.y, event.mob, event.time + SPELLS.act);
+      this._pose(t).act = { frame: 'draw', cast: this.clock + event.time, until: this.clock + event.time + SPELLS.act };
     } else if (event.kind === 'holyOrb') {
       const tip = this._bladeTip(t);
       add({ kind: 'holyOrb', life: event.time, x1: tip.x, y1: tip.y, x2: event.x, y2: event.y, mob: event.mob });
@@ -3498,6 +3616,14 @@ export class Scene {
         this._holyRing(ctx, e, share);
         continue;
       }
+      if (e.kind === 'chord') {
+        this._chord(ctx, e, share);
+        continue;
+      }
+      if (e.kind === 'shock') {
+        this._shock(ctx, e, share);
+        continue;
+      }
       if (e.kind === 'judgement') {
         this._judgement(ctx, e, share);
         continue;
@@ -3552,6 +3678,8 @@ export class Scene {
           this._fireball(ctx, e, share, dt);
         } else if (b.look === 'light') {
           this._holyMotes(ctx, e, share);
+        } else if (b.look === 'wisp') {
+          this._wisp(ctx, e, share);
         } else if (b.look === 'tracer') {
           if (e.heavy) glow(ctx, x, y, b.width * 3, 'rgba(255, 243, 176, .95)', 0.8);
           ctx.strokeStyle = b.color;

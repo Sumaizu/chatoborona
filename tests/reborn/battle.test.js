@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { AIM, BITE_TIME, Battle, CRIMSON, HELP, HOLY, WOOD, DISCHARGE, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, FIRE,
+import { AIM, BITE_TIME, Battle, CRIMSON, HELP, HOLY, SPELL, WOOD, DISCHARGE, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, FIRE,
   PLANTED, PULSE, REACTIONS, ROT, SHOT, SPLIT_TIME, THORN }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
@@ -1364,6 +1364,60 @@ test('монах, повелитель мантр: три мантры в про
   no(options.some((option) => option.skill.name.startsWith('Мантра')));
   ok(options.some((option) => option.skill.id === 'heavyShaft' && option.state === 'open'));
   ok(choiceOf('priest', ['monk', 'mantraSpeed']).some((option) => option.skill.id === 'mantraPower'), 'пока не все три — по одной');
+});
+
+function sorc(battle, x, y, runes) {
+  const t = battle.place(player(), 'sorceress', x, y);
+  battle.setMods(t, { runes });
+  t.critChance = 0;
+  t.cooldown = 1e9;
+  return t;
+}
+
+test('волшебница: шар магии летит волной в того, кто ближе к сердцу, и бьёт по прилёту', () => {
+  const battle = makeBattle(), t = sorc(battle, 10, 4, []);
+  eq(t.cls.name, 'Волшебница');
+  const back = walker(battle, 8, 1e9), front = walker(battle, 14, 1e9);
+  still(back, front);
+  ok(battle._fire(t));
+  eq(hit(front), 0, 'шар ещё летит');
+  runFor(battle, SPELL.wisp + 0.05);
+  near(hit(front), t.damage);
+  eq(hit(back), 0);
+});
+
+test('менестрель: звуковая волна полукругом к врагу ранит всех на пути до конца радиуса', () => {
+  const battle = makeBattle(), t = sorc(battle, 10, 4, ['minstrel']);
+  const a = walker(battle, 12, 1e9), b = walker(battle, 14, 1e9), behind = walker(battle, 6, 1e9);
+  still(a, b, behind);
+  ok(battle._fire(t));
+  ok(battle.events.some((e) => e.kind === 'chord' && e.tower === t));
+  runFor(battle, t.range / SPELL.minstrel.speed + 0.05);
+  ok(hit(a) > 0 && hit(b) > 0, 'двоих на пути задело');
+  eq(hit(behind), 0, 'позади — нет');
+});
+
+test('чародейка: достаёт сферу из книги, бросает — урон по прилёту', () => {
+  const battle = makeBattle(), t = sorc(battle, 10, 4, ['enchantress']), mob = walker(battle, 14, 1e9);
+  still(mob);
+  ok(battle._fire(t));
+  ok(battle.events.some((e) => e.kind === 'conjure'));
+  runFor(battle, SPELL.enchantress.wind + 0.02);
+  eq(hit(mob), 0, 'сфера ещё летит');
+  runFor(battle, SPELL.enchantress.flight + 0.05);
+  near(hit(mob), t.damage);
+});
+
+test('шаманка: удар в барабан — волна на 2 клетки вокруг ранит всех', () => {
+  const battle = makeBattle(), t = sorc(battle, 10, 4, ['shamaness']);
+  ok(t.range >= 2 && t.range < 3);
+  const a = walker(battle, 10, 1e9), b = walker(battle, 12, 1e9), far = walker(battle, 15, 1e9);
+  still(a, b, far);
+  ok(battle._fire(t));
+  near(hit(a), t.damage);
+  near(hit(b), t.damage);
+  eq(hit(far), 0);
+  ok(battle.events.some((e) => e.kind === 'drum'));
 });
 
 test('жрец-инквизитор: светлый шар летит и бьёт по прилёту', () => {
