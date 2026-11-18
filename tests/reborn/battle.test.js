@@ -1420,6 +1420,42 @@ test('шаманка: удар в барабан — волна на 2 клет�
   ok(battle.events.some((e) => e.kind === 'drum'));
 });
 
+test('шаманка, знамёна: на край своей клетки, следующие — по соседству, до трёх; замедление, очищение и сила', () => {
+  const battle = makeBattle(), t = sorc(battle, 10, 4, ['shamaness', 'totemSlow']);
+  eq(battle.banners.length, 1);
+  eq([battle.banners[0].x, battle.banners[0].y], [10, 4], 'на своей клетке');
+  battle.setMods(t, { runes: ['shamaness', 'totemSlow', 'totemSlow', 'totemSlow', 'totemPurge', 'totemPower'] });
+  eq(battle.banners.length, 5);
+  eq(new Set(battle.banners.map((b) => b.x + ':' + b.y)).size, 5, 'в одной клетке — одно знамя');
+  ok(battle.banners.every((b) => Math.abs(b.x - 10) <= 2 && Math.abs(b.y - 4) <= 2), 'рядом со своей клеткой');
+  const mob = walker(battle, 11, 1e9);
+  still(mob);
+  const slows = battle.banners.filter((b) => b.kind === 'slow' && Math.hypot(mob.x - b.cx, mob.y - b.cy) <= SPELL.totem.radius);
+  near(battle._totems(mob, 'slow'), [0.1, 0.05, 0.025].slice(0, slows.length).reduce((a, b) => a + b, 0), 'складываются, как ауры');
+  battle.step(TICK);
+  ok(mob.muteUntil > battle.time, 'способности врагов в ауре очищения отключены');
+  const ally = battle.place(player(), 'forester', 11, 3);
+  battle.step(TICK);
+  near(ally.boost.damage, SPELL.totem.power, 'знамя силы');
+});
+
+test('шаманка, резонанс: сильнее, бьёт на 5 клеток, волна отзывается от знамён по цепочке', () => {
+  const battle = makeBattle(), other = sorc(battle, 14, 2, ['shamaness', 'totemPower']);
+  other.busy = 1e9;
+  const plain = sorc(battle, 2, 2, ['shamaness']), t = sorc(battle, 10, 2, ['shamaness', 'resonance']);
+  ok(t.range >= SPELL.resonance.reach, 'на 5 клеток');
+  near(t.damage, plain.damage * SPELL.resonance.mul);
+  const close = walker(battle, 12, 1e9), far = walker(battle, 19, 1e9);
+  still(close, far);
+  ok(Math.hypot(far.x - t.cx, far.y - t.cy) > t.range, 'дальний вне её волны');
+  ok(battle._fire(t));
+  near(hit(close), t.damage);
+  eq(hit(far), 0);
+  runFor(battle, SPELL.resonance.hop + 0.05);
+  ok(battle.events.some((e) => e.kind === 'resonate'), 'знамя отозвалось');
+  near(hit(far), t.damage, 'волна от чужого знамени достала дальнего');
+});
+
 test('жрец-инквизитор: светлый шар летит и бьёт по прилёту', () => {
   const battle = makeBattle(), t = priest(battle, 10, 4, ['inquisitor']);
   const mob = walker(battle, 14, 1e9);

@@ -111,7 +111,9 @@ export const HOLY = { angel: { reach: 1, interval: 1, mul: 2.6 }, monk: { reach:
   repose: 3, chain: { jumps: 2, reach: 2 }, aegis: 0.2, blessing: 0.1, insight: 0.1 };
 export const SPELL = { wisp: 0.45, minstrel: { reach: 3.5, interval: 1.6, mul: 1.3, arc: 0.85, speed: 7 },
   enchantress: { reach: 4, interval: 1.45, mul: 2.2, wind: 0.3, flight: FIREBALL_FLIGHT },
-  shamaness: { reach: 2, interval: 1.8, mul: 1.2 } };
+  shamaness: { reach: 2, interval: 1.8, mul: 1.2 }, resonance: { reach: 5, mul: 1.5, hop: 0.2 },
+  totem: { radius: 3, slow: 0.1, power: 0.1, hold: 0.3, spot: [0.82, 0.2] } };
+export const TOTEMS = { totemSlow: 'slow', totemPurge: 'purge', totemPower: 'power' };
 export const HELP = { assist: 1, control: 1, react: 2, heart: 10, heal: 10, save: 50 };
 const DEMONS = new Set(['imp', 'hellhound', 'demon', 'devilkin', 'gatekeeper', 'archdemon', 'diablo']);
 export const MANTRAS = ['mantraSpeed', 'mantraPower', 'mantraRange'];
@@ -272,6 +274,7 @@ export class Battle {
     this.brittle = false;
     this.treasures = 0;
     this.ward = null;
+    this.banners = [];
     this.steeled = new Map();
     this.stood = new Set();
     this.shields = [];
@@ -483,7 +486,7 @@ export class Battle {
     if (at < 0) return;
     this.towers.splice(at, 1);
     if (!tower.rider) this.byCell.delete(tower.y * SIZE + tower.x);
-    for (const list of ['walls', 'whirls', 'patches',
+    for (const list of ['walls', 'whirls', 'patches', 'banners',
       'zones', 'phoenixes', 'drones', 'traps', 'clouds', 'puddles']) {
       this[list] = this[list].filter((item) => item.tower !== tower);
     }
@@ -740,6 +743,15 @@ export class Battle {
 
   _powers(dt, now) {
     for (const mob of this.mobs) mob.fury = 0;
+    for (const banner of this.banners) {
+      if (banner.kind !== 'purge') continue;
+      for (const mob of this.mobs) {
+        if (mob.dead || !near(mob, banner.cx, banner.cy, SPELL.totem.radius)) continue;
+        mob.muteUntil = Math.max(mob.muteUntil, now + SPELL.totem.hold);
+        mob.rushUntil = 0;
+        mob.ward = 0;
+      }
+    }
     for (const mob of this.mobs) {
       if (mob.dead) continue;
       if (mob.burrow && now >= mob.burrowAt) {
@@ -786,7 +798,9 @@ export class Battle {
       }
       if (power.id === 'fury') {
         for (const other of this.mobs) {
-          if (other !== mob && !other.dead && near(other, mob.x, mob.y, power.range)) other.fury = power.boost;
+          if (other !== mob && !other.dead && !(other.muteUntil > now) && near(other, mob.x, mob.y, power.range)) {
+            other.fury = power.boost;
+          }
         }
       }
       if (power.heal && power.range) {
@@ -1035,6 +1049,7 @@ export class Battle {
       || cls.id === 'forester' && WOOD[tower.style] || cls.id === 'priest' && HOLY[tower.style]
       || cls.id === 'sorceress' && SPELL[tower.style] || null;
     if (shot) tower.damage *= shot.mul;
+    if (tower.style === 'shamaness' && tower.runes.has('resonance')) tower.damage *= SPELL.resonance.mul;
     tower.interval = (shot && shot.interval || base.interval) / (Math.max(FLOOR, 1 + (mods.rate || 0))
       * (tower.runes.has('frenzy') ? 3 : 1));
     if (tower.style === 'dragon') tower.interval = PULSE / Math.max(FLOOR, 1 + (mods.rate || 0));
@@ -1057,6 +1072,7 @@ export class Battle {
     tower.range = fixedRange(tower) ? tower.ownRange : tower.ownRange * (1 + tower.boost.range);
     tower.lift = 1 + (tower.might / MIGHT.base - 1) * MIGHT.lift;
     this._steelOf(tower);
+    this._plant(tower);
     this._flags();
   }
 
@@ -1069,6 +1085,7 @@ export class Battle {
     if (tower.style === 'turret' || tower.style === 'demo') return b.range + MECH[tower.style].range;
     if (tower.style === 'hunter' || tower.style === 'witch') return b.range + WOOD[tower.style].range;
     if (tower.cls.id === 'priest' && HOLY[tower.style]) return HOLY[tower.style].reach;
+    if (tower.style === 'shamaness' && tower.runes.has('resonance')) return SPELL.resonance.reach;
     if (tower.cls.id === 'sorceress' && SPELL[tower.style]) return SPELL[tower.style].reach;
     return b.range || 0;
   }
@@ -1501,6 +1518,7 @@ export class Battle {
         continue;
       }
       let slow = steady(mob, now) ? 0 : Math.max(mob.slowUntil > now ? mob.slow : 0, mob.chill);
+      if (this.banners.length && !steady(mob, now)) slow = 1 - (1 - slow) * (1 - this._totems(mob, 'slow'));
       if (mob.info.boss) slow *= BOSS_SLOW;
       let speed = mob.speed * (1 + mob.fury) * (mob.wild ? 1 + OVERTIME_SPEED : 1) * wind
         * (mob.rushUntil > now ? 1 + mob.rush : 1);
@@ -1833,7 +1851,8 @@ export class Battle {
       const chant = (id, value) => fade(mantras[id].map(() => value));
       boost.rate = muse + bless * (fade(haste) + fade(winds) + fade(team) + fade(grace) + fade(tuning) + fade(crimson)
         + chant('mantraSpeed', HOLY.mantra.haste));
-      boost.damage = muse + bless * (fade(cheer) + chant('mantraPower', HOLY.mantra.damage));
+      boost.damage = muse + bless * (fade(cheer) + chant('mantraPower', HOLY.mantra.damage)
+        + (t.rider ? 0 : this._totems({ x: t.cx, y: t.cy }, 'power')));
       boost.range = bless * (fade(range) + chant('mantraRange', HOLY.mantra.range));
       boost.might = bless * fade(might);
       if (sanctity) t.wardUntil = Math.max(t.wardUntil, now + WARD_AURA);
@@ -2502,6 +2521,43 @@ export class Battle {
     t.player.assists += points;
   }
 
+  _plant(t) {
+    if (t.style !== 'shamaness' || t.cocoon || !this.towers.includes(t)) return;
+    for (const [id, kind] of Object.entries(TOTEMS)) {
+      let have = this.banners.filter((banner) => banner.tower === t && banner.kind === kind).length;
+      for (; have < (t.stacks.get(id) || 0); have++) {
+        const cell = this._bannerCell(t);
+        if (!cell) return;
+        const [dx, dy] = SPELL.totem.spot;
+        this.banners.push({ tower: t, kind, x: cell.x, y: cell.y, cx: cell.x + dx, cy: cell.y + dy, seed: this.random() });
+        this._event({ kind: 'banner', tower: t, totem: kind, x: cell.x + dx, y: cell.y + dy });
+      }
+    }
+  }
+
+  _bannerCell(t) {
+    const taken = (x, y) => this.banners.some((banner) => banner.x === x && banner.y === y);
+    if (!taken(t.x, t.y)) return { x: t.x, y: t.y };
+    for (const ring of [1, 2]) {
+      const cells = [];
+      for (let dy = -ring; dy <= ring; dy++) {
+        for (let dx = -ring; dx <= ring; dx++) {
+          const x = t.x + dx, y = t.y + dy;
+          if (Math.max(Math.abs(dx), Math.abs(dy)) === ring && x >= 0 && y >= 0 && x < SIZE && y < SIZE && !taken(x, y)) {
+            cells.push({ x, y });
+          }
+        }
+      }
+      if (cells.length) return cells[Math.floor(this.random() * cells.length)];
+    }
+    return null;
+  }
+
+  _totems(mob, kind) {
+    return fade(this.banners.filter((banner) => banner.kind === kind && near(mob, banner.cx, banner.cy,
+      SPELL.totem.radius)).map(() => SPELL.totem[kind]));
+  }
+
   _aegis() {
     return fade(this.towers.filter((t) => t.cls.id === 'priest' && !t.cocoon && t.runes.has('aegis'))
       .map(() => HOLY.aegis));
@@ -2866,6 +2922,23 @@ function chord(b, t, target, crit, hit) {
     }, t);
   }
   return true;
+}
+
+function resonate(b, t, x, y, hit, rung) {
+  for (const banner of b.banners) {
+    if (rung.has(banner) || (banner.cx - x) ** 2 + (banner.cy - y) ** 2 > t.range * t.range) continue;
+    rung.add(banner);
+    b._later(SPELL.resonance.hop, () => {
+      if (!b.banners.includes(banner)) return;
+      b._event({ kind: 'resonate', tower: t, x: banner.cx, y: banner.cy, radius: t.range, totem: banner.kind });
+      for (const mob of b.mobs.slice()) {
+        if (!mob.dead && !hidden(mob, b.time) && !b.covered(mob.x, mob.y) && near(mob, banner.cx, banner.cy, t.range)) {
+          b._hurt(mob, hit, t);
+        }
+      }
+      resonate(b, t, banner.cx, banner.cy, hit, rung);
+    }, t);
+  }
 }
 
 function conjure(b, t, target, crit, hit) {
@@ -3633,6 +3706,7 @@ const SKILLS = {
       if (t.style === 'shamaness') {
         b._event({ kind: 'drum', tower: t, radius: t.range, crit });
         for (const mob of b.mobs.filter((other) => b._targetable(t, other))) b._hurt(mob, hit, t);
+        if (t.runes.has('resonance')) resonate(b, t, t.cx, t.cy, hit, new Set());
         return true;
       }
       if (t.style === 'enchantress') return conjure(b, t, target, crit, hit);

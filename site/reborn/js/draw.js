@@ -1,6 +1,6 @@
 import { LETTERS, SIZE } from './field.js';
 import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintRoof } from './terrain.js';
-import { FIRE, HOLY, MANTRAS, MECH, WOOD, flightAt, roadCurve } from './battle.js';
+import { FIRE, HOLY, MANTRAS, MECH, SPELL, WOOD, flightAt, roadCurve } from './battle.js';
 import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite, cocoonSprite,
   coinSprite, fireballSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
   meteorSprite, grenadeSprite, droneSprite, birdSprite, hawkSprite, snareSprite, trapSprite, cauldronSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
@@ -127,6 +127,10 @@ const HEAT = { warm: ['rgba(255, 110, 30, .9)', 'rgba(255, 220, 120, .9)'],
   plague: ['rgba(91, 33, 182, .9)', 'rgba(196, 181, 253, .9)'],
   holy: ['rgba(250, 204, 21, .9)', 'rgba(255, 251, 230, .95)'],
   azure: ['rgba(56, 189, 248, .9)', 'rgba(224, 247, 255, .95)'] };
+const TOTEM_LOOKS = {
+  slow: { aura: '244, 114, 182', cloth: ['#f9a8d4', '#db2777'], edge: '#fce7f3', sign: '#fff1f8' },
+  purge: { aura: '226, 232, 240', cloth: ['#f3f4f6', '#9ca3af'], edge: '#ffffff', sign: '#4b5563' },
+  power: { aura: '220, 38, 38', cloth: ['#ef4444', '#7f1d1d'], edge: '#fca5a5', sign: '#fcd34d' } };
 const SPELLS = { wave: 7, chord: '94, 234, 212', shock: '251, 191, 36', lute: 'rgba(45, 212, 191, 1)',
   wisp: 'rgba(196, 181, 253, 1)', act: 0.32, strum: 0.3, beat: 0.28 };
 const HOLY_LIGHT = { core: 'rgba(255, 251, 230, 1)', warm: 'rgba(253, 224, 120, 1)', ray: 'rgba(255, 244, 200, ',
@@ -1591,6 +1595,7 @@ export class Scene {
     for (const t of battle.towers) {
       if (t.cocoon || t.rider) continue;
       if (t.style === 'monk') this._mantras(ctx, t);
+      if (t.style === 'shamaness') for (const banner of battle.banners) if (banner.tower === t) this._totem(ctx, banner);
       if (t.cls.id === 'forester') {
         if (t.runes.has('grace')) this._aura(ctx, t, AURAS.grace, WOOD.grace.radius, 0);
         if (t.style === 'hunter' && t.runes.has('trophy')) this._trophy(ctx, t);
@@ -1696,6 +1701,125 @@ export class Scene {
     ctx.restore();
   }
 
+  _totem(ctx, banner) {
+    const look = TOTEM_LOOKS[banner.kind], x = at(banner.cx), y = at(banner.cy), r = SPELL.totem.radius * CELL;
+    const seed = banner.seed * 10, flash = banner.flashAt ? Math.max(0, 1 - (this.clock - banner.flashAt) / 0.5) : 0;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    glow(ctx, x, y, r, 'rgba(' + look.aura + ', 1)', 0.07 + 0.02 * Math.sin(this.clock * 1.4 + seed) + 0.2 * flash);
+    rim(ctx, x, y, r, look.aura, 0.26);
+    for (let i = 0; i < 7; i++) {
+      const k = (this.clock * 0.2 + noise(i, seed) + i / 7) % 1, a = i * 0.9 + seed + noise(i + 9, seed);
+      const d = r * (0.2 + 0.72 * noise(i + 17, seed)), px = x + Math.cos(a) * d, py = y + Math.sin(a) * d - k * 14;
+      glow(ctx, px, py, 5.5, 'rgba(' + look.aura + ', 1)', 0.65 * Math.sin(k * Math.PI));
+      glow(ctx, px, py, 2, 'rgba(255, 250, 250, 1)', 0.7 * Math.sin(k * Math.PI));
+    }
+    ctx.restore();
+    this._standard(ctx, x, y + 7, banner, look, flash);
+  }
+
+  _standard(ctx, x, foot, banner, look, flash) {
+    const top = foot - 27, sway = Math.sin(this.clock * 2.2 + banner.seed * 9) * 1.3;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, .3)';
+    ctx.beginPath();
+    ctx.ellipse(x + 3, foot, 5, 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    const pole = ctx.createLinearGradient(x - 1, 0, x + 1, 0);
+    pole.addColorStop(0, '#1f2328');
+    pole.addColorStop(0.5, '#6b7280');
+    pole.addColorStop(1, '#16191d');
+    ctx.fillStyle = pole;
+    ctx.beginPath();
+    ctx.moveTo(x - 0.9, top + 2);
+    ctx.lineTo(x + 0.9, top + 2);
+    ctx.lineTo(x + 0.9, foot - 2);
+    ctx.lineTo(x, foot + 1);
+    ctx.lineTo(x - 0.9, foot - 2);
+    ctx.closePath();
+    ctx.fill();
+    const cy = top + 4, w = 11, h = 17, lx = x + 1, bottom = cy + h;
+    const cloth = ctx.createLinearGradient(lx, cy, lx + w, bottom);
+    cloth.addColorStop(0, look.cloth[0]);
+    cloth.addColorStop(1, look.cloth[1]);
+    ctx.fillStyle = cloth;
+    ctx.strokeStyle = look.edge;
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(lx, cy);
+    ctx.quadraticCurveTo(lx + w / 2, cy + 1, lx + w, cy);
+    ctx.quadraticCurveTo(lx + w + sway * 0.6, cy + h * 0.55, lx + w + sway, bottom);
+    ctx.lineTo(lx + w / 2 + sway * 0.8, bottom - 3);
+    ctx.lineTo(lx + sway * 0.6, bottom);
+    ctx.quadraticCurveTo(lx + sway * 0.2, cy + h * 0.5, lx, cy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    this._sign(ctx, lx + w / 2 + sway * 0.4, cy + h * 0.45, banner.kind, look.sign);
+    ctx.strokeStyle = '#2b2f36';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x - 1, cy);
+    ctx.lineTo(lx + w + 0.5, cy);
+    ctx.stroke();
+    ctx.fillStyle = '#3a3f47';
+    ctx.strokeStyle = '#111317';
+    ctx.lineWidth = 0.5;
+    for (const [dx, dy, long] of [[0, -1, 6], [1, 0, 4], [-1, 0, 4], [0.7, 0.7, 3], [-0.7, 0.7, 3]]) {
+      ctx.beginPath();
+      ctx.moveTo(x - dy * 1.1, top - dx * 1.1);
+      ctx.lineTo(x + dx * long, top + dy * long);
+      ctx.lineTo(x + dy * 1.1, top + dx * 1.1);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    glow(ctx, x, top, 3.5 + 2 * flash, 'rgba(' + look.aura + ', 1)', 0.7 + 0.3 * flash);
+    glow(ctx, x, top, 1.4, 'rgba(255, 240, 240, 1)', 0.9);
+    ctx.restore();
+  }
+
+  _sign(ctx, x, y, kind, color) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 0.9;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    if (kind === 'slow') {
+      for (let i = 0; i <= 20; i++) {
+        const a = i * 0.55, d = 0.3 + i * 0.16;
+        if (i) ctx.lineTo(x + Math.cos(a) * d, y + Math.sin(a) * d);
+        else ctx.moveTo(x + Math.cos(a) * d, y + Math.sin(a) * d);
+      }
+      ctx.stroke();
+    } else if (kind === 'purge') {
+      ctx.moveTo(x - 2.6, y);
+      ctx.quadraticCurveTo(x, y - 2.4, x + 2.6, y);
+      ctx.quadraticCurveTo(x, y + 2.4, x - 2.6, y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x - 0.8, y);
+      ctx.quadraticCurveTo(x, y - 0.9, x + 0.8, y);
+      ctx.quadraticCurveTo(x, y + 0.9, x - 0.8, y);
+      ctx.fill();
+    } else {
+      for (let i = 0; i < 8; i++) {
+        const a = i * Math.PI / 4, long = i % 2 ? 2.2 : 3.6;
+        ctx.moveTo(x + Math.cos(a) * 0.9, y + Math.sin(a) * 0.9);
+        ctx.lineTo(x + Math.cos(a) * long, y + Math.sin(a) * long);
+      }
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x - 1, y);
+      ctx.quadraticCurveTo(x, y - 1.1, x + 1, y);
+      ctx.quadraticCurveTo(x, y + 1.1, x - 1, y);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   _spellGlow(ctx, t) {
     const pose = this._pose(t), act = pose.act && this.clock < pose.act.until ? pose.act : null;
     if (t.style === 'shamaness' || t.style === 'enchantress' && !act) return;
@@ -1772,13 +1896,13 @@ export class Scene {
 
   _shock(ctx, e, share) {
     const x = at(e.x), y = at(e.y), grow = 1 - Math.pow(1 - share, 2), r = Math.max(3, e.radius * CELL * grow);
-    const fade = 1 - share, band = 0.55 * CELL;
+    const fade = 1 - share, band = 0.55 * CELL, rgb = e.rgb || SPELLS.shock;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     const ring = ctx.createRadialGradient(x, y, Math.max(0, r - band), x, y, r + band * 0.3);
-    ring.addColorStop(0, 'rgba(' + SPELLS.shock + ', 0)');
-    ring.addColorStop(0.75, 'rgba(' + SPELLS.shock + ', ' + 0.55 * fade + ')');
-    ring.addColorStop(1, 'rgba(' + SPELLS.shock + ', 0)');
+    ring.addColorStop(0, 'rgba(' + rgb + ', 0)');
+    ring.addColorStop(0.75, 'rgba(' + rgb + ', ' + 0.55 * fade + ')');
+    ring.addColorStop(1, 'rgba(' + rgb + ', 0)');
     ctx.fillStyle = ring;
     ctx.beginPath();
     ctx.arc(x, y, r + band * 0.3, 0, Math.PI * 2);
@@ -3083,6 +3207,13 @@ export class Scene {
         this._pose(t).act = { frame: 'strum', until: this.clock + SPELLS.strum };
         add({ kind: 'chord', life: event.time, x: tip.x, y: tip.y, angle: event.angle, reach: event.reach });
       }, SPELLS.strum);
+    } else if (event.kind === 'banner') {
+      this._sparks(event.x, event.y, [TOTEM_LOOKS[event.totem].edge, '#ffffff'], 12, 1.6, 0.5);
+    } else if (event.kind === 'resonate') {
+      const banner = this.battle.banners.find((item) => item.cx === event.x && item.cy === event.y);
+      if (banner) banner.flashAt = this.clock;
+      add({ kind: 'shock', life: 0.45, x: event.x, y: event.y, radius: event.radius, seed: Math.random() * 6,
+        rgb: TOTEM_LOOKS[event.totem].aura });
     } else if (event.kind === 'drum') {
       this._pose(t).act = { frame: 'beat', until: this.clock + SPELLS.beat };
       add({ kind: 'shock', life: 0.45, x: t.cx, y: t.cy, radius: event.radius, seed: Math.random() * 6 });

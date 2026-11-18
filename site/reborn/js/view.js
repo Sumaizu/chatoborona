@@ -39,7 +39,7 @@ const SOUND_PRIORITY = ['over', 'divine', 'relic', 'win', 'boss', 'wave', 'jackp
 const SFX_PER_FRAME = 4;
 const SHOTS = { sniper: 'crack', mechanic: 'gun', forester: 'bolt', parasite: 'bite',
   banner: 'hit', priest: 'holy', sorceress: 'cast' };
-const BATTLE_SOUNDS = { chord: 'lute', drum: 'drum', conjure: 'cast', strike: 'hit', wall: 'build', crumble: 'crumble', leap: 'leap',
+const BATTLE_SOUNDS = { chord: 'lute', drum: 'drum', resonate: 'drum', banner: 'build', conjure: 'cast', strike: 'hit', wall: 'build', crumble: 'crumble', leap: 'leap',
   bite: 'chomp', nova: 'ice',
   spikes: 'rock', whirl: 'wind', clink: 'clink', treasure: 'treasure', rattle: 'rattle', rise: 'rise',
   hex: 'hex', blink: 'leap', burrow: 'burrow', leech: 'summon', steal: 'clink', loot: 'treasure', reflect: 'block',
