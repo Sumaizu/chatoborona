@@ -42,8 +42,6 @@ export const BOTS = [
 export const OVER_TIME = 15;
 export const CARD_MIN = 10;
 export const CARD_TIME = 20;
-export const SUPPORTS = new Set(['banner', 'sage']);
-export const SUPPORT_EVERY = 10;
 export const CARD_ROOM = 2;
 export const SPIN_LIMIT = QUEUE_CAP;
 export const NOTE_TIME = 4;
@@ -489,10 +487,7 @@ export class Game {
   }
 
   _randomClass(member = null) {
-    const others = Array.from(this.members.values()).filter((m) => m !== member);
-    const room = Math.ceil((others.length + 1) / SUPPORT_EVERY);
-    const open = CLASSES.filter((cls) => (!member || cls.id !== member.cls)
-      && (!SUPPORTS.has(cls.id) || others.filter((m) => m.cls === cls.id).length < room));
+    const open = CLASSES.filter((cls) => !member || cls.id !== member.cls);
     return open[Math.floor(this.random() * open.length)].id;
   }
 

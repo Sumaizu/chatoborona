@@ -196,9 +196,9 @@ test('с 91-й волны мобы крепчают спокойно — на 10
   }
 });
 
-test('классы: тринадцать, у каждого оружие, свой склад и набор навыков; у стрелков — по плану Реборна', () => {
-  eq(CLASSES.length, 13);
-  eq(new Set(CLASSES.map((c) => c.id)).size, 13);
+test('классы: одиннадцать, у каждого оружие, свой склад и набор навыков; у стрелков — по плану Реборна', () => {
+  eq(CLASSES.length, 11);
+  eq(new Set(CLASSES.map((c) => c.id)).size, 11);
   eq(PERKS, [10, 30, 50]);
   const runes = CLASSES.flatMap((cls) => cls.runes.map((rune) => rune.id));
   eq(new Set(runes).size, runes.length, 'руны не повторяются');
@@ -248,13 +248,8 @@ test('классы: тринадцать, у каждого оружие, сво
   eq(choiceOf('mechanic', ['turret', 'giant']).find((option) => option.skill.id === 'giant').state, 'taken');
   eq(describe('mechanic', ['turret', 'droneAir', 'droneAir']).skills.map((skill) => [skill.id, skill.count]),
     [['turret', 1], ['droneAir', 2]], 'в профиле дрон один раз, с числом');
-  for (const id of ['bomber', 'miner', 'gunner', 'hunter', 'alchemist', 'healer']) no(CLASS_BY_ID.has(id), 'старого класса больше нет: ' + id);
+  for (const id of ['bomber', 'miner', 'gunner', 'hunter', 'alchemist', 'healer', 'banner', 'sage']) no(CLASS_BY_ID.has(id), 'старого класса больше нет: ' + id);
   eq(names('parasite'), ['Шок', 'Липкий кокон', 'Заражение', 'Налёт', 'Пожиратель', 'Королева роя', 'Захват разума']);
-  eq(names('banner'), ['Боевой клич', 'Стяг стойкости', 'Натиск', 'Длинное древко', 'Знамя победы', 'Легион',
-    'Знамя героя']);
-  eq(names('sage'), ['Вдохновение', 'Ясность', 'Озарение', 'Ученик', 'Слабое место', 'Всеведение', 'Петля времени',
-    'Просветление']);
-  for (const id of ['banner', 'sage']) ok(CLASSES.some((cls) => cls.id === id), 'поддержка вернулась: ' + id);
 });
 
 test('классы: описания — простой текст, без меток и значков', () => {

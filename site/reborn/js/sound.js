@@ -192,6 +192,19 @@ const RECIPES = {
     [D4, FS4, A4, D5].forEach((note, i) => s.pluck(at + i * 0.035, note, 0.7, 0.09, -0.3 + i * 0.2, 0.9));
     s.chime(at + 0.14, FS5, 0.6, 0.03, 0.2);
   },
+  siren(s, at) {
+    [A5, FS5, D6, A5, E6, D6, FS6, A5, FS5].forEach((note, i) => {
+      s.pluck(at + i * 0.32, note, 0.9, 0.08, Math.sin(i) * 0.4, 1.1);
+      if (i % 3 === 0) s.chime(at + i * 0.32 + 0.05, note * 2, 0.8, 0.025, -Math.sin(i) * 0.4);
+    });
+    s.horn(at, D4, 2.9, 0.035, -0.2);
+    s.horn(at, A4, 2.9, 0.03, 0.2);
+  },
+  dirge(s, at) {
+    [0, 0.75, 1.5, 2.25].forEach((delay) => s.thump(at + delay, 90, 40, 0.5, 0.45));
+    [D4, A3, FS4 / 2 * 1.5, D3].forEach((note, i) => s.pluck(at + i * 0.75 + 0.05, note, 1.2, 0.1, 0, 0.5));
+    s.horn(at, D3, 2.9, 0.06, 0);
+  },
   drum(s, at) {
     s.thump(at, 120, 48, 0.4, 0.55);
     s.crunch(at, 0.05, 0.05);
@@ -373,7 +386,7 @@ const RECIPES = {
 };
 
 export const SFX_GAPS = {
-  lute: 0.25, drum: 0.3, gun: 0.07, hit: 0.05, kill: 0.07, crack: 0.15, launch: 0.12, rock: 0.12, boom: 0.12, mine: 0.15, zap: 0.12,
+  siren: 3, dirge: 3, lute: 0.25, drum: 0.3, gun: 0.07, hit: 0.05, kill: 0.07, crack: 0.15, launch: 0.12, rock: 0.12, boom: 0.12, mine: 0.15, zap: 0.12,
   flame: 0.3, bolt: 0.08, ice: 0.1, wind: 0.2, cast: 0.12, crit: 0.15, freeze: 0.25, stun: 0.2,
   storm: 0.3, rally: 0.5, heal: 0.5, block: 0.3, roar: 1, growl: 0.8, summon: 0.4, build: 0.4,
   crumble: 0.4, bite: 0.15, leap: 0.3, chomp: 0.25, nuke: 2, fall: 1, join: 0.4, card: 0.3, holy: 0.12, splash: 0.15,

@@ -98,10 +98,8 @@ const BOLTS = {
   frost: { look: 'dot', color: '#38bdf8', size: 3 },
   pyro: { look: 'fireball', color: '#ff7a1f', size: 7 },
   shaman: { look: 'dot', color: '#5eead4', size: 3 },
-  banner: { look: 'dot', color: '#ff5fb0', size: 3 },
   priest: { look: 'light', color: '#fde68a', size: 3 },
   sorceress: { look: 'wisp', color: '#c4b5fd', size: 3 },
-  sage: { look: 'dot', color: '#d8b4fe', size: 3 },
 };
 const FLAME = ['#fff3b0', '#ffd84a', '#ff9a1f', '#ff5a1f', '#b8320f'];
 const BLUE_FLAME = ['#e0f2ff', '#9bd5ff', '#4aa3ff', '#2563eb', '#1e3a8a'];
@@ -132,7 +130,9 @@ const TOTEM_LOOKS = {
   purge: { aura: '226, 232, 240', cloth: ['#f3f4f6', '#9ca3af'], edge: '#ffffff', sign: '#4b5563' },
   power: { aura: '220, 38, 38', cloth: ['#ef4444', '#7f1d1d'], edge: '#fca5a5', sign: '#fcd34d' } };
 const SPELLS = { wave: 7, chord: '94, 234, 212', shock: '251, 191, 36', lute: 'rgba(45, 212, 191, 1)',
-  wisp: 'rgba(196, 181, 253, 1)', act: 0.32, strum: 0.3, beat: 0.28 };
+  wisp: 'rgba(196, 181, 253, 1)', act: 0.32, strum: 0.3, beat: 0.28, play: 5,
+  songs: { siren: 'rgba(244, 114, 182, 1)', dirge: 'rgba(185, 28, 28, 1)' },
+  notes: { siren: '#f9a8d4', dirge: '#dc2626', anthem: '#fde68a' } };
 const HOLY_LIGHT = { core: 'rgba(255, 251, 230, 1)', warm: 'rgba(253, 224, 120, 1)', ray: 'rgba(255, 244, 200, ',
   motes: 5, wave: 4 };
 const HOVER = { lift: 4, bob: 1.5, rate: 1.2, frames: [2, 1, 0, 1] };
@@ -1013,58 +1013,8 @@ export class Scene {
     for (const t of battle.towers) {
       if (t.rider || t.cocoon) continue;
       if (t.cls.id === 'frost') this._frostStorm(ctx, t);
-      if (t.cls.id === 'banner') this._bannerOn(ctx, t, now);
-      if (t.cls.id === 'sage') this._circleOn(ctx, t);
       if (t.windUntil > now) this._windOn(ctx, t);
     }
-  }
-
-  _bannerOn(ctx, t, now) {
-    const x = at(t.cx), y = at(t.cy), r = (t.cls.base.banner + t.reach) * CELL, cheer = t.cheerUntil > now;
-    const pulse = 0.5 + 0.5 * Math.sin(this.clock * (cheer ? 7 : 2) + t.x);
-    glow(ctx, x, y, r, cheer ? 'rgba(255, 70, 140, .9)' : 'rgba(236, 72, 153, .7)', (cheer ? 0.22 : 0.1)
-      + 0.05 * pulse);
-    rim(ctx, x, y, r, cheer ? '255, 138, 196' : '244, 114, 182', cheer ? 0.6 : 0.38);
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 3; i++) {
-      const k = (this.clock * (cheer ? 0.9 : 0.45) + i / 3) % 1;
-      rim(ctx, x, y, r * (0.2 + 0.8 * k), '249, 168, 212', (1 - k) * (cheer ? 0.6 : 0.35));
-    }
-    for (let i = 0; i < 10; i++) {
-      const k = (this.clock * 0.4 + noise(i, 23)) % 1, a = i * 2.4 + t.y, d = r * (0.55 + 0.4 * noise(i + 3, 23));
-      ctx.globalAlpha = Math.sin(k * Math.PI) * 0.8;
-      square(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d - k * 14, 2, i % 2 ? '#fdf2f8' : '#f472b6');
-    }
-    ctx.restore();
-  }
-
-  _circleOn(ctx, t) {
-    const x = at(t.cx), y = at(t.cy), r = (t.cls.base.circle + t.reach) * CELL;
-    glow(ctx, x, y, r, 'rgba(168, 85, 247, .8)', 0.14 + 0.05 * Math.sin(this.clock * 1.5 + t.y));
-    rim(ctx, x, y, r, '192, 132, 252', 0.42);
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#d8b4fe';
-    for (let i = 0; i < 3; i++) {
-      const a = this.clock * 0.9 + i * Math.PI * 2 / 3;
-      for (let k = 0; k < 6; k++) {
-        ctx.globalAlpha = 0.75 * (1 - k / 6);
-        ctx.lineWidth = 3 - k * 0.4;
-        ctx.beginPath();
-        ctx.arc(x, y, r * 0.96, a - (k + 1) * 0.09, a - k * 0.09);
-        ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
-      square(ctx, x + Math.cos(a) * r * 0.96, y + Math.sin(a) * r * 0.96, 3, '#f3e8ff');
-    }
-    for (let i = 0; i < 12; i++) {
-      const k = (this.clock * 0.3 + noise(i, 31)) % 1, a = i * 2.4 + t.x, d = r * (0.2 + 0.75 * noise(i + 5, 31));
-      ctx.globalAlpha = 0.75 * Math.sin(k * Math.PI);
-      square(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d - k * 12, 2, i % 2 ? '#f3e8ff' : '#c084fc');
-    }
-    ctx.restore();
   }
 
   _frostStorm(ctx, t) {
@@ -1827,12 +1777,16 @@ export class Scene {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     if (t.style === 'minstrel') {
-      glow(ctx, x, y, 11 + 3 * beat, SPELLS.lute, 0.28 + 0.14 * beat);
-      for (let i = 0; i < 3; i++) {
-        const k = (this.clock * 0.5 + i / 3 + t.y * 0.1) % 1, a = i * 2.1 + this.clock * 0.7;
-        glow(ctx, x + Math.cos(a) * (3 + k * 6), y + Math.sin(a) * (3 + k * 6) - k * 5, 2.4, SPELLS.lute,
+      const song = pose.song && this.clock < pose.song.until ? pose.song.kind : null;
+      const tint = song ? SPELLS.songs[song] : SPELLS.lute, sparks = song ? 6 : 3;
+      glow(ctx, x, y, (song ? 16 : 11) + 3 * beat, tint, 0.28 + 0.14 * beat + (song ? 0.15 : 0));
+      for (let i = 0; i < sparks; i++) {
+        const k = (this.clock * 0.5 + i / sparks + t.y * 0.1) % 1, a = i * 2.1 + this.clock * 0.7;
+        glow(ctx, x + Math.cos(a) * (3 + k * 6), y + Math.sin(a) * (3 + k * 6) - k * 5, 2.4, tint,
           0.8 * Math.sin(k * Math.PI));
       }
+      if (song) this._notes(ctx, x, y, song, t.x);
+      if (t.muse && this.battle.towers.includes(t.muse)) this._muse(ctx, x, y, t.muse);
     } else if (t.style === 'enchantress') {
       const [hx, hy] = this.clock < act.cast ? this._handAt(t, 14, 10.9) : [x, y];
       glow(ctx, hx, hy, 8, HEAT.azure[0], 0.6);
@@ -1842,6 +1796,41 @@ export class Scene {
       glow(ctx, x, y, 3.2, 'rgba(255, 255, 255, 1)', 0.8);
     }
     ctx.restore();
+  }
+
+  _notes(ctx, x, y, song, seed) {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.font = '700 9px "Segoe UI Symbol", "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < 5; i++) {
+      const k = (this.clock * 0.45 + i / 5 + seed * 0.07) % 1, a = i * 1.26 + seed;
+      const nx = x + Math.cos(a) * (6 + k * 26), ny = y + Math.sin(a) * (6 + k * 20) - k * 14;
+      ctx.globalAlpha = Math.sin(k * Math.PI) * 0.95;
+      ctx.fillStyle = 'rgba(20, 10, 20, .55)';
+      ctx.fillText(i % 2 ? '♪' : '♫', nx + 0.6, ny + 0.8);
+      ctx.fillStyle = SPELLS.notes[song];
+      ctx.fillText(i % 2 ? '♪' : '♫', nx, ny);
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'lighter';
+  }
+
+  _muse(ctx, x, y, ally) {
+    const pose = this._pose(ally), tx = at(pose.x), ty = at(pose.y) - (pose.lift || 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.font = '700 8px "Segoe UI Symbol", "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < 2; i++) {
+      const k = (this.clock * 0.6 + i / 2) % 1, lift = Math.sin(k * Math.PI) * 8;
+      ctx.globalAlpha = Math.sin(k * Math.PI) * 0.9;
+      ctx.fillStyle = SPELLS.notes.anthem;
+      ctx.fillText('♪', x + (tx - x) * k, y + (ty - y) * k - lift);
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'lighter';
+    glow(ctx, tx, ty, 14, 'rgba(253, 230, 138, 1)', 0.12 + 0.05 * Math.sin(this.clock * 3));
   }
 
   _handAt(t, mx, my) {
@@ -2538,7 +2527,6 @@ export class Scene {
       if (mob.rootUntil > now) this._rootOn(ctx, mob, x, y - lift, size, now);
       if (mob.muteUntil > now) this._mutedOn(ctx, x, y - lift, size);
       if (mob.rot) this._rotOn(ctx, mob, x, y - lift, size);
-      if (mob.weakUntil > now) this._weakOn(ctx, x, y - lift, size, top);
       spot.screenX = x;
       spot.top = top;
       spot.size = size;
@@ -2730,25 +2718,6 @@ export class Scene {
     ctx.globalAlpha = 1;
   }
 
-  _weakOn(ctx, x, y, size, top) {
-    const pulse = 0.5 + 0.5 * Math.sin(this.clock * 6), ay = top - 24 - pulse * 2;
-    glow(ctx, x, y, size * 0.9, 'rgba(168, 85, 247, 1)', 0.2 + 0.15 * pulse);
-    ctx.fillStyle = DARK;
-    ctx.beginPath();
-    ctx.ellipse(x, ay, 9, 5.5, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#e9d5ff';
-    ctx.beginPath();
-    ctx.ellipse(x, ay, 7.5, 4, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#a855f7';
-    ctx.beginPath();
-    ctx.arc(x, ay, 3, 0, Math.PI * 2);
-    ctx.fill();
-    square(ctx, x, ay, 2, DARK);
-    square(ctx, x - 1, ay - 1.5, 1, '#ffffff');
-  }
-
   _elementBits(ctx, mob, x, y, size) {
     const colors = ELEMENT_BITS[mob.element];
     for (let i = 0; i < 4; i++) {
@@ -2853,6 +2822,9 @@ export class Scene {
       if (t.style === 'monk' && pose.staff && this.clock < pose.staff.until) look = t.look + '-strike';
       const act = pose.act && this.clock < pose.act.until ? pose.act : null;
       if (act) look = t.look + '-' + (act.cast && this.clock >= act.cast ? 'cast' : act.frame);
+      else if (pose.song && this.clock < pose.song.until && Math.floor(this.clock * SPELLS.play) % 2) {
+        look = t.look + '-strum';
+      }
       pose.x = spot.x;
       pose.y = spot.y;
       pose.lift = spot.lift;
@@ -2873,8 +2845,6 @@ export class Scene {
         ctx.fill();
       }
       if (lit) glow(ctx, x, y, 22, 'rgba(255, 255, 255, .9)', 0.5);
-      if (t.boost.cheer) glow(ctx, x, y, 20, 'rgba(255, 70, 140, .95)', 0.3 + 0.15 * Math.sin(this.clock * 7));
-      if (t.boost.muse) glow(ctx, x, y, 20, 'rgba(168, 85, 247, .95)', 0.3 + 0.12 * Math.sin(this.clock * 5));
       ctx.globalAlpha = t.busy > now && !t.perch && look === t.look ? 0.5 : 1;
       const lift = pose.kick > 0 ? Math.round(pose.kick / KICK * 2) : 0;
       if (t.cocoon) sprite(ctx, cocoonSprite(Math.floor(this.clock * 1.6 + t.x) % 2), x, y, 0, ZOOM, 0);
@@ -3207,7 +3177,9 @@ export class Scene {
         this._pose(t).act = { frame: 'strum', until: this.clock + SPELLS.strum };
         add({ kind: 'chord', life: event.time, x: tip.x, y: tip.y, angle: event.angle, reach: event.reach });
       }, SPELLS.strum);
-    } else if (event.kind === 'banner') {
+    } else if (event.kind === 'song') {
+      this._pose(t).song = { kind: event.song, until: this.clock + event.time };
+    } else if (event.kind === 'totem') {
       this._sparks(event.x, event.y, [TOTEM_LOOKS[event.totem].edge, '#ffffff'], 12, 1.6, 0.5);
     } else if (event.kind === 'resonate') {
       const banner = this.battle.banners.find((item) => item.cx === event.x && item.cy === event.y);
@@ -3367,28 +3339,6 @@ export class Scene {
       this._sparks(event.x, event.y, ['#ccfbf1', '#5eead4'], 8, 2.4, 0.35);
     } else if (event.kind === 'wind') {
       add({ kind: 'pulse', life: 0.7, x: t.cx, y: t.cy, r: event.radius, color: '#5eead4', width: 3 });
-    } else if (event.kind === 'cheer') {
-      add({ kind: 'pulse', life: 0.6, x: t.cx, y: t.cy, r: event.radius, color: '#ff5fb0', width: 3 });
-      this._sparks(t.cx, t.cy, ['#ffd1e8', '#ff5fb0', '#be185d'], 12, 2.2, 0.45, 2);
-    } else if (event.kind === 'rally') {
-      add({ kind: 'pulse', life: 0.9, x: t.cx, y: t.cy, r: 4, color: '#facc15', width: 4 });
-      for (const ally of this.battle.towers) {
-        if (ally.rider || ally.cocoon) continue;
-        const pose = this._pose(ally);
-        this._sparks(pose.x, pose.y, ['#fff7c2', '#facc15', '#ff5fb0'], 6, 1.6, 0.6, 2);
-      }
-    } else if (event.kind === 'muse') {
-      const pose = this._pose(event.ally);
-      add({ kind: 'chain', life: 0.4, points: [[t.cx, t.cy], [pose.x, pose.y]], color: 'rgba(216, 180, 254, .85)' });
-      this._sparks(pose.x, pose.y, event.flash ? ['#fff7c2', '#facc15', '#e9d5ff'] : ['#f3e8ff', '#c084fc', '#7e22ce'],
-        event.flash ? 14 : 8, 1.8, 0.5, 2);
-      if (event.flash) {
-        add({ kind: 'text', life: 1.4, x: pose.x, y: pose.y - 0.7, text: 'озарение!', color: '#fde047' });
-      }
-    } else if (event.kind === 'expose') {
-      const mob = event.mob;
-      add({ kind: 'pulse', life: 0.7, x: mob.x, y: mob.y, r: 1.2, color: '#a855f7', width: 3 });
-      add({ kind: 'text', life: 1.6, x: mob.x, y: mob.y - 0.9, text: 'слабое место!', color: '#d8b4fe' });
     } else if (event.kind === 'meteor') {
       add({ kind: 'meteor', life: event.time, x: event.x, y: event.y, r: event.radius });
     } else if (event.kind === 'thorns') {

@@ -488,47 +488,6 @@ export const CLASSES = [
     ],
   },
   {
-    id: 'banner',
-    name: 'Знаменосец',
-    of: 'знаменосца',
-    color: '#ec4899',
-    primary: 'str',
-    earn: { xp: 0.8, coins: 0.8 },
-    weapon: 'штандарт',
-    stats: { str: 'high', agi: 'mid', int: 'low' },
-    base: { damage: 1, interval: 1.2, range: 1.5, banner: 3.2, haste: 0.35, reach: 0.2 },
-    summary: 'Бьёт древком рядом; под его знаменем союзники бьют быстрее и дальше',
-    main: (b) => 'Бьёт древком на ' + cells(b.range) + ', урон ×' + num(b.damage) + '. Над ним знамя на '
-      + cells(b.banner) + ': все под знаменем, и он сам, бьют на ' + pct(b.haste) + ' быстрее и на ' + pct(b.reach)
-      + ' дальше',
-    skills: [
-      { name: 'Боевой клич', v: { every: 10, time: 4, damage: 0.5 },
-        scale: { every: 'haste', time: 'time', damage: 'buff' },
-        text: (v) => 'раз в ' + sec(v.every) + ' все под знаменем ' + sec(v.time) + ' бьют на ' + pct(v.damage)
-          + ' сильнее' },
-      { name: 'Натиск', v: { chance: 0.1 }, scale: { chance: 'luck' },
-        text: (v) => 'с шансом ' + pct(v.chance) + ' удар союзника под знаменем — критический' },
-      { name: 'Знамя победы', v: { every: 35, time: 8, haste: 0.4 },
-        scale: { every: 'haste', time: 'time', haste: 'buff' },
-        text: (v) => 'раз в ' + sec(v.every) + ' поднимает знамя над полем: весь отряд ' + sec(v.time) + ' бьёт на '
-          + pct(v.haste) + ' быстрее' },
-      { name: 'Стяг стойкости', v: {},
-        text: () => 'под знаменем никого из отряда не оглушить' },
-      { name: 'Длинное древко', v: { wide: 1, range: 0.4 },
-        text: (v) => 'знамя ' + by(v.wide) + ' шире, а все под ним бьют на ' + pct(v.range) + ' дальше' },
-      { name: 'Легион', v: { every: 60, time: 8 }, scale: { every: 'haste', time: 'time' },
-        text: (v) => 'раз в ' + sec(v.every) + ' всё поле на ' + sec(v.time) + ' под его знаменем' },
-      { name: 'Знамя героя', v: { bonus: 0.5 }, scale: { bonus: 'power' },
-        text: (v) => 'лучший по убийствам в отряде бьёт на ' + pct(v.bonus) + ' сильнее' },
-    ],
-    pool: ['perk0', 'perk3', 'perk1', 'perk4', 'perk2', 'perk5', 'perk6'],
-    runes: [
-      { id: 'crimson', name: 'Багровый стяг', text: 'во время боевого клича союзники ещё и бьют на 20% быстрее' },
-      { id: 'planted', name: 'Знамя в землю', text: '«Знамя победы» держится на 3 секунды дольше и отбрасывает '
-        + 'мобов вокруг знаменосца на клетку' },
-    ],
-  },
-  {
     id: 'priest',
     name: 'Жрец',
     of: 'жреца',
@@ -616,6 +575,14 @@ export const CLASSES = [
         + 'на 2 клетки вокруг' },
     ],
     upgrades: [
+      { id: 'siren', style: 'minstrel', name: 'Песнь сирен', text: 'раз в 15 секунд 3 секунды играет песнь сирен: все '
+        + 'враги на карте, кроме боссов, идут назад; пока играет — не атакует' },
+      { id: 'dirge', style: 'minstrel', name: 'Похоронный марш', text: 'раз в 15 секунд 3 секунды играет марш: все враги '
+        + 'на карте дважды в секунду теряют здоровье — половину её удара; пока играет — не атакует' },
+      { id: 'anthem', style: 'minstrel', name: 'Вдохновение', text: 'самый сильный союзник в соседней клетке (не '
+        + 'менестрель) получает к мощи 30% её мощи' },
+      { id: 'ultrasound', style: 'minstrel', name: 'Ультразвук', text: 'у всех врагов на карте сопротивление оглушению, '
+        + 'замедлению и отбросу на 20% ниже, но не ниже нуля; у нескольких менестрелей складывается, как ауры' },
       { id: 'totemSlow', style: 'shamaness', max: 3, name: 'Знамя подавления', text: 'ставит розовое знамя на край '
         + 'своей клетки (следующее — на соседнюю): в его ауре на 3 клетки враги на 10% медленнее; знамёна складываются, '
         + 'как ауры; до 3 знамён' },
@@ -630,47 +597,6 @@ export const CLASSES = [
     abilities: [],
     skills: [],
     runes: [],
-  },
-  {
-    id: 'sage',
-    name: 'Мудрец',
-    of: 'мудреца',
-    color: '#a855f7',
-    element: 'arcane',
-    primary: 'int',
-    earn: { xp: 0.75, coins: 1.1 },
-    weapon: 'фолиант',
-    stats: { str: 'low', agi: 'low', int: 'high' },
-    base: { damage: 0.8, interval: 1.3, range: 3, sparks: 2, circle: 3.2, wisdom: 0.25 },
-    summary: 'Искры сразу в двух мобов; рядом с ним больше опыта, вдохновляет союзников',
-    main: (b) => 'Пускает из книги искры сразу в ' + b.sparks + ' мобов на ' + cells(b.range) + ', урон ×'
-      + num(b.damage) + ' каждой. Все ' + around(b.circle) + ', и он сам, получают +' + pct(b.wisdom) + ' опыта',
-    skills: [
-      { name: 'Вдохновение', v: { every: 6, time: 7, bonus: 0.5 },
-        scale: { every: 'haste', time: 'time', bonus: 'buff' },
-        text: (v) => 'раз в ' + sec(v.every) + ' выбирает союзника рядом — тот ' + sec(v.time) + ' бьёт на '
-          + pct(v.bonus) + ' сильнее и быстрее' },
-      { name: 'Озарение', v: { chance: 0.2 }, scale: { chance: 'luck' },
-        text: (v) => 'с шансом ' + pct(v.chance) + ' вдохновлённый сразу перезаряжает свою способность — ракету, '
-          + 'метеорит, удар молнии и другие' },
-      { name: 'Слабое место', v: { every: 22, time: 8, vuln: 0.7, xp: 2 },
-        scale: { every: 'haste', time: 'time', vuln: 'buff' },
-        text: (v) => 'раз в ' + sec(v.every) + ' метит самого сильного моба — сперва босса или элитного: '
-          + sec(v.time) + ' весь урон по нему на ' + pct(v.vuln) + ' больше, а за его убийство каждый, кто его бил, '
-          + 'получает вдвое больше опыта' },
-      { name: 'Ясность', v: { haste: 0.3 },
-        text: (v) => 'союзники в его круге перезаряжают способности на ' + pct(v.haste) + ' быстрее' },
-      { name: 'Петля времени', v: { time: 10 },
-        text: (v) => 'раз за игру, когда первый моб доходит до сердца, время отматывается: все мобы возвращаются на '
-          + sec(v.time) + ' пути назад' },
-      { name: 'Просветление', v: { every: 60 }, scale: { every: 'haste' },
-        text: (v) => 'раз в ' + sec(v.every) + ' все способности отряда сразу перезаряжаются' },
-    ],
-    pool: ['perk0', 'perk3', 'perk1', 'pupil', 'perk2', 'omniscience', 'perk4', 'perk5'],
-    runes: [
-      { id: 'pupil', name: 'Ученик', text: 'вдохновение достаётся сразу двоим' },
-      { id: 'omniscience', name: 'Всеведение', text: '«Слабое место» метит трёх самых сильных' },
-    ],
   },
 ];
 

@@ -1,7 +1,7 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { AIM, BITE_TIME, Battle, CRIMSON, HELP, HOLY, SPELL, WOOD, DISCHARGE, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, FIRE,
-  PLANTED, PULSE, REACTIONS, ROT, SHOT, SPLIT_TIME, THORN }
+import { AIM, BITE_TIME, Battle, HELP, HOLY, SONG, SPELL, WOOD, DISCHARGE, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, FIRE,
+  PULSE, REACTIONS, ROT, SHOT, SPLIT_TIME, THORN }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
 import { AFFIXES, BOSSES, DIABLO, ELITES, FAMILIES, FAMILY_BY_ID, FINALE, LIVES, LOOKS, MIGHT, MIMIC, MOBS, POWERS,
@@ -104,7 +104,7 @@ test('мощь: от уровня не растёт; урон и способн�
 });
 
 test('мощь: баффы саппортов растут от мощи мягче, чем урон', () => {
-  const battle = makeBattle(), flag = battle.place(player(), 'banner', 4, 4);
+  const battle = makeBattle(), flag = battle.place(player(), 'shaman', 4, 4);
   eq(flag.lift, 1);
   battle.setMods(flag, { power: 100 });
   near(flag.lift, 1 + MIGHT.lift);
@@ -1420,6 +1420,47 @@ test('шаманка: удар в барабан — волна на 2 клет�
   ok(battle.events.some((e) => e.kind === 'drum'));
 });
 
+test('менестрель, песнь сирен: 3 секунды все враги, кроме боссов, идут назад; пока играет — не атакует', () => {
+  const battle = makeBattle(), t = sorc(battle, 2, 2, ['minstrel', 'siren']);
+  const mob = walker(battle, 10, 1e9), boss = put(battle, special(battle, 'boss', BOSSES[0].id, 1e12), 10);
+  const from = mob.d, bossFrom = boss.d;
+  battle.step(TICK);
+  ok(battle.events.some((e) => e.kind === 'song' && e.song === 'siren'));
+  no(battle._fire(t, battle.time), 'играет — не бьёт');
+  runFor(battle, 1);
+  ok(mob.d < from, 'идёт назад');
+  ok(boss.d > bossFrom, 'босс идёт вперёд');
+  runFor(battle, SONG.time);
+  const back = mob.d;
+  runFor(battle, 1);
+  ok(mob.d > back, 'песня кончилась — снова вперёд');
+});
+
+test('менестрель, похоронный марш: 3 секунды все враги на карте теряют здоровье', () => {
+  const battle = makeBattle(), t = sorc(battle, 2, 2, ['minstrel', 'dirge']);
+  const near1 = walker(battle, 3, 1e9), far = walker(battle, 18, 1e9);
+  still(near1, far);
+  runFor(battle, SONG.time + 0.2);
+  ok(hit(far) > 0 && hit(near1) > 0, 'по всей карте');
+  near(hit(far), t.damage * SONG.dirge * Math.round(SONG.time / PULSE + 0.4), 'дважды в секунду');
+});
+
+test('менестрель, вдохновение и ультразвук: мощь соседу, сопротивление врагов ниже', () => {
+  const battle = makeBattle(), t = sorc(battle, 5, 4, ['minstrel', 'anthem', 'ultrasound']);
+  const weak = battle.place(player(), 'mechanic', 6, 4), strong = battle.place(level(50), 'forester', 4, 3, { power: 200 });
+  const bard = sorc(battle, 6, 3, ['minstrel']);
+  battle.step(TICK);
+  ok(t.muse === strong, 'выбран самый сильный сосед');
+  near(strong.boost.might, SONG.anthem * t.might / strong.might);
+  eq(weak.boost.might, 0);
+  ok(bard.boost.might === 0, 'другого менестреля не выбирает');
+  const mob = walker(battle, 8, 1e9);
+  mob.resist = 0.5;
+  near(battle._resistOf(mob), 0.5 - SONG.ultrasound);
+  mob.resist = 0.1;
+  eq(battle._resistOf(mob), 0, 'не ниже нуля');
+});
+
 test('шаманка, знамёна: на край своей клетки, следующие — по соседству, до трёх; замедление, очищение и сила', () => {
   const battle = makeBattle(), t = sorc(battle, 10, 4, ['shamaness', 'totemSlow']);
   eq(battle.banners.length, 1);
@@ -2245,67 +2286,6 @@ test('орда: в волне орды мобов больше, чем у дру
   ok(FAMILY_BY_ID.get('horde').count > 1);
 });
 
-test('знаменосец: под знаменем бьют быстрее и дальше, знамёна складываются вполовину, за добычу под знаменем — помощь', () => {
-  const battle = makeBattle(), flag = battle.place(player(), 'banner', 4, 4), b = flag.cls.base;
-  const ally = battle.place(player(), 'mechanic', 5, 4), far = battle.place(player(), 'mechanic', 14, 4);
-  const range = far.range;
-  battle.step(TICK);
-  near(ally.range, range * (1 + b.reach), 'дальше');
-  near(far.range, range, 'вне знамени — как было');
-  near(battle._intervalOf(ally, battle.time), ally.interval / (1 + b.haste), 'быстрее');
-  near(flag.boost.rate, b.haste, 'и сам знаменосец');
-  ok(ally.boostBy.has(flag) && !flag.boostBy.has(flag));
-  const second = battle.place(player(), 'banner', 6, 4), third = battle.place(player(), 'banner', 5, 3);
-  battle.step(TICK);
-  near(battle._intervalOf(ally, battle.time), ally.interval / (1 + b.haste * 1.75), 'второе — половину, третье — четверть');
-  near(ally.range, range * (1 + b.reach * 1.75));
-  ok(ally.boostBy.has(second) && ally.boostBy.has(third), 'помощь — каждому');
-  const mob = walker(battle, 12, 10);
-  still(mob);
-  battle._hurt(mob, 100, ally);
-  ok(mob.dead && flag.run.assists >= 1, 'знаменосцу — помощь');
-});
-
-test('знаменосец: с 10-го боевой клич, с 30-го натиск, с 50-го знамя победы на весь отряд', () => {
-  const battle = makeBattle(), flag = battle.place(level(50), 'banner', 4, 4);
-  const ally = battle.place(player(), 'sniper', 5, 4), far = battle.place(player(), 'mechanic', 16, 6);
-  const mob = walker(battle, 19, 1e9);
-  still(mob);
-  runFor(battle, 2 * TICK);
-  ok(battle.events.some((e) => e.kind === 'cheer') && battle.events.some((e) => e.kind === 'rally'));
-  near(ally.boost.damage, flag.s[0].damage, 'клич');
-  near(ally.boost.crit, flag.s[1].chance, 'натиск');
-  near(far.boost.rate, flag.s[2].haste, 'знамя победы — и дальним');
-  near(ally.boost.rate, flag.cls.base.haste + flag.s[2].haste);
-  const target = walker(battle, 18, 1e9);
-  still(target);
-  ally.critChance = 0;
-  battle.random = () => 0.99;
-  battle._hurt(target, 100, ally);
-  near(hit(target), 100 * (1 + flag.s[0].damage), 'урон под кличем');
-  battle.random = () => flag.s[1].chance / 2;
-  ok(battle.random() < 1 - (1 - ally.critChance) * (1 - ally.boost.crit), 'натиск даёт крит');
-  let cheerOff = false, rallyOff = false;
-  for (let i = 0; i < 20 / TICK && !(cheerOff && rallyOff); i++) {
-    battle.step(TICK);
-    cheerOff = cheerOff || ally.boost.damage === 0;
-    rallyOff = rallyOff || far.boost.rate === 0;
-  }
-  ok(rallyOff, 'знамя победы кончается');
-  ok(cheerOff, 'клич кончается');
-});
-
-test('знаменосец: руны — багровый стяг ускоряет под кличем, знамя в землю дольше и отбрасывает', () => {
-  const battle = makeBattle(), flag = battle.place(level(50), 'banner', 4, 4);
-  battle.setMods(flag, { runes: ['crimson', 'planted'] });
-  const ally = battle.place(player(), 'mechanic', 5, 4), mob = walker(battle, 5, 1e9);
-  still(mob);
-  runFor(battle, 2 * TICK);
-  near(ally.boost.rate, flag.cls.base.haste + CRIMSON + flag.s[2].haste);
-  near(flag.rallyUntil - battle.time + TICK, flag.s[2].time + PLANTED.time, 'дольше');
-  ok(mob.pushed > 0, 'отбросило');
-});
-
 test('маг огня без стиля и в стиле огненного шара: шар, взрыв, гигантский шар, двойной каст', () => {
   const battle = makeBattle(), t = battle.place(player(), 'pyro', 10, 4), base = t.cls.base;
   battle.random = () => 0.99;
@@ -2706,113 +2686,6 @@ test('паразит, навыки Реборна: липкий кокон, по
   ok(herd.slice(1).every((mob) => mob.vuln >= q.s[5].vuln && mob.slow > 0), 'рой облепил пятерых самых крепких');
   ok(!(herd[0].vulnUntil > nest.time), 'шестой — нет');
   ok(q.host && q.host.madUntil > nest.time, 'носитель сошёл с ума');
-});
-
-test('знаменосец, навыки Реборна: стяг стойкости, длинное древко, легион, знамя героя', () => {
-  const battle = makeBattle(), flag = battle.place(player(), 'banner', 10, 4);
-  const ally = battle.place(player(), 'sniper', 12, 4), far = battle.place(player(), 'sniper', 1, 4);
-  battle.setMods(flag, { perks: [3, 4] });
-  still(walker(battle, 0, 1e9));
-  battle.step(TICK);
-  no(battle._daze(ally, 2), 'под знаменем не оглушить');
-  near(battle._bannerOf(flag), flag.cls.base.banner + flag.reach + flag.s[4].wide);
-  ok(ally.boost.range >= flag.s[4].range, 'под знаменем бьют дальше');
-  no(far.boostBy.has(flag));
-  battle.setMods(flag, { perks: [5, 6] });
-  ally.run.kills = 5;
-  battle.step(TICK);
-  battle.step(TICK);
-  ok(flag.legionUntil > battle.time && far.boostBy.has(flag), 'легион: всё поле под знаменем');
-  ok(ally.boost.damage >= flag.s[6].bonus, 'знамя героя — лучшему по убийствам');
-});
-
-test('мудрец, навыки Реборна: ясность, петля времени, просветление', () => {
-  const battle = makeBattle(), sage = battle.place(player(), 'sage', 10, 4), ally = battle.place(player(), 'sniper', 11, 4);
-  battle.setMods(sage, { perks: [3] });
-  still(walker(battle, 0, 1e9));
-  battle.step(TICK);
-  ally.nextActive = battle.time + 10;
-  const start = ally.nextActive;
-  runFor(battle, 1);
-  near(start - ally.nextActive, sage.s[3].haste, 'ясность: за секунду на 0,3 с ближе');
-
-  const loop = makeBattle(), s = loop.place(player(), 'sage', 2, 4);
-  loop.setMods(s, { perks: [4] });
-  const runner = walker(loop, loop.length - 2);
-  for (let i = 0; i < 100 && !loop.events.some((e) => e.kind === 'rewind'); i++) loop.step(TICK);
-  ok(s.looped, 'петля сработала');
-  ok(runner.d < loop.length - 5 && !runner.biting, 'моб отброшен назад и не грызёт');
-  for (let i = 0; i < 400 && !runner.dead; i++) loop.step(TICK);
-  eq(loop.events.filter((e) => e.kind === 'rewind').length, 1, 'один раз за игру');
-
-  const wise = makeBattle(), w = wise.place(player(), 'sage', 10, 4), friend = wise.place(player(), 'sniper', 11, 4);
-  wise.setMods(w, { perks: [5] });
-  still(walker(wise, 10, 1e9));
-  friend.nextActive = wise.time + 50;
-  wise.step(TICK);
-  ok(friend.nextActive <= wise.time, 'просветление перезарядило способности');
-});
-
-test('мудрец: искры в двух мобов, рядом с ним больше опыта', () => {
-  const battle = makeBattle(), sage = battle.place(player(), 'sage', 10, 4);
-  sage.critChance = 0;
-  const a = walker(battle, 10, 1e6), b = walker(battle, 11, 1e6);
-  still(a, b);
-  battle._fire(sage);
-  near(hit(a), sage.damage);
-  near(hit(b), sage.damage);
-  const ally = battle.place(player(), 'mechanic', 11, 4), far = battle.place(player(), 'mechanic', 2, 6);
-  battle.step(TICK);
-  near(ally.boost.wisdom, sage.cls.base.wisdom);
-  eq(far.boost.wisdom, 0);
-  const before = ally.player.xp, outside = far.player.xp;
-  battle.reward(ally, 100);
-  battle.reward(far, 100);
-  near(ally.player.xp - before, 100 * (1 + sage.cls.base.wisdom));
-  near(far.player.xp - outside, 100);
-});
-
-test('мудрец: с 10-го вдохновение, с 30-го озарение перезаряжает способность, руна «ученик» — двоим', () => {
-  const battle = makeBattle(), sage = battle.place(level(30), 'sage', 10, 4);
-  const ally = battle.place(level(50), 'frost', 11, 4), mob = walker(battle, 1, 1e9);
-  still(mob);
-  ally.nextActive = 1e9;
-  battle.random = () => 0;
-  battle.step(TICK);
-  ok(battle.events.some((e) => e.kind === 'muse' && e.ally === ally && e.flash));
-  ok(ally.nextActive < 1e9, 'перезарядилось');
-  ally.busy = 1e9;
-  battle.step(TICK);
-  near(ally.boost.damage, sage.s[0].bonus);
-  near(ally.boost.rate, sage.s[0].bonus);
-  ok(ally.boostBy.has(sage), 'мудрецу — помощь');
-  runFor(battle, sage.s[0].time + 0.1);
-  const other = makeBattle(), wise = other.place(level(10), 'sage', 10, 4);
-  other.setMods(wise, { runes: ['pupil'] });
-  other.place(player(), 'mechanic', 11, 4);
-  other.place(player(), 'mechanic', 9, 4);
-  still(walker(other, 1, 1e9));
-  other.step(TICK);
-  eq(other.events.filter((e) => e.kind === 'muse').length, 2, 'двоим сразу');
-});
-
-test('мудрец: с 50-го слабое место — сперва босс: урон по нему больше, за убийство вдвое больше опыта', () => {
-  const battle = makeBattle(), sage = battle.place(level(50), 'sage', 2, 4);
-  const boss = put(battle, special(battle, 'boss', 'crusher', 1e9), 14), mob = walker(battle, 15, 1e9);
-  still(boss, mob);
-  sage.busy = 1e9;
-  battle.step(TICK);
-  sage.busy = 0;
-  battle._shoot(0, battle.time);
-  ok(battle.events.some((e) => e.kind === 'expose' && e.mob === boss), 'метит босса');
-  const gunner = battle.place(player(), 'mechanic', 16, 4);
-  gunner.critChance = 0;
-  battle._hurt(boss, 100, gunner);
-  near(hit(boss), 100 * (1 + sage.s[2].vuln), 'урон больше');
-  const xp = gunner.player.xp;
-  boss.hp = 1;
-  battle._hurt(boss, 10, gunner);
-  near(gunner.player.xp - xp, boss.info.xp * gunner.cls.earn.xp * sage.s[2].xp, 'вдвое больше опыта');
 });
 
 test('шаман: с 50-го ветер ускоряет союзников рядом, самого шамана — вдвое', () => {

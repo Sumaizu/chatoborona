@@ -1,7 +1,7 @@
 import { test, eq, ok, no } from './harness.js';
 import { PLAIN, makeGame, memoryStorage, runFor, seeded, until } from './fixtures.js';
 import { ASCEND_TIME, CARD_MIN, CARD_ROOM, CARD_TIME, DIVINE_TIME, OVER_TIME, PICK_TIME, Profiles, QUICK_PAUSE,
-  QUICK_WAVE, SKILL_TIME, SPEED_MAX, SPIN_LIMIT, SUMMIT_EVERY, SUMMIT_TIME, SUPPORTS, SUPPORT_EVERY, TIP_LEVEL, TIP_TIME }
+  QUICK_WAVE, SKILL_TIME, SPEED_MAX, SPIN_LIMIT, SUMMIT_EVERY, SUMMIT_TIME, TIP_LEVEL, TIP_TIME }
   from '../../site/reborn/js/engine.js';
 import { FAMILY_BY_ID, LEVEL_MAX, MIGHT, REWARD, SLEEP_AFTER, TEMPO, TICK, waveReward, xpForLevel }
   from '../../site/reborn/js/balance.js';
@@ -1150,37 +1150,6 @@ test('стример переставляет защитников «А1 Б2»; 
   const late = cellName(tower.x, tower.y) + ' ' + cellName(next.x, next.y);
   eq(game.feed('Streamer', late, { login: 'streamer' }), 'move', 'и во время волны — сразу');
   eq([tower.x, tower.y], [next.x, next.y]);
-});
-
-test('знаменосцев и мудрецов — не больше одного на каждые 10 игроков, рерол их не добавляет; лекарей — сколько угодно', () => {
-  for (let seed = 1; seed <= 6; seed++) {
-    const { game } = makeGame({ seed });
-    game.open();
-    for (let n = 1; n <= 35; n++) {
-      say(game, 'Игрок' + n, 'привет');
-      for (const id of SUPPORTS) {
-        const count = Array.from(game.members.values()).filter((m) => m.cls === id).length;
-        ok(count <= Math.ceil(n / SUPPORT_EVERY), seed + ': ' + id + ' ×' + count + ' на ' + n);
-      }
-    }
-  }
-  const { game } = makeGame();
-  game.open();
-  for (let n = 1; n <= 9; n++) say(game, 'Боец' + n, 'привет');
-  const members = Array.from(game.members.values());
-  members[0].cls = 'banner';
-  members[1].cls = 'sage';
-  members[2].cls = 'priest';
-  members[3].cls = 'sniper';
-  const seen = new Set();
-  for (let i = 0; i < 300; i++) {
-    const cls = game._randomClass(members[3]);
-    seen.add(cls);
-    no(SUPPORTS.has(cls), 'знаменосцу и мудрецу места нет — рерол их не даёт');
-    ok(cls !== 'sniper', 'рерол меняет класс');
-  }
-  ok(seen.has('priest'), 'второй жрец — можно');
-  eq(Array.from(SUPPORTS).sort(), ['banner', 'sage']);
 });
 
 test('стример открывает чужую карточку: «@ник профиль», «@ник проф» — короткую; зрителям так нельзя', () => {

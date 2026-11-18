@@ -12,8 +12,6 @@ export const THORN = { chance: 0.03, below: 0.3 };
 export const DISCHARGE = { mul: 18, hold: 5 };
 export const ROT = { share: 0.01, boss: 0.003, time: 5 };
 export const BRITTLE = 0.005;
-export const PLANTED = { time: 3, radius: 1, push: 1 };
-export const CRIMSON = 0.2;
 
 const SHOTS_PER_TICK = 6;
 const BOSS_HOLD = 0.3;
@@ -37,10 +35,10 @@ const PIERCE_WIDTH = 0.4;
 const FAR_REACH = SIZE * 1.5;
 const MAD_BITE = 0.7;
 const STICKY_SLOW = 0.3;
-const COOLDOWNS = ['nextActive', 'nextBlaze', 'nextCheer', 'nextCloud', 'nextEye',
-  'nextFar', 'nextGale', 'nextInferno', 'nextLegion', 'nextLight', 'nextMind', 'nextMuse', 'nextPhoenix', 'nextPool',
+const COOLDOWNS = ['nextActive', 'nextBlaze', 'nextCloud', 'nextEye',
+  'nextFar', 'nextGale', 'nextInferno', 'nextLight', 'nextMind', 'nextPhoenix', 'nextPool',
   'nextEmp', 'nextNuke', 'nextQuake', 'nextRift', 'nextSand', 'nextStorm', 'nextSwarm', 'nextTempest', 'nextTsunami',
-  'nextWall', 'nextWave', 'nextHail', 'nextHoly', 'nextBeam', 'nextRain'];
+  'nextWall', 'nextWave', 'nextHail', 'nextHoly', 'nextBeam', 'nextRain', 'nextSiren', 'nextDirge'];
 const WARD_AURA = 0.25;
 const FIREBALL_FLIGHT = 0.3;
 const ZONE_PULSE = 0.5;
@@ -113,6 +111,7 @@ export const SPELL = { wisp: 0.45, minstrel: { reach: 3.5, interval: 1.6, mul: 1
   enchantress: { reach: 4, interval: 1.45, mul: 2.2, wind: 0.3, flight: FIREBALL_FLIGHT },
   shamaness: { reach: 2, interval: 1.8, mul: 1.2 }, resonance: { reach: 5, mul: 1.5, hop: 0.2 },
   totem: { radius: 3, slow: 0.1, power: 0.1, hold: 0.3, spot: [0.82, 0.2] } };
+export const SONG = { every: 15, time: 3, back: 1, dirge: 0.5, anthem: 0.3, ultrasound: 0.2 };
 export const TOTEMS = { totemSlow: 'slow', totemPurge: 'purge', totemPower: 'power' };
 export const HELP = { assist: 1, control: 1, react: 2, heart: 10, heal: 10, save: 50 };
 const DEMONS = new Set(['imp', 'hellhound', 'demon', 'devilkin', 'gatekeeper', 'archdemon', 'diablo']);
@@ -275,6 +274,7 @@ export class Battle {
     this.treasures = 0;
     this.ward = null;
     this.banners = [];
+    this.sirenUntil = 0;
     this.steeled = new Map();
     this.stood = new Set();
     this.shields = [];
@@ -355,8 +355,8 @@ export class Battle {
       waveXp: 0, reloadUntil: 0, angle: this._homeAngle(x, y), aimMob: null, aimHold: 0,
       charge: null,
       nextActive: 0, nextWall: 0, pull: null,
-      nextCheer: 0, nextMuse: 0, cheerUntil: 0, rallyUntil: 0, wardUntil: 0, muses: [], lift: 1,
-      ownRange: 0, boost: { rate: 0, range: 0, damage: 0, might: 0, crit: 0, wisdom: 0, cheer: false, muse: false },
+      wardUntil: 0, lift: 1,
+      ownRange: 0, boost: { rate: 0, range: 0, damage: 0, might: 0 },
       boostBy: new Set(), torch: null, torches: [],
       run: { damage: 0, kills: 0, assists: 0, xp: 0, coins: 0 },
     };
@@ -719,7 +719,7 @@ export class Battle {
         ? this.rules.air : this.rules.ground) || 1) * (1 + (silver && silver.speed || 0)) * (kind && kind.pace || 1),
       slow: 0, slowUntil: 0,
       chill: 0,
-      mark: 0, markUntil: 0, vuln: 0, vulnUntil: 0, weak: 0, weakUntil: 0, weakBy: null, rush: 0, rushUntil: 0,
+      mark: 0, markUntil: 0, vuln: 0, vulnUntil: 0, rush: 0, rushUntil: 0,
       charge: null, rot: null,
       muteUntil: 0, netUntil: 0, rootAt: 0, rootUntil: 0, rootFree: 0, stuck: null, thicketUntil: 0,
       rollAt: this.time + ROLL_EVERY, thornAt: 0, resist: resistOf(this.wave), holdUntil: 0, holdFree: 0,
@@ -1099,7 +1099,7 @@ export class Battle {
   _hold(mob, seconds, tower, full = false) {
     if (mob.dead || steady(mob, this.time) || !full && this.time < mob.holdFree) return;
     const time = (full ? seconds : seconds * (mob.info.boss ? BOSS_HOLD : elite(mob) ? ELITE_HOLD : 1))
-      * (1 - mob.resist);
+      * (1 - this._resistOf(mob));
     mob.holdUntil = Math.max(mob.holdUntil, this.time + time);
     mob.holdFree = mob.holdUntil + HOLD_GAP;
     if (tower && tower.run) this._help(tower, HELP.control);
@@ -1109,14 +1109,15 @@ export class Battle {
 
   _slow(mob, amount, seconds, element = null) {
     if (immune(mob, element) || steady(mob, this.time)) return;
-    amount *= this._weak(element) * (1 - mob.resist);
+    amount *= this._weak(element) * (1 - this._resistOf(mob));
     if (mob.slowUntil <= this.time || amount > mob.slow) mob.slow = amount;
     mob.slowUntil = Math.max(mob.slowUntil, this.time + seconds);
   }
 
   _push(mob, distance, tower) {
     if (mob.info.boss || mob.dead || mob.biting || steady(mob, this.time)) return;
-    const shift = Math.min(distance * (elite(mob) ? ELITE_PUSH : 1) * (1 - mob.resist), PUSH_LIMIT - mob.pushed,
+    const shift = Math.min(distance * (elite(mob) ? ELITE_PUSH : 1) * (1 - this._resistOf(mob)),
+      PUSH_LIMIT - mob.pushed,
       mob.d);
     if (shift <= 0) return;
     mob.pushed += shift;
@@ -1153,7 +1154,7 @@ export class Battle {
       const s = t.s[0], slow = Math.min(CHILL_MAX, s.slow) * this._weak('ice');
       for (const mob of this.mobs) {
         if (mob.dead || immune(mob, 'ice') || steady(mob, now) || !near(mob, t.cx, t.cy, t.range)) continue;
-        if (slow * (1 - mob.resist) > mob.chill) mob.chill = slow * (1 - mob.resist);
+        if (slow * (1 - this._resistOf(mob)) > mob.chill) mob.chill = slow * (1 - this._resistOf(mob));
         this._slow(mob, Math.min(CHILL_MAX, s.slow), s.time * (t.runes.has('permafrost') ? 2 : 1), 'ice');
         mob.helpers.add(t);
       }
@@ -1525,7 +1526,8 @@ export class Battle {
       const power = mob.muteUntil > now ? null : mob.power;
       if (power && power.boost && power.time && mob.powerUntil > now) speed *= 1 + power.boost;
       if (power && power.id === 'rage') speed *= 1 + power.boost * (1 - mob.hp / mob.max);
-      let next = mob.d + speed * (1 - slow) * dt;
+      const back = this.sirenUntil > now && !mob.info.boss;
+      let next = Math.max(0, mob.d + speed * (1 - slow) * dt * (back ? -SONG.back : 1));
       if (grounded(mob, now) && !mob.wild && this.walls.length) {
         let wall = null, at = Infinity;
         for (const w of this.walls) {
@@ -1555,7 +1557,6 @@ export class Battle {
       } else if (mob.d >= stop) {
         mob.biting = now;
         this._event({ kind: 'bite', mob });
-        this._rewind();
       }
     }
   }
@@ -1572,7 +1573,7 @@ export class Battle {
 
   _madden(mob, seconds, t, dps) {
     if (mob.dead || mob.info.boss || mob.fatal) return;
-    mob.madUntil = Math.max(mob.madUntil || 0, this.time + seconds * (1 - mob.resist));
+    mob.madUntil = Math.max(mob.madUntil || 0, this.time + seconds * (1 - this._resistOf(mob)));
     mob.mad = { by: t, dps };
     this._event({ kind: 'mad', mob, tower: t });
   }
@@ -1695,7 +1696,7 @@ export class Battle {
       || now < mob.rootFree) return;
     if (this.random() >= s.chance) return;
     mob.rootAt = now;
-    mob.rootUntil = now + s.time * (1 - mob.resist);
+    mob.rootUntil = now + s.time * (1 - this._resistOf(mob));
     mob.rootFree = mob.rootUntil + s.gap;
     mob.helpers.add(t);
     this._event({ kind: 'snare', tower: t, mob });
@@ -1706,19 +1707,6 @@ export class Battle {
     this.steeled.set(t.player, this.wave);
     this.steel += 1;
     this.shields.push(t);
-  }
-
-  _rewind() {
-    const t = this.towers.find((sage) => sage.cls.id === 'sage' && !sage.looped && open(sage, 4));
-    if (!t) return;
-    t.looped = true;
-    for (const mob of this.mobs) {
-      if (mob.dead) continue;
-      mob.biting = 0;
-      mob.d = Math.max(0, mob.d - mob.speed * t.s[4].time);
-      this._locate(mob);
-    }
-    this._event({ kind: 'rewind', tower: t });
   }
 
   _batter(wall, mob, dt, now) {
@@ -1751,21 +1739,15 @@ export class Battle {
       * (1 + t.boost.rate));
   }
 
-  _bannerOf(t) {
-    return t.cls.base.banner + t.reach + (open(t, 4) ? t.s[4].wide : 0);
-  }
-
-  _circleOf(t) {
-    return t.cls.base.circle + t.reach;
-  }
-
   _buffs(now) {
-    const banners = [], sages = [], shamans = [], pyros = [], mechanics = [], teams = [], tuners = [], graces = [];
-    const monks = [], priests = this.towers.filter((t) => t.cls.id === 'priest' && !t.cocoon);
+    const shamans = [], pyros = [], mechanics = [], teams = [], tuners = [], graces = [], monks = [], bards = [];
+    const priests = this.towers.filter((t) => t.cls.id === 'priest' && !t.cocoon);
     const graced = (id) => priests.filter((t) => t.runes.has(id)).length;
     const bless = 1 + HOLY.blessing * graced('blessing'), sanctity = graced('sanctity') > 0;
     const insight = fade(priests.filter((t) => t.runes.has('insight')).map(() => HOLY.insight));
     this.blessed = bless;
+    this.deafen = fade(this.towers.filter((t) => t.style === 'minstrel' && !t.cocoon && t.runes.has('ultrasound'))
+      .map(() => SONG.ultrasound));
     for (const t of this.towers) {
       if (t.cocoon || t.rider) continue;
       if (t.cls.id === 'mechanic') {
@@ -1775,47 +1757,23 @@ export class Battle {
       }
       if (t.cls.id === 'forester' && t.runes.has('grace')) graces.push(t);
       if (t.style === 'monk' && MANTRAS.some((id) => t.runes.has(id))) monks.push(t);
-      if (t.cls.id === 'banner') banners.push(t);
-      else if (t.cls.id === 'sage') sages.push(t);
-      else if (t.cls.id === 'shaman' && open(t, 3)) shamans.push(t);
+      if (t.style === 'minstrel' && t.runes.has('anthem')) bards.push(t);
+      if (t.cls.id === 'shaman' && open(t, 3)) shamans.push(t);
       else if (t.cls.id === 'pyro' && t.runes.has('torch')) pyros.push(t);
     }
     const close = (a, b, radius) => (a.cx - b.cx) * (a.cx - b.cx) + (a.cy - b.cy) * (a.cy - b.cy) <= radius * radius;
-    const herald = banners.find((flag) => open(flag, 6)), hero = herald ? this._hero() : null;
+    const heard = new Map();
+    for (const bard of bards) {
+      const pool = this.towers.filter((ally) => ally !== bard && !ally.rider && !ally.cocoon && ally.style !== 'minstrel'
+        && Math.max(Math.abs(ally.x - bard.x), Math.abs(ally.y - bard.y)) <= 1);
+      bard.muse = pool.length ? pool.reduce((a, b) => (b.might > a.might ? b : a)) : null;
+      if (bard.muse) heard.set(bard.muse, (heard.get(bard.muse) || []).concat(bard));
+    }
     for (const t of this.towers) {
       const boost = t.boost, by = t.boostBy;
-      const haste = [], range = [], crit = [], cheer = [], crimson = [], wisdom = [], clarity = [];
       const winds = [], team = [], grace = [], tuning = [], mantras = { mantraSpeed: [], mantraPower: [], mantraRange: [] };
       const might = [];
-      let rally = null, muse = 0;
       by.clear();
-      for (const flag of banners) {
-        if (flag.rallyUntil > now && (!rally || flag.s[2].haste * flag.lift > rally.s[2].haste * rally.lift)) {
-          rally = flag;
-        }
-        if (t.rider || !(flag.legionUntil > now) && !close(flag, t, this._bannerOf(flag))) continue;
-        haste.push(flag.cls.base.haste * flag.lift);
-        range.push(flag.cls.base.reach * flag.lift + (open(flag, 4) ? flag.s[4].range : 0));
-        if (open(flag, 3)) t.wardUntil = Math.max(t.wardUntil, now + WARD_AURA);
-        if (open(flag, 1)) crit.push(flag.s[1].chance);
-        if (flag.cheerUntil > now) {
-          cheer.push(flag.s[0].damage * flag.lift);
-          if (flag.runes.has('crimson')) crimson.push(CRIMSON);
-        }
-        by.add(flag);
-      }
-      for (const sage of sages) {
-        if (!t.rider && close(sage, t, this._circleOf(sage))) {
-          wisdom.push(sage.cls.base.wisdom * sage.lift);
-          if (open(sage, 3) && sage !== t) clarity.push(sage.s[3].haste);
-        }
-        sage.muses = sage.muses.filter((item) => item.until > now);
-        for (const item of sage.muses) {
-          if (item.tower !== t || item.bonus <= muse) continue;
-          muse = item.bonus;
-          by.add(sage);
-        }
-      }
       if (!t.rider) {
         for (const shaman of shamans) {
           if (shaman === t || !close(shaman, t, shaman.s[3].radius + shaman.reach)) continue;
@@ -1849,29 +1807,20 @@ export class Battle {
         }
       }
       const chant = (id, value) => fade(mantras[id].map(() => value));
-      boost.rate = muse + bless * (fade(haste) + fade(winds) + fade(team) + fade(grace) + fade(tuning) + fade(crimson)
-        + chant('mantraSpeed', HOLY.mantra.haste));
-      boost.damage = muse + bless * (fade(cheer) + chant('mantraPower', HOLY.mantra.damage)
+      boost.rate = bless * (fade(winds) + fade(team) + fade(grace) + fade(tuning) + chant('mantraSpeed', HOLY.mantra.haste));
+      boost.damage = bless * (chant('mantraPower', HOLY.mantra.damage)
         + (t.rider ? 0 : this._totems({ x: t.cx, y: t.cy }, 'power')));
-      boost.range = bless * (fade(range) + chant('mantraRange', HOLY.mantra.range));
+      boost.range = bless * chant('mantraRange', HOLY.mantra.range);
       boost.might = bless * fade(might);
+      for (const bard of heard.get(t) || []) {
+        boost.might += SONG.anthem * bard.might / Math.max(1, t.might);
+        by.add(bard);
+      }
       if (sanctity) t.wardUntil = Math.max(t.wardUntil, now + WARD_AURA);
-      if (hero === t) {
-        boost.damage += herald.s[6].bonus;
-        by.add(herald);
-      }
-      if (rally && !t.rider) {
-        boost.rate += rally.s[2].haste * rally.lift;
-        by.add(rally);
-      }
-      boost.crit = bless * fade(crit);
-      boost.wisdom = bless * fade(wisdom);
-      boost.clarity = bless * fade(clarity) + insight;
+      boost.clarity = insight;
       t.torches = TORCH_USERS.has(t.cls.id) ? pyros.filter((pyro) => close(pyro, t, FIRE.torch.radius + pyro.reach))
         .sort((x, y) => torchPower(y) - torchPower(x)) : [];
       t.torch = t.torches[0] || null;
-      boost.cheer = cheer.length > 0;
-      boost.muse = muse > 0;
       by.delete(t);
       const reach = fixedRange(t) ? t.ownRange : t.ownRange * (1 + boost.range);
       if (reach !== t.range) t.range = reach;
@@ -2086,48 +2035,11 @@ export class Battle {
     });
   }
 
-  _hero() {
-    let best = null;
-    for (const t of this.towers) if (t.run.kills > 0 && (!best || t.run.kills > best.run.kills)) best = t;
-    return best;
-  }
-
   _daze(t, seconds) {
     if (t.wardUntil > this.time) return false;
     t.busy = Math.max(t.busy, this.time + seconds);
     t.stunUntil = Math.max(t.stunUntil, this.time + seconds);
     return true;
-  }
-
-  _inspire(t, now) {
-    const s = t.s[0], radius = this._circleOf(t);
-    t.nextMuse = now + s.every;
-    const taken = new Set(t.muses.map((item) => item.tower));
-    const pool = this.towers.filter((ally) => ally !== t && !ally.rider && !ally.cocoon && !taken.has(ally)
-      && (ally.cx - t.cx) ** 2 + (ally.cy - t.cy) ** 2 <= radius * radius);
-    for (let n = t.runes.has('pupil') ? 2 : 1; n > 0 && pool.length; n--) {
-      const ally = pool.splice(Math.floor(this.random() * pool.length), 1)[0];
-      t.muses.push({ tower: ally, until: now + s.time, bonus: s.bonus * t.lift });
-      const flash = open(t, 1) && this.random() < t.s[1].chance;
-      if (flash) ally.nextActive = Math.min(ally.nextActive, now);
-      this._event({ kind: 'muse', tower: t, ally, flash });
-    }
-  }
-
-  _expose(t, now) {
-    const s = t.s[2];
-    const living = this.mobs.filter((mob) => !mob.dead && !mob.fake && !hidden(mob, now));
-    if (!living.length) return;
-    living.sort((a, b) => (big(b) ? 1 : 0) - (big(a) ? 1 : 0) || (b.info.boss ? 1 : 0) - (a.info.boss ? 1 : 0)
-      || b.hp - a.hp);
-    t.nextActive = now + s.every;
-    for (const mob of living.slice(0, t.runes.has('omniscience') ? 3 : 1)) {
-      mob.weak = s.vuln * t.lift;
-      mob.weakUntil = now + s.time;
-      mob.weakBy = t;
-      mob.helpers.add(t);
-      this._event({ kind: 'expose', tower: t, mob, time: s.time });
-    }
   }
 
   _shoot(dt, now) {
@@ -2347,8 +2259,8 @@ export class Battle {
       return;
     }
     const vulnerable = ((mob.markUntil > now ? mob.mark : 0) + (mob.charge && mob.charge.until > now
-      ? mob.charge.bonus : 0) + (mob.vulnUntil > now ? mob.vuln : 0) + (mob.weakUntil > now ? mob.weak : 0))
-      * (1 - mob.resist);
+      ? mob.charge.bonus : 0) + (mob.vulnUntil > now ? mob.vuln : 0))
+      * (1 - this._resistOf(mob));
     let dealt = amount * (1 + vulnerable) * (1 + t.boost.damage) * (1 + t.boost.might) * this._frailty(mob, element)
       * (1 + FIRE.black.damage * stacksOf(mob, t));
     const cut = Math.max(power && power.cut || 0, mob.armor) - (this.state(mob, 'disease') ? REACTIONS.disease.armor : 0);
@@ -2428,7 +2340,6 @@ export class Battle {
     if (killer && killer.cls.id === 'parasite' && open(killer, 4)) {
       killer.feast = (killer.feast || 0) + killer.s[4].bonus;
     }
-    const insight = mob.weakUntil > this.time && mob.weakBy && open(mob.weakBy, 2) ? mob.weakBy.s[2].xp : 1;
     const prize = mob.silver ? SILVER.xp : 1, purse = mob.silver ? SILVER.coins : 1;
     const killers = new Set(mob.party || [killer]);
     const trophy = fade(this.towers.filter((h) => h.cls.id === 'forester' && h.style === 'hunter' && !h.cocoon
@@ -2437,7 +2348,7 @@ export class Battle {
     if (trophy) this._event({ kind: 'trophy', x: mob.x, y: mob.y });
     for (const t of mob.helpers) {
       const earn = t.cls.earn || NO_EARN;
-      this._grant(t, mob.info.xp * earn.xp * insight * prize);
+      this._grant(t, mob.info.xp * earn.xp * prize);
       const coins = (killers.has(t) ? KILL_COINS : ASSIST_COINS) * mob.info.coins * earn.coins * purse
         * Math.max(0, 1 + (t.mods.coins || 0)) * (1 + trophy);
       t.player.coins += coins;
@@ -2530,7 +2441,7 @@ export class Battle {
         if (!cell) return;
         const [dx, dy] = SPELL.totem.spot;
         this.banners.push({ tower: t, kind, x: cell.x, y: cell.y, cx: cell.x + dx, cy: cell.y + dy, seed: this.random() });
-        this._event({ kind: 'banner', tower: t, totem: kind, x: cell.x + dx, y: cell.y + dy });
+        this._event({ kind: 'totem', tower: t, totem: kind, x: cell.x + dx, y: cell.y + dy });
       }
     }
   }
@@ -2556,6 +2467,10 @@ export class Battle {
   _totems(mob, kind) {
     return fade(this.banners.filter((banner) => banner.kind === kind && near(mob, banner.cx, banner.cy,
       SPELL.totem.radius)).map(() => SPELL.totem[kind]));
+  }
+
+  _resistOf(mob) {
+    return Math.max(0, mob.resist - (this.deafen || 0));
   }
 
   _aegis() {
@@ -2602,7 +2517,7 @@ export class Battle {
   }
 
   _grant(t, xp) {
-    const amount = xp * Math.max(0, 1 + (t.mods.xp || 0)) * (1 + t.boost.wisdom);
+    const amount = xp * Math.max(0, 1 + (t.mods.xp || 0));
     t.player.xp += amount;
     t.run.xp += amount;
     if (this.towers.includes(t)) this._level(t);
@@ -2745,7 +2660,7 @@ const fixedRange = (t) => t.style === 'angel';
 const reaches = (t, mob, range) => near(mob, t.cx, t.cy, fixedRange(t) ? range + 0.5 : range);
 
 function rollCrit(b, t) {
-  t.striking = b.random() < 1 - (1 - t.critChance) * (1 - t.boost.crit);
+  t.striking = b.random() < t.critChance;
   return t.striking;
 }
 
@@ -2907,6 +2822,24 @@ function holyGround(b, t, now) {
     b._event({ kind: 'holyRing', tower: t, x, y, radius: s.radius });
     for (const other of b._around(x, y, s.radius)) b._hurt(other, t.damage * s.mul * (crit ? t.critMul : 1), t);
   }, t);
+}
+
+function sing(b, t, now, alive) {
+  if (alive && !(t.songUntil > now)) {
+    for (const [id, key] of [['siren', 'nextSiren'], ['dirge', 'nextDirge']]) {
+      if (!t.runes.has(id) || now < (t[key] || 0)) continue;
+      t[key] = now + SONG.every;
+      t.songUntil = now + SONG.time;
+      t.song = id;
+      t.dirgeAt = now;
+      if (id === 'siren') b.sirenUntil = Math.max(b.sirenUntil, t.songUntil);
+      b._event({ kind: 'song', tower: t, song: id, time: SONG.time });
+      break;
+    }
+  }
+  if (t.song !== 'dirge' || !(t.songUntil > now) || now < t.dirgeAt) return;
+  t.dirgeAt = now + PULSE;
+  for (const mob of b.mobs.slice()) if (!mob.dead) b._hurt(mob, t.damage * SONG.dirge, t, null, true);
 }
 
 function chord(b, t, target, crit, hit) {
@@ -3646,36 +3579,6 @@ const SKILLS = {
       }
     },
   },
-  banner: {
-    fire(b, t) {
-      const target = b._target(t);
-      if (!target) return false;
-      const crit = rollCrit(b, t);
-      b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target });
-      b._hurt(target, t.damage * (crit ? t.critMul : 1), t);
-      return true;
-    },
-    every(b, t, now, alive) {
-      if (!alive) return;
-      if (open(t, 0) && now >= t.nextCheer) {
-        const s = t.s[0];
-        t.nextCheer = now + s.every;
-        t.cheerUntil = now + s.time;
-        b._event({ kind: 'cheer', tower: t, radius: b._bannerOf(t), time: s.time });
-      }
-      if (open(t, 5) && now >= (t.nextLegion || 0)) {
-        t.nextLegion = now + t.s[5].every;
-        t.legionUntil = now + t.s[5].time;
-        b._event({ kind: 'legion', tower: t, time: t.s[5].time });
-      }
-      if (!open(t, 2) || now < t.nextActive) return;
-      const s = t.s[2], planted = t.runes.has('planted');
-      t.nextActive = now + s.every;
-      t.rallyUntil = now + s.time + (planted ? PLANTED.time : 0);
-      b._event({ kind: 'rally', tower: t, time: t.rallyUntil - now });
-      if (planted) for (const mob of b._around(t.cx, t.cy, PLANTED.radius)) b._push(mob, PLANTED.push, t);
-    },
-  },
   priest: {
     fire(b, t) {
       const target = t.planted ? null : b._target(t);
@@ -3698,8 +3601,8 @@ const SKILLS = {
     },
   },
   sorceress: {
-    fire(b, t) {
-      const target = b._target(t);
+    fire(b, t, now) {
+      const target = t.songUntil > now ? null : b._target(t);
       if (!target) return false;
       const crit = rollCrit(b, t), hit = t.damage * (crit ? t.critMul : 1);
       if (t.style === 'minstrel') return chord(b, t, target, crit, hit);
@@ -3716,31 +3619,8 @@ const SKILLS = {
       }, t);
       return true;
     },
-  },
-  sage: {
-    fire(b, t) {
-      const first = b._target(t);
-      if (!first) return false;
-      const targets = [first], second = b._target(t, { skip: first });
-      if (second && t.cls.base.sparks > 1) targets.push(second);
-      for (const target of targets) {
-        const crit = rollCrit(b, t);
-        b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target });
-        b._hurt(target, t.damage * (crit ? t.critMul : 1), t);
-      }
-      return true;
-    },
     every(b, t, now, alive) {
-      if (!alive) return;
-      if (open(t, 0) && now >= t.nextMuse) b._inspire(t, now);
-      if (open(t, 2) && now >= t.nextActive) b._expose(t, now);
-      if (open(t, 5) && now >= (t.nextEnlight || 0)) {
-        t.nextEnlight = now + t.s[5].every;
-        for (const ally of b.towers) {
-          for (const key of COOLDOWNS) if (ally[key] > now) ally[key] = now;
-        }
-        b._event({ kind: 'enlight', tower: t });
-      }
+      if (t.style === 'minstrel') sing(b, t, now, alive);
     },
   },
   earth: {

@@ -1402,37 +1402,6 @@ const SKINS = {
 };
 
 const HEROES = {
-  banner: (m) => hero(m, {
-    coat: '#b3175f', dark: METAL, sleeve: '#9b1452', boots: '#4a2238', hands: [19, 11, 19.5, 14],
-    chest: (q) => q.egg(16, 18.5, 8.6, 5.2, 4, 1.6, '#d4dae1', 0.6),
-    weapon: (q) => {
-      q.limb(19.5, 18, 10, 19.5, 1.5, 10.5, 0.9, WOOD);
-      q.egg(23.5, 4.5, 12, 4.4, 3, 0.6, '#ff5fb0');
-      q.egg(24.5, 6.5, 12.2, 3, 1.2, 0.4, '#c2307e');
-      q.ball(19.5, 1.5, 12, 1.2, GOLD, 1);
-    },
-    head: (q) => {
-      q.ball(16, 17, 11.5, 4.8, '#c4ccd6', 0.8);
-      q.limb(16, 13.5, 15.5, 16, 21, 15, 1.4, '#ff5fb0');
-      q.dot(16, 13, '#ffd1e8', 60);
-    },
-  }),
-  sage: (m) => hero(m, {
-    coat: '#5b1d8f', dark: '#3b0f63', sleeve: '#6a2aa3', boots: '#2e1065', hands: [12, 11.5, 20, 11.5],
-    back: (q) => q.egg(16, 21.5, 3, 9, 7, 3.5, '#4c1d7a'),
-    weapon: (q) => {
-      q.egg(16, 11.5, 11, 4.6, 3, 1.2, '#7e2bc4');
-      q.egg(16, 11.2, 12.1, 4, 2.4, 0.5, '#f3e9d2');
-      q.limb(16, 9, 12.6, 16, 13.5, 12.6, 0.3, '#c9b48a');
-      for (const [x, y] of [[13.5, 10.5], [14, 12], [18, 10.5], [18.5, 12]]) q.dot(x, y, '#8a6fb0', 60);
-    },
-    head: (q) => {
-      q.ball(16, 17.5, 11.4, 5, '#7e2bc4');
-      q.egg(16, 14.6, 13, 3.4, 2.6, 2, '#f1f5f9');
-      q.ball(16, 17.8, 14.4, 2.3, '#9b4fe0');
-      q.dot(16, 17, '#e9d5ff', 60);
-    },
-  }),
   parasite: (m) => {
     for (const s of [-1, 1]) {
       for (const [a, b] of [[6, 9], [7, 15], [6, 21]]) {
@@ -1469,11 +1438,11 @@ export const MUZZLES = {
   mechanic: [[19.2, 6.8]], 'mechanic-ragged': [[19.2, 6.8]], 'mechanic-turret': [[19.6, 6.4]],
   'mechanic-demo': [[21.2, 1]], 'mechanic-mortar': [[16, 8.6]],
   'mechanic-turret-giant': [[16, -6.6]],
-  banner: [[19, 11]], priest: [[20.5, 4.4]], 'priest-ragged': [[20.5, 4.4]],
+  priest: [[20.5, 4.4]], 'priest-ragged': [[20.5, 4.4]],
   'priest-angel': [[21, -1]], 'priest-monk': [[21, 3.4]], 'priest-inquisitor': [[20.6, 3]],
-  sorceress: [[20.6, 8.6]], 'sorceress-ragged': [[20.6, 8.6]], 'sorceress-minstrel': [[18.4, 15]],
+  sorceress: [[20.6, 8.6]], 'sorceress-ragged': [[20.6, 8.6]], 'sorceress-minstrel': [[19.6, 13.4]],
   'sorceress-enchantress': [[20.2, 5.4]], 'sorceress-shamaness': [[10.8, 13.2]],
-  sage: [[16, 11.2]], frost: STAFF, earth: STAFF, shaman: STAFF, thunder: STAFF,
+  frost: STAFF, earth: STAFF, shaman: STAFF, thunder: STAFF,
 };
 
 export const RELOAD_FRAMES = RELOAD.frames;

@@ -38,8 +38,8 @@ const SOUND_PRIORITY = ['over', 'divine', 'relic', 'win', 'boss', 'wave', 'jackp
   'buff', 'debuff', 'spin', 'leak', 'card', 'tick'];
 const SFX_PER_FRAME = 4;
 const SHOTS = { sniper: 'crack', mechanic: 'gun', forester: 'bolt', parasite: 'bite',
-  banner: 'hit', priest: 'holy', sorceress: 'cast' };
-const BATTLE_SOUNDS = { chord: 'lute', drum: 'drum', resonate: 'drum', banner: 'build', conjure: 'cast', strike: 'hit', wall: 'build', crumble: 'crumble', leap: 'leap',
+  priest: 'holy', sorceress: 'cast' };
+const BATTLE_SOUNDS = { chord: 'lute', drum: 'drum', resonate: 'drum', totem: 'build', conjure: 'cast', strike: 'hit', wall: 'build', crumble: 'crumble', leap: 'leap',
   bite: 'chomp', nova: 'ice',
   spikes: 'rock', whirl: 'wind', clink: 'clink', treasure: 'treasure', rattle: 'rattle', rise: 'rise',
   hex: 'hex', blink: 'leap', burrow: 'burrow', leech: 'summon', steal: 'clink', loot: 'treasure', reflect: 'block',
@@ -50,7 +50,7 @@ const BATTLE_SOUNDS = { chord: 'lute', drum: 'drum', resonate: 'drum', banner: '
   oilfire: 'flame', net: 'snap', snare: 'snap', trap: 'snap', hail: 'wind', blob: 'splash', absorb: 'summon',
   trophy: 'clink', cauldron: 'splash', cocoon: 'clink',
   hatch: 'hatch', heist: 'jackpot', share: 'treasure', shatter: 'freeze', snow: 'snow', gust: 'wind',
-  wind: 'wind', cheer: 'rally', rally: 'rally', muse: 'cast', expose: 'hex',
+  wind: 'wind',
   heal: 'heal', lastStand: 'rise', judgement: 'divine', holyRing: 'holy', warded: 'block', aegis: 'block',
   thorns: 'rock' };
 const GOOD_EVENTS = new Set(['buff', 'blessing']);
@@ -462,15 +462,6 @@ export class View {
       this._sound(event.by === 'frost' ? 'freeze' : 'stun');
     } else if (kind === 'execute') {
       this._sound('execute');
-    } else if (kind === 'rewind') {
-      this._cue('relic');
-      this.scene.say('Петля времени: мобы отброшены назад', '#c4b5fd');
-    } else if (kind === 'legion') {
-      this._cue('buff');
-      this.scene.say('Легион: всё поле под знаменем', '#fde047');
-    } else if (kind === 'enlight') {
-      this._cue('buff');
-      this.scene.say('Просветление: способности отряда перезаряжены', '#93c5fd');
     } else if (kind === 'arrive') {
       this._sound(event.mob.info.boss ? 'roar' : 'growl');
     } else if (kind === 'wild') {
@@ -502,6 +493,8 @@ export class View {
     } else if (kind === 'power') {
       const id = event.mob.power.id;
       this._sound(id === 'shield' ? 'block' : id === 'dash' ? 'wind' : 'summon');
+    } else if (kind === 'song') {
+      this._sound(event.song);
     } else if (BATTLE_SOUNDS[kind]) {
       this._sound(BATTLE_SOUNDS[kind]);
     }
