@@ -243,7 +243,8 @@ test('страницы: камень навыка — окно выбора по
   ok(text(w, 'pick-how').includes('цифру от 1 до ' + options.length));
   eq(text(w, 'status'), 'Выбор навыка');
   const name = game.optionsOf(game.choice)[1].skill.name;
-  ok(options[1].textContent.startsWith('2' + name + ' — '));
+  ok(options[1].textContent.startsWith('2' + name));
+  ok(options[1].querySelector('.desc'), 'описание отдельной строкой');
   eq(game.feed('Аня', '2', { login: 'аня' }), 'skill');
   await until(() => element(w, 'pick').hidden, 'окно закрылось');
   await until(() => text(w, 'cards').includes(name), 'плашка «Новый навык»');

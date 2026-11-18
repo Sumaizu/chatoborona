@@ -728,6 +728,7 @@ export class View {
       list.textContent = '';
       list.style.setProperty('--own', cls.color);
       list.classList.toggle('many', options.length > 6);
+      $('pick').classList.toggle('many', options.length > 6);
       let group = null;
       options.forEach(({ skill, state, count }, i) => {
         const kind = skill.kind === 'style' ? null : skill.kind === 'upgrade' ? 'upgrade' : 'ability';
@@ -735,9 +736,9 @@ export class View {
           group = kind;
           list.append(el('li', 'split', 'Навыки ' + (kind === 'upgrade' && style ? style.of : cls.of)));
         }
-        const item = el('li', state), text = el('div');
-        text.append(el('b', '', stacked(skill, count)));
-        text.append(' — ' + skill.text);
+        const item = el('li', state), text = el('div', 'text'), title = el('b', 'name', stacked(skill, count));
+        if (state === 'taken') title.append(el('span', 'learned', 'изучено'));
+        text.append(title, el('span', 'desc', skill.text[0].toUpperCase() + skill.text.slice(1)));
         item.append(el('i', 'digit', String(i + 1)), text);
         list.append(item);
       });
