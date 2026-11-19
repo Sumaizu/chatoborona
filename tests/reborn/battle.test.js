@@ -1898,16 +1898,16 @@ test('волчий вой: воет и в ожидании волны, а рыв
   ok(Math.abs(t.howlUntil - battle.time - long) < 3 * TICK, 'усиление — сколько выл');
 });
 
-test('волчий вой: вой то длинный, то короткий, наугад, и следующий — через 5–10 секунд после конца прошлого', () => {
+test('волчий вой: вой длится наугад 2–5 секунд, следующий — через 5–10 секунд после конца прошлого', () => {
   const battle = makeBattle(), t = storm(battle, 10, 1, ['raiju', 'howl']), s = WOLF.howl, cries = [];
   for (let i = 0; i < (s.idle + 120) / TICK; i++) {
     const before = battle.events.length;
     battle.step(TICK);
-    for (const e of battle.events.slice(before)) if (e.kind === 'howl') cries.push({ at: battle.time, long: e.long, time: e.time });
+    for (const e of battle.events.slice(before)) if (e.kind === 'howl') cries.push({ at: battle.time, time: e.time });
   }
-  ok(cries.some((e) => e.long) && cries.some((e) => !e.long), 'есть оба');
+  ok(cries.every((e) => e.time >= s.time[0] && e.time <= s.time[1]), 'вой 2–5 с');
+  ok(Math.max(...cries.map((e) => e.time)) - Math.min(...cries.map((e) => e.time)) > 1, 'вои разной длины');
   for (let i = 0; i < cries.length; i++) {
-    eq(cries[i].time, cries[i].long ? s.long : s.short);
     const rest = i ? cries[i].at - cries[i - 1].at - cries[i - 1].time : 0;
     if (i) ok(rest > s.rest[0] - 2 * TICK && rest < s.rest[1] + 2 * TICK, 'пауза 5–10 с после конца прошлого: ' + rest);
   }

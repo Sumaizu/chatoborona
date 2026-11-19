@@ -497,7 +497,7 @@ export class View {
     } else if (kind === 'song') {
       this._sound(event.song);
     } else if (kind === 'howl') {
-      this._sound(event.long ? 'howl' : 'yelp');
+      this._sound('howl', event.time);
     } else if (BATTLE_SOUNDS[kind]) {
       this._sound(BATTLE_SOUNDS[kind]);
     }
