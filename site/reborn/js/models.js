@@ -344,60 +344,80 @@ function stormCaller(m, strike = false) {
   });
 }
 
-const RAIJU = { fur: '#b8913f', light: '#e3c27a', dark: '#7a5a22', belly: '#efe0b8', spike: '#a5f3fc', glint: '#e0f2fe',
-  claw: '#bae6fd', eye: '#fef9c3', mouth: '#5b1a1a' };
+const RAIJU = { fur: '#c19a48', light: '#e6c983', shade: '#8a6a2a', deep: '#5e4718', belly: '#f1e3bd',
+  spike: '#7dd3fc', glint: '#f0f9ff', claw: '#e0f2fe', eye: '#bae6fd', nose: '#1c1408' };
+
+function tuft(m, x, y, z, a, long, r, color) {
+  m.limb(x, y, z, x + Math.cos(a) * long, y + Math.sin(a) * long, z - 0.6, r, color, 0.25, r * 0.25);
+}
 
 function raiju(m, swipe = false) {
   const c = RAIJU;
-  for (let i = 0; i < 8; i++) {
-    const f = i / 7, y = 25 + f * 7.4, x = 16 + Math.sin(f * 2.6) * 2.2, r = 2.8 - f * 1.2;
-    m.ball(x, y, 4.4 - f * 0.8, r, f > 0.7 ? c.belly : i % 2 ? c.fur : c.light, 0.2);
-    for (const side of [-1, 1]) m.limb(x, y, 4, x + side * (r + 0.6), y + 1, 3.6, 0.5, c.light, 0.1, 0.15);
-  }
+  const tail = [[17.4, 25.6, 6.4], [19.6, 27.2, 7.4], [21.4, 27.8, 8.4], [22.6, 27, 9.2], [23, 25.6, 9.8]];
+  tail.forEach(([x, y, z], i) => {
+    m.ball(x, y, z, 2.1 - i * 0.18, i > 2 ? c.light : c.fur, 0.3);
+    for (const side of [-1, 1]) tuft(m, x, y, z, Math.PI * 0.5 + side * 1.1 + i * 0.35, 1.8, 0.6, c.light);
+  });
+  m.ball(23.1, 24.6, 10.2, 1.2, c.spike, 1);
+  m.ball(23.2, 24.2, 10.9, 0.55, c.glint, 1);
   for (const side of [-1, 1]) {
-    m.egg(16 + side * 3.6, 23.2, 3.6, 2.4, 3, 2, c.fur, 0.2);
-    m.limb(16 + side * 4.4, 24.4, 3, 16 + side * 6, 28.4, 1.4, 1.5, c.fur, 0.1, 1);
-    for (const t of [-0.6, 0, 0.6]) m.limb(16 + side * 6, 28.4, 1.4, 16 + side * (6.2 + t), 29.8, 1.1, 0.28, c.claw, 0.6);
+    m.egg(16 + side * 2.7, 24.2, 4.4, 1.3, 2.4, 2, c.fur, 0.3);
+    m.egg(16 + side * 2.9, 27.2, 0.9, 0.9, 1, 0.7, c.shade, 0.3);
+    for (const t of [-0.45, 0, 0.45]) m.limb(16 + side * (2.9 + t), 27.6, 0.9, 16 + side * (3 + t * 1.3), 28.4, 0.6, 0.16, c.claw, 0.8);
   }
-  m.egg(16, 19.6, 4.4, 5.4, 7.4, 3.4, c.fur, 0.2);
-  m.egg(16, 20.4, 2.6, 4, 5.8, 1.6, c.belly, 0.1);
-  for (let i = 0; i < 18; i++) {
-    const a = Math.PI * 2 * i / 18, x = 16 + Math.cos(a) * 5.2, y = 19.6 + Math.sin(a) * 7.2;
-    m.limb(x, y, 4.6, x + Math.cos(a) * 1.4, y + Math.sin(a) * 1.4 + 0.6, 4, 0.7, i % 2 ? c.fur : c.light, 0.1, 0.2);
+  m.egg(16, 23.6, 5.6, 2.9, 3, 2.6, c.fur, 0.3);
+  m.egg(16, 19, 6.8, 3.2, 5, 3, c.fur, 0.35);
+  for (let i = 0; i < 8; i++) {
+    const y = 16 + i * 1.3;
+    for (const side of [-1, 1]) tuft(m, 16 + side * 2.8, y, 7.4, Math.PI * 0.5 + side * 0.95, 1.3, 0.4, i % 2 ? c.light : c.fur);
   }
-  for (let i = 0; i < 6; i++) {
-    const y = 15.6 + i * 1.8;
-    for (const side of [-1, 1]) m.limb(16 + side * 1.4, y, 7.6, 16 + side * 4.6, y + 0.9, 6.8, 0.38, c.dark, 0, 0.15);
-  }
-  const fore = swipe ? [[12, 13.6, 10.6, 9.4], [20, 13.6, 24, 6.8]] : [[12, 13.6, 10.6, 9.4], [20, 13.6, 21.4, 9.4]];
+  m.limb(16, 14, 9.6, 16, 25.2, 8.2, 0.7, c.shade, 0.2, 0.45);
+  for (const side of [-1, 1]) m.egg(16 + side * 2.9, 14.6, 7.6, 1.3, 2.4, 2, c.fur, 0.35);
+  const fore = swipe ? [[13.2, 13.2, 12.6, 9.6], [18.8, 13.2, 22, 6.4]] : [[13.2, 13.2, 12.8, 9.4], [18.8, 13.2, 19.2, 9.4]];
   for (const [sx, sy, hx, hy] of fore) {
-    m.limb(sx, sy, 4.4, hx, hy, 2.4, 1.9, c.fur, 0.1, 1.2);
-    const side = Math.sign(hx - 16), spread = swipe && side > 0 ? 1 : 0.6;
-    for (const t of [-1, 0, 1]) m.limb(hx, hy, 2.4, hx + t * spread + side * 0.3, hy - 1.9, 2.6, 0.3, c.claw, 0.7);
-  }
-  m.egg(16, 12.8, 7, 4.6, 3.8, 3, c.light, 0.2);
-  for (let i = 0; i < 12; i++) {
-    const a = Math.PI * (0.9 + 1.2 * i / 11), x = 16 + Math.cos(a) * 4.6, y = 13.4 + Math.sin(a) * 3.4;
-    m.limb(x, y, 7.4, x + Math.cos(a) * 1.3, y + Math.sin(a) * 1.1 + 0.8, 7, 0.65, i % 2 ? c.light : c.fur, 0.1, 0.2);
-  }
-  for (let i = 0; i < 5; i++) {
-    const y = 13 + i * 2.6, long = 4.4 - i * 0.5;
-    for (const side of [-1, 1]) {
-      m.limb(16 + side * 0.9, y, 9.6, 16 + side * (1.8 + long * 0.6), y + long * 0.75, 11, 0.7, c.spike, 0.8, 0.18);
-      m.limb(16 + side * (1.3 + long * 0.45), y + long * 0.55, 10.6, 16 + side * (1.8 + long * 0.6), y + long * 0.75, 11,
-        0.3, c.glint, 1, 0.1);
+    const side = Math.sign(hx - 16), raised = swipe && side > 0;
+    m.limb(sx, sy, 5.4, hx, hy, raised ? 6.4 : 1.6, 1.15, c.fur, 0.25, 0.9);
+    m.egg(hx, hy, raised ? 6.4 : 1.4, 1.2, 1.3, 0.9, c.shade, 0.2);
+    for (const t of [-1, 0, 1]) {
+      const spread = raised ? 0.85 : 0.48;
+      m.limb(hx + t * spread * 0.6, hy - 0.7, raised ? 6.6 : 1.6, hx + t * spread + side * 0.2, hy - (raised ? 2.4 : 1.5),
+        raised ? 7 : 1.3, raised ? 0.26 : 0.2, c.claw, 1, 0.08);
     }
   }
-  m.egg(16, 8.4, 8.6, 3.4, 3.4, 2.6, c.fur, 0.2);
-  for (const side of [-1, 1]) {
-    m.limb(16 + side * 2, 9.4, 10, 16 + side * 3.4, 11.8, 11, 1.05, c.fur, 0.1, 0.25);
-    m.limb(16 + side * 2.4, 8.4, 9.2, 16 + side * 3.6, 9.6, 8.6, 0.7, c.light, 0.1, 0.2);
-    m.ball(16 + side * 1.4, 6.8, 10.2, 0.5, c.eye, 1);
+  m.egg(16, 13.6, 8.8, 3.6, 3, 2.8, c.light, 0.35);
+  for (let i = 0; i < 13; i++) {
+    const a = Math.PI * (0.92 + 1.16 * i / 12), x = 16 + Math.cos(a) * 3.9, y = 12.6 + Math.sin(a) * 2.6;
+    m.egg(x, y + 0.9, 10.8, 1.5, 1.9, 1.2, i % 2 ? c.belly : '#fff6dc', 0.35);
+    m.limb(x, y + 1.4, 11.2, x + Math.cos(a) * 0.9, y + 3, 10.4, 0.55, i % 2 ? c.light : c.belly, 0.3, 0.18);
+    m.ball(x + Math.cos(a) * 1, y + 3.1, 10.6, 0.32, c.spike, 1);
   }
-  m.limb(16, 7, 8.8, 16, 3.4, 7.8, 1.45, c.light, 0.2, 1);
-  m.egg(16, 3.9, 7.2, 1.1, 1.6, 0.7, c.mouth);
-  for (const side of [-1, 1]) m.limb(16 + side * 0.7, 3.7, 7.6, 16 + side * 0.6, 2.6, 7.2, 0.22, '#ffffff', 0.8);
-  m.ball(16, 2.5, 8.2, 0.55, '#1c1408', 0.8);
+  for (let i = 0; i < 7; i++) {
+    const a = Math.PI * (1.05 + 0.9 * i / 6), x = 16 + Math.cos(a) * 2.4, y = 12.2 + Math.sin(a) * 1.6;
+    m.egg(x, y + 0.7, 11.8, 1.2, 1.4, 1, '#fff6dc', 0.35);
+  }
+  for (let i = 0; i < 4; i++) {
+    const y = 14.8 + i * 2.7, long = 3.4 - i * 0.4;
+    m.limb(16, y, 10.6, 16, y + long, 13.4 - i * 0.4, 0.75 - i * 0.08, c.spike, 1, 0.12);
+    m.limb(16, y + long * 0.4, 12.4 - i * 0.3, 16, y + long, 13.4 - i * 0.4, 0.3, c.glint, 1, 0.06);
+    for (const side of [-1, 1]) {
+      m.limb(16 + side * 0.9, y + 0.6, 10.2, 16 + side * 1.6, y + long * 0.8, 11.8 - i * 0.3, 0.45, c.spike, 1, 0.1);
+    }
+  }
+  m.egg(16, 8.8, 11.8, 3, 3.2, 2.5, c.fur, 0.35);
+  m.egg(16, 9.4, 12.8, 2.1, 1.9, 1.5, c.light, 0.3);
+  for (const side of [-1, 1]) {
+    m.limb(16 + side * 1.7, 10.2, 13, 16 + side * 2.8, 12, 15, 0.9, c.fur, 0.3, 0.2);
+    m.limb(16 + side * 1.8, 10.5, 13.4, 16 + side * 2.7, 11.8, 14.8, 0.42, c.belly, 0.2, 0.1);
+    tuft(m, 16 + side * 2.7, 9.4, 11.6, Math.PI * 0.5 + side * 1.3, 1.8, 0.55, c.light);
+    m.egg(16 + side * 1.25, 7.4, 12.4, 0.6, 0.38, 0.3, c.eye, 1);
+    m.ball(16 + side * 1.25, 7.3, 12.7, 0.2, '#ffffff', 1);
+  }
+  m.egg(16, 6.6, 11.6, 1.95, 1.8, 1.4, c.light, 0.3);
+  m.egg(16, 5.9, 11.4, 1.55, 1.1, 1, c.belly, 0.25);
+  m.limb(16, 7.6, 12.8, 16, 6.4, 12.4, 0.35, c.shade, 0.2, 0.25);
+  m.egg(16, 5.2, 12, 0.85, 0.45, 0.4, c.nose, 0.9);
+  for (const side of [-1, 1]) m.ball(16 + side * 0.35, 5.05, 12.3, 0.12, '#3b2a1a');
+  m.limb(15.2, 5.6, 11, 16.8, 5.6, 11, 0.12, c.deep, 0.2);
 }
 
 const THOR = { cape: '#991b1b', capeDark: '#6b1111', steel: '#4b5563', plate: '#9ca3af', dark: '#1f2937',
@@ -405,9 +425,9 @@ const THOR = { cape: '#991b1b', capeDark: '#6b1111', steel: '#4b5563', plate: '#
 
 function hammer(q, x, y) {
   const w = 2.6, h = 1.55, b = 0.55, top = 12.2;
-  q.limb(x, y + 7.4, 10.2, x, y + h, 11, 0.4, THOR.leather, 0.3, 0.46);
-  for (let k = 0; k < 6; k++) q.limb(x - 0.44, y + 2.4 + k * 0.85, 10.9, x + 0.44, y + 2.75 + k * 0.85, 10.9, 0.13, '#3b2414');
-  q.ball(x, y + 7.6, 10.1, 0.5, THOR.steel, 0.9);
+  q.limb(x, y + 7.4, 10.2, x, y + h, 11, 0.28, THOR.leather, 0.3, 0.32);
+  for (let k = 0; k < 6; k++) q.limb(x - 0.32, y + 2.4 + k * 0.85, 10.9, x + 0.32, y + 2.75 + k * 0.85, 10.9, 0.11, '#3b2414');
+  q.ball(x, y + 7.6, 10.1, 0.38, THOR.steel, 0.9);
   q.limb(x, y + 7.9, 10, x - 0.8, y + 9, 9.6, 0.12, THOR.leather);
   q.sheet([[x - w, y - h], [x + w, y - h], [x + w, y + h], [x - w, y + h]], top - 1.2, '#3e5470', [0, 0.6, 1]);
   q.sheet([[x - w, y - h], [x + w, y - h], [x + w - b, y - h + b], [x - w + b, y - h + b]], top - 0.4, '#b7cde8', [0, -1, 1]);
@@ -425,42 +445,51 @@ function hammer(q, x, y) {
 }
 
 function cape(m, c) {
-  const top = 16.6, folds = 6;
-  for (let i = 0; i < folds; i++) {
-    const f0 = i / folds, f1 = (i + 1) / folds, wave = (f) => Math.sin(f * Math.PI * 3) * 0.35;
-    const tx = (f) => 13 + f * 6, bx = (f) => 11.6 + f * 8.8;
-    const by = (f) => 25.4 - Math.abs(f - 0.5) * 1.6 + wave(f);
-    m.sheet([[tx(f0), top], [tx(f1), top], [bx(f1), by(f1)], [bx(f0), by(f0)]], 3.2 + (i % 2) * 0.3,
-      i % 2 ? c.capeDark : c.cape, [i % 2 ? 0.45 : -0.45, 0.2, 1]);
+  const top = 16.6, strips = 12, rows = 5;
+  const left = (y) => 13.9 - 1.1 * Math.pow(Math.max(0, (y - top) / 10), 0.8);
+  const right = (y) => 18.1 + 1.1 * Math.pow(Math.max(0, (y - top) / 10), 0.8);
+  const hem = (u) => 25.8 + 0.5 * Math.sin(u * Math.PI * 4.2 + 0.4) - 0.5 * Math.pow(u - 0.5, 2) * 4;
+  const at = (u, y) => left(y) + u * (right(y) - left(y));
+  m.egg(16, 17.2, 5.2, 2.6, 1.3, 1.1, c.cape, 0.2);
+  for (let i = 0; i < strips; i++) {
+    const u0 = i / strips, u1 = (i + 1) / strips, mid = (u0 + u1) / 2, fold = Math.sin(mid * Math.PI * 4.2);
+    const pts = [];
+    for (let r = 0; r <= rows; r++) {
+      const y = top + (hem(u0) - top) * r / rows;
+      pts.push([at(u0, y), y]);
+    }
+    for (let r = rows; r >= 0; r--) {
+      const y = top + (hem(u1) - top) * r / rows;
+      pts.push([at(u1, y), y]);
+    }
+    const tone = fold > 0.35 ? c.cape : fold < -0.35 ? c.capeDark : '#871515';
+    m.sheet(pts, 3 + fold * 0.35, tone, [Math.sin((mid - 0.5) * Math.PI) * 0.5 + fold * 0.45, 0.3, 1]);
   }
-  m.limb(12.8, top + 0.2, 6.4, 19.2, top + 0.2, 6.4, 0.55, c.capeDark, 0.2);
-  for (const side of [-1, 1]) m.ball(16 + side * 3.2, top + 0.3, 6.8, 0.42, '#d4a017', 1);
 }
 
 function thor(m, pose = '') {
   const c = THOR;
   cape(m, c);
-  m.egg(16, 18.4, 6, 3.1, 3.2, 2.4, c.steel, 0.4);
-  m.limb(16, 15.8, 8.2, 16, 20.8, 7.6, 0.38, c.dark, 0.3);
-  for (const [x, y] of [[14.7, 17.6], [17.3, 17.6], [14.9, 19.6], [17.1, 19.6]]) m.ball(x, y, 8.2, 0.42, c.plate, 0.9);
-  m.limb(13.4, 21, 7.2, 18.6, 21, 7.2, 0.35, c.leather, 0.3);
+  m.egg(16, 18.6, 6, 2.4, 3.2, 2.2, c.steel, 0.4);
+  m.limb(16, 16, 8, 16, 21, 7.4, 0.32, c.dark, 0.3);
+  for (const [x, y] of [[15, 17.8], [17, 17.8], [15.1, 19.7], [16.9, 19.7]]) m.ball(x, y, 8, 0.34, c.plate, 0.9);
   for (const side of [-1, 1]) {
     for (let k = 0; k < 3; k++) {
-      m.limb(16 + side * (2 + k * 0.15), 15.6 + k * 1, 8.6 - k * 0.3, 16 + side * (3.9 + k * 0.1), 16.3 + k * 1.1,
-        8.2 - k * 0.3, 0.55 - k * 0.1, k % 2 ? c.steel : c.plate, 0.9, 0.4);
+      m.limb(16 + side * (1.6 + k * 0.12), 15.8 + k * 0.9, 8.4 - k * 0.3, 16 + side * (3 + k * 0.08), 16.4 + k * 1,
+        8 - k * 0.3, 0.45 - k * 0.08, k % 2 ? c.steel : c.plate, 0.9, 0.32);
     }
   }
-  m.limb(12.4, 16.8, 7.8, 11.9, 20.8, 7.4, 0.7, c.steel, 0.4, 0.6);
-  m.ball(11.8, 21.2, 7.6, 0.68, SKIN);
-  const hand = pose === 'throw' ? [19.8, 10.4] : pose === 'empty' ? [20.2, 20.4] : pose === 'catch' ? [20.4, 12.2] : [21, 17.4];
-  m.limb(19.6, 16.8, 7.8, hand[0], hand[1] + 0.4, 8.8, 0.7, c.steel, 0.4, 0.6);
+  m.limb(13.2, 16.9, 7.8, 12.9, 20.6, 7.4, 0.55, c.steel, 0.4, 0.48);
+  m.ball(12.8, 21, 7.6, 0.58, SKIN);
+  const hand = pose === 'throw' ? [19, 10.6] : pose === 'empty' ? [19.2, 20.4] : pose === 'catch' ? [19.4, 12.2] : [19.8, 17.4];
+  m.limb(18.8, 16.9, 7.8, hand[0], hand[1] + 0.4, 8.8, 0.55, c.steel, 0.4, 0.48);
   if (pose !== 'throw' && pose !== 'empty') hammer(m, hand[0], hand[1] - 4.4);
-  m.ball(hand[0], hand[1], 11.4, 0.7, SKIN);
-  m.egg(16, 13.7, 10.4, 1.2, 0.8, 0.8, SKIN);
-  m.egg(16, 15.4, 11, 2.1, 2.2, 1.9, c.hair, 0.3);
+  m.ball(hand[0], hand[1], 11.4, 0.6, SKIN);
+  m.egg(16, 13.8, 10.4, 1, 0.7, 0.7, SKIN);
+  m.egg(16, 15.4, 11, 1.8, 2, 1.8, c.hair, 0.3);
   for (let k = -3; k <= 3; k++) {
-    m.limb(16 + k * 0.42, 14.4, 12.6 - Math.abs(k) * 0.35, 16 + k * 0.65, 19 + Math.abs(k) * 0.2, 8.8, 0.4,
-      k % 2 ? c.hair : c.hairDark, 0.3, 0.26);
+    m.limb(16 + k * 0.36, 14.5, 12.4 - Math.abs(k) * 0.35, 16 + k * 0.55, 18.8 + Math.abs(k) * 0.2, 8.8, 0.34,
+      k % 2 ? c.hair : c.hairDark, 0.3, 0.22);
   }
 }
 
@@ -1619,7 +1648,7 @@ export const MUZZLES = {
   sorceress: [[20.6, 8.6]], 'sorceress-ragged': [[20.6, 8.6]], 'sorceress-minstrel': [[19.4, 14]],
   'sorceress-enchantress': [[20.4, 8.6]], 'sorceress-enchantress-beam': [[16, 8.4]], 'sorceress-shamaness': [[10.8, 13.2]],
   frost: STAFF, earth: STAFF, shaman: STAFF, thunder: PALM, 'thunder-ragged': PALM, 'thunder-caller': STAFF,
-  'thunder-caller-strike': [[12.5, 0.4]], 'thunder-raiju': [[16, 3.6]], 'thunder-thor': [[21, 13]],
+  'thunder-caller-strike': [[12.5, 0.4]], 'thunder-raiju': [[16, 3.6]], 'thunder-thor': [[19.8, 13]],
 };
 
 export const RELOAD_FRAMES = RELOAD.frames;
@@ -1630,7 +1659,7 @@ export const HERO = { scale: 1.3, center: [16, 18] };
 const BODIES = [[/^priest-angel/, ANGEL_BODY], [/^priest-(monk|inquisitor)/, 1.25], [/^priest/, 1.08],
   [/^sorceress-shamaness/, 1.2], [/^sorceress/, 1.35], [/^forester(-ragged)?$|^forester-hunter/, 1.2],
   [/^mechanic-(turret|mortar)$/, 1.3], [/^mechanic-demo/, 1.2], [/^mechanic-turret-giant/, 1.1], [/^sniper-marksman/, 1.2],
-  [/^thunder-raiju/, 0.85], [/^thunder-thor/, 1.55]];
+  [/^thunder-raiju/, 1.05], [/^thunder-thor/, 1.55]];
 export const sizeOf = (id) => {
   const body = BODIES.find(([kind]) => kind.test(id));
   return body ? body[1] : 1;

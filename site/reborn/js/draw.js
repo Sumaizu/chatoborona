@@ -124,6 +124,7 @@ const SHOCK = { grow: 0.3, tail: 0.18, zoom: 2, bands: [[0.3, 1, 0.12], [0.15, 0
 const ZAP = { glow: '96, 165, 250', mid: '191, 219, 254', core: '255, 255, 255', jag: 0.42, steps: 11 };
 const RAIJU_FX = { rgb: '125, 211, 252', core: '240, 249, 255', reach: 1.5, every: 0.9 };
 const ROD = { tall: 26, coil: 5 };
+const CLAW = { cut: 0.12, lag: 0.035, thick: 3.2 };
 const STORM_FX = { strike: 0.25, swipe: 0.25, throw: 0.18, catch: 0.22, spin: 16 };
 const BEAM = { core: 2.6, mid: 6, outer: 12, twist: 0.11, spin: 7, coil: 5.5, flare: 11 };
 const VENOM = { toxic: 'rgba(132, 204, 22, .9)', plague: 'rgba(91, 33, 182, .9)' };
@@ -1590,28 +1591,50 @@ export class Scene {
   }
 
   _claw(ctx, e, share) {
-    const x = at(e.x), y = at(e.y), r = e.radius * CELL, fade = 1 - share, grow = Math.min(1, share * 3);
+    const x = at(e.x), y = at(e.y), r = e.radius * CELL, t = share * e.life, fade = t < CLAW.cut ? 1 : 1 - (t - CLAW.cut) / (e.life - CLAW.cut);
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    ctx.lineCap = 'round';
-    for (let n = -1; n <= 1; n++) {
-      const from = e.angle - 1.1 * grow, to = e.angle + 1.1 * grow, d = r * (0.62 + n * 0.12);
-      const lean = n * 0.18;
-      for (const [w, rgb, a] of [[6, RAIJU_FX.rgb, 0.3], [2.4, RAIJU_FX.rgb, 0.8], [0.9, RAIJU_FX.core, 1]]) {
-        ctx.strokeStyle = 'rgba(' + rgb + ', ' + a * fade + ')';
-        ctx.lineWidth = w * (1 - Math.abs(n) * 0.25);
-        ctx.beginPath();
-        ctx.arc(x + Math.cos(e.angle) * lean * r, y + Math.sin(e.angle) * lean * r, d, from, to);
-        ctx.stroke();
-      }
-    }
-    const ring = ctx.createRadialGradient(x, y, r * 0.85, x, y, r);
-    ring.addColorStop(0, 'rgba(' + RAIJU_FX.rgb + ', 0)');
-    ring.addColorStop(1, 'rgba(' + RAIJU_FX.rgb + ', ' + 0.25 * fade + ')');
-    ctx.fillStyle = ring;
+    const sweep = ctx.createRadialGradient(x, y, r * 0.3, x, y, r);
+    sweep.addColorStop(0, 'rgba(' + RAIJU_FX.rgb + ', 0)');
+    sweep.addColorStop(0.75, 'rgba(' + RAIJU_FX.rgb + ', ' + 0.16 * fade + ')');
+    sweep.addColorStop(1, 'rgba(' + RAIJU_FX.rgb + ', 0)');
+    ctx.fillStyle = sweep;
     ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.moveTo(x, y);
+    ctx.arc(x, y, r, e.angle - e.arc, e.angle + e.arc);
+    ctx.closePath();
     ctx.fill();
+    for (let n = 0; n < 3; n++) {
+      const p = Math.max(0, Math.min(1, (t - n * CLAW.lag) / CLAW.cut));
+      if (p <= 0) continue;
+      const d = r * (0.5 + n * 0.14), from = e.angle - e.arc * 0.92, span = e.arc * 1.84 * p, thick = CLAW.thick * (1 - n * 0.15);
+      const blade = (w) => {
+        ctx.beginPath();
+        for (let k = 0; k <= 16; k++) {
+          const a = from + span * k / 16, u = k / 16, wide = Math.sin(u * Math.PI) * w;
+          const px = x + Math.cos(a) * (d + wide), py = y + Math.sin(a) * (d + wide);
+          if (k) ctx.lineTo(px, py);
+          else ctx.moveTo(px, py);
+        }
+        for (let k = 16; k >= 0; k--) {
+          const a = from + span * k / 16, u = k / 16, wide = Math.sin(u * Math.PI) * w;
+          ctx.lineTo(x + Math.cos(a) * (d - wide * 0.4), y + Math.sin(a) * (d - wide * 0.4));
+        }
+        ctx.closePath();
+      };
+      ctx.fillStyle = 'rgba(' + RAIJU_FX.rgb + ', ' + 0.35 * fade + ')';
+      blade(thick * 2.2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(' + RAIJU_FX.rgb + ', ' + 0.8 * fade + ')';
+      blade(thick);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(' + RAIJU_FX.core + ', ' + fade + ')';
+      blade(thick * 0.4);
+      ctx.fill();
+      const tip = from + span, tx = x + Math.cos(tip) * d, ty = y + Math.sin(tip) * d;
+      glow(ctx, tx, ty, 6, 'rgba(' + RAIJU_FX.rgb + ', 1)', 0.8 * fade);
+      if (p < 1) this._zap(ctx, tx, ty, tx + Math.cos(tip + 1.2) * 8, ty + Math.sin(tip + 1.2) * 8, 0.6, fade, n * 7 + e.x);
+    }
     ctx.restore();
   }
 
@@ -1648,6 +1671,8 @@ export class Scene {
       const k = this.clock - job.start;
       if (k >= job.out + job.back) continue;
       const back = k >= job.out, f = back ? (k - job.out) / job.back : k / job.out;
+      const seen = !back && job.mob && !job.mob.dead ? this.shown.get(job.mob.id) : null;
+      if (seen) Object.assign(job, { x: seen.x, y: seen.y });
       const spot = hammerAt({ cx: pose.x, cy: pose.y }, job.x, job.y, f, back);
       const x = at(spot.x), y = at(spot.y), spin = this.clock * STORM_FX.spin;
       ctx.save();
@@ -4210,11 +4235,11 @@ export class Scene {
       this._fire(t, event.x, event.y, event.mob, () => {
         this._pose(t).act = { frame: 'swipe', until: this.clock + STORM_FX.swipe };
         add({ kind: 'claw', life: 0.4, x: t.cx, y: t.cy, angle: Math.atan2(event.y - t.cy, event.x - t.cx),
-          radius: event.radius });
+          radius: event.radius, arc: event.arc });
       }, STORM_FX.swipe);
     } else if (event.kind === 'hammer') {
       this._face(t, event.x, event.y, event.mob, event.out + event.back);
-      this._pose(t).hammer = { start: this.clock, out: event.out, back: event.back, x: event.x, y: event.y };
+      this._pose(t).hammer = { start: this.clock, out: event.out, back: event.back, x: event.x, y: event.y, mob: event.mob };
     } else if (event.kind === 'rod') {
       this._sparks(event.x, event.y, ['#bfdbfe', '#ffffff', '#d97706'], 10, 1.6, 0.45);
     } else if (event.kind === 'skybolt') {

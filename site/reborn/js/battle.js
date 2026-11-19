@@ -112,9 +112,9 @@ export const ARCANE = { control: { count: 3, mul: 1.25, spread: 0.6 }, splash: 1
   rain: { every: 8, count: 6, radius: 3, gap: 0.15, drop: 0.7, fall: 0.5, meteor: 1.6, heavy: 3 },
   beam: { mul: 1.6, tick: 0.25, cloud: 1 } };
 const MARKED = new Set(['fire', 'poison', 'earth', 'lightning']);
-export const STORM = { orb: 5, caller: { reach: 3.5, interval: 1, mul: 1.2 }, raiju: { reach: 2, interval: 1.2, mul: 1.1 },
+export const STORM = { orb: 5, caller: { reach: 3.5, interval: 1, mul: 1.2 }, raiju: { reach: 2, interval: 1.2, mul: 1.1, arc: 1.3 },
   thor: { reach: 4, interval: 1.6, mul: 1.8, out: 0.55, back: 0.55, bend: 0.35, touch: 0.6, steps: 10 },
-  rod: { chance: 0.01, radius: 3, wave: 5, link: 3, time: 1, touch: 0.5, spot: [0.84, 0.3] } };
+  rod: { chance: 0.02, radius: 3, wave: 5, link: 3, time: 1, touch: 0.5, spot: [0.84, 0.3] } };
 export const SONG = { every: 15, time: 3, back: 1, dirge: 0.5, anthem: 0.3, ultrasound: 0.2 };
 export const TOTEMS = { totemSlow: 'slow', totemPurge: 'purge', totemPower: 'power' };
 export const HELP = { assist: 1, control: 1, react: 2, heart: 10, heal: 10, save: 50 };
@@ -2622,6 +2622,19 @@ function breathe(b, t, target) {
   return true;
 }
 
+function farthestPrey(b, t) {
+  let best = null, gap = -1;
+  for (const mob of b.mobs) {
+    if (!b._targetable(t, mob)) continue;
+    const d = (mob.x - t.cx) ** 2 + (mob.y - t.cy) ** 2;
+    if (d > gap) {
+      gap = d;
+      best = mob;
+    }
+  }
+  return best;
+}
+
 function hammerAt(t, x, y, k, back) {
   const s = STORM.thor, dx = x - t.cx, dy = y - t.cy, len = Math.hypot(dx, dy) || 1, side = back ? -1 : 1;
   const kx = t.cx + dx / 2 - dy / len * len * s.bend * side, ky = t.cy + dy / 2 + dx / len * len * s.bend * side;
@@ -2630,14 +2643,15 @@ function hammerAt(t, x, y, k, back) {
 }
 
 function hurl(b, t, target, hit, crit, now) {
-  const s = STORM.thor, x = target.x, y = target.y;
+  const s = STORM.thor, aim = { x: target.x, y: target.y };
   t.hammerBack = now + s.out + s.back;
-  b._event({ kind: 'hammer', tower: t, x, y, mob: target, out: s.out, back: s.back, crit });
+  b._event({ kind: 'hammer', tower: t, x: aim.x, y: aim.y, mob: target, out: s.out, back: s.back, crit });
   const struck = new Set();
   for (const back of [false, true]) {
     for (let k = 1; k <= s.steps; k++) {
       b._later((back ? s.out : 0) + (back ? s.back : s.out) * k / s.steps, () => {
-        const spot = hammerAt(t, x, y, k / s.steps, back);
+        if (!back && !target.dead) Object.assign(aim, { x: target.x, y: target.y });
+        const spot = hammerAt(t, aim.x, aim.y, k / s.steps, back);
         for (const mob of b._around(spot.x, spot.y, s.touch)) {
           if (struck.has(mob) || mob === target && !back && k < s.steps) continue;
           struck.add(mob);
@@ -3399,7 +3413,7 @@ const SKILLS = {
   thunder: {
     fire(b, t, now) {
       if (t.style === 'thor' && t.hammerBack > now) return false;
-      const target = t.style === 'caller' ? closestPrey(b, t) : b._target(t);
+      const target = t.style === 'caller' ? closestPrey(b, t) : t.style === 'thor' ? farthestPrey(b, t) : b._target(t);
       if (!target) return false;
       const crit = rollCrit(b, t), hit = t.damage * (crit ? t.critMul : 1);
       if (t.style === 'caller') {
@@ -3408,8 +3422,11 @@ const SKILLS = {
         return true;
       }
       if (t.style === 'raiju') {
-        b._event({ kind: 'claw', tower: t, mob: target, x: target.x, y: target.y, radius: t.range, crit });
-        for (const mob of b.mobs.filter((other) => b._targetable(t, other))) b._hurt(mob, hit, t);
+        const angle = Math.atan2(target.y - t.cy, target.x - t.cx), arc = STORM.raiju.arc;
+        b._event({ kind: 'claw', tower: t, mob: target, x: target.x, y: target.y, radius: t.range, arc, crit });
+        for (const mob of b.mobs.filter((other) => b._targetable(t, other))) {
+          if (mob === target || Math.abs(bend(Math.atan2(mob.y - t.cy, mob.x - t.cx), angle)) <= arc) b._hurt(mob, hit, t);
+        }
         return true;
       }
       if (t.style === 'thor') return hurl(b, t, target, hit, crit, now);

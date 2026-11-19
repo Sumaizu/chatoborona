@@ -1611,16 +1611,16 @@ test('громовержец: молния из посоха сразу бьёт
   ok(battle.events.some((e) => e.kind === 'chain' && e.mob === close));
 });
 
-test('райдзю: замах лапой ранит всех врагов на 2 клетки вокруг', () => {
+test('райдзю: замах лапой — когти молнии ранят врагов на 2 клетки перед ним, позади — нет', () => {
   const battle = makeBattle(), t = storm(battle, 10, 4, ['raiju']);
   ok(t.range >= STORM.raiju.reach && t.range < STORM.raiju.reach + 1, 'радиус 2 клетки');
-  const a = walker(battle, 9, 1e9), b = walker(battle, 11.5, 1e9), far = walker(battle, 14, 1e9);
-  still(a, b, far);
+  const lead = walker(battle, 11.6, 1e9), beside = walker(battle, 10.6, 1e9), behind = walker(battle, 8.6, 1e9);
+  still(lead, beside, behind);
   ok(battle._fire(t));
-  near(hit(a), t.damage);
-  near(hit(b), t.damage);
-  eq(hit(far), 0);
-  ok(battle.events.some((e) => e.kind === 'claw' && e.tower === t));
+  near(hit(lead), t.damage, 'цель');
+  near(hit(beside), t.damage, 'рядом с ней — тоже');
+  eq(hit(behind), 0, 'позади — нет');
+  ok(battle.events.some((e) => e.kind === 'claw' && e.tower === t && e.arc === STORM.raiju.arc));
 });
 
 test('Тор: молот летит дугой в цель и назад, ранит цель и всех на пути; пока не вернулся — второй не бросает', () => {
