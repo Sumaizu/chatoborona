@@ -510,9 +510,21 @@ export class Battle {
   }
 
   _plantRod(t) {
-    const [dx, dy] = STORM.rod.spot;
-    this.rods.push({ tower: t, x: t.x, y: t.y, cx: t.x + dx, cy: t.y + dy, seed: this.random() });
-    this._event({ kind: 'rod', tower: t, x: t.cx, y: t.cy });
+    const [dx, dy] = STORM.rod.spot, taken = (x, y) => this.rods.some((rod) => rod.x === x && rod.y === y);
+    let cell = taken(t.x, t.y) ? null : { x: t.x, y: t.y };
+    if (!cell) {
+      const cells = [];
+      for (let y = t.y - 1; y <= t.y + 1; y++) {
+        for (let x = t.x - 1; x <= t.x + 1; x++) {
+          if (inside(x, y) && !this.blocked.has(y * SIZE + x) && !taken(x, y)) cells.push({ x, y });
+        }
+      }
+      cell = cells.length ? cells[Math.floor(this.random() * cells.length)] : null;
+    }
+    if (!cell) return false;
+    this.rods.push({ tower: t, x: cell.x, y: cell.y, cx: cell.x + dx, cy: cell.y + dy, seed: this.random() });
+    this._event({ kind: 'rod', tower: t, x: cell.x + dx, y: cell.y + dy });
+    return true;
   }
 
   _storms(now) {
@@ -3409,7 +3421,7 @@ const SKILLS = {
       return true;
     },
     every(b, t, now) {
-      if (t.runes.has('rod') && !b.rods.some((rod) => rod.tower === t)) b._plantRod(t);
+      while (b.rods.filter((rod) => rod.tower === t).length < (t.stacks.get('rod') || 0) && b._plantRod(t));
     },
   },
   pyro: {

@@ -1679,6 +1679,27 @@ test('громоотвод: стоит до конца игры; удар мол
   eq(battle.rods.length, 2, 'спящий оставляет громоотвод');
 });
 
+test('громоотвод: у одного мага до двух — второй в соседней клетке; громоотводы разных магов работают вместе', () => {
+  const battle = makeBattle(), a = storm(battle, 4, 3, ['rod', 'rod']), b = storm(battle, 16, 3, ['rod']);
+  battle.step(TICK);
+  const own = battle.rods.filter((rod) => rod.tower === a);
+  eq(own.length, 2, 'два у одного');
+  ok(own[0].x !== own[1].x || own[0].y !== own[1].y, 'в разных клетках');
+  ok(own.every((rod) => Math.max(Math.abs(rod.x - a.x), Math.abs(rod.y - a.y)) <= 1), 'рядом с магом');
+  ok(own.every((rod) => !battle.road.some(([x, y]) => x === rod.x && y === rod.y)), 'не на дороге');
+  let fired = false;
+  battle.random = () => {
+    if (fired) return 0.99;
+    fired = true;
+    return STORM.rod.chance / 2;
+  };
+  battle.rodAt = 0;
+  battle.step(TICK);
+  eq(battle.events.filter((e) => e.kind === 'surge').length, 3, 'волны у всех трёх');
+  const links = battle.events.find((e) => e.kind === 'links');
+  eq(links.pairs.length, 3, 'связаны все: и свои, и чужой');
+});
+
 test('шаманка: удар в барабан — волна на 2 клетки вокруг ранит всех', () => {
   const battle = makeBattle(), t = sorc(battle, 10, 4, ['shamaness']);
   ok(t.range >= 2 && t.range < 3);
