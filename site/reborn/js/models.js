@@ -1696,7 +1696,7 @@ export const HERO = { scale: 1.3, center: [16, 18] };
 const BODIES = [[/^priest-angel/, ANGEL_BODY], [/^priest-(monk|inquisitor)/, 1.25], [/^priest/, 1.08],
   [/^sorceress-shamaness/, 1.2], [/^sorceress/, 1.35], [/^forester(-ragged)?$|^forester-hunter/, 1.2],
   [/^mechanic-(turret|mortar)$/, 1.3], [/^mechanic-demo/, 1.2], [/^mechanic-turret-giant/, 1.1], [/^sniper-marksman/, 1.2],
-  [/^thunder-raiju/, 1.05], [/^thunder-thor/, 1]];
+  [/^thunder-raiju/, 1.05], [/^thunder-thor/, 1.2]];
 export const sizeOf = (id) => {
   const body = BODIES.find(([kind]) => kind.test(id));
   return body ? body[1] : 1;
