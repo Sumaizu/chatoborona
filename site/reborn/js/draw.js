@@ -1,6 +1,6 @@
 import { LETTERS, SIZE } from './field.js';
 import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintRoadMask, paintRoof } from './terrain.js';
-import { FIRE, HOLY, MANTRAS, MECH, SPELL, WOOD, flightAt, roadCurve } from './battle.js';
+import { FIRE, HOLY, MANTRAS, MECH, SPELL, WOOD, flightAt, heavyGun, roadCurve } from './battle.js';
 import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite, cocoonSprite,
   coinSprite, fireballSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
   meteorSprite, grenadeSprite, droneSprite, birdSprite, hawkSprite, snareSprite, trapSprite, cauldronSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
@@ -115,7 +115,9 @@ const BALL_TONES = { fire: 'warm', poison: 'toxic', holy: 'holy', earth: 'earth'
 const BEAMS = { arcane: ['56, 189, 248', '224, 247, 255'], fire: ['249, 115, 22', '255, 237, 213'],
   poison: ['132, 204, 22', '236, 252, 203'], holy: ['253, 224, 120', '255, 251, 235'],
   earth: ['176, 120, 66', '254, 243, 199'], lightning: ['250, 230, 60', '255, 255, 255'] };
-const ROAD_AURA = { zoom: 2, motes: 5 };
+const UNBIND = { edge: 40, inner: 16,
+  tones: ['255, 140, 60', '125, 211, 252', '163, 230, 53', '250, 204, 21', '196, 181, 253'] };
+const ROAD_AURA = { zoom: 2, motes: 5, edge: 96 };
 const SHOCK = { grow: SPELL.resonance.hop, tail: 0.18, soft: CELL * 0.9, pieces: 120 };
 const BEAM = { core: 2.6, mid: 6, outer: 12, twist: 0.11, spin: 7, coil: 5.5, flare: 11 };
 const VENOM = { toxic: 'rgba(132, 204, 22, .9)', plague: 'rgba(91, 33, 182, .9)' };
@@ -142,7 +144,7 @@ const TOTEM_LOOKS = {
   slow: { aura: '244, 114, 182', tint: '150, 96, 48', fill: 0.3, mote: '200, 128, 60', core: '255, 220, 170',
     drift: 0.25, cloth: ['#fbcfe8', '#ec4899', '#9d174d'], shade: '80, 7, 36', deep: '#500724',
     trim: '#fdf2f8', edge: '#fce7f3', feather: ['#fdf2f8', '#f472b6'], gem: ['#fbcfe8', '#be185d'] },
-  purge: { aura: '226, 232, 240', tint: '255, 240, 190', fill: 0.26, mote: '255, 236, 150', core: '255, 255, 235',
+  purge: { aura: '226, 232, 240', tint: '255, 248, 225', fill: 0.26, mote: '255, 250, 228', core: '255, 255, 255',
     drift: 0.5, cloth: ['#ffffff', '#e2e8f0', '#94a3b8'], shade: '30, 41, 59', deep: '#334155',
     trim: '#93c5fd', edge: '#ffffff', feather: ['#ffffff', '#cbd5e1'], gem: ['#e0f2fe', '#0ea5e9'] },
   power: { aura: '220, 38, 38', rim: '248, 113, 113', trail: '#fca5a5', cloth: ['#f87171', '#dc2626', '#7f1d1d'], shade: '50, 4, 4', deep: '#450a0a',
@@ -1982,6 +1984,7 @@ export class Scene {
   }
 
   _auras(ctx, battle) {
+    for (const t of battle.towers) if (t.cls.id === 'sorceress' && !t.cocoon && t.runes.has('unbind')) this._unbind(ctx, t);
     this._roadAuras(ctx, battle);
     for (const banner of battle.banners) if (banner.kind === 'power') this._might(ctx, banner);
     for (const t of battle.towers) {
@@ -2127,6 +2130,33 @@ export class Scene {
     ctx.restore();
   }
 
+  _unbind(ctx, t) {
+    const x = at(t.cx), y = at(t.cy), r = SPELL.unbind * CELL, seed = t.x * 7 + t.y * 3;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(EDGE, EDGE, CELL * SIZE, CELL * SIZE);
+    ctx.clip();
+    for (let i = 0; i < UNBIND.edge; i++) {
+      const a = i * Math.PI * 2 / UNBIND.edge + this.clock * 0.25 * (i % 2 ? 1 : -1) + seed;
+      const d = r * (0.93 + 0.05 * Math.sin(this.clock * 1.7 + i * 1.3)), px = x + Math.cos(a) * d, py = y + Math.sin(a) * d;
+      const blink = 0.55 + 0.45 * Math.sin(this.clock * 2.6 + i * 2.1), tone = UNBIND.tones[i % UNBIND.tones.length];
+      glow(ctx, px, py, 6, 'rgba(' + tone + ', 1)', 0.8 * blink);
+      ctx.globalCompositeOperation = 'lighter';
+      glow(ctx, px, py, 2, 'rgba(255, 255, 255, 1)', 0.9 * blink);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    for (let i = 0; i < UNBIND.inner; i++) {
+      const k = (this.clock * 0.25 + i / UNBIND.inner + noise(i, seed)) % 1, a = noise(i + 3, seed) * Math.PI * 2 + k * 1.2;
+      const d = r * (0.2 + 0.65 * noise(i + 7, seed)), px = x + Math.cos(a) * d, py = y + Math.sin(a) * d - k * 8;
+      const fade = Math.sin(k * Math.PI), tone = UNBIND.tones[(i + 2) % UNBIND.tones.length];
+      glow(ctx, px, py, 5, 'rgba(' + tone + ', 1)', 0.7 * fade);
+      ctx.globalCompositeOperation = 'lighter';
+      glow(ctx, px, py, 1.2, 'rgba(255, 255, 255, 1)', 0.7 * fade);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.restore();
+  }
+
   _flashOf(banner) {
     return banner.flashAt ? Math.max(0, 1 - (this.clock - banner.flashAt) / 0.5) : 0;
   }
@@ -2171,13 +2201,21 @@ export class Scene {
     fill.addColorStop(0, 'rgba(' + look.tint + ', ' + (look.fill * 0.5 + 0.1 * flash) + ')');
     fill.addColorStop(0.9, 'rgba(' + look.tint + ', ' + (look.fill + 0.1 * flash) + ')');
     fill.addColorStop(1, 'rgba(' + look.tint + ', ' + look.fill * 0.6 + ')');
+    const torn = () => {
+      g.beginPath();
+      for (let k = 0; k <= ROAD_AURA.edge; k++) {
+        const a = k / ROAD_AURA.edge * Math.PI * 2, u = k % ROAD_AURA.edge;
+        const d = r * (0.93 + 0.1 * smoothNoise(u * 0.35, 4, seed) + 0.05 * noise(u, seed + 2));
+        if (k) g.lineTo(x + Math.cos(a) * d, y + Math.sin(a) * d);
+        else g.moveTo(x + Math.cos(a) * d, y + Math.sin(a) * d);
+      }
+      g.closePath();
+    };
     g.fillStyle = fill;
-    g.beginPath();
-    g.arc(x, y, r, 0, Math.PI * 2);
+    torn();
     g.fill();
     g.save();
-    g.beginPath();
-    g.arc(x, y, r, 0, Math.PI * 2);
+    torn();
     g.clip();
     const cells = battle.road.filter(([cx, cy]) => Math.hypot(cx + 0.5 - banner.cx, cy + 0.5 - banner.cy) < SPELL.totem.radius + 0.7);
     g.globalCompositeOperation = 'lighter';
@@ -3566,7 +3604,7 @@ export class Scene {
       if (!still) {
         if (!t.rider && !(t.pull && now < t.pull.end)) this._steer(t, pose);
         if (t.beam && !t.beam.mob.dead) pose.aim = Math.atan2(t.beam.mob.x - t.cx, -(t.beam.mob.y - t.cy));
-        pose.angle = turnToward(pose.angle, pose.aim, dt);
+        pose.angle = heavyGun(t) ? t.angle : turnToward(pose.angle, pose.aim, dt);
         this._release(t, pose);
         pose.kick = Math.max(0, pose.kick - dt);
         pose.flash = Math.max(0, pose.flash - dt);

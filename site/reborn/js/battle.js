@@ -110,7 +110,7 @@ export const HOLY = { angel: { reach: 1, interval: 1, mul: 2.6 }, monk: { reach:
 export const SPELL = { wisp: 0.45, minstrel: { reach: 3.5, interval: 1.6, mul: 1.3, wide: 0.5, speed: 7 },
   enchantress: { reach: 4, interval: 1.45, mul: 2.2, wind: 0.3, speed: 5, curve: 1.15 },
   shamaness: { reach: 2, interval: 1.8, mul: 1.2 }, resonance: { reach: 5, mul: 1.5, hop: 0.3 },
-  totem: { radius: 3, slow: 0.1, power: 0.1, hold: 0.3, spot: [0.5, 0.35] }, courses: 0.2, catalyst: 0.15 };
+  totem: { radius: 3, slow: 0.1, power: 0.1, hold: 0.3, spot: [0.5, 0.35] }, courses: 0.2, catalyst: 0.15, unbind: 3, circle: 0.5 };
 export const ARCANE = { control: { count: 3, mul: 1.25, spread: 0.6 }, splash: 1, cloud: 0.6, holy: 2, stun: 0.6,
   elements: ['fire', 'poison', 'holy', 'earth', 'lightning'],
   rain: { every: 8, count: 6, radius: 3, gap: 0.15, drop: 0.7, fall: 0.5, meteor: 1.6, heavy: 3 },
@@ -131,7 +131,8 @@ const DRONE_SHOTS = { attack: MECH.droneAttack, laser: MECH.droneLaser, air: MEC
   hawk: WOOD.hawk };
 const STEEL_BLAST = { radius: 1.5, mul: 8, stun: 1 };
 const METEOR_FLIGHT = 1.2;
-export const AIM = { turn: 8, slack: Math.PI / 12, hold: 0.15 };
+export const AIM = { turn: 8, slack: Math.PI / 12, hold: 0.15, heavy: { turn: 2.5, slack: Math.PI / 36 } };
+export const heavyGun = (t) => t.style === 'turret' && t.runes.has('giant');
 export const GRENADE = { flight: 0.5, pace: 0.05 };
 const SPIKE_TOUCH = 0.55;
 const ROLL_EVERY = 1;
@@ -190,7 +191,7 @@ function lineClear(solid, x0, y0, x1, y1) {
 }
 
 const near = (a, x, y, range) => (a.x - x) * (a.x - x) + (a.y - y) * (a.y - y) <= range * range;
-const immune = (mob, element) => Boolean(element) && mob.element === element;
+const immune = (mob, element) => Boolean(element) && mob.element === element && !mob.exposed;
 const wicked = (mob) => mob.undead || DEMONS.has(mob.look) || Boolean(mob.kind && DEMONS.has(mob.kind.id));
 const IMMUNE_GAP = 0.6;
 const SPLIT_GAP = 0.3;
@@ -387,9 +388,9 @@ export class Battle {
     const mob = charge || held || this.facing(t);
     if (!mob) return true;
     t.aimMob = mob;
-    const want = Math.atan2(mob.x - t.cx, -(mob.y - t.cy)), gap = bend(want, t.angle);
-    t.angle += Math.sign(gap) * Math.min(Math.abs(gap), AIM.turn * dt);
-    return Math.abs(bend(want, t.angle)) <= AIM.slack;
+    const s = heavyGun(t) ? AIM.heavy : AIM, want = Math.atan2(mob.x - t.cx, -(mob.y - t.cy)), gap = bend(want, t.angle);
+    t.angle += Math.sign(gap) * Math.min(Math.abs(gap), s.turn * dt);
+    return Math.abs(bend(want, t.angle)) <= s.slack;
   }
 
   place(player, classId, x, y, mods = NO_MODS) {
@@ -773,7 +774,7 @@ export class Battle {
       chill: 0,
       mark: 0, markUntil: 0, vuln: 0, vulnUntil: 0, rush: 0, rushUntil: 0,
       charge: null, rot: null,
-      muteUntil: 0, purgeUntil: 0, netUntil: 0, rootAt: 0, rootUntil: 0, rootFree: 0, stuck: null, thicketUntil: 0,
+      muteUntil: 0, purgeUntil: 0, exposed: false, netUntil: 0, rootAt: 0, rootUntil: 0, rootFree: 0, stuck: null, thicketUntil: 0,
       rollAt: this.time + ROLL_EVERY, thornAt: 0, resist: resistOf(this.wave), holdUntil: 0, holdFree: 0,
       holdBy: '', pushed: 0, poison: null, burn: null, helpers: new Set(), last: null, dead: false, biting: 0,
       wall: null, fury: 0, sx: 0, sy: 0, placed: false,
@@ -794,7 +795,11 @@ export class Battle {
   }
 
   _powers(dt, now) {
-    for (const mob of this.mobs) mob.fury = 0;
+    const breakers = this.towers.filter((t) => t.cls.id === 'sorceress' && !t.cocoon && t.runes.has('unbind'));
+    for (const mob of this.mobs) {
+      mob.fury = 0;
+      mob.exposed = breakers.some((t) => near(mob, t.cx, t.cy, SPELL.unbind));
+    }
     for (const banner of this.banners) {
       if (banner.kind !== 'purge') continue;
       for (const mob of this.mobs) {
@@ -1802,6 +1807,7 @@ export class Battle {
     const insight = fade(priests.filter((t) => t.runes.has('insight')).map(() => HOLY.insight));
     this.blessed = bless;
     this.catalyst = this._sorcery('catalyst', SPELL.catalyst);
+    const circles = this.towers.filter((t) => t.cls.id === 'sorceress' && !t.cocoon && !t.rider && t.runes.has('circle'));
     this.deafen = fade(this.towers.filter((t) => t.style === 'minstrel' && !t.cocoon && t.runes.has('ultrasound'))
       .map(() => SONG.ultrasound));
     for (const t of this.towers) {
@@ -1877,8 +1883,10 @@ export class Battle {
       t.torches = TORCH_USERS.has(t.cls.id) ? pyros.filter((pyro) => close(pyro, t, FIRE.torch.radius + pyro.reach))
         .sort((x, y) => torchPower(y) - torchPower(x)) : [];
       t.torch = t.torches[0] || null;
+      const rings = t.rider ? [] : circles.filter((c) => Math.max(Math.abs(c.x - t.x), Math.abs(c.y - t.y)) <= 1);
+      for (const c of rings) by.add(c);
       by.delete(t);
-      const reach = fixedRange(t) ? t.ownRange : t.ownRange * (1 + boost.range);
+      const reach = fixedRange(t) ? t.ownRange : t.ownRange * (1 + boost.range) + rings.length * SPELL.circle;
       if (reach !== t.range) t.range = reach;
     }
   }

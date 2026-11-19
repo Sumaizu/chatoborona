@@ -175,6 +175,25 @@ test('бой: боец не стреляет, пока не повернётся
   ok(t.aimHold > battle.time && t.aimMob === mob, 'после выстрела держит прицел на нём');
 });
 
+test('гигантская турель поворачивается медленно и стреляет, только когда ствол смотрит на цель', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'mechanic', 10, 4);
+  battle.setMods(t, { runes: ['turret', 'giant'] });
+  const mob = walker(battle, 12, 1e9);
+  still(mob);
+  const want = Math.atan2(mob.x - t.cx, -(mob.y - t.cy)), off = () => Math.abs(Math.atan2(Math.sin(t.angle - want),
+    Math.cos(t.angle - want)));
+  t.angle = want + Math.PI;
+  const fired = () => battle.events.some((e) => e.tower === t && (e.kind === 'shot' || e.kind === 'burst'));
+  let spent = 0;
+  while (!fired() && spent < 5) {
+    battle.step(TICK);
+    spent += TICK;
+  }
+  ok(fired(), 'выстрелила');
+  ok(spent >= (Math.PI - AIM.heavy.slack) / AIM.heavy.turn - TICK, 'не раньше, чем довернулась: ' + spent.toFixed(2));
+  ok(AIM.heavy.turn < AIM.turn && off() <= AIM.heavy.slack, 'медленнее остальных и точно в цель');
+});
+
 test('бой: после перехода на другую клетку защитник секунду не стреляет', () => {
   const battle = makeBattle(), hero = level(30), tower = battle.place(hero, 'mechanic', 1, 4);
   no(battle.move(tower, 1, 5), 'на дорогу');
@@ -1535,6 +1554,33 @@ test('волшебница, катализатор: урон союзников 
   battle.step(TICK);
   near(dealt(ally, 'fire') / fire, 1 + SPELL.catalyst);
   near(dealt(shooter, null) / plain, 1, 'без стихии — без прибавки');
+});
+
+test('волшебница, разрушение иммунитета: в 3 клетках от неё у врагов нет иммунитета к стихиям', () => {
+  const battle = makeBattle(), pyro = battle.place(player(), 'pyro', 2, 2);
+  const close = walker(battle, 10, 1e9), far = walker(battle, 18, 1e9);
+  close.element = far.element = 'fire';
+  still(close, far);
+  sorc(battle, 10, 4, ['unbind']);
+  battle.step(TICK);
+  battle._hurt(close, 100, pyro, 'fire');
+  battle._hurt(far, 100, pyro, 'fire');
+  ok(hit(close) > 0, 'рядом — горит');
+  eq(hit(far), 0, 'далеко — иммунитет');
+});
+
+test('волшебница, чародейский круг: она и соседи бьют на 0,5 клетки дальше, от двух — на клетку; ангел — нет', () => {
+  const battle = makeBattle(), ally = battle.place(player(), 'sniper', 11, 3), far = battle.place(player(), 'sniper', 15, 3);
+  const angel = priest(battle, 9, 3, ['angel']), base = ally.range, wide = far.range, edge = angel.range;
+  const mage = sorc(battle, 10, 3, ['circle']), own = mage.ownRange;
+  battle.step(TICK);
+  near(ally.range - base, SPELL.circle, 'сосед');
+  near(mage.range - own, SPELL.circle, 'сама');
+  near(far.range, wide, 'дальний — как был');
+  near(angel.range, edge, 'ангел — как был');
+  sorc(battle, 12, 2, ['circle']);
+  battle.step(TICK);
+  near(ally.range - base, SPELL.circle * 2, 'от двух волшебниц');
 });
 
 test('шаманка: удар в барабан — волна на 2 клетки вокруг ранит всех', () => {
