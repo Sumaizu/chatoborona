@@ -109,11 +109,17 @@ export const HOLY = { angel: { reach: 1, interval: 1, mul: 2.6 }, monk: { reach:
   repose: 3, chain: { jumps: 2, reach: 2 }, aegis: 0.2, blessing: 0.1, insight: 0.1 };
 export const SPELL = { wisp: 0.45, minstrel: { reach: 3.5, interval: 1.6, mul: 1.3, wide: 0.5, speed: 7 },
   enchantress: { reach: 4, interval: 1.45, mul: 2.2, wind: 0.3, flight: FIREBALL_FLIGHT },
-  shamaness: { reach: 2, interval: 1.8, mul: 1.2 }, resonance: { reach: 5, mul: 1.5, hop: 0.2 },
-  totem: { radius: 3, slow: 0.1, power: 0.1, hold: 0.3, spot: [0.82, 0.2] } };
+  shamaness: { reach: 2, interval: 1.8, mul: 1.2 }, resonance: { reach: 5, mul: 1.5, hop: 0.3 },
+  totem: { radius: 3, slow: 0.1, power: 0.1, hold: 0.3, spot: [0.5, 0.35] }, courses: 0.2, catalyst: 0.15 };
+export const ARCANE = { control: { count: 3, mul: 1.25, spread: 0.6 }, splash: 1, cloud: 0.6, holy: 2, stun: 0.6,
+  elements: ['fire', 'poison', 'holy', 'earth', 'lightning'],
+  rain: { every: 8, count: 6, radius: 3, gap: 0.15, drop: 0.7, fall: 0.5, meteor: 1.6, heavy: 3 },
+  beam: { mul: 1.6, tick: 0.25, cloud: 1 } };
+const MARKED = new Set(['fire', 'poison', 'earth', 'lightning']);
 export const SONG = { every: 15, time: 3, back: 1, dirge: 0.5, anthem: 0.3, ultrasound: 0.2 };
 export const TOTEMS = { totemSlow: 'slow', totemPurge: 'purge', totemPower: 'power' };
 export const HELP = { assist: 1, control: 1, react: 2, heart: 10, heal: 10, save: 50 };
+const LEFT_ITEMS = ['vents', 'cauldrons', 'banners', 'traps', 'walls', 'patches', 'clouds', 'puddles'];
 const DEMONS = new Set(['imp', 'hellhound', 'demon', 'devilkin', 'gatekeeper', 'archdemon', 'diablo']);
 export const MANTRAS = ['mantraSpeed', 'mantraPower', 'mantraRange'];
 export const FLIERS = new Set(['angel', 'dragon']);
@@ -185,6 +191,7 @@ function lineClear(solid, x0, y0, x1, y1) {
 
 const near = (a, x, y, range) => (a.x - x) * (a.x - x) + (a.y - y) * (a.y - y) <= range * range;
 const immune = (mob, element) => Boolean(element) && mob.element === element;
+const wicked = (mob) => mob.undead || DEMONS.has(mob.look) || Boolean(mob.kind && DEMONS.has(mob.kind.id));
 const IMMUNE_GAP = 0.6;
 const SPLIT_GAP = 0.3;
 export const SPLIT_TIME = 0.35;
@@ -277,6 +284,8 @@ export class Battle {
     this.treasures = 0;
     this.ward = null;
     this.banners = [];
+    this.left = [];
+    this.catalyst = 0;
     this.sirenUntil = 0;
     this.steeled = new Map();
     this.stood = new Set();
@@ -512,6 +521,30 @@ export class Battle {
     this._flags();
   }
 
+  leave(tower) {
+    this.towers.splice(this.towers.indexOf(tower), 1);
+    if (!tower.rider) this.byCell.delete(tower.y * SIZE + tower.x);
+    for (const list of ['whirls', 'zones', 'phoenixes', 'drones']) {
+      this[list] = this[list].filter((item) => item.tower !== tower);
+    }
+    for (const t of this.towers) if (t.perch && t.perch.tower === tower) t.perch = null;
+    if (LEFT_ITEMS.some((list) => this[list].some((item) => item.tower === tower))) this.left.push(tower);
+    this._flags();
+  }
+
+  adopt(old, tower) {
+    this.left = this.left.filter((t) => t !== old);
+    for (const list of LEFT_ITEMS) for (const item of this[list]) if (item.tower === old) item.tower = tower;
+  }
+
+  _leftovers(now) {
+    this.left = this.left.filter((t) => LEFT_ITEMS.some((list) => this[list].some((item) => item.tower === t)));
+    for (const t of this.left) {
+      erupt(this, t, now);
+      brew(this, t, now);
+    }
+  }
+
   _waveHp(type, players = this.players || 1, wave = Math.max(1, this.wave)) {
     return waveHp(wave, type, players, this.tempo);
   }
@@ -673,6 +706,7 @@ export class Battle {
     this._walk(dt, now);
     this._buffs(now);
     this._shoot(dt, now);
+    this._leftovers(now);
     this._drones(dt, now);
     if (this.mobs.some((m) => m.dead)) this.mobs = this.mobs.filter((m) => !m.dead);
     if (this.births.some((birth) => birth.at <= now)) {
@@ -739,7 +773,7 @@ export class Battle {
       chill: 0,
       mark: 0, markUntil: 0, vuln: 0, vulnUntil: 0, rush: 0, rushUntil: 0,
       charge: null, rot: null,
-      muteUntil: 0, netUntil: 0, rootAt: 0, rootUntil: 0, rootFree: 0, stuck: null, thicketUntil: 0,
+      muteUntil: 0, purgeUntil: 0, netUntil: 0, rootAt: 0, rootUntil: 0, rootFree: 0, stuck: null, thicketUntil: 0,
       rollAt: this.time + ROLL_EVERY, thornAt: 0, resist: resistOf(this.wave), holdUntil: 0, holdFree: 0,
       holdBy: '', pushed: 0, poison: null, burn: null, helpers: new Set(), last: null, dead: false, biting: 0,
       wall: null, fury: 0, sx: 0, sy: 0, placed: false,
@@ -766,6 +800,7 @@ export class Battle {
       for (const mob of this.mobs) {
         if (mob.dead || !near(mob, banner.cx, banner.cy, SPELL.totem.radius)) continue;
         mob.muteUntil = Math.max(mob.muteUntil, now + SPELL.totem.hold);
+        mob.purgeUntil = mob.muteUntil;
         mob.rushUntil = 0;
         mob.ward = 0;
       }
@@ -1766,6 +1801,7 @@ export class Battle {
     const bless = 1 + HOLY.blessing * graced('blessing'), sanctity = graced('sanctity') > 0;
     const insight = fade(priests.filter((t) => t.runes.has('insight')).map(() => HOLY.insight));
     this.blessed = bless;
+    this.catalyst = this._sorcery('catalyst', SPELL.catalyst);
     this.deafen = fade(this.towers.filter((t) => t.style === 'minstrel' && !t.cocoon && t.runes.has('ultrasound'))
       .map(() => SONG.ultrasound));
     for (const t of this.towers) {
@@ -2259,8 +2295,8 @@ export class Battle {
     if (element === 'poison' && mob.undead && !plague) return;
     if (plague && !mob.undead) amount *= 1 + WOOD.plague;
     amount *= this._weak(element);
-    if (t.style === 'inquisitor' && t.runes.has('repose') && (mob.undead || DEMONS.has(mob.look)
-      || mob.kind && DEMONS.has(mob.kind.id))) amount *= HOLY.repose;
+    if (element) amount *= 1 + this.catalyst;
+    if (t.style === 'inquisitor' && t.runes.has('repose') && wicked(mob)) amount *= HOLY.repose;
     if (immune(mob, element)) {
       mob.helpers.add(t);
       if (now >= mob.immuneAt) {
@@ -2468,20 +2504,16 @@ export class Battle {
 
   _bannerCell(t) {
     const taken = (x, y) => this.banners.some((banner) => banner.x === x && banner.y === y);
-    if (!taken(t.x, t.y)) return { x: t.x, y: t.y };
-    for (const ring of [1, 2]) {
-      const cells = [];
-      for (let dy = -ring; dy <= ring; dy++) {
-        for (let dx = -ring; dx <= ring; dx++) {
-          const x = t.x + dx, y = t.y + dy;
-          if (Math.max(Math.abs(dx), Math.abs(dy)) === ring && x >= 0 && y >= 0 && x < SIZE && y < SIZE && !taken(x, y)) {
-            cells.push({ x, y });
-          }
-        }
-      }
-      if (cells.length) return cells[Math.floor(this.random() * cells.length)];
+    let best = Infinity, cells = [];
+    for (const [x, y] of this.road) {
+      if (taken(x, y) || cells.some((cell) => cell.x === x && cell.y === y)) continue;
+      const gap = (x - t.x) ** 2 + (y - t.y) ** 2;
+      if (gap < best) {
+        best = gap;
+        cells = [{ x, y }];
+      } else if (gap === best) cells.push({ x, y });
     }
-    return null;
+    return cells.length ? cells[Math.floor(this.random() * cells.length)] : null;
   }
 
   _totems(mob, kind) {
@@ -2497,6 +2529,10 @@ export class Battle {
 
   _resistOf(mob) {
     return Math.max(0, mob.resist - (this.deafen || 0));
+  }
+
+  _sorcery(id, value) {
+    return fade(this.towers.filter((t) => t.cls.id === 'sorceress' && !t.cocoon && t.runes.has(id)).map(() => value));
   }
 
   _aegis() {
@@ -2543,7 +2579,7 @@ export class Battle {
   }
 
   _grant(t, xp) {
-    const amount = xp * Math.max(0, 1 + (t.mods.xp || 0));
+    const amount = xp * Math.max(0, 1 + (t.mods.xp || 0)) * (1 + this._sorcery('courses', SPELL.courses));
     t.player.xp += amount;
     t.run.xp += amount;
     if (this.towers.includes(t)) this._level(t);
@@ -2904,17 +2940,106 @@ function resonate(b, t, x, y, hit, rung) {
 }
 
 function conjure(b, t, target, crit, hit) {
-  const s = SPELL.enchantress;
+  const s = SPELL.enchantress, control = t.runes.has('arcaneControl');
   b._event({ kind: 'conjure', tower: t, mob: target, x: target.x, y: target.y, time: s.wind });
   b._later(s.wind, () => {
-    const mob = target.dead ? b._target(t) : target;
-    if (!mob) return;
-    b._event({ kind: 'shot', tower: t, x: mob.x, y: mob.y, crit, mob, time: s.flight });
-    b._later(s.flight, () => {
-      if (!mob.dead) b._hurt(mob, hit, t);
-    }, t);
+    const first = target.dead ? b._target(t) : target;
+    if (!first) return;
+    const aims = control ? spread(b, t, first) : [first], damage = hit * (control ? ARCANE.control.mul : 1);
+    aims.forEach((mob, i) => {
+      const element = t.runes.has('elements') ? elementFor(b, mob) : null;
+      const bend = i ? (i % 2 ? 1 : -1) * ARCANE.control.spread : 0;
+      b._event({ kind: 'shot', tower: t, x: mob.x, y: mob.y, crit, mob, time: s.flight, element, bend });
+      b._later(s.flight, () => {
+        if (mob.dead) return;
+        if (element === 'fire') landing(b, t, mob.x, mob.y, element, damage, ARCANE.splash);
+        else {
+          touch(b, t, mob, element, damage);
+          if (element === 'poison') b._cloud(t, mob.x, mob.y, ARCANE.cloud);
+        }
+      }, t);
+    });
   }, t);
   return true;
+}
+
+function spread(b, t, first) {
+  const others = b.mobs.filter((mob) => mob !== first && b._targetable(t, mob)), aims = [first];
+  while (aims.length < ARCANE.control.count) {
+    aims.push(others.length ? others.splice(Math.floor(b.random() * others.length), 1)[0] : first);
+  }
+  return aims;
+}
+
+function elementFor(b, mob) {
+  const fits = ARCANE.elements.filter((element) => !immune(mob, element) && !(element === 'poison' && mob.undead));
+  return fits.length ? fits[Math.floor(b.random() * fits.length)] : null;
+}
+
+function touch(b, t, mob, element, damage) {
+  const bonus = element === 'holy' && wicked(mob) ? ARCANE.holy : 1;
+  b._hurt(mob, damage * bonus, t, element, false, element === 'earth' ? 1 : 0);
+  if (mob.dead) return;
+  if (element === 'lightning') b._hold(mob, ARCANE.stun, t);
+  if (MARKED.has(element)) b._mark(mob, element, t);
+}
+
+function landing(b, t, x, y, element, damage, radius) {
+  if (element === 'fire') b._event({ kind: 'boom', tower: t, x, y, radius, fireball: true });
+  else if (element === 'earth') b._event({ kind: 'boom', tower: t, x, y, radius, meteor: true });
+  else if (element === 'lightning') b._event({ kind: 'thunderbolt', tower: t, x, y, radius });
+  else if (element === 'holy') b._event({ kind: 'holyRing', tower: t, x, y, radius });
+  if (element === 'poison') b._cloud(t, x, y, ARCANE.cloud);
+  for (const mob of b._around(x, y, radius)) touch(b, t, mob, element, damage);
+}
+
+function downpour(b, t, now, alive) {
+  if (!t.runes.has('arcaneRain') || !alive || t.beam || now < (t.nextRain || 0)) return;
+  const target = b._target(t, { mode: 'any' }), s = ARCANE.rain;
+  if (!target) return;
+  t.nextRain = now + s.every;
+  const element = t.runes.has('elements') ? ARCANE.elements[Math.floor(b.random() * ARCANE.elements.length)] : null;
+  if (element === 'earth') {
+    const x = target.x, y = target.y, fall = s.fall * 1.6;
+    b._event({ kind: 'shot', tower: t, x, y, mob: null, time: fall, sx: x, sy: y - 5, element, size: 22 });
+    b._later(fall, () => landing(b, t, x, y, element, t.damage * s.heavy, s.meteor), t);
+    return;
+  }
+  for (let k = 0; k < s.count; k++) {
+    const a = b.random() * Math.PI * 2, r = Math.sqrt(b.random()) * s.radius;
+    const x = target.x + Math.cos(a) * r, y = target.y + Math.sin(a) * r;
+    if (element === 'lightning') {
+      b._later(k * s.gap, () => landing(b, t, x, y, element, t.damage, s.drop), t);
+      continue;
+    }
+    b._later(k * s.gap, () => {
+      b._event({ kind: 'shot', tower: t, x, y, mob: null, time: s.fall, sx: x, sy: y - 3, element });
+      b._later(s.fall, () => landing(b, t, x, y, element, t.damage, element === 'fire' ? ARCANE.splash : s.drop), t);
+    }, t);
+  }
+}
+
+function focus(b, t, now, alive) {
+  if (!t.runes.has('focusBeam')) return;
+  const s = ARCANE.beam, old = t.beam;
+  const kept = old && !old.mob.dead && b._targetable(t, old.mob) ? old.mob : null;
+  const boss = alive ? kept || b.mobs.find((mob) => mob.info.boss && b._targetable(t, mob)) || null : null;
+  if (!boss) {
+    t.beam = null;
+    return;
+  }
+  if (!old || old.mob !== boss) {
+    t.beam = { mob: boss, element: t.runes.has('elements') ? elementFor(b, boss) : null, next: now, cloudAt: now };
+    b._event({ kind: 'focus', tower: t, mob: boss, element: t.beam.element });
+  }
+  const beam = t.beam;
+  if (now < beam.next) return;
+  beam.next = now + s.tick;
+  touch(b, t, boss, beam.element, t.damage / b._intervalOf(t, now) * s.mul * s.tick);
+  if (beam.element === 'poison' && now >= beam.cloudAt) {
+    beam.cloudAt = now + s.cloud;
+    b._cloud(t, boss.x, boss.y, ARCANE.cloud);
+  }
 }
 
 function holyThrow(b, t, target) {
@@ -2965,9 +3090,20 @@ function hail(b, t, now, alive) {
   }, t);
 }
 
+function erupt(b, t, now) {
+  for (const vent of b.vents) {
+    if (vent.tower !== t || now < vent.next) continue;
+    const prey = b.mobs.filter((mob) => !mob.dead && !hidden(mob, now) && !immune(mob, 'fire')
+      && !b.covered(mob.x, mob.y) && near(mob, vent.cx, vent.cy, FIRE.vent.reach));
+    if (!prey.length) continue;
+    vent.next = now + FIRE.vent.every;
+    fireball(b, t, prey[Math.floor(b.random() * prey.length)], { x: vent.cx, y: vent.cy });
+  }
+}
+
 function brew(b, t, now) {
   if (!t.runes.has('cauldron')) return;
-  if (!b.cauldrons.some((pot) => pot.tower === t)) b._openCauldron(t);
+  if (b.towers.includes(t) && !b.cauldrons.some((pot) => pot.tower === t)) b._openCauldron(t);
   const s = WOOD.cauldron, plague = t.runes.has('plague');
   for (const pot of b.cauldrons) {
     if (pot.tower !== t || now < pot.next) continue;
@@ -3427,14 +3563,7 @@ const SKILLS = {
         }
       }
       if (t.runes.has('vent') && !b.vents.some((vent) => vent.tower === t)) b._openVent(t);
-      for (const vent of b.vents) {
-        if (vent.tower !== t || now < vent.next) continue;
-        const prey = b.mobs.filter((mob) => !mob.dead && !hidden(mob, now) && !immune(mob, 'fire')
-          && !b.covered(mob.x, mob.y) && near(mob, vent.cx, vent.cy, FIRE.vent.reach));
-        if (!prey.length) continue;
-        vent.next = now + FIRE.vent.every;
-        fireball(b, t, prey[Math.floor(b.random() * prey.length)], { x: vent.cx, y: vent.cy });
-      }
+      erupt(b, t, now);
       if (t.style !== 'dragon' || !alive) return;
       if (t.runes.has('flight') && now - t.lastFire >= FIRE.idle && !b._target(t)) b._fly(t, now);
       if (t.runes.has('beam') && !t.charge && now >= (t.nextBeam || 0)) {
@@ -3641,7 +3770,7 @@ const SKILLS = {
         if (t.runes.has('resonance')) resonate(b, t, t.cx, t.cy, hit, new Set());
         return true;
       }
-      if (t.style === 'enchantress') return conjure(b, t, target, crit, hit);
+      if (t.style === 'enchantress') return t.beam ? false : conjure(b, t, target, crit, hit);
       b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target, time: SPELL.wisp });
       b._later(SPELL.wisp, () => {
         if (!target.dead) b._hurt(target, hit, t);
@@ -3650,6 +3779,10 @@ const SKILLS = {
     },
     every(b, t, now, alive) {
       if (t.style === 'minstrel') sing(b, t, now, alive);
+      if (t.style === 'enchantress') {
+        focus(b, t, now, alive);
+        downpour(b, t, now, alive);
+      }
     },
   },
   earth: {

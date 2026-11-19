@@ -308,7 +308,7 @@ export class Game {
       xp: saved ? saved.xp : 0, kills: saved ? saved.kills : 0, assists: saved ? saved.assists : 0,
       paragon: saved ? saved.paragon : 0, particle: saved ? saved.particle : false, coins: 0,
       cls: this._randomClass(), weapon: null, skills: [], tower: null, tipped: new Set(),
-      quiet: 0, asleep: false, seat: null, held: null,
+      quiet: 0, asleep: false, seat: null, held: null, left: null,
     };
     this.members.set(login, member);
     this.profiles.update(member);
@@ -871,7 +871,8 @@ export class Game {
     member.held = tower.run;
     member.asleep = true;
     member.tower = null;
-    this.battle.remove(tower);
+    member.left = tower;
+    this.battle.leave(tower);
     const awake = Array.from(this.members.values()).filter((m) => m.tower);
     if (awake.length && coins > 0) {
       for (const m of awake) m.coins += coins / awake.length;
@@ -886,6 +887,8 @@ export class Game {
     member.asleep = false;
     const free = (spot) => (spot && this.battle.free(spot.x, spot.y, flier(member.skills)) ? spot : null);
     this._place(member, free(cell) || free(member.seat));
+    if (member.tower && member.left) this.battle.adopt(member.left, member.tower);
+    member.left = null;
     if (member.tower && member.held) Object.assign(member.tower.run, member.held);
     member.held = null;
     this._emit('awake', { login: member.login });

@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { AIM, BITE_TIME, Battle, HELP, HOLY, SONG, SPELL, WOOD, DISCHARGE, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, FIRE,
+import { AIM, ARCANE, BITE_TIME, Battle, HELP, HOLY, SONG, SPELL, WOOD, DISCHARGE, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, FIRE,
   PULSE, REACTIONS, ROT, SHOT, SPLIT_TIME, THORN }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
@@ -1412,6 +1412,115 @@ test('чародейка: достаёт сферу из книги, броса�
   near(hit(mob), t.damage);
 });
 
+test('чародейка, контроль магии: три самонаводящиеся сферы в разных врагов, каждая сильнее; один враг — все в него', () => {
+  const battle = makeBattle(), t = sorc(battle, 10, 4, ['enchantress', 'arcaneControl']);
+  const mobs = [12, 13, 14].map((d) => walker(battle, d, 1e9));
+  still(...mobs);
+  ok(battle._fire(t));
+  runFor(battle, SPELL.enchantress.wind + 0.02);
+  const shots = battle.events.filter((e) => e.kind === 'shot' && e.tower === t);
+  eq(shots.length, 3, 'три сферы');
+  eq(new Set(shots.map((e) => e.mob)).size, 3, 'в разных врагов');
+  eq(shots.filter((e) => e.bend).length, 2, 'боковые летят дугой');
+  runFor(battle, SPELL.enchantress.flight + 0.05);
+  for (const mob of mobs) near(hit(mob), t.damage * ARCANE.control.mul);
+  const lone = makeBattle(), u = sorc(lone, 10, 4, ['enchantress', 'arcaneControl']), mob = walker(lone, 13, 1e9);
+  still(mob);
+  ok(lone._fire(u));
+  runFor(lone, SPELL.enchantress.wind + SPELL.enchantress.flight + 0.05);
+  near(hit(mob), u.damage * ARCANE.control.mul * 3, 'все три — в одного');
+});
+
+test('чародейка, мастер стихий: случайная стихия, метка для реакции; стихию, к которой у цели иммунитет, не берёт', () => {
+  const seen = new Set();
+  for (let seed = 1; seed <= 30; seed++) {
+    const battle = makeBattle({ random: seeded(seed) }), t = sorc(battle, 10, 4, ['enchantress', 'elements']);
+    const mob = walker(battle, 13, 1e9);
+    mob.element = 'fire';
+    still(mob);
+    ok(battle._fire(t));
+    runFor(battle, SPELL.enchantress.wind + SPELL.enchantress.flight + 0.05);
+    const shot = battle.events.find((e) => e.kind === 'shot' && e.tower === t);
+    seen.add(shot.element);
+    ok(ARCANE.elements.includes(shot.element) && shot.element !== 'fire', 'seed ' + seed + ': ' + shot.element);
+    ok(hit(mob) > 0, 'ранит');
+    if (['poison', 'earth', 'lightning'].includes(shot.element)) ok(mob.marks && mob.marks.has(shot.element), 'метка');
+    if (shot.element === 'lightning') ok(mob.holdUntil > battle.time - 1, 'молния оглушает');
+  }
+  eq(seen.size, 4, 'остальные стихии все выпадают: ' + Array.from(seen));
+});
+
+test('чародейка, магический дождь: раз в 8 секунд шесть шаров с неба; с мастером стихий — весь дождь одной стихии', () => {
+  const battle = makeBattle(), t = sorc(battle, 10, 4, ['enchantress', 'arcaneRain']);
+  const crowd = Array.from({ length: 9 }, (_, i) => walker(battle, 10 + i * 0.75, 1e9));
+  still(...crowd);
+  runFor(battle, 0.1 + ARCANE.rain.count * ARCANE.rain.gap + ARCANE.rain.fall + 0.1);
+  const drops = battle.events.filter((e) => e.kind === 'shot' && e.tower === t && e.sy !== undefined);
+  eq(drops.length, ARCANE.rain.count, 'шесть шаров');
+  ok(drops.every((e) => e.sy < e.y), 'падают сверху');
+  ok(crowd.some((mob) => hit(mob) > t.damage * 1.5), 'ранят');
+  ok(Math.abs(t.nextRain - ARCANE.rain.every) < 0.2, 'следующий — через 8 секунд');
+  const kinds = new Set();
+  for (let seed = 1; seed <= 25; seed++) {
+    const other = makeBattle({ random: seeded(seed) }), u = sorc(other, 10, 4, ['enchantress', 'arcaneRain', 'elements']);
+    walker(other, 13, 1e9).speed = 0;
+    runFor(other, 2);
+    const fall = other.events.filter((e) => e.tower === u && (e.kind === 'shot' && e.sy !== undefined
+      || e.kind === 'thunderbolt'));
+    const elements = new Set(fall.map((e) => e.element || 'lightning'));
+    eq(elements.size, 1, 'одна стихия на дождь');
+    kinds.add(Array.from(elements)[0]);
+    if (elements.has('earth')) eq(fall.length, 1, 'земля — один метеорит');
+  }
+  eq(kinds.size, ARCANE.elements.length, 'выпадают все стихии');
+});
+
+test('чародейка, концентрированный луч: босс в радиусе — непрерывный луч только в него, остальное не делает', () => {
+  const battle = makeBattle(), t = sorc(battle, 10, 4, ['enchantress', 'focusBeam', 'arcaneRain']);
+  const boss = put(battle, special(battle, 'boss', 'butcher', 1e9), 13), small = walker(battle, 11, 1e9);
+  still(boss, small);
+  boss.power = null;
+  battle.step(TICK);
+  ok(t.beam && t.beam.mob === boss, 'луч в босса');
+  no(battle._fire(t), 'обычной атаки нет');
+  runFor(battle, 2);
+  const rate = t.damage / battle._intervalOf(t, battle.time) * ARCANE.beam.mul;
+  ok(Math.abs(hit(boss) / battle.time / rate - 1) < 0.15, 'урон ×1,6: ' + hit(boss) / battle.time + ' вместо ' + rate);
+  eq(hit(small), 0, 'других не трогает');
+  no(battle.events.some((e) => e.kind === 'shot' && e.tower === t), 'и дождя нет');
+  boss.dead = true;
+  battle.step(TICK);
+  eq(t.beam, null, 'босса нет — луча нет');
+});
+
+test('волшебница, ускоренные курсы: всем игрокам на 20% больше опыта, у двух — как ауры', () => {
+  const battle = makeBattle(), ally = battle.place(player(), 'sniper', 2, 2), before = ally.player.xp;
+  sorc(battle, 10, 4, ['courses']);
+  battle.reward(ally, 100);
+  near(ally.player.xp - before, 100 * (1 + SPELL.courses));
+  sorc(battle, 12, 4, ['courses']);
+  const mid = ally.player.xp;
+  battle.reward(ally, 100);
+  near(ally.player.xp - mid, 100 * (1 + SPELL.courses * 1.5), 'вторая — вполовину');
+});
+
+test('волшебница, катализатор: урон союзников от стихий на 15% выше, обычный — как был', () => {
+  const battle = makeBattle(), ally = battle.place(player(), 'pyro', 2, 2), shooter = battle.place(player(), 'sniper', 3, 2);
+  const mob = walker(battle, 6, 1e9);
+  still(mob);
+  const dealt = (t, element) => {
+    const before = mob.hp;
+    battle._hurt(mob, 100, t, element);
+    return before - mob.hp;
+  };
+  battle.step(TICK);
+  const fire = dealt(ally, 'fire'), plain = dealt(shooter, null);
+  sorc(battle, 10, 4, ['catalyst']);
+  battle.step(TICK);
+  near(dealt(ally, 'fire') / fire, 1 + SPELL.catalyst);
+  near(dealt(shooter, null) / plain, 1, 'без стихии — без прибавки');
+});
+
 test('шаманка: удар в барабан — волна на 2 клетки вокруг ранит всех', () => {
   const battle = makeBattle(), t = sorc(battle, 10, 4, ['shamaness']);
   ok(t.range >= 2 && t.range < 3);
@@ -1473,14 +1582,15 @@ test('менестрель, вдохновение и ультразвук: мо
   eq(battle._resistOf(mob), 0, 'не ниже нуля');
 });
 
-test('шаманка, знамёна: на край своей клетки, следующие — по соседству, до трёх; замедление, очищение и сила', () => {
+test('шаманка, знамёна: на ближайшую клетку дороги, следующие — на другие ближайшие, до трёх; замедление, очищение и сила', () => {
   const battle = makeBattle(), t = sorc(battle, 10, 4, ['shamaness', 'totemSlow']);
   eq(battle.banners.length, 1);
-  eq([battle.banners[0].x, battle.banners[0].y], [10, 4], 'на своей клетке');
+  eq([battle.banners[0].x, battle.banners[0].y], [10, 5], 'на ближайшей клетке дороги');
   battle.setMods(t, { runes: ['shamaness', 'totemSlow', 'totemSlow', 'totemSlow', 'totemPurge', 'totemPower'] });
   eq(battle.banners.length, 5);
   eq(new Set(battle.banners.map((b) => b.x + ':' + b.y)).size, 5, 'в одной клетке — одно знамя');
-  ok(battle.banners.every((b) => Math.abs(b.x - 10) <= 2 && Math.abs(b.y - 4) <= 2), 'рядом со своей клеткой');
+  ok(battle.banners.every((b) => battle.road.some(([x, y]) => x === b.x && y === b.y)), 'все на дороге');
+  eq(battle.banners.map((b) => b.x).sort((a, b) => a - b), [8, 9, 10, 11, 12], 'на ближайших');
   const mob = walker(battle, 11, 1e9);
   still(mob);
   const slows = battle.banners.filter((b) => b.kind === 'slow' && Math.hypot(mob.x - b.cx, mob.y - b.cy) <= SPELL.totem.radius);
@@ -3208,6 +3318,29 @@ test('мясник: раз в 10 секунд крюк летит пару се�
   ok(Math.abs(second - (POWERS.hook.first + POWERS.hook.every)) < 0.2, 'следующий — через 10 секунд');
 });
 
+test('сон: котёл, жерло и знамя спящего остаются на карте и работают; проснувшийся забирает их себе', () => {
+  const battle = makeBattle();
+  const witch = forester(battle, 10, 3, ['witch', 'cauldron']), mage = battle.place(player(), 'pyro', 4, 3);
+  battle.setMods(mage, { runes: ['fireball', 'vent'] });
+  const shaman = sorc(battle, 14, 3, ['shamaness', 'totemSlow']);
+  battle.step(TICK);
+  eq([battle.cauldrons.length, battle.vents.length, battle.banners.length], [1, 1, 1]);
+  for (const t of [witch, mage, shaman]) battle.leave(t);
+  eq(battle.towers.length, 0, 'с карты ушли');
+  eq([battle.cauldrons.length, battle.vents.length, battle.banners.length], [1, 1, 1], 'вещи на месте');
+  const mob = walker(battle, 9, 1e9);
+  still(mob);
+  runFor(battle, WOOD.cauldron.every + FIRE.vent.every + 1);
+  ok(battle.events.some((e) => e.kind === 'blob') && battle.events.some((e) => e.kind === 'shot' && e.tower === mage),
+    'котёл и жерло стреляют');
+  ok(mob.hp < 1e9, 'и ранят');
+  const back = battle.place(player(), 'forester', 9, 2, { runes: ['witch', 'cauldron'] });
+  battle.adopt(witch, back);
+  battle.step(TICK);
+  eq(battle.cauldrons.length, 1, 'второго котла нет');
+  ok(battle.cauldrons[0].tower === back, 'котёл снова её');
+});
+
 test('полёт: ангел и дракон встают над горами, озёрами, реками и кратерами, но не на дорогу; остальные — нет', () => {
   const battle = mapWith({ mountain: [[6, 3], [6, 4]], lake: [[7, 3]], river: [[8, 3]], crater: [[9, 3]] });
   no(battle.place(player(), 'sniper', 6, 3), 'стрелок на гору не встаёт');
@@ -3223,6 +3356,15 @@ test('полёт: ангел и дракон встают над горами, �
   battle.setMods(dragon, { runes: [] });
   no(battle.aloft(dragon), 'без полёта спускается на ближайшую обычную клетку');
   ok(Math.abs(dragon.x - 7) + Math.abs(dragon.y - 3) <= 2 && battle.towerAt(dragon.x, dragon.y) === dragon);
+});
+
+test('полёт: дракон с перелётом перелетает и на клетку над водой или горой', () => {
+  const water = [11, 12, 13].flatMap((x) => [[x, 4], [x, 6]]);
+  const battle = mapWith({ lake: water }), dragon = battle.place(player(), 'pyro', 2, 2, { runes: ['dragon', 'flight'] });
+  const lead = walker(battle, 12, 1e9);
+  still(lead);
+  battle._fly(dragon, battle.time);
+  ok(battle.aloft(dragon) && Math.abs(dragon.x - 12) <= 1, 'над озером у первого моба: ' + [dragon.x, dragon.y]);
 });
 
 test('карта: с вышки бьют на 2,5 клетки дальше и поверх гор, на вышке — один защитник', () => {

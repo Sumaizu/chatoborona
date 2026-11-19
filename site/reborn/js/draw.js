@@ -107,7 +107,15 @@ const BLUE_FLAME = ['#e0f2ff', '#9bd5ff', '#4aa3ff', '#2563eb', '#1e3a8a'];
 const FLAME_TONES = { warm: FLAME, blue: BLUE_FLAME, toxic: ['#f7fee7', '#d9f99d', '#a3e635', '#65a30d', '#3f6212'],
   holy: ['#fffef5', '#fff7cc', '#fde68a', '#facc15', '#d4a017'],
   azure: ['#f0fbff', '#c7f0ff', '#7dd3fc', '#38bdf8', '#0284c7'],
-  plague: ['#ede9fe', '#a78bfa', '#6d28d9', '#3b0764', '#1e1033'] };
+  plague: ['#ede9fe', '#a78bfa', '#6d28d9', '#3b0764', '#1e1033'],
+  earth: ['#fef3c7', '#e7c9a0', '#b08356', '#7c5a3a', '#4a3426'],
+  storm: ['#ffffff', '#fef9c3', '#fde047', '#facc15', '#ca8a04'] };
+const BALL_TONES = { fire: 'warm', poison: 'toxic', holy: 'holy', earth: 'earth', lightning: 'storm' };
+const BEAMS = { arcane: ['56, 189, 248', '224, 247, 255'], fire: ['249, 115, 22', '255, 237, 213'],
+  poison: ['132, 204, 22', '236, 252, 203'], holy: ['253, 224, 120', '255, 251, 235'],
+  earth: ['176, 120, 66', '254, 243, 199'], lightning: ['250, 230, 60', '255, 255, 255'] };
+const SHOCK = { grow: SPELL.resonance.hop, tail: 0.18 };
+const BEAM = { core: 2.6, mid: 6, outer: 12, twist: 0.11, spin: 7, coil: 5.5, flare: 11 };
 const VENOM = { toxic: 'rgba(132, 204, 22, .9)', plague: 'rgba(91, 33, 182, .9)' };
 const GAS = { toxic: ['rgba(201, 246, 120, .8)', 'rgba(101, 163, 13, .45)'],
   plague: ['rgba(180, 160, 255, .75)', 'rgba(46, 16, 101, .5)'] };
@@ -125,16 +133,18 @@ const HEAT = { warm: ['rgba(255, 110, 30, .9)', 'rgba(255, 220, 120, .9)'],
   toxic: ['rgba(132, 204, 22, .9)', 'rgba(217, 249, 157, .9)'],
   plague: ['rgba(91, 33, 182, .9)', 'rgba(196, 181, 253, .9)'],
   holy: ['rgba(250, 204, 21, .9)', 'rgba(255, 251, 230, .95)'],
-  azure: ['rgba(56, 189, 248, .9)', 'rgba(224, 247, 255, .95)'] };
+  azure: ['rgba(56, 189, 248, .9)', 'rgba(224, 247, 255, .95)'],
+  earth: ['rgba(176, 120, 66, .9)', 'rgba(254, 243, 199, .9)'],
+  storm: ['rgba(250, 204, 21, .9)', 'rgba(255, 255, 240, .95)'] };
 const TOTEM_LOOKS = {
-  slow: { aura: '244, 114, 182', cloth: ['#fbcfe8', '#ec4899', '#9d174d'], shade: '80, 7, 36', deep: '#500724',
+  slow: { aura: '244, 114, 182', tint: '236, 72, 153', line: '219, 39, 119', cloth: ['#fbcfe8', '#ec4899', '#9d174d'], shade: '80, 7, 36', deep: '#500724',
     trim: '#fdf2f8', edge: '#fce7f3', feather: ['#fdf2f8', '#f472b6'], gem: ['#fbcfe8', '#be185d'] },
-  purge: { aura: '226, 232, 240', ray: '160, 196, 240', cloth: ['#ffffff', '#e2e8f0', '#94a3b8'], shade: '30, 41, 59', deep: '#334155',
+  purge: { aura: '226, 232, 240', tint: '125, 160, 210', line: '96, 140, 200', cloth: ['#ffffff', '#e2e8f0', '#94a3b8'], shade: '30, 41, 59', deep: '#334155',
     trim: '#93c5fd', edge: '#ffffff', feather: ['#ffffff', '#cbd5e1'], gem: ['#e0f2fe', '#0ea5e9'] },
-  power: { aura: '220, 38, 38', cloth: ['#f87171', '#dc2626', '#7f1d1d'], shade: '50, 4, 4', deep: '#450a0a',
+  power: { aura: '220, 38, 38', tint: '220, 38, 38', line: '185, 28, 28', cloth: ['#f87171', '#dc2626', '#7f1d1d'], shade: '50, 4, 4', deep: '#450a0a',
     trim: '#fbbf24', edge: '#fca5a5', feather: ['#fca5a5', '#991b1b'], gem: ['#fecaca', '#b91c1c'] } };
 const SPELLS = { wave: 7, chord: '94, 234, 212', shock: '251, 191, 36', lute: 'rgba(45, 212, 191, 1)',
-  wisp: 'rgba(196, 181, 253, 1)', chevron: 8, act: 0.32, strum: 0.3, beat: 0.28, play: 5,
+  wisp: 'rgba(196, 181, 253, 1)', chevron: 9, act: 0.32, strum: 0.3, beat: 0.28, play: 5,
   songs: { siren: 'rgba(244, 114, 182, 1)', dirge: 'rgba(185, 28, 28, 1)' },
   notes: { siren: '#f9a8d4', dirge: '#dc2626', anthem: '#fde68a' } };
 const HOLY_LIGHT = { core: 'rgba(255, 251, 230, 1)', warm: 'rgba(253, 224, 120, 1)', ray: 'rgba(255, 244, 200, ',
@@ -1072,6 +1082,8 @@ export class Scene {
     });
     this._auras(ctx, battle);
     this._towers(ctx, battle, dt, highlight, still);
+    this._standards(ctx, battle);
+    this._beams(ctx, battle);
     this._onField(ctx, () => this._phoenixes(ctx, battle, step));
     this._onField(ctx, () => this._drones(ctx, battle, step));
     this._charges(ctx, battle);
@@ -1446,14 +1458,130 @@ export class Scene {
       y: pose.y + (dx * Math.sin(a) + dy * Math.cos(a) - (pose.lift || 0)) / CELL };
   }
 
+  _flightOf(e, share) {
+    if (!e.bend) {
+      return { cx: e.x1 + (e.x2 - e.x1) * share, cy: e.y1 + (e.y2 - e.y1) * share,
+        angle: Math.atan2(e.x2 - e.x1, -(e.y2 - e.y1)) };
+    }
+    const dx = e.x2 - e.x1, dy = e.y2 - e.y1, len = Math.hypot(dx, dy), a = Math.atan2(dy, dx) + e.bend;
+    const kx = e.x1 + Math.cos(a) * len * 0.55, ky = e.y1 + Math.sin(a) * len * 0.55, u = share, v = 1 - share;
+    const tx = 2 * v * (kx - e.x1) + 2 * u * (e.x2 - kx), ty = 2 * v * (ky - e.y1) + 2 * u * (e.y2 - ky);
+    return { cx: v * v * e.x1 + 2 * u * v * kx + u * u * e.x2, cy: v * v * e.y1 + 2 * u * v * ky + u * u * e.y2,
+      angle: Math.atan2(tx, -ty) };
+  }
+
   _fireball(ctx, e, share, dt) {
-    const b = e.bolt, zoom = b.size / 8, cx = e.x1 + (e.x2 - e.x1) * share, cy = e.y1 + (e.y2 - e.y1) * share;
+    const b = e.bolt, zoom = b.size / 8, { cx, cy, angle } = this._flightOf(e, share);
     const tone = b.tone || (b.blue ? 'blue' : 'warm'), tones = FLAME_TONES[tone];
     const x = at(cx), y = at(cy);
     glow(ctx, x, y, 9 * zoom + 4, HEAT[tone][0], 0.75);
-    sprite(ctx, fireballSprite(tone, Math.floor(this.clock * 14) % FIREBALL_FRAMES), x, y,
-      Math.atan2(e.x2 - e.x1, -(e.y2 - e.y1)), zoom, 6 * zoom, 64);
+    sprite(ctx, fireballSprite(tone, Math.floor(this.clock * 14) % FIREBALL_FRAMES), x, y, angle, zoom, 6 * zoom, 64);
+    if (tone === 'storm') this._crackle(ctx, x, y, 5 * zoom + 3);
     if (dt > 0 && Math.random() < 0.6) this._sparks(cx, cy, tones.slice(1, 4), 1, 0.5, 0.3, Math.round(1 + zoom * 1.5));
+  }
+
+  _crackle(ctx, x, y, r) {
+    const tick = Math.floor(this.clock * 20);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = 'rgba(255, 250, 200, .9)';
+    ctx.lineWidth = 0.8;
+    for (let i = 0; i < 3; i++) {
+      let a = noise(i, tick) * Math.PI * 2, d = r * 0.4;
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(a) * d, y + Math.sin(a) * d);
+      for (let k = 0; k < 3; k++) {
+        a += (noise(i * 7 + k, tick) - 0.5) * 1.2;
+        d += r * 0.25;
+        ctx.lineTo(x + Math.cos(a) * d, y + Math.sin(a) * d);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  _spear(ctx, e, share) {
+    const { cx, cy, angle } = this._flightOf(e, share), x = at(cx), y = at(cy);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    const stone = ctx.createLinearGradient(-2.4, 0, 2.4, 0);
+    stone.addColorStop(0, '#3b2a1c');
+    stone.addColorStop(0.4, '#b08356');
+    stone.addColorStop(0.55, '#e7c9a0');
+    stone.addColorStop(1, '#4a3426');
+    ctx.fillStyle = stone;
+    ctx.beginPath();
+    ctx.moveTo(0, -9);
+    ctx.quadraticCurveTo(2.6, -3, 1.8, 4);
+    ctx.lineTo(0.6, 6.5);
+    ctx.lineTo(-0.8, 5.2);
+    ctx.lineTo(-1.9, 3.6);
+    ctx.quadraticCurveTo(-2.4, -3, 0, -9);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(40, 24, 12, .7)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(0.2, -6);
+    ctx.lineTo(-0.6, -1);
+    ctx.lineTo(0.5, 3);
+    ctx.stroke();
+    for (let i = 0; i < 3; i++) {
+      const k = (this.clock * 6 + i / 3) % 1;
+      ctx.fillStyle = 'rgba(176, 131, 86, ' + (0.7 * (1 - k)) + ')';
+      ctx.fillRect(-1.5 + noise(i, 3) * 3, 6 + k * 7, 1.4, 1.4);
+    }
+    ctx.restore();
+  }
+
+  _beams(ctx, battle) {
+    for (const t of battle.towers) {
+      if (!t.beam || t.beam.mob.dead) continue;
+      const tip = this._muzzle(t), spot = this.shown.get(t.beam.mob.id) || t.beam.mob;
+      const x1 = at(tip.x), y1 = at(tip.y), x2 = at(spot.x), y2 = at(spot.y) - (spot.lift || 0);
+      const [rgb, core] = BEAMS[t.beam.element || 'arcane'], len = Math.hypot(x2 - x1, y2 - y1) || 1;
+      const ax = (x2 - x1) / len, ay = (y2 - y1) / len, nx = -ay, ny = ax, pulse = 0.85 + 0.15 * Math.sin(this.clock * 30);
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.lineCap = 'round';
+      for (const [width, color, alpha] of [[BEAM.outer, rgb, 0.22], [BEAM.mid, rgb, 0.6], [BEAM.core, core, 0.95]]) {
+        ctx.strokeStyle = 'rgba(' + color + ', ' + alpha * pulse + ')';
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+      const jag = t.beam.element === 'lightning', tick = Math.floor(this.clock * 24);
+      let last = null;
+      for (let d = 0; d <= len + 1; d += 1.5) {
+        const phase = this.clock * BEAM.spin - d * BEAM.twist, reach = Math.min(1, d / 12);
+        const wave = Math.sin(phase) * BEAM.coil * reach + (jag ? (noise(d, tick) - 0.5) * 1.6 : 0);
+        const px = x1 + ax * d + nx * wave, py = y1 + ay * d + ny * wave, front = Math.cos(phase);
+        if (last) {
+          ctx.strokeStyle = 'rgba(' + (front > 0 ? core : rgb) + ', ' + (front > 0 ? 0.95 : 0.3) + ')';
+          ctx.lineWidth = front > 0 ? 0.9 : 0.6;
+          ctx.beginPath();
+          ctx.moveTo(last[0], last[1]);
+          ctx.lineTo(px, py);
+          ctx.stroke();
+        }
+        last = [px, py];
+      }
+      const flare = BEAM.flare * (0.9 + 0.2 * Math.sin(this.clock * 17));
+      ctx.fillStyle = 'rgba(' + rgb + ', .45)';
+      ctx.beginPath();
+      ctx.moveTo(x2 - ax * 12 + nx * BEAM.mid / 2, y2 - ay * 12 + ny * BEAM.mid / 2);
+      ctx.lineTo(x2 + nx * flare * 0.6, y2 + ny * flare * 0.6);
+      ctx.lineTo(x2 - nx * flare * 0.6, y2 - ny * flare * 0.6);
+      ctx.lineTo(x2 - ax * 12 - nx * BEAM.mid / 2, y2 - ay * 12 - ny * BEAM.mid / 2);
+      ctx.closePath();
+      ctx.fill();
+      glow(ctx, x2, y2, flare + 4, 'rgba(' + rgb + ', 1)', 0.55);
+      glow(ctx, x2, y2, 4, 'rgba(' + core + ', 1)', 0.9);
+      glow(ctx, x1, y1, 7, 'rgba(' + rgb + ', 1)', 0.6);
+      ctx.restore();
+    }
   }
 
   _laser(ctx, e, share) {
@@ -1850,10 +1978,10 @@ export class Scene {
   }
 
   _auras(ctx, battle) {
+    for (const banner of battle.banners) this._totem(ctx, banner);
     for (const t of battle.towers) {
       if (t.cocoon || t.rider) continue;
       if (t.style === 'monk') this._mantras(ctx, t);
-      if (t.style === 'shamaness') for (const banner of battle.banners) if (banner.tower === t) this._totem(ctx, banner);
       if (t.cls.id === 'forester') {
         if (t.runes.has('grace')) this._aura(ctx, t, AURAS.grace, WOOD.grace.radius, 0);
         if (t.style === 'hunter' && t.runes.has('trophy')) this._trophy(ctx, t);
@@ -1962,114 +2090,108 @@ export class Scene {
 
   _totem(ctx, banner) {
     const look = TOTEM_LOOKS[banner.kind], x = at(banner.cx), y = at(banner.cy), r = SPELL.totem.radius * CELL;
-    const flash = banner.flashAt ? Math.max(0, 1 - (this.clock - banner.flashAt) / 0.5) : 0;
+    const flash = this._flashOf(banner);
     ctx.save();
     ctx.beginPath();
     ctx.rect(EDGE, EDGE, CELL * SIZE, CELL * SIZE);
     ctx.clip();
-    if (banner.kind === 'slow') this._mist(ctx, x, y, r, banner, look, flash);
-    else if (banner.kind === 'purge') this._radiance(ctx, x, y, r, banner, look, flash);
-    else this._embers(ctx, x, y, r, banner, look, flash);
-    ctx.restore();
-    this._standard(ctx, x, y + 7, banner, look, flash);
-  }
-
-  _mist(ctx, x, y, r, banner, look, flash) {
-    const seed = banner.seed * 10, spin = this.clock * 0.22 + seed, tint = 'rgba(' + look.aura + ', 1)';
-    glow(ctx, x, y, r, tint, 0.05 + 0.15 * flash);
-    for (let arm = 0; arm < 3; arm++) {
-      for (let i = 0; i < 9; i++) {
-        const f = (i + 1) / 10, a = spin + arm * Math.PI * 2 / 3 + f * 2.8, d = r * f;
-        glow(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.92, 6 + f * 10, tint, (0.5 - f * 0.28) * (1 + flash));
-      }
-    }
-    for (let i = 0; i < 26; i++) {
-      const a = i * Math.PI * 2 / 26 - this.clock * 0.12 + seed, drift = smoothNoise(i * 0.7 + this.clock * 0.4, 3, seed);
-      const d = r * (0.9 + 0.12 * drift);
-      glow(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d, 8 + 5 * drift, tint, 0.32 + 0.24 * drift);
-    }
-    ctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 5; i++) {
-      const k = (this.clock * 0.08 + i / 5 + noise(i, seed)) % 1, a = noise(i + 7, seed) * Math.PI * 2;
-      const d = r * (0.25 + 0.6 * noise(i + 3, seed)), px = x + Math.cos(a) * d, py = y + Math.sin(a) * d + k * 8;
-      glow(ctx, px, py, 3, 'rgba(255, 228, 240, 1)', 0.55 * Math.sin(k * Math.PI));
-    }
-  }
-
-  _radiance(ctx, x, y, r, banner, look, flash) {
-    const seed = banner.seed * 10, turn = this.clock * 0.18 + seed;
-    glow(ctx, x, y, r, 'rgba(' + look.ray + ', 1)', 0.14 + 0.15 * flash);
-    for (let i = 0; i < 6; i++) {
-      const a = turn + i * Math.PI / 3 + 0.3 * Math.sin(this.clock * 0.6 + i), pulse = 0.6 + 0.4 * Math.sin(this.clock * 1.3 + i * 2);
-      for (let n = 1; n <= 7; n++) {
-        const f = n / 8, d = r * f;
-        glow(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d, 4 + f * 7, 'rgba(' + look.ray + ', 1)',
-          (0.6 - f * 0.45) * pulse * (1 + flash));
-      }
-    }
-    for (let i = 0; i < 18; i++) {
-      const a = i * Math.PI * 2 / 18 + turn * 0.5, twinkle = 0.5 + 0.5 * Math.sin(this.clock * 3 + i * 1.7 + seed);
-      const d = r * (0.94 + 0.05 * Math.sin(i * 2.1 + seed)), px = x + Math.cos(a) * d, py = y + Math.sin(a) * d;
-      glow(ctx, px, py, 5 + 3 * twinkle, 'rgba(' + look.ray + ', 1)', 0.45 + 0.3 * twinkle);
-      ctx.globalCompositeOperation = 'lighter';
-      glow(ctx, px, py, 2.5, 'rgba(255, 255, 255, 1)', 0.4 * twinkle);
-      if (twinkle > 0.75) this._twinkle(ctx, px, py, 2.6 * twinkle, 0.8 * (twinkle - 0.75) * 4);
-      ctx.globalCompositeOperation = 'source-over';
-    }
-    ctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 7; i++) {
-      const k = (this.clock * 0.35 + i / 7 + noise(i, seed)) % 1, a = noise(i + 5, seed) * Math.PI * 2;
-      const d = r * (0.15 + 0.75 * noise(i + 11, seed)), px = x + Math.cos(a) * d, py = y + Math.sin(a) * d - k * 16;
-      glow(ctx, px, py, 4, 'rgba(255, 255, 255, 1)', 0.5 * Math.sin(k * Math.PI));
-      glow(ctx, px, py, 1.5, 'rgba(255, 255, 255, 1)', 0.9 * Math.sin(k * Math.PI));
-    }
-  }
-
-  _twinkle(ctx, x, y, arm, alpha) {
-    ctx.strokeStyle = 'rgba(255, 255, 255, ' + alpha + ')';
-    ctx.lineWidth = 0.7;
+    const fill = ctx.createRadialGradient(x, y, r * 0.15, x, y, r * 1.02);
+    fill.addColorStop(0, 'rgba(' + look.tint + ', ' + (0.03 + 0.1 * flash) + ')');
+    fill.addColorStop(0.8, 'rgba(' + look.tint + ', ' + (0.13 + 0.1 * flash) + ')');
+    fill.addColorStop(1, 'rgba(' + look.tint + ', 0)');
+    ctx.fillStyle = fill;
     ctx.beginPath();
-    ctx.moveTo(x - arm, y);
-    ctx.lineTo(x + arm, y);
-    ctx.moveTo(x, y - arm);
-    ctx.lineTo(x, y + arm);
+    ctx.arc(x, y, r * 1.02, 0, Math.PI * 2);
+    ctx.fill();
+    if (banner.kind === 'slow') this._ripples(ctx, x, y, r, banner, look);
+    else if (banner.kind === 'purge') this._barrier(ctx, x, y, r, banner, look);
+    else this._embers(ctx, x, y, r, banner, look);
+    ctx.restore();
+  }
+
+  _flashOf(banner) {
+    return banner.flashAt ? Math.max(0, 1 - (this.clock - banner.flashAt) / 0.5) : 0;
+  }
+
+  _standards(ctx, battle) {
+    const banners = battle.banners.slice().sort((a, b) => a.cy - b.cy || a.cx - b.cx);
+    for (const banner of banners) {
+      this._standard(ctx, at(banner.cx), at(banner.cy) + 7, banner, TOTEM_LOOKS[banner.kind], this._flashOf(banner));
+    }
+  }
+
+  _wavyRing(ctx, x, y, radius, wobble, turn, rgb, alpha, width) {
+    ctx.beginPath();
+    for (let k = 0; k <= 72; k++) {
+      const a = k / 72 * Math.PI * 2, d = radius + Math.sin(a * 5 + turn) * wobble + Math.sin(a * 3 - turn * 0.7) * wobble * 0.6;
+      if (k) ctx.lineTo(x + Math.cos(a) * d, y + Math.sin(a) * d);
+      else ctx.moveTo(x + Math.cos(a) * d, y + Math.sin(a) * d);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = 'rgba(' + rgb + ', ' + alpha * 0.35 + ')';
+    ctx.lineWidth = width * 3.5;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(' + rgb + ', ' + alpha + ')';
+    ctx.lineWidth = width;
     ctx.stroke();
   }
 
-  _embers(ctx, x, y, r, banner, look, flash) {
-    const seed = banner.seed * 10, beat = Math.pow(Math.max(0, Math.sin(this.clock * 5.2 + seed)), 6);
-    const ground = ctx.createRadialGradient(x, y, r * 0.2, x, y, r);
-    ground.addColorStop(0, 'rgba(' + look.aura + ', ' + (0.06 + 0.08 * beat + 0.15 * flash) + ')');
-    ground.addColorStop(0.75, 'rgba(' + look.aura + ', ' + (0.18 + 0.1 * beat) + ')');
-    ground.addColorStop(1, 'rgba(' + look.aura + ', 0)');
-    ctx.fillStyle = ground;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-    for (let i = 0; i < 30; i++) {
-      const a = i * Math.PI * 2 / 30 + seed, lick = smoothNoise(i * 0.9, this.clock * 2.6, seed);
-      const tall = 6 + 10 * lick + 4 * beat, wide = 2.6 + lick, cx = Math.cos(a), cy = Math.sin(a);
-      const bx = x + cx * r * 0.93, by = y + cy * r * 0.93, tx = bx + cx * tall * 0.5, ty = by + cy * tall * 0.5 - tall * 0.6;
-      const flame = ctx.createLinearGradient(bx, by, tx, ty);
-      flame.addColorStop(0, 'rgba(255, 150, 50, ' + (0.75 + 0.2 * lick) + ')');
-      flame.addColorStop(0.5, 'rgba(' + look.aura + ', ' + (0.6 + 0.2 * lick) + ')');
-      flame.addColorStop(1, 'rgba(' + look.aura + ', 0)');
-      ctx.fillStyle = flame;
-      ctx.beginPath();
-      ctx.moveTo(bx - cy * wide, by + cx * wide);
-      ctx.quadraticCurveTo(bx + cx * tall * 0.3 - cy * wide * 0.6, by + cy * tall * 0.3 - tall * 0.2, tx, ty);
-      ctx.quadraticCurveTo(bx + cx * tall * 0.3 + cy * wide * 0.6, by + cy * tall * 0.3 - tall * 0.2,
-        bx + cy * wide, by - cx * wide);
-      ctx.closePath();
-      ctx.fill();
+  _ripples(ctx, x, y, r, banner, look) {
+    const seed = banner.seed * 10;
+    for (let i = 0; i < 3; i++) {
+      const k = (this.clock * 0.11 + i / 3 + seed) % 1, radius = r * (1 - k * 0.8);
+      this._wavyRing(ctx, x, y, radius, 1.6 + 1.2 * (1 - k), this.clock * 0.6 + i * 2 + seed, look.line,
+        0.6 * Math.sin(k * Math.PI), 1.1);
+    }
+    this._wavyRing(ctx, x, y, r * 0.98, 1.2, -this.clock * 0.3 + seed, look.line, 0.5, 1.2);
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 4; i++) {
+      const k = (this.clock * 0.07 + i / 4 + noise(i, seed)) % 1, a = noise(i + 3, seed) * Math.PI * 2 + k * 1.5;
+      const d = r * (0.3 + 0.5 * noise(i + 7, seed)) * (1 - k * 0.5);
+      glow(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d, 3.5, 'rgba(255, 220, 238, 1)', 0.6 * Math.sin(k * Math.PI));
+    }
+  }
+
+  _barrier(ctx, x, y, r, banner, look) {
+    const seed = banner.seed * 10, turn = this.clock * 0.35 + seed;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 3; i++) {
+      const from = turn + i * Math.PI * 2 / 3, to = from + Math.PI * 2 / 3 - 0.35;
+      for (const [width, alpha] of [[4.5, 0.18], [1.3, 0.75]]) {
+        ctx.strokeStyle = 'rgba(' + look.line + ', ' + alpha + ')';
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        ctx.arc(x, y, r * 0.97, from, to);
+        ctx.stroke();
+      }
     }
     ctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 9; i++) {
-      const k = (this.clock * 0.45 + i / 9 + noise(i, seed)) % 1, a = noise(i + 4, seed) * Math.PI * 2;
-      const d = r * (0.1 + 0.85 * noise(i + 8, seed)), sway = Math.sin(this.clock * 3 + i) * 3 * k;
-      const px = x + Math.cos(a) * d + sway, py = y + Math.sin(a) * d - k * 20;
-      glow(ctx, px, py, 3.5, 'rgba(255, 120, 40, 1)', 0.6 * Math.sin(k * Math.PI));
-      glow(ctx, px, py, 1.3, 'rgba(255, 230, 160, 1)', 0.95 * Math.sin(k * Math.PI));
+    for (let i = 0; i < 3; i++) {
+      const a = turn + i * Math.PI * 2 / 3;
+      glow(ctx, x + Math.cos(a) * r * 0.97, y + Math.sin(a) * r * 0.97, 4, 'rgba(255, 255, 255, 1)', 0.8);
+    }
+    for (let i = 0; i < 6; i++) {
+      const k = (this.clock * 0.3 + i / 6 + noise(i, seed)) % 1, a = noise(i + 5, seed) * Math.PI * 2;
+      const d = r * (0.15 + 0.7 * noise(i + 11, seed)), px = x + Math.cos(a) * d, py = y + Math.sin(a) * d - k * 14;
+      glow(ctx, px, py, 3.2, 'rgba(255, 255, 255, 1)', 0.55 * Math.sin(k * Math.PI));
+    }
+  }
+
+  _embers(ctx, x, y, r, banner, look) {
+    const seed = banner.seed * 10, beat = Math.pow(Math.max(0, Math.sin(this.clock * 5.2 + seed)), 6);
+    this._wavyRing(ctx, x, y, r * 0.97, 0.8 + beat, this.clock * 2.4 + seed, look.line, 0.55 + 0.3 * beat, 1.3);
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 16; i++) {
+      const a = i * Math.PI * 2 / 16 + seed, lick = smoothNoise(i * 0.9, this.clock * 2.2, seed);
+      const bx = x + Math.cos(a) * r * 0.97, by = y + Math.sin(a) * r * 0.97;
+      glow(ctx, bx, by - lick * 3, 3 + lick * 3, 'rgba(255, 120, 40, 1)', 0.35 + 0.35 * lick);
+    }
+    for (let i = 0; i < 7; i++) {
+      const k = (this.clock * 0.45 + i / 7 + noise(i, seed)) % 1, a = noise(i + 4, seed) * Math.PI * 2;
+      const d = r * (0.15 + 0.75 * noise(i + 8, seed)), sway = Math.sin(this.clock * 3 + i) * 3 * k;
+      const px = x + Math.cos(a) * d + sway, py = y + Math.sin(a) * d - k * 18;
+      glow(ctx, px, py, 3, 'rgba(255, 120, 40, 1)', 0.6 * Math.sin(k * Math.PI));
+      glow(ctx, px, py, 1.2, 'rgba(255, 230, 160, 1)', 0.95 * Math.sin(k * Math.PI));
     }
   }
 
@@ -2419,30 +2541,39 @@ export class Scene {
   }
 
   _chord(ctx, e, share) {
-    const fx = Math.cos(e.angle), fy = Math.sin(e.angle), sx = -fy, sy = fx, travel = e.reach * CELL * share;
-    const fade = share < 0.65 ? 1 : Math.pow((1 - share) / 0.35, 1.3), size = SPELLS.chevron * (0.8 + 0.4 * share);
+    const a = e.angle, fx = Math.cos(a), fy = Math.sin(a), travel = e.reach * CELL * share;
+    const fade = share < 0.6 ? Math.min(1, share * 8) : Math.pow((1 - share) / 0.4, 1.2);
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'miter';
-    for (let echo = 0; echo < 3; echo++) {
-      const back = echo * size * 0.55, d = travel - back;
-      if (d < 2) continue;
-      const x = at(e.x) + fx * d, y = at(e.y) + fy * d, wing = size * (1 - echo * 0.18), bend = Math.sin(this.clock * 30 + echo) * 0.6;
-      const alpha = fade * (1 - echo * 0.32);
-      const lx = x - fx * wing * 1.25 + sx * wing, ly = y - fy * wing * 1.25 + sy * wing;
-      const rx = x - fx * wing * 1.25 - sx * wing, ry = y - fy * wing * 1.25 - sy * wing;
-      const mx = x - fx * wing * 0.45, my = y - fy * wing * 0.45;
-      for (const [width, tone] of [[5.5, 0.14], [2.8, 0.35], [1.2, 0.9]]) {
-        ctx.strokeStyle = 'rgba(' + SPELLS.chord + ', ' + tone * alpha + ')';
-        ctx.lineWidth = width * (1 - echo * 0.2);
-        ctx.beginPath();
-        ctx.moveTo(lx, ly);
-        ctx.quadraticCurveTo(mx + sx * wing * (0.55 + bend * 0.1), my + sy * wing * (0.55 + bend * 0.1), x, y);
-        ctx.quadraticCurveTo(mx - sx * wing * (0.55 - bend * 0.1), my - sy * wing * (0.55 - bend * 0.1), rx, ry);
-        ctx.stroke();
+    for (let echo = 2; echo >= 0; echo--) {
+      const d = travel - echo * SPELLS.chevron * 0.7;
+      if (d < 3) continue;
+      const size = SPELLS.chevron * (0.85 + 0.35 * share) * (1 - echo * 0.18), thick = size * 0.42;
+      const ox = at(e.x) + fx * (d - size), oy = at(e.y) + fy * (d - size), span = 0.75;
+      const alpha = fade * (echo ? 0.4 / echo : 1);
+      ctx.beginPath();
+      for (let k = 0; k <= 12; k++) {
+        const b = a - span + span * 2 * k / 12;
+        ctx.lineTo(ox + Math.cos(b) * size, oy + Math.sin(b) * size);
       }
-      if (!echo) glow(ctx, x - fx * 2, y - fy * 2, 9, 'rgba(' + SPELLS.chord + ', 1)', 0.35 * alpha);
+      for (let k = 12; k >= 0; k--) {
+        const u = k / 6 - 1, b = a - span + span * 2 * k / 12, r = size - thick * (1 - u * u);
+        ctx.lineTo(ox + Math.cos(b) * r, oy + Math.sin(b) * r);
+      }
+      ctx.closePath();
+      const fill = ctx.createRadialGradient(ox, oy, size - thick, ox, oy, size);
+      fill.addColorStop(0, 'rgba(' + SPELLS.chord + ', 0)');
+      fill.addColorStop(0.55, 'rgba(' + SPELLS.chord + ', ' + 0.55 * alpha + ')');
+      fill.addColorStop(1, 'rgba(240, 255, 252, ' + 0.95 * alpha + ')');
+      ctx.fillStyle = fill;
+      ctx.fill();
+      if (!echo) {
+        glow(ctx, ox + fx * size, oy + fy * size, size * 0.9, 'rgba(' + SPELLS.chord + ', 1)', 0.35 * alpha);
+        for (const side of [-1, 1]) {
+          const b = a + side * span, tx = ox + Math.cos(b) * size, ty = oy + Math.sin(b) * size;
+          glow(ctx, tx, ty, 2.2, 'rgba(240, 255, 252, 1)', 0.8 * alpha);
+        }
+      }
     }
     ctx.restore();
   }
@@ -2455,8 +2586,11 @@ export class Scene {
   }
 
   _shock(ctx, e, share) {
-    const x = at(e.x), y = at(e.y), grow = 1 - Math.pow(1 - share, 2), r = Math.max(3, e.radius * CELL * grow);
-    const fade = 1 - share, band = 0.55 * CELL, rgb = e.rgb || SPELLS.shock;
+    const t = share * e.life, k = Math.min(1, t / SHOCK.grow), grow = 1 - Math.pow(1 - k, 2);
+    const start = e.from ? Math.max(0, e.radius - Math.hypot(e.x - e.from.x, e.y - e.from.y)) : 0;
+    const x = at(e.x), y = at(e.y), r = Math.max(3, (start + (e.radius - start) * grow) * CELL);
+    const fade = t < SHOCK.grow ? 1 : Math.max(0, 1 - (t - SHOCK.grow) / SHOCK.tail);
+    const band = 0.55 * CELL, rgb = e.rgb || SPELLS.shock;
     ctx.save();
     if (e.from) this._beyond(ctx, e.from, e.radius);
     ctx.globalCompositeOperation = 'lighter';
@@ -3098,7 +3232,7 @@ export class Scene {
       if (mob.charge && mob.charge.until > now) this._chargedOn(ctx, mob, x, y - lift, size);
       if (mob.netUntil > now) this._netOn(ctx, x, y - lift, size);
       if (mob.rootUntil > now) this._rootOn(ctx, mob, x, y - lift, size, now);
-      if (mob.muteUntil > now) this._mutedOn(ctx, x, y - lift, size);
+      if (mob.muteUntil > now && mob.muteUntil > mob.purgeUntil) this._mutedOn(ctx, x, y - lift, size);
       if (mob.rot) this._rotOn(ctx, mob, x, y - lift, size);
       spot.screenX = x;
       spot.top = top;
@@ -3402,6 +3536,7 @@ export class Scene {
       else if (pose.song && this.clock < pose.song.until && Math.floor(this.clock * SPELLS.play) % 2) {
         look = t.look + '-strum';
       }
+      if (t.beam && !t.cocoon) look = t.look + '-beam';
       pose.x = spot.x;
       pose.y = spot.y;
       pose.lift = spot.lift;
@@ -3410,6 +3545,7 @@ export class Scene {
       const x = at(spot.x), y = at(spot.y) - spot.lift;
       if (!still) {
         if (!t.rider && !(t.pull && now < t.pull.end)) this._steer(t, pose);
+        if (t.beam && !t.beam.mob.dead) pose.aim = Math.atan2(t.beam.mob.x - t.cx, -(t.beam.mob.y - t.cy));
         pose.angle = turnToward(pose.angle, pose.aim, dt);
         this._release(t, pose);
         pose.kick = Math.max(0, pose.kick - dt);
@@ -3727,12 +3863,16 @@ export class Scene {
           color: event.blue ? '#9bd5ff' : t.cls.id === 'pyro' ? '#ff9a1f' : '#ffffff' });
       }
       if (event.gold) bolt = Object.assign({}, bolt, { color: '#facc15' });
+      if (event.element) {
+        bolt = Object.assign({}, bolt, { tone: BALL_TONES[event.element],
+          look: event.element === 'earth' && !event.size ? 'spear' : 'fireball' });
+      }
       const flight = event.time || TRAVEL * (bolt.look === 'lob' ? 2.5 : 1);
       const launch = (x2, y2, late = 0) => {
         const tip = away ? { x: event.sx, y: event.sy - (event.high ? DRONE_LIFT / CELL : 0) }
           : this._muzzle(t, event.hand || 0);
         add({ kind: 'shot', life: Math.max(FLIGHT_MIN, flight - late), x1: tip.x, y1: tip.y, x2, y2, bolt,
-          crit: event.crit, heavy: event.heavy });
+          crit: event.crit, heavy: event.heavy, bend: event.bend || 0 });
         if (event.heavy) {
           this._pose(t).flash = FLASH * 3;
           this._sparks(tip.x, tip.y, CHARGES.heavy.sparks, event.heavy === 'mega' ? 14 : 8, 2.4, 0.35);
@@ -3763,11 +3903,13 @@ export class Scene {
     } else if (event.kind === 'resonate') {
       const banner = this.battle.banners.find((item) => item.cx === event.x && item.cy === event.y);
       if (banner) banner.flashAt = this.clock;
-      add({ kind: 'shock', life: 0.45, x: event.x, y: event.y, radius: event.radius, seed: Math.random() * 6,
+      add({ kind: 'shock', life: SHOCK.grow + SHOCK.tail, x: event.x, y: event.y, radius: event.radius,
+        seed: Math.random() * 6,
         rgb: TOTEM_LOOKS[event.totem].aura, from: { x: event.fromX, y: event.fromY } });
     } else if (event.kind === 'drum') {
       this._pose(t).act = { frame: 'beat', until: this.clock + SPELLS.beat };
-      add({ kind: 'shock', life: 0.45, x: t.cx, y: t.cy, radius: event.radius, seed: Math.random() * 6 });
+      add({ kind: 'shock', life: SHOCK.grow + SHOCK.tail, x: t.cx, y: t.cy, radius: event.radius,
+        seed: Math.random() * 6 });
     } else if (event.kind === 'conjure') {
       this._face(t, event.x, event.y, event.mob, event.time + SPELLS.act);
       this._pose(t).act = { frame: 'draw', cast: this.clock + event.time, until: this.clock + event.time + SPELLS.act };
@@ -4336,6 +4478,8 @@ export class Scene {
         const b = e.bolt, x = at(e.x1 + (e.x2 - e.x1) * share), y = at(e.y1 + (e.y2 - e.y1) * share);
         if (b.look === 'fireball') {
           this._fireball(ctx, e, share, dt);
+        } else if (b.look === 'spear') {
+          this._spear(ctx, e, share);
         } else if (b.look === 'light') {
           this._holyMotes(ctx, e, share);
         } else if (b.look === 'wisp') {
