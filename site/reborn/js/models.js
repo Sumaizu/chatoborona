@@ -456,8 +456,8 @@ function hammer(q, x, y) {
 
 function cape(m, c) {
   const top = 15.8, strips = 14, rows = 6, back = 25.6;
-  const left = (y) => 9.6 - 1.4 * Math.pow((y - top) / (back - top), 0.7);
-  const right = (y) => 22.4 + 1.4 * Math.pow((y - top) / (back - top), 0.7);
+  const left = (y) => 10.8 - 0.7 * Math.pow((y - top) / (back - top), 0.7);
+  const right = (y) => 21.2 + 0.7 * Math.pow((y - top) / (back - top), 0.7);
   const hem = (u) => back + 0.45 * Math.sin(u * Math.PI * 4.6 + 0.4) - 0.9 * Math.pow(u - 0.5, 2) * 4;
   const at = (u, y) => left(y) + u * (right(y) - left(y));
   const z = (y, u) => 10.7 - (y - top) * 0.32 - 3.2 * Math.pow(Math.abs(u - 0.5) * 2, 1.5);
@@ -504,7 +504,7 @@ function thor(m, pose = '') {
     for (let k = 0; k < 2; k++) m.limb(16 + side * 4.6, 16.2 + k * 1.2, 10 - k * 0.3, 16 + side * 7.6, 16.8 + k * 1.2, 9.4 - k * 0.3, 0.42, c.plate, 1, 0.3);
     m.ball(16 + side * 4.8, 16.2, 10.6, 0.5, '#d4a017', 1);
   }
-  brawn(m, c, 10.2, 8.8, 19.4, 10.6, 22.4, 7.2);
+  brawn(m, c, 10.2, 8.4, 16.8, 9.6, 14.6, 6.8);
   const hand = pose === 'throw' ? [20.2, 8.4, 12.2] : pose === 'empty' ? [19.4, 11.4, 10]
     : pose === 'catch' ? [19.6, 9.8, 11.4] : [19.4, 11, 10.4];
   brawn(m, c, 21.8, 22.2, 13.8, hand[0], hand[1], hand[2]);
