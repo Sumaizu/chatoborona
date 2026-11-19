@@ -288,6 +288,11 @@ const RECIPES = {
     s.horn(at, 55, 1.2, 0.2, 0);
     s.swish(at, 200, 80, 0.8, 0.2);
   },
+  howl(s, at) {
+    s.howl(at, 300, 520, 2.1, 0.2, -0.1);
+    s.howl(at + 0.04, 302, 526, 2.05, 0.1, 0.2);
+    s.hiss(at, 0.3, 0.02, 2500, 4000);
+  },
   growl(s, at) {
     s.horn(at, 82.4, 0.6, 0.12, 0);
     s.pop(at, 140, 70, 0.3, 0.2);
@@ -379,7 +384,7 @@ const RECIPES = {
 export const SFX_GAPS = {
   siren: 3, dirge: 3, lute: 0.25, drum: 0.3, gun: 0.07, hit: 0.05, kill: 0.07, crack: 0.15, launch: 0.12, rock: 0.12, boom: 0.12, mine: 0.15, zap: 0.12,
   flame: 0.3, bolt: 0.08, ice: 0.1, wind: 0.2, cast: 0.12, crit: 0.15, freeze: 0.25, stun: 0.2,
-  storm: 0.3, rally: 0.5, heal: 0.5, block: 0.3, roar: 1, growl: 0.8, summon: 0.4, build: 0.4,
+  storm: 0.3, howl: 2.4, rally: 0.5, heal: 0.5, block: 0.3, roar: 1, growl: 0.8, summon: 0.4, build: 0.4,
   crumble: 0.4, leap: 0.3, chomp: 0.25, nuke: 2, fall: 1, join: 0.4, card: 0.3, holy: 0.12, splash: 0.15,
   snap: 0.15, execute: 0.3, clink: 0.2, treasure: 1, rattle: 1, rise: 0.4, hex: 0.4, burrow: 0.5, chain: 1, yank: 1,
   charge: 0.5, reload: 0.3, ricochet: 0.1, ignite: 0.2, snow: 2, flash: 0.15, quake: 0.5,
@@ -592,6 +597,32 @@ function createStudio(context) {
       gain.connect(bus);
       run([oscillator, vibrato], at, duration);
     },
+    howl(at, low, high, duration, level, pan = 0) {
+      const filter = context.createBiquadFilter(), vibrato = context.createOscillator(), depth = context.createGain();
+      vibrato.frequency.setValueAtTime(4, at);
+      vibrato.frequency.linearRampToValueAtTime(6, at + duration);
+      depth.gain.setValueAtTime(0, at);
+      depth.gain.linearRampToValueAtTime(high * 0.018, at + duration * 0.6);
+      vibrato.connect(depth);
+      const voices = [['triangle', 0], ['sine', 7], ['sawtooth', -5]].map(([type, cents]) => {
+        const oscillator = context.createOscillator();
+        oscillator.type = type;
+        oscillator.detune.value = cents;
+        oscillator.frequency.setValueAtTime(low, at);
+        oscillator.frequency.exponentialRampToValueAtTime(high, at + duration * 0.3);
+        oscillator.frequency.setValueAtTime(high, at + duration * 0.62);
+        oscillator.frequency.exponentialRampToValueAtTime(low * 0.82, at + duration);
+        depth.connect(oscillator.frequency);
+        oscillator.connect(filter);
+        return oscillator;
+      });
+      filter.type = 'lowpass';
+      filter.Q.value = 2;
+      filter.frequency.setValueAtTime(high * 2.2, at);
+      filter.frequency.exponentialRampToValueAtTime(high * 1.4, at + duration);
+      filter.connect(envelope(at, duration, level * 0.5, duration * 0.25, pan));
+      run(voices.concat(vibrato), at, duration);
+    },
     rumble(at, duration, level) {
       const source = noiseSource(), filter = context.createBiquadFilter();
       filter.type = 'lowpass';
@@ -614,7 +645,7 @@ function createStudio(context) {
   };
 }
 
-const LENGTHS = { bell: 2, chime: 2, pluck: 2, horn: 2, thump: 3, pop: 3, swish: 3, hiss: 1, crunch: 1, whistle: 3,
+const LENGTHS = { bell: 2, chime: 2, pluck: 2, horn: 2, howl: 3, thump: 3, pop: 3, swish: 3, hiss: 1, crunch: 1, whistle: 3,
   rumble: 1, pad: 2 };
 
 function hastened(studio, start, speed) {

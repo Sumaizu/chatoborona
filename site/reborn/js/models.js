@@ -430,6 +430,68 @@ function raiju(m, swipe = false) {
   m.limb(15.2, 5.6, 11, 16.8, 5.6, 11, 0.12, c.deep, 0.2);
 }
 
+function howling(m, open) {
+  const c = RAIJU, lift = open ? 0.8 : 0;
+  const tail = [[16, 24.2, 1.6, 1.3], [18.4, 25, 1.4, 1.4], [20.8, 24, 1.3, 1.3], [22, 21.6, 1.2, 1.1], [21.6, 18.8, 1.1, 0.8],
+    [20.4, 16.8, 1, 0.5]];
+  for (let k = 0; k < tail.length - 1; k++) {
+    const [x, y, z, r] = tail[k], [nx, ny, nz, nr] = tail[k + 1];
+    m.limb(x, y, z, nx, ny, nz, r, k > 3 ? c.light : c.fur, 0.3, nr);
+    tuft(m, x, y, z + 0.4, Math.atan2(ny - y, nx - x) + 2.2, 1.1 + r * 0.5, 0.42, k % 2 ? c.light : c.fur);
+  }
+  m.ball(20.2, 16.5, 1.1, 0.4, c.spike, 1);
+  for (const side of [-1, 1]) {
+    m.egg(16 + side * 3.1, 21.4, 3.2, 1.9, 2.8, 2.4, c.fur, 0.3);
+    m.egg(16 + side * 3.3, 20.4, 4.6, 1.2, 1.6, 1.2, c.light, 0.3);
+    m.egg(16 + side * 2.9, 18.2, 0.9, 0.9, 1.3, 0.7, c.shade, 0.3);
+    for (const t of [-0.45, 0, 0.45]) {
+      m.limb(16 + side * (2.9 + t), 17.4, 0.9, 16 + side * (3 + t * 1.3), 16.6, 0.6, 0.16, c.claw, 0.8);
+    }
+  }
+  m.egg(16, 21.2, 4.2, 3.2, 3, 3, c.fur, 0.3);
+  m.egg(16, 18.2, 8.2, 3.2, 2.8, 4.6, c.fur, 0.35);
+  for (let i = 0; i < 5; i++) {
+    const y = 17.6 + i * 1;
+    for (const side of [-1, 1]) tuft(m, 16 + side * 2.9, y, 8.6 - i * 0.8, Math.PI * 0.5 + side * 0.95, 1.2, 0.4, i % 2 ? c.light : c.fur);
+  }
+  for (const side of [-1, 1]) {
+    m.limb(16 + side * 1.7, 15.8, 8.4, 16 + side * 1.6, 14.4, 1.4, 1.05, c.fur, 0.25, 0.85);
+    m.egg(16 + side * 1.6, 14, 1.2, 1.1, 1.3, 0.8, c.shade, 0.2);
+    for (const t of [-1, 0, 1]) {
+      m.limb(16 + side * 1.6 + t * 0.3, 13.4, 1.2, 16 + side * 1.6 + t * 0.48 + side * 0.15, 12.4, 1, 0.2, c.claw, 1, 0.08);
+    }
+  }
+  for (let i = 0; i < 3; i++) {
+    const y = 18.8 + i * 1.6, z = 12.4 - i * 2.6;
+    m.limb(16, y, z, 16, y + 2.4, z + 1.6, 0.7 - i * 0.1, c.spike, 1, 0.12);
+    m.limb(16, y + 1, z + 0.6, 16, y + 2.4, z + 1.6, 0.28, c.glint, 1, 0.06);
+    for (const side of [-1, 1]) m.limb(16 + side * 0.9, y + 0.4, z - 0.4, 16 + side * 1.9, y + 2, z + 0.6, 0.42, c.spike, 1, 0.1);
+  }
+  m.egg(16, 15.6, 12.2, 3.4, 2.8, 2.6, c.light, 0.35);
+  for (let i = 0; i < 14; i++) {
+    const a = Math.PI * 2 * i / 14, x = 16 + Math.cos(a) * 3.6, y = 16.2 + Math.sin(a) * 2.8;
+    m.egg(x, y, 13.4, 1.4, 1.4, 1.2, i % 2 ? c.belly : '#fff6dc', 0.35);
+    m.limb(x, y, 13.6, x + Math.cos(a) * 1.3, y + Math.sin(a) * 1.3, 12.6, 0.5, i % 2 ? c.light : c.belly, 0.3, 0.16);
+    if (i % 2) m.ball(x + Math.cos(a) * 1.4, y + Math.sin(a) * 1.4, 12.8, 0.3, c.spike, 1);
+  }
+  m.egg(16, 16, 16.4 + lift, 2.7, 2.6, 2.4, c.fur, 0.35);
+  for (const side of [-1, 1]) {
+    m.limb(16 + side * 1.6, 17, 17 + lift, 16 + side * 2.4, 19, 17.8 + lift, 0.85, c.fur, 0.3, 0.2);
+    m.limb(16 + side * 1.6, 17.1, 17.3 + lift, 16 + side * 2.3, 18.8, 17.9 + lift, 0.38, c.belly, 0.2, 0.1);
+    m.egg(16 + side * 1.2, 14.6, 17.4 + lift, 0.55, 0.36, 0.3, c.eye, 1);
+    m.ball(16 + side * 1.2, 14.5, 17.7 + lift, 0.18, '#ffffff', 1);
+  }
+  const tip = open ? 11.6 : 12.4, top = open ? 20.2 : 19.4;
+  if (open) {
+    m.limb(16, 15, 16.4, 16, tip + 1.2, top - 2.6, 0.8, c.belly, 0.25, 0.45);
+    m.limb(16, 14.6, 17, 16, tip + 1.4, top - 1.8, 0.55, '#3b1d14', 0.1, 0.35);
+  }
+  m.limb(16, 15.2, 17.6 + lift, 16, tip, top, 1.25, c.light, 0.3, 0.7);
+  m.limb(16, 15.6, 18.6 + lift, 16, tip + 1, top + 0.2, 0.35, c.shade, 0.2, 0.22);
+  m.egg(16, tip - 0.2, top + 0.2, 0.8, 0.55, 0.5, c.nose, 0.9);
+  for (const side of [-1, 1]) m.ball(16 + side * 0.32, tip - 0.4, top + 0.5, 0.12, '#3b2a1a');
+}
+
 const THOR = { cape: '#991b1b', capeDark: '#6b1111', steel: '#4b5563', plate: '#9ca3af', dark: '#1f2937',
   hair: '#e2bd5a', hairDark: '#b48a32', leather: '#5b3a22', head: '#a5c8f0', rune: '#e0f2fe' };
 
@@ -1630,6 +1692,8 @@ const SKINS = {
   'thunder-caller-strike': (m) => stormCaller(m, true),
   'thunder-raiju': (m) => raiju(m),
   'thunder-raiju-swipe': (m) => raiju(m, true),
+  'thunder-raiju-howl': (m) => howling(m, true),
+  'thunder-raiju-howl2': (m) => howling(m, false),
   'thunder-thor': (m) => thor(m),
   'thunder-thor-throw': (m) => thor(m, 'throw'),
   'thunder-thor-empty': (m) => thor(m, 'empty'),

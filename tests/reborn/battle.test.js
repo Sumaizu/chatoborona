@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { AIM, ARCANE, BITE_TIME, Battle, hammerAt, HELP, HOLY, SONG, SPELL, STORM, WOOD, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, FIRE,
+import { AIM, ARCANE, BITE_TIME, Battle, WOLF, hammerAt, HELP, HOLY, SONG, SPELL, STORM, WOOD, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, FIRE,
   PULSE, REACTIONS, ROT, SHOT, SPLIT_TIME }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
@@ -1791,6 +1791,25 @@ test('шаровая молния: раз в 6 с медленный шар к �
   eq(battle.globes.length, 1);
 });
 
+test('шаровая молния: каждый тик три разряда в разных врагов рядом, а если врагов меньше — кому-то дважды', () => {
+  const battle = makeBattle(), t = storm(battle, 10, 4, ['caller', 'globe']), s = STORM.globe;
+  const mobs = [10, 10.4, 10.8, 11.2].map((d) => walker(battle, d, 1e9));
+  still(...mobs);
+  battle._locate = () => {};
+  battle.globes.push({ tower: t, sx: 10.9, sy: 5.5, x: 10.9, y: 5.5, dx: 0, dy: 0, born: battle.time, life: 10,
+    zapAt: battle.time, hit: new Set(mobs) });
+  const jolts = firedBy(battle, 'jolt');
+  battle.step(TICK);
+  eq(jolts().length, s.bolts);
+  eq(new Set(jolts().map((e) => e.mob)).size, s.bolts, 'в разных');
+  const lone = makeBattle(), u = storm(lone, 10, 4, ['caller', 'globe']), one = walker(lone, 10, 1e9);
+  still(one);
+  lone.globes.push({ tower: u, sx: one.x, sy: one.y, x: one.x, y: one.y, dx: 0, dy: 0, born: lone.time, life: 10,
+    zapAt: lone.time, hit: new Set([one]) });
+  lone.step(TICK);
+  near(hit(one), u.damage * s.zap * s.bolts, 'один враг — все три в него');
+});
+
 test('гроза: раз в 8 с молния в случайного врага на карте — урон на 2 клетки и оглушение на 3 с, кроме боссов', () => {
   const battle = makeBattle(), t = storm(battle, 10, 4, ['caller', 'tempest']), s = STORM.tempest;
   const target = walker(battle, 2, 1e9), side = walker(battle, 3, 1e9), boss = walker(battle, 1, 1e9);
@@ -1809,6 +1828,111 @@ test('гроза: раз в 8 с молния в случайного врага
   ok(boss.holdUntil <= battle.time, 'босс — нет');
   runFor(battle, s.every - 0.5);
   near(hit(target), t.damage * s.mul, 'до 8 секунд второй нет');
+});
+
+test('райдзю: радиус атаки не растёт ни от чего', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'thunder', 10, 4);
+  battle.setMods(t, { runes: ['raiju'], range: 3 });
+  t.boost.range = 1;
+  battle.step(TICK);
+  ok(Math.abs(t.range - STORM.raiju.reach) < 1e-9, 'по-прежнему 2 клетки: ' + t.range);
+});
+
+test('молниеносный рывок: 2 с без атаки — рывком к клетке у самого первого врага, ранит всех на пути', () => {
+  const battle = makeBattle(), t = storm(battle, 10, 1, ['raiju', 'dash']), s = WOLF.dash;
+  t.cooldown = 0;
+  const lead = walker(battle, 3, 1e9), back = walker(battle, 1, 1e9), path = walker(battle, 0, 1e9);
+  still(lead, back, path);
+  battle._locate = () => {};
+  battle.step(TICK);
+  const from = { x: t.cx, y: t.cy };
+  runFor(battle, s.idle - 0.2);
+  eq([t.cx, t.cy], [from.x, from.y], 'раньше 2 секунд стоит');
+  Object.assign(path, { x: 7.2, y: 2.9 });
+  runFor(battle, 0.3);
+  ok(Math.abs(t.cx - lead.x) <= 1.5 && Math.abs(t.cy - lead.y) <= 1.5, 'встал рядом с первым врагом');
+  ok(t.pull && t.pull.dash, 'рывок');
+  ok(battle.events.some((e) => e.kind === 'dash' && e.tower === t));
+  ok(hit(path) >= t.damage * s.mul - 1e-6, 'кто был на пути — ранен');
+});
+
+test('волчий вой: не атакует 3 с — воет; потом +20% себе на столько же, остальным +10% вдвое меньше', () => {
+  const battle = makeBattle(), t = storm(battle, 10, 1, ['raiju', 'howl']), s = WOLF.howl;
+  const ally = storm(battle, 2, 1, []);
+  const mob = walker(battle, 18, 1e9);
+  still(mob);
+  battle._locate = () => {};
+  battle.step(TICK);
+  runFor(battle, s.idle + 0.1);
+  ok(t.howlAt !== null && t.howlAt !== undefined, 'воет');
+  ok(battle.events.some((e) => e.kind === 'howl' && e.tower === t));
+  runFor(battle, 1.9);
+  const long = battle.time - t.howlAt;
+  Object.assign(mob, { x: 10.5, y: 2.5 });
+  battle.step(TICK);
+  ok(t.howlAt === null, 'враг рядом — замолчал');
+  ok(Math.abs(t.howlUntil - battle.time - long) < 3 * TICK, 'себе — сколько выл');
+  battle.step(TICK);
+  near(t.boost.rate, s.self);
+  near(t.boost.damage, s.self);
+  near(ally.boost.rate, s.team);
+  near(ally.boost.damage, s.team);
+  runFor(battle, long * s.share + 0.1);
+  near(ally.boost.rate, 0, 'остальным — вдвое меньше времени');
+  near(t.boost.rate, s.self, 'себе ещё действует');
+});
+
+test('ярость: повторные удары по той же цели ускоряют атаку на 3/2/1%, до +300%; смена цели сбрасывает', () => {
+  const battle = makeBattle(), t = storm(battle, 10, 4, ['raiju', 'rage']);
+  const a = walker(battle, 10, 1e9), b = walker(battle, 11.5, 1e9);
+  still(a, b);
+  for (let i = 0; i < 11; i++) ok(battle._fire(t));
+  eq(t.rageHits, 10);
+  near(battle._intervalOf(t, battle.time), t.interval / 1.3, 'десять повторных — +30%');
+  t.rageHits = 25;
+  near(battle._wolfRate(t), 1.55, '10×3% + 10×2% + 5×1%');
+  t.rageHits = 1000;
+  near(battle._wolfRate(t), 4, 'не больше +300%');
+  t.rageOn.dead = true;
+  ok(battle._fire(t));
+  eq(t.rageHits, 0, 'новая цель — сначала');
+});
+
+test('вожак стаи: питомцы всех +30% к скорости, атаке и урону, не складывается; сам +1% за питомца', () => {
+  const peck = (wolves) => {
+    const battle = makeBattle(), druid = battle.place(player(), 'forester', 10, 4);
+    battle.setMods(druid, { runes: ['druid'] });
+    for (let i = 0; i < wolves; i++) storm(battle, 2 + i * 2, 1, ['raiju', 'pack']);
+    const mob = walker(battle, 12, 1e9);
+    still(mob);
+    for (let i = 0; i < 600 && !battle.events.some((e) => e.kind === 'peck'); i++) battle.step(TICK);
+    return { battle, mob, druid };
+  };
+  const plain = peck(0), led = peck(1), two = peck(2);
+  near(hit(led.mob), hit(plain.mob) * (1 + WOLF.pack.boost), 'клюёт на 30% сильнее');
+  near(hit(two.mob), hit(led.mob), 'два вожака — не сильнее');
+  const wolf = led.battle.towers.find((t) => t.style === 'raiju'), pets = led.battle.drones.length;
+  ok(pets > 0);
+  near(led.battle._packOf(wolf), WOLF.pack.per * pets);
+  near(led.battle._wolfRate(wolf), 1 + WOLF.pack.per * pets);
+});
+
+test('громоотвод срабатывает не чаще раза в секунду, от чего бы ни ударило', () => {
+  const battle = makeBattle(), a = storm(battle, 4, 4, ['rod']), b = storm(battle, 16, 4, ['rod']);
+  battle.step(TICK);
+  battle.rodAt = 1e9;
+  const [one, two] = battle.rods, surges = firedBy(battle, 'surge');
+  battle._strikeRod(one, battle.time);
+  eq(surges().length, 2, 'волна у обоих');
+  battle._strikeRod(one, battle.time);
+  battle._strikeRod(two, battle.time);
+  eq(surges().length, 2, 'оба ещё не готовы');
+  runFor(battle, STORM.rod.gap - 0.1);
+  battle._strikeRod(two, battle.time);
+  eq(surges().length, 2);
+  runFor(battle, 0.2);
+  battle._strikeRod(two, battle.time);
+  eq(surges().length, 4, 'через секунду — снова');
 });
 
 test('шаманка: удар в барабан — волна на 2 клетки вокруг ранит всех', () => {

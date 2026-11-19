@@ -117,8 +117,11 @@ export const STORM = { orb: 5, caller: { reach: 3.5, interval: 1, mul: 1.2 }, ra
   thor: { reach: 4, interval: 1.6, mul: 1.8, out: 0.55, back: 0.55, bend: 0.35, touch: 0.6, steps: 10 },
   frenzy: { time: 3, haste: 2 }, spark: { mul: 4, reach: 2 },
   chain: { reach: 2, sure: 2, chance: 0.5, gap: 0.08 }, fork: { chance: 0.5, reach: 3, mul: 0.5 },
-  globe: { every: 6, speed: 1.2, mul: 4, touch: 0.7, zap: 1, reach: 1 }, tempest: { every: 8, radius: 2, mul: 3, stun: 3 },
-  rod: { chance: 0.02, radius: 3, wave: 5, link: 3, time: 1, touch: 0.5, spot: [0.84, 0.3] } };
+  globe: { every: 6, speed: 1.2, mul: 4, touch: 0.7, zap: 1, reach: 1, bolts: 3 }, tempest: { every: 8, radius: 2, mul: 3, stun: 3 },
+  rod: { chance: 0.02, gap: 1, radius: 3, wave: 5, link: 3, time: 1, touch: 0.5, spot: [0.84, 0.3] } };
+export const WOLF = { dash: { idle: 2, speed: 10, touch: 0.8, mul: 1 },
+  howl: { idle: 3, self: 0.2, team: 0.1, share: 0.5, call: 2.5 },
+  rage: { steps: [[10, 0.03], [10, 0.02]], rest: 0.01, max: 3 }, pack: { boost: 0.3, per: 0.01 } };
 export const SONG = { every: 15, time: 3, back: 1, dirge: 0.5, anthem: 0.3, ultrasound: 0.2 };
 export const TOTEMS = { totemSlow: 'slow', totemPurge: 'purge', totemPower: 'power' };
 export const HELP = { assist: 1, control: 1, react: 2, heart: 10, heal: 10, save: 50 };
@@ -527,7 +530,7 @@ export class Battle {
       cell = cells.length ? cells[Math.floor(this.random() * cells.length)] : null;
     }
     if (!cell) return false;
-    this.rods.push({ tower: t, x: cell.x, y: cell.y, cx: cell.x + dx, cy: cell.y + dy, seed: this.random() });
+    this.rods.push({ tower: t, x: cell.x, y: cell.y, cx: cell.x + dx, cy: cell.y + dy, seed: this.random(), readyAt: 0 });
     this._event({ kind: 'rod', tower: t, x: cell.x + dx, y: cell.y + dy });
     return true;
   }
@@ -549,7 +552,9 @@ export class Battle {
   }
 
   _strikeRod(rod, now) {
-    const s = STORM.rod, all = [rod].concat(this.rods.filter((other) => other !== rod)), pairs = [];
+    if (now < rod.readyAt) return;
+    const s = STORM.rod, all = [rod].concat(this.rods.filter((other) => other !== rod && now >= other.readyAt)), pairs = [];
+    for (const one of all) one.readyAt = now + s.gap;
     for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) pairs.push([all[i], all[j]]);
     this._event({ kind: 'skybolt', tower: rod.tower, x: rod.cx, y: rod.cy });
     for (const at of all) this._discharge(at);
@@ -583,8 +588,11 @@ export class Battle {
       if (now >= globe.zapAt) {
         globe.zapAt = now + PULSE;
         const prey = this._around(globe.x, globe.y, s.reach).filter((mob) => !this.covered(mob.x, mob.y));
-        if (prey.length) {
-          const mob = prey[Math.floor(this.random() * prey.length)];
+        const zapped = new Set();
+        for (let k = 0; k < s.bolts && prey.length; k++) {
+          const fresh = prey.filter((mob) => !zapped.has(mob)), from = fresh.length ? fresh : prey;
+          const mob = from[Math.floor(this.random() * from.length)];
+          zapped.add(mob);
           this._event({ kind: 'jolt', tower: globe.tower, x: globe.x, y: globe.y, mob, thin: true });
           this._hurt(mob, globe.tower.damage * s.zap, globe.tower);
         }
@@ -1190,6 +1198,7 @@ export class Battle {
       + (this.onHill(tower) ? TERRAIN.hill : 0) + (this.onWatch(tower) ? TERRAIN.watch : 0);
     tower.ownRange = tower.baseRange + tower.reach;
     if (tower.style === 'angel') tower.baseRange = tower.ownRange = HOLY.angel.reach;
+    if (tower.style === 'raiju') tower.baseRange = tower.ownRange = STORM.raiju.reach;
     tower.range = fixedRange(tower) ? tower.ownRange : tower.ownRange * (1 + tower.boost.range);
     tower.lift = 1 + (tower.might / MIGHT.base - 1) * MIGHT.lift;
     this._steelOf(tower);
@@ -1216,6 +1225,7 @@ export class Battle {
     const rune = (cls, id) => this.towers.some((t) => t.cls.id === cls && t.runes.has(id));
     this.headwind = rune('shaman', 'headwind');
     this.brittle = rune('frost', 'brittle');
+    this.packLead = rune('thunder', 'pack');
   }
 
   _hold(mob, seconds, tower, full = false) {
@@ -1726,27 +1736,27 @@ export class Battle {
   _pilot(drone, dt, now) {
     const s = MECH.drone, t = drone.tower;
     const shot = DRONE_SHOTS[drone.kind], goal = drone.target || { x: t.cx, y: t.cy };
-    const pet = WOOD[drone.kind], hover = pet ? pet.orbit : s.hover;
+    const pet = WOOD[drone.kind], hover = pet ? pet.orbit : s.hover, lead = this.packLead ? 1 + WOLF.pack.boost : 1;
     const a = now * s.spin + (pet ? drone.slot * Math.PI * 2
       : drone.n * 2.1 + DRONE_KINDS.findIndex(([rune]) => rune === drone.rune) * 0.7);
     const dx = goal.x + Math.cos(a) * hover - drone.x, dy = goal.y + Math.sin(a) * hover - drone.y;
-    const gap = Math.hypot(dx, dy), step = (shot.speed || s.speed) * dt;
+    const gap = Math.hypot(dx, dy), step = (shot.speed || s.speed) * lead * dt;
     drone.x += gap <= step ? dx : dx / gap * step;
     drone.y += gap <= step ? dy : dy / gap * step;
     const target = drone.target;
     if (!target || now < drone.next || !near(target, drone.x, drone.y, s.reach)) return;
-    drone.next = now + shot.every;
+    drone.next = now + shot.every / lead;
     t.striking = false;
     const from = () => ({ x: drone.x, y: drone.y, high: true });
     if (drone.kind === 'attack') {
       const one = () => {
         const mob = target.dead ? drone.target : target;
-        if (mob && !mob.dead && this.drones.includes(drone)) shoot(this, t, mob, { mul: shot.mul, from: from() });
+        if (mob && !mob.dead && this.drones.includes(drone)) shoot(this, t, mob, { mul: shot.mul * lead, from: from() });
       };
       one();
       for (let k = 1; k < shot.count; k++) this._later(k * shot.gap, one);
     } else if (drone.kind === 'bird' || drone.kind === 'hawk') {
-      const owner = drone.source || t, peck = owner.damage * shot.mul, hawk = drone.kind === 'hawk';
+      const owner = drone.source || t, peck = owner.damage * shot.mul * lead, hawk = drone.kind === 'hawk';
       const toxic = !hawk && owner.runes.has('flock');
       this._event({ kind: 'peck', tower: t, mob: target, x: target.x, y: target.y, hawk, toxic });
       if (hawk) {
@@ -1760,12 +1770,12 @@ export class Battle {
       this._snare(owner, target, t);
     } else if (drone.kind === 'laser') {
       this._event({ kind: 'ray', tower: t, sx: drone.x, sy: drone.y, x: target.x, y: target.y, mob: target });
-      this._hurt(target, t.damage * shot.mul, t, null, false, ARMOR);
-      this._torchHit(t, target, t.damage * shot.mul);
+      this._hurt(target, t.damage * shot.mul * lead, t, null, false, ARMOR);
+      this._torchHit(t, target, t.damage * shot.mul * lead);
     } else {
       this._event({ kind: 'net', tower: t, mob: target, sx: drone.x, sy: drone.y });
-      this._hurt(target, t.damage * shot.mul, t);
-      this._torchHit(t, target, t.damage * shot.mul);
+      this._hurt(target, t.damage * shot.mul * lead, t);
+      this._torchHit(t, target, t.damage * shot.mul * lead);
       if (!target.dead) {
         this._slow(target, shot.slow, shot.time);
         target.netUntil = Math.max(target.netUntil, now + shot.time);
@@ -1819,7 +1829,15 @@ export class Battle {
 
   _intervalOf(t, now) {
     return t.interval * (t.webUntil > now ? t.web : 1) / ((1 + (t.windUntil > now ? t.wind : 0))
-      * (1 + t.boost.rate) * (t.frenzyUntil > now ? STORM.frenzy.haste : 1));
+      * (1 + t.boost.rate) * (t.frenzyUntil > now ? STORM.frenzy.haste : 1) * (t.style === 'raiju' ? this._wolfRate(t) : 1));
+  }
+
+  _wolfRate(t) {
+    return (1 + (t.runes.has('rage') ? rageOf(t.rageHits || 0) : 0)) * (1 + this._packOf(t));
+  }
+
+  _packOf(t) {
+    return t.runes.has('pack') ? WOLF.pack.per * this.drones.length : 0;
   }
 
   _buffs(now) {
@@ -1889,8 +1907,16 @@ export class Battle {
         }
       }
       const chant = (id, value) => fade(mantras[id].map(() => value));
-      boost.rate = bless * (fade(winds) + fade(team) + fade(grace) + fade(tuning) + chant('mantraSpeed', HOLY.mantra.haste));
-      boost.damage = bless * (chant('mantraPower', HOLY.mantra.damage)
+      const howls = [];
+      for (const wolf of this.towers) {
+        if (wolf === t ? wolf.howlUntil > now : wolf.packUntil > now) {
+          howls.push(wolf === t ? WOLF.howl.self : WOLF.howl.team);
+          if (wolf !== t) by.add(wolf);
+        }
+      }
+      boost.rate = bless * (fade(winds) + fade(team) + fade(grace) + fade(tuning) + chant('mantraSpeed', HOLY.mantra.haste)
+        + fade(howls));
+      boost.damage = bless * (chant('mantraPower', HOLY.mantra.damage) + fade(howls)
         + this._totems({ x: t.cx, y: t.cy }, 'power'));
       boost.range = bless * chant('mantraRange', HOLY.mantra.range);
       boost.might = bless * fade(might);
@@ -2707,6 +2733,63 @@ function hurl(b, t, target, hit, crit, now) {
   return true;
 }
 
+function rageOf(hits) {
+  const s = WOLF.rage;
+  let left = hits, bonus = 0;
+  for (const [count, each] of s.steps) {
+    const used = Math.min(left, count);
+    bonus += used * each;
+    left -= used;
+  }
+  return Math.min(s.max, bonus + left * s.rest);
+}
+
+function wolf(b, t, now, alive) {
+  if (t.lastFire === undefined) t.lastFire = now;
+  const idle = now - t.lastFire, prey = b._target(t), s = WOLF.howl;
+  if (t.runes.has('dash') && alive && !prey && idle >= WOLF.dash.idle && dash(b, t, now)) return;
+  if (!t.runes.has('howl')) return;
+  if (t.howlAt !== undefined && t.howlAt !== null) {
+    if (prey || !alive) {
+      const long = now - t.howlAt;
+      Object.assign(t, { howlAt: null, howlUntil: now + long, packUntil: now + long * s.share });
+    } else if (now >= t.howlNext) {
+      t.howlNext = now + s.call;
+      b._event({ kind: 'howl', tower: t });
+    }
+  } else if (alive && !prey && idle >= s.idle) {
+    Object.assign(t, { howlAt: now, howlNext: now + s.call });
+    b._event({ kind: 'howl', tower: t });
+  }
+}
+
+function dash(b, t, now) {
+  const s = WOLF.dash, lead = b._leader((mob) => !immune(mob, t.element));
+  if (!lead) return false;
+  const cx = Math.floor(lead.x), cy = Math.floor(lead.y);
+  let best = null;
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const x = cx + dx, y = cy + dy;
+      if (!b.free(x, y) && !(x === t.x && y === t.y)) continue;
+      const gap = (x + 0.5 - lead.x) ** 2 + (y + 0.5 - lead.y) ** 2;
+      if (!best || gap < best.gap) best = { x, y, gap };
+    }
+  }
+  if (!best || best.x === t.x && best.y === t.y) return false;
+  const from = { cx: t.cx, cy: t.cy };
+  b._relocate(t, best.x, best.y);
+  const time = Math.hypot(t.cx - from.cx, t.cy - from.cy) / s.speed;
+  t.pull = { fx: from.cx, fy: from.cy, start: now, end: now + time, dash: true };
+  t.busy = Math.max(t.busy, now + time);
+  t.lastFire = now;
+  b._event({ kind: 'dash', tower: t, x1: from.cx, y1: from.cy, x: t.cx, y: t.cy, time });
+  for (const mob of b.mobs.slice()) {
+    if (!mob.dead && !hidden(mob, now) && alongside(mob, from, t, s.touch)) b._hurt(mob, t.damage * s.mul, t);
+  }
+  return true;
+}
+
 function jolt(b, t, mob, hit, struck, jumps) {
   const x = mob.x, y = mob.y, s = STORM.chain;
   b._hurt(mob, hit, t);
@@ -2780,8 +2863,8 @@ function fade(values) {
 
 const torchPower = (pyro) => (pyro.runes.has('blue') ? FIRE.blue : 1);
 
-const fixedRange = (t) => t.style === 'angel';
-const reaches = (t, mob, range) => near(mob, t.cx, t.cy, fixedRange(t) ? range + 0.5 : range);
+const fixedRange = (t) => t.style === 'angel' || t.style === 'raiju';
+const reaches = (t, mob, range) => near(mob, t.cx, t.cy, t.style === 'angel' ? range + 0.5 : range);
 
 function rollCrit(b, t) {
   t.striking = b.random() < t.critChance;
@@ -3525,10 +3608,13 @@ const SKILLS = {
         return true;
       }
       if (t.style === 'raiju') {
-        const angle = Math.atan2(target.y - t.cy, target.x - t.cx), arc = STORM.raiju.arc;
+        t.lastFire = now;
+        if (t.rageOn !== target) Object.assign(t, { rageOn: target, rageHits: 0 });
+        else t.rageHits += 1;
+        const angle = Math.atan2(target.y - t.cy, target.x - t.cx), arc = STORM.raiju.arc, bite = hit * (1 + b._packOf(t));
         b._event({ kind: 'claw', tower: t, mob: target, x: target.x, y: target.y, radius: t.range, arc, crit });
         for (const mob of b.mobs.filter((other) => b._targetable(t, other))) {
-          if (mob === target || Math.abs(bend(Math.atan2(mob.y - t.cy, mob.x - t.cx), angle)) <= arc) b._hurt(mob, hit, t);
+          if (mob === target || Math.abs(bend(Math.atan2(mob.y - t.cy, mob.x - t.cx), angle)) <= arc) b._hurt(mob, bite, t);
         }
         return true;
       }
@@ -3542,6 +3628,7 @@ const SKILLS = {
     },
     every(b, t, now, alive) {
       while (b.rods.filter((rod) => rod.tower === t).length < (t.stacks.get('rod') || 0) && b._plantRod(t));
+      if (t.style === 'raiju') wolf(b, t, now, alive);
       if (t.style !== 'caller' || !alive) return;
       if (t.runes.has('globe') && now >= (t.nextGlobe || 0)) globe(b, t, now);
       if (t.runes.has('tempest') && now >= (t.nextTempest || 0)) tempest(b, t, now);

@@ -1,6 +1,6 @@
 import { LETTERS, SIZE } from './field.js';
 import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintRoadMask, paintRoof } from './terrain.js';
-import { FIRE, HOLY, MANTRAS, MECH, SPELL, STORM, WOOD, flightAt, hammerAt, heavyGun, roadCurve } from './battle.js';
+import { FIRE, HOLY, MANTRAS, MECH, SPELL, STORM, WOLF, WOOD, flightAt, hammerAt, heavyGun, roadCurve } from './battle.js';
 import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite,
   coinSprite, fireballSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
   meteorSprite, grenadeSprite, droneSprite, birdSprite, hawkSprite, snareSprite, trapSprite, cauldronSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
@@ -126,6 +126,7 @@ const RAIJU_FX = { rgb: '125, 211, 252', core: '240, 249, 255', reach: 1.5, ever
 const ROD = { tall: 26, coil: 5, bolts: 7 };
 const CLAW = { cut: 0.12, lag: 0.035, thick: 3.2, side: 0.72, layers: 6 };
 const GLOBE_FX = { size: 10, grow: 0.15, melt: 0.3, lift: 6, bolts: 4, rate: 16 };
+const DASH_FX = { size: 13, inhale: 0.18 };
 const STAFF_ZAP = { rate: 14, bolts: 3, long: 11, lit: 0.7 };
 const STORM_FX = { strike: 0.25, swipe: 0.25, throw: 0.18, catch: 0.22, spin: 16 };
 const BEAM = { core: 2.6, mid: 6, outer: 12, twist: 0.11, spin: 7, coil: 5.5, flare: 11 };
@@ -1653,30 +1654,33 @@ export class Scene {
       const age = battle.time - g.born, left = g.life - age;
       const size = Math.max(0, Math.min(1, age / f.grow, left / (g.life * f.melt)));
       if (size <= 0) continue;
-      const x = at(g.x), y = at(g.y) - f.lift, r = f.size * size, tick = Math.floor(this.clock * f.rate);
-      const pulse = 0.85 + 0.15 * Math.sin(this.clock * 23);
-      ctx.save();
-      const body = ctx.createRadialGradient(x, y, 0, x, y, r * 1.25);
-      body.addColorStop(0, 'rgba(255, 255, 255, ' + size + ')');
-      body.addColorStop(0.35, 'rgba(186, 230, 253, ' + size + ')');
-      body.addColorStop(0.75, 'rgba(59, 130, 246, ' + 0.85 * size + ')');
-      body.addColorStop(1, 'rgba(30, 64, 175, 0)');
-      ctx.fillStyle = body;
-      ctx.beginPath();
-      ctx.arc(x, y, r * 1.25, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalCompositeOperation = 'lighter';
-      glow(ctx, x, y + f.lift, r * 1.6, 'rgba(' + ZAP.glow + ', 1)', 0.25 * size);
-      glow(ctx, x, y, r * 2.6 * pulse, 'rgba(' + ZAP.glow + ', 1)', 0.5 * size);
-      glow(ctx, x, y, r * 1.3, 'rgba(' + ZAP.mid + ', 1)', 0.85 * size);
-      glow(ctx, x, y, r * 0.6, 'rgba(' + ZAP.core + ', 1)', size);
-      for (let i = 0; i < f.bolts; i++) {
-        const a = noise(tick + i * 17, 3) * Math.PI * 2, long = r * (1.1 + 0.9 * noise(tick + i, 9));
-        this._zap(ctx, x + Math.cos(a) * r * 0.3, y + Math.sin(a) * r * 0.3, x + Math.cos(a) * long,
-          y + Math.sin(a) * long, 0.6, size, i * 7 + tick);
-      }
-      ctx.restore();
+      this._orb(ctx, at(g.x), at(g.y) - f.lift, f.size * size, size, f.lift);
     }
+  }
+
+  _orb(ctx, x, y, r, size, lift) {
+    const f = GLOBE_FX, tick = Math.floor(this.clock * f.rate), pulse = 0.85 + 0.15 * Math.sin(this.clock * 23);
+    ctx.save();
+    const body = ctx.createRadialGradient(x, y, 0, x, y, r * 1.25);
+    body.addColorStop(0, 'rgba(255, 255, 255, ' + size + ')');
+    body.addColorStop(0.35, 'rgba(186, 230, 253, ' + size + ')');
+    body.addColorStop(0.75, 'rgba(59, 130, 246, ' + 0.85 * size + ')');
+    body.addColorStop(1, 'rgba(30, 64, 175, 0)');
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'lighter';
+    glow(ctx, x, y + lift, r * 1.6, 'rgba(' + ZAP.glow + ', 1)', 0.25 * size);
+    glow(ctx, x, y, r * 2.6 * pulse, 'rgba(' + ZAP.glow + ', 1)', 0.5 * size);
+    glow(ctx, x, y, r * 1.3, 'rgba(' + ZAP.mid + ', 1)', 0.85 * size);
+    glow(ctx, x, y, r * 0.6, 'rgba(' + ZAP.core + ', 1)', size);
+    for (let i = 0; i < f.bolts; i++) {
+      const a = noise(tick + i * 17, 3) * Math.PI * 2, long = r * (1.1 + 0.9 * noise(tick + i, 9));
+      this._zap(ctx, x + Math.cos(a) * r * 0.3, y + Math.sin(a) * r * 0.3, x + Math.cos(a) * long,
+        y + Math.sin(a) * long, 0.6, size, i * 7 + tick);
+    }
+    ctx.restore();
   }
 
   _staffZap(ctx, t) {
@@ -3820,7 +3824,7 @@ export class Scene {
       if (t.pull && now < t.pull.end) {
         const k = 1 - Math.pow(1 - Math.max(0, (now - t.pull.start) / (t.pull.end - t.pull.start)), 2);
         spot = { x: t.pull.fx + (t.cx - t.pull.fx) * k, y: t.pull.fy + (t.cy - t.pull.fy) * k,
-          lift: Math.sin(k * Math.PI) * (t.pull.fly ? 22 : 10) };
+          lift: Math.sin(k * Math.PI) * (t.pull.fly ? 22 : t.pull.dash ? 0 : 10) };
         if (t.pull.fly) {
           look = t.look + (Math.floor(this.clock * 7) % 2 ? '-flap' : '-fly');
           pose.aim = Math.atan2(t.cx - t.pull.fx, -(t.cy - t.pull.fy));
@@ -3845,6 +3849,9 @@ export class Scene {
         look = t.look + '-strum';
       }
       if (t.beam) look = t.look + '-beam';
+      if (t.style === 'raiju' && t.howlAt !== undefined && t.howlAt !== null && !act) {
+        look = t.look + ((now - t.howlAt) % WOLF.howl.call < DASH_FX.inhale ? '-howl2' : '-howl');
+      }
       if (t.style === 'thor' && pose.hammer) {
         const k = this.clock - pose.hammer.start, flight = pose.hammer.out + pose.hammer.back;
         if (k < STORM_FX.throw) look = t.look + '-throw';
@@ -3864,6 +3871,10 @@ export class Scene {
         this._release(t, pose);
         pose.kick = Math.max(0, pose.kick - dt);
         pose.flash = Math.max(0, pose.flash - dt);
+      }
+      if (t.pull && now < t.pull.end && t.pull.dash) {
+        this._orb(ctx, x, y - 4, DASH_FX.size, 1, 4);
+        continue;
       }
       const aloft = t.style === 'angel' || t.style === 'dragon' && spot.lift > 0;
       const hover = aloft ? Math.max(HOVER.shadow, 1 - Math.max(0, spot.lift - HOVER.lift) / (HOVER.bob * 6)) : 1;
@@ -4294,6 +4305,9 @@ export class Scene {
       add({ kind: 'zap', life: event.thin ? 0.18 : 0.24, x1: event.x, y1: event.y, mob: event.mob, x2, y2,
         width: event.thin ? 1.2 : 2, seed: Math.floor(Math.random() * 97) });
       this._sparks(x2, y2, ['#bfdbfe', '#ffffff', '#fde047'], event.thin ? 2 : 4, 1.4, 0.25);
+    } else if (event.kind === 'dash') {
+      add({ kind: 'zap', life: event.time + 0.25, x1: event.x1, y1: event.y1, x2: event.x, y2: event.y, width: 3.2, seed: 3 });
+      this._sparks(event.x, event.y, ['#bfdbfe', '#ffffff', '#fde047'], 10, 2, 0.35);
     } else if (event.kind === 'globe') {
       this._fire(t, event.mob.x, event.mob.y, event.mob, () => {
         this._pose(t).act = { frame: 'strike', until: this.clock + STORM_FX.strike };
