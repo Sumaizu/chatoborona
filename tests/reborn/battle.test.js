@@ -735,8 +735,9 @@ test('механик-ракетчик: напалм, корректировка,
 test('механик-турельщик: гигантская турель — строчит без перерывов и перезарядки, веером по разным мобам', () => {
   const battle = makeBattle(), t = mechanic(battle, 10, 4, ['turret', 'giant']);
   near(t.interval, MECH.giant.gap, 'пуля за пулей, без пауз между очередями');
-  const a = walker(battle, 12.5, 1e9), b = walker(battle, 11.9, 1e9), c = walker(battle, 11.3, 1e9);
+  const a = walker(battle, 13.6, 1e9), b = walker(battle, 13.3, 1e9), c = walker(battle, 13, 1e9);
   still(a, b, c);
+  t.angle = Math.atan2(a.x - t.cx, -(a.y - t.cy));
   const shots = firedBy(battle, 'shot');
   for (let i = 0; i < 40; i++) ok(battle._fire(t));
   eq(shots().length, 40);
@@ -1664,7 +1665,7 @@ test('шаманка, знамёна: на ближайшую клетку до�
   near(ally.boost.damage, SPELL.totem.power, 'знамя силы');
 });
 
-test('шаманка, резонанс: сильнее, бьёт на 5 клеток, волна отзывается от знамён по цепочке', () => {
+test('шаманка, резонанс: сильнее, бьёт на 5 клеток, вместе с ударом одной волной идёт и от знамён по цепочке', () => {
   const battle = makeBattle(), other = sorc(battle, 14, 2, ['shamaness', 'totemPower']);
   other.busy = 1e9;
   const plain = sorc(battle, 2, 2, ['shamaness']), t = sorc(battle, 10, 2, ['shamaness', 'resonance']);
@@ -1674,12 +1675,10 @@ test('шаманка, резонанс: сильнее, бьёт на 5 клет
   still(close, far);
   ok(Math.hypot(far.x - t.cx, far.y - t.cy) > t.range, 'дальний вне её волны');
   ok(battle._fire(t));
-  near(hit(close), t.damage);
-  eq(hit(far), 0);
-  runFor(battle, SPELL.resonance.hop + 0.05);
-  ok(battle.events.some((e) => e.kind === 'resonate'), 'знамя отозвалось');
-  near(hit(far), t.damage, 'волна от чужого знамени достала дальнего');
-  near(hit(close), t.damage, 'назад, где волна уже прошла, — не идёт');
+  const drum = battle.events.find((e) => e.kind === 'drum' && e.tower === t);
+  ok(drum.centers.length >= 2, 'одна общая волна: от неё и от знамени');
+  near(hit(far), t.damage, 'сразу, вместе с ударом, волна от чужого знамени достала дальнего');
+  near(hit(close), t.damage, 'кого задело дважды — ранен один раз');
 });
 
 test('жрец-инквизитор: светлый шар летит и бьёт по прилёту', () => {

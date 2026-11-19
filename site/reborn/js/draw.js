@@ -117,8 +117,9 @@ const BEAMS = { arcane: ['56, 189, 248', '224, 247, 255'], fire: ['249, 115, 22'
   earth: ['176, 120, 66', '254, 243, 199'], lightning: ['250, 230, 60', '255, 255, 255'] };
 const UNBIND = { edge: 40, inner: 16,
   tones: ['255, 140, 60', '125, 211, 252', '163, 230, 53', '250, 204, 21', '196, 181, 253'] };
+const STONES = { count: 5, spread: 3.6, size: 2.2, glow: '232, 170, 90' };
 const ROAD_AURA = { zoom: 2, motes: 5, edge: 96 };
-const SHOCK = { grow: SPELL.resonance.hop, tail: 0.18, soft: CELL * 0.9, pieces: 120 };
+const SHOCK = { grow: 0.3, tail: 0.18, soft: CELL * 0.6, pieces: 120 };
 const BEAM = { core: 2.6, mid: 6, outer: 12, twist: 0.11, spin: 7, coil: 5.5, flare: 11 };
 const VENOM = { toxic: 'rgba(132, 204, 22, .9)', plague: 'rgba(91, 33, 182, .9)' };
 const GAS = { toxic: ['rgba(201, 246, 120, .8)', 'rgba(101, 163, 13, .45)'],
@@ -1507,36 +1508,46 @@ export class Scene {
   }
 
   _spear(ctx, e, share) {
-    const { cx, cy, angle } = this._flightOf(e, share), x = at(cx), y = at(cy);
+    const { cx, cy, angle } = this._flightOf(e, share), x = at(cx), y = at(cy), spin = this.clock * 9;
+    glow(ctx, x, y, 11, 'rgba(' + STONES.glow + ', 1)', 0.55);
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(angle);
-    const stone = ctx.createLinearGradient(-2.4, 0, 2.4, 0);
-    stone.addColorStop(0, '#3b2a1c');
-    stone.addColorStop(0.4, '#b08356');
-    stone.addColorStop(0.55, '#e7c9a0');
-    stone.addColorStop(1, '#4a3426');
-    ctx.fillStyle = stone;
-    ctx.beginPath();
-    ctx.moveTo(0, -9);
-    ctx.quadraticCurveTo(2.6, -3, 1.8, 4);
-    ctx.lineTo(0.6, 6.5);
-    ctx.lineTo(-0.8, 5.2);
-    ctx.lineTo(-1.9, 3.6);
-    ctx.quadraticCurveTo(-2.4, -3, 0, -9);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(40, 24, 12, .7)';
-    ctx.lineWidth = 0.5;
-    ctx.beginPath();
-    ctx.moveTo(0.2, -6);
-    ctx.lineTo(-0.6, -1);
-    ctx.lineTo(0.5, 3);
-    ctx.stroke();
-    for (let i = 0; i < 3; i++) {
-      const k = (this.clock * 6 + i / 3) % 1;
-      ctx.fillStyle = 'rgba(176, 131, 86, ' + (0.7 * (1 - k)) + ')';
-      ctx.fillRect(-1.5 + noise(i, 3) * 3, 6 + k * 7, 1.4, 1.4);
+    for (let i = 0; i < STONES.count; i++) {
+      const k = (this.clock * 5 + i / STONES.count) % 1;
+      ctx.fillStyle = 'rgba(' + STONES.glow + ', ' + 0.5 * (1 - k) + ')';
+      ctx.beginPath();
+      ctx.arc((noise(i, 9) - 0.5) * 5, 4 + k * 9, 1.1 * (1 - k * 0.5), 0, Math.PI * 2);
+      ctx.fill();
     }
+    for (let i = 0; i < STONES.count; i++) {
+      const a = i * 2.4, d = STONES.spread * (0.3 + 0.7 * noise(i, 4)), sx = Math.cos(a) * d, sy = Math.sin(a) * d * 1.3;
+      const size = STONES.size * (0.7 + 0.5 * noise(i, 6)), turn = spin * (i % 2 ? 1 : -1) + i;
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(turn);
+      const rock = ctx.createRadialGradient(-size * 0.35, -size * 0.35, 0.2, 0, 0, size * 1.2);
+      rock.addColorStop(0, '#f5deb3');
+      rock.addColorStop(0.45, '#b08356');
+      rock.addColorStop(1, '#3b2a1c');
+      ctx.fillStyle = rock;
+      ctx.beginPath();
+      for (let n = 0; n < 6; n++) {
+        const b = n * Math.PI / 3, rr = size * (0.75 + 0.35 * noise(i * 6 + n, 8));
+        if (n) ctx.lineTo(Math.cos(b) * rr, Math.sin(b) * rr);
+        else ctx.moveTo(Math.cos(b) * rr, Math.sin(b) * rr);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(' + STONES.glow + ', .8)';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    glow(ctx, x, y, 6, 'rgba(255, 214, 150, 1)', 0.45);
     ctx.restore();
   }
 
@@ -2624,23 +2635,24 @@ export class Scene {
 
   _shock(ctx, e, share) {
     const t = share * e.life, k = Math.min(1, t / SHOCK.grow), grow = 1 - Math.pow(1 - k, 2);
-    const start = e.from ? Math.max(0, e.radius - Math.hypot(e.x - e.from.x, e.y - e.from.y)) : 0;
-    const x = at(e.x), y = at(e.y), r = Math.max(3, (start + (e.radius - start) * grow) * CELL);
-    const fade = t < SHOCK.grow ? 1 : Math.max(0, 1 - (t - SHOCK.grow) / SHOCK.tail);
-    const band = 0.55 * CELL, rgb = SPELLS.shock;
-    const reveal = (px, py) => {
-      if (!e.from) return 1;
-      const out = Math.hypot(px - at(e.from.x), py - at(e.from.y)) - e.radius * CELL;
-      const u = Math.max(0, Math.min(1, out / SHOCK.soft));
-      return u * u * (3 - 2 * u);
+    const r = Math.max(3, e.radius * CELL * grow), fade = t < SHOCK.grow ? 1 : Math.max(0, 1 - (t - SHOCK.grow) / SHOCK.tail);
+    const band = 0.55 * CELL, rgb = SPELLS.shock, spots = e.centers.map((c) => [at(c.x), at(c.y)]);
+    const open = (px, py, own) => {
+      let w = 1;
+      spots.forEach(([cx, cy], n) => {
+        if (n === own) return;
+        const u = Math.max(0, Math.min(1, (Math.hypot(px - cx, py - cy) - r) / SHOCK.soft));
+        w = Math.min(w, u * u * (3 - 2 * u));
+      });
+      return w;
     };
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    if (e.from) {
-      const step = Math.PI * 2 / SHOCK.pieces;
-      ctx.lineCap = 'butt';
+    ctx.lineCap = 'butt';
+    const step = Math.PI * 2 / SHOCK.pieces;
+    spots.forEach(([x, y], own) => {
       for (let n = 0; n < SHOCK.pieces; n++) {
-        const a = n * step, w = reveal(x + Math.cos(a + step / 2) * r, y + Math.sin(a + step / 2) * r);
+        const a = n * step, w = open(x + Math.cos(a + step / 2) * r, y + Math.sin(a + step / 2) * r, own);
         if (w <= 0) continue;
         for (const [width, alpha, inset] of [[band, 0.16, band * 0.35], [band * 0.35, 0.5, band * 0.12]]) {
           ctx.strokeStyle = 'rgba(' + rgb + ', ' + alpha * fade * w + ')';
@@ -2650,24 +2662,12 @@ export class Scene {
           ctx.stroke();
         }
       }
-    } else {
-      const ring = ctx.createRadialGradient(x, y, Math.max(0, r - band), x, y, r + band * 0.3);
-      ring.addColorStop(0, 'rgba(' + rgb + ', 0)');
-      ring.addColorStop(0.75, 'rgba(' + rgb + ', ' + 0.55 * fade + ')');
-      ring.addColorStop(1, 'rgba(' + rgb + ', 0)');
-      ctx.fillStyle = ring;
-      ctx.beginPath();
-      ctx.arc(x, y, r + band * 0.3, 0, Math.PI * 2);
-      ctx.arc(x, y, Math.max(0, r - band), 0, Math.PI * 2, true);
-      ctx.fill();
-    }
-    ctx.restore();
-    ctx.save();
-    for (let i = 0; i < 16; i++) {
-      const a = i * 0.39 + e.seed, d = r * (0.85 + 0.15 * Math.sin(i * 2.3));
-      const px = x + Math.cos(a) * d, py = y + Math.sin(a) * d * 0.9, w = reveal(px, py);
-      if (w > 0) glow(ctx, px, py, 4, 'rgba(180, 150, 110, 1)', 0.35 * fade * w);
-    }
+      for (let i = 0; i < 16; i++) {
+        const a = i * 0.39 + e.seed + own, d = r * (0.85 + 0.15 * Math.sin(i * 2.3));
+        const px = x + Math.cos(a) * d, py = y + Math.sin(a) * d * 0.9, w = open(px, py, own);
+        if (w > 0) glow(ctx, px, py, 4, 'rgba(180, 150, 110, 1)', 0.35 * fade * w);
+      }
+    });
     ctx.restore();
   }
 
@@ -2873,8 +2873,8 @@ export class Scene {
     const py = y + (rx * Math.sin(facing) + ry * Math.cos(facing)) * u;
     const spot = job.mob && !job.mob.dead ? this.shown.get(job.mob.id) || job.mob : null;
     const tx = spot ? at(spot.x) : at(job.x2), ty = spot ? at(spot.y) - (spot.lift || 0) : at(job.y2);
-    const rest = 22 * u, full = Math.hypot(tx - px, ty - py), long = rest + (full - rest) * out;
-    const ax = (tx - px) / (full || 1), ay = (ty - py) / (full || 1), nx = -ay, ny = ax, w = STAFF_ROD.wide * u / 2;
+    const ax = Math.sin(facing), ay = -Math.cos(facing), full = Math.max(0, (tx - px) * ax + (ty - py) * ay);
+    const rest = 22 * u, long = rest + Math.max(0, full - rest) * out, nx = -ay, ny = ax, w = STAFF_ROD.wide * u / 2;
     const ex = px + ax * long, ey = py + ay * long;
     ctx.save();
     const body = ctx.createLinearGradient(px + nx * w, py + ny * w, px - nx * w, py - ny * w);
@@ -3931,7 +3931,7 @@ export class Scene {
         const tip = away ? { x: event.sx, y: event.sy - (event.high ? DRONE_LIFT / CELL : 0) }
           : this._muzzle(t, event.hand || 0);
         add({ kind: 'shot', life: Math.max(FLIGHT_MIN, flight - late), x1: tip.x, y1: tip.y, x2, y2, bolt,
-          crit: event.crit, heavy: event.heavy, head });
+          crit: event.crit, heavy: event.heavy, head, track: t.style === 'enchantress' ? event.mob : null });
         if (event.heavy) {
           this._pose(t).flash = FLASH * 3;
           this._sparks(tip.x, tip.y, CHARGES.heavy.sparks, event.heavy === 'mega' ? 14 : 8, 2.4, 0.35);
@@ -3962,14 +3962,12 @@ export class Scene {
       this._pose(t).song = { kind: event.song, until: this.clock + event.time };
     } else if (event.kind === 'totem') {
       this._sparks(event.x, event.y, [TOTEM_LOOKS[event.totem].edge, '#ffffff'], 12, 1.6, 0.5);
-    } else if (event.kind === 'resonate') {
-      const banner = this.battle.banners.find((item) => item.cx === event.x && item.cy === event.y);
-      if (banner) banner.flashAt = this.clock;
-      add({ kind: 'shock', life: SHOCK.grow + SHOCK.tail, x: event.x, y: event.y, radius: event.radius,
-        seed: Math.random() * 6, from: { x: event.fromX, y: event.fromY } });
     } else if (event.kind === 'drum') {
       this._pose(t).act = { frame: 'beat', until: this.clock + SPELLS.beat };
-      add({ kind: 'shock', life: SHOCK.grow + SHOCK.tail, x: t.cx, y: t.cy, radius: event.radius,
+      for (const banner of this.battle.banners) {
+        if (event.centers.some((c) => c.x === banner.cx && c.y === banner.cy)) banner.flashAt = this.clock;
+      }
+      add({ kind: 'shock', life: SHOCK.grow + SHOCK.tail, centers: event.centers, radius: event.radius,
         seed: Math.random() * 6 });
     } else if (event.kind === 'conjure') {
       this._face(t, event.x, event.y, event.mob, event.time + SPELLS.act);
@@ -4064,7 +4062,7 @@ export class Scene {
       else this.decals.push({ kind: 'scorch', t: 0, life: 3, x: event.x, y: event.y, r: Math.min(1, event.radius * 0.6) });
     } else if (event.kind === 'flame') {
       this._fire(t, event.x, event.y, null, () => {
-        this._pose(t).flame = { until: this.clock + FLAME_HOLD, angle: event.angle, blue: event.blue };
+        this._pose(t).flame = { until: this.clock + FLAME_HOLD, blue: event.blue };
       }, FLAME_HOLD);
     } else if (event.kind === 'flash') {
       add({ kind: 'ring', life: 0.35, x: event.x, y: event.y, r: event.radius, color: '#fde047', width: 2 });
@@ -4320,14 +4318,15 @@ export class Scene {
       const fade = Math.min(1, (flame.until - this.clock) / 0.12), spread = t.cone || 0.4;
       const tones = flame.blue ? BLUE_FLAME : FLAME;
       const mouth = this._muzzle(t), ox = at(mouth.x), oy = at(mouth.y);
+      const aim = turnOf(pose.angle, HERO_TURN_STEPS) * Math.PI * 2 / HERO_TURN_STEPS - Math.PI / 2;
       const reach = t.range * CELL - Math.hypot(ox - at(t.cx), oy - at(t.cy));
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      glow(ctx, ox + Math.cos(flame.angle) * reach * 0.35, oy + Math.sin(flame.angle) * reach * 0.35, reach * 0.55,
+      glow(ctx, ox + Math.cos(aim) * reach * 0.35, oy + Math.sin(aim) * reach * 0.35, reach * 0.55,
         flame.blue ? 'rgba(74, 163, 255, .9)' : 'rgba(255, 140, 40, .9)', 0.35 * fade);
       for (let i = 0; i < FLAME_BITS; i++) {
         const travel = (this.clock * 2.6 + noise(i, t.x * 31 + t.y)) % 1;
-        const a = flame.angle + (noise(i + 50, t.x + t.y * 17) * 2 - 1) * spread * (0.2 + 0.8 * travel);
+        const a = aim + (noise(i + 50, t.x + t.y * 17) * 2 - 1) * spread * (0.2 + 0.8 * travel);
         const d = travel * reach, px = ox + Math.cos(a) * d, py = oy + Math.sin(a) * d - travel * travel * 6;
         const tone = tones[Math.min(tones.length - 1, Math.floor(travel * tones.length))];
         ctx.globalAlpha = fade * (1 - travel * 0.7);
@@ -4520,6 +4519,11 @@ export class Scene {
         continue;
       }
       if (e.kind === 'shot') {
+        const seen = e.track && !e.track.dead ? this.shown.get(e.track.id) : null;
+        if (seen) {
+          e.x2 = seen.x;
+          e.y2 = seen.y - (seen.lift || 0) / CELL;
+        }
         const b = e.bolt, x = at(e.x1 + (e.x2 - e.x1) * share), y = at(e.y1 + (e.y2 - e.y1) * share);
         if (b.look === 'fireball') {
           this._fireball(ctx, e, share, dt);

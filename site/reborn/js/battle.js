@@ -89,7 +89,7 @@ export const MECH = { turret: { range: -1.5, interval: 1, mul: 0.3, count: 3, ga
   aimed: { idle: 5 }, napalm: { radius: 0.8, time: 2, dps: 0.5, mark: 2 },
   shrapnel: { count: 8, spread: 2, side: 0.3, mul: 0.35, hit: 0.45, fall: 0.3, fire: 0.35 },
   nuke: { every: 20, radius: 3, mul: 12, stun: 2, poison: 5, flight: 1.8 },
-  giant: { gap: 0.07, arc: 30 }, drone: { speed: 4, hover: 0.6, reach: 1.6, spin: 1.3 },
+  giant: { gap: 0.07 }, drone: { speed: 4, hover: 0.6, reach: 1.6, spin: 1.3 },
   droneAttack: { every: 1.2, count: 3, gap: 0.08, mul: 0.35 }, droneLaser: { every: 1.5, mul: 1 },
   droneAir: { every: 1.5, mul: 0.2, slow: 0.6, time: 2 } };
 const DRONE_KINDS = [['droneAttack', 'attack'], ['droneLaser', 'laser'], ['droneAir', 'air']];
@@ -109,7 +109,7 @@ export const HOLY = { angel: { reach: 1, interval: 1, mul: 2.6 }, monk: { reach:
   repose: 3, chain: { jumps: 2, reach: 2 }, aegis: 0.2, blessing: 0.1, insight: 0.1 };
 export const SPELL = { wisp: 0.45, minstrel: { reach: 3.5, interval: 1.6, mul: 1.3, wide: 0.5, speed: 7 },
   enchantress: { reach: 4, interval: 1.45, mul: 2.2, wind: 0.3, speed: 5, curve: 1.15 },
-  shamaness: { reach: 2, interval: 1.8, mul: 1.2 }, resonance: { reach: 5, mul: 1.5, hop: 0.3 },
+  shamaness: { reach: 2, interval: 1.8, mul: 1.2 }, resonance: { reach: 5, mul: 1.5 },
   totem: { radius: 3, slow: 0.1, power: 0.1, hold: 0.3, spot: [0.5, 0.35] }, courses: 0.2, catalyst: 0.15, unbind: 3, circle: 0.5 };
 export const ARCANE = { control: { count: 3, mul: 1.25, spread: 0.6 }, splash: 1, cloud: 0.6, holy: 2, stun: 0.6,
   elements: ['fire', 'poison', 'holy', 'earth', 'lightning'],
@@ -2928,23 +2928,17 @@ function chord(b, t, target, crit, hit) {
   return true;
 }
 
-function resonate(b, t, x, y, hit, rung) {
-  for (const banner of b.banners) {
-    if (rung.has(banner) || (banner.cx - x) ** 2 + (banner.cy - y) ** 2 > t.range * t.range) continue;
-    rung.add(banner);
-    b._later(SPELL.resonance.hop, () => {
-      if (!b.banners.includes(banner)) return;
-      b._event({ kind: 'resonate', tower: t, x: banner.cx, y: banner.cy, radius: t.range, totem: banner.kind,
-        fromX: x, fromY: y });
-      for (const mob of b.mobs.slice()) {
-        if (!mob.dead && !hidden(mob, b.time) && !b.covered(mob.x, mob.y) && near(mob, banner.cx, banner.cy, t.range)
-          && !near(mob, x, y, t.range)) {
-          b._hurt(mob, hit, t);
-        }
-      }
-      resonate(b, t, banner.cx, banner.cy, hit, rung);
-    }, t);
+function echoes(b, t) {
+  const centers = [{ x: t.cx, y: t.cy }], rung = new Set();
+  for (let k = 0; k < centers.length; k++) {
+    const { x, y } = centers[k];
+    for (const banner of b.banners) {
+      if (rung.has(banner) || (banner.cx - x) ** 2 + (banner.cy - y) ** 2 > t.range * t.range) continue;
+      rung.add(banner);
+      centers.push({ x: banner.cx, y: banner.cy });
+    }
   }
+  return centers;
 }
 
 function conjure(b, t, target, crit, hit) {
@@ -3161,16 +3155,13 @@ function skyFirst(b, t) {
 }
 
 function stream(b, t, first) {
-  const last = t.sweep && canShoot(b, t, t.sweep) ? t.sweep : null;
-  let next = first;
-  if (last && !(first.flying && !last.flying)) {
-    const a = Math.atan2(last.y - t.cy, last.x - t.cx), arc = MECH.giant.arc * Math.PI / 180;
-    const pool = b.mobs.filter((mob) => mob !== last && canShoot(b, t, mob)
-      && Math.abs(bend(Math.atan2(mob.y - t.cy, mob.x - t.cx), a)) <= arc);
-    next = pool.length ? pool[Math.floor(b.random() * pool.length)] : last;
-  }
-  shoot(b, t, next);
-  t.sweep = next;
+  const barrel = (mob) => Math.abs(bend(Math.atan2(mob.x - t.cx, -(mob.y - t.cy)), t.angle)) <= AIM.heavy.slack * 2;
+  const pool = b.mobs.filter((mob) => canShoot(b, t, mob) && barrel(mob) && !(first.flying && !mob.flying)
+    && (mob !== t.sweep || mob === first));
+  const next = pool.length > 1 ? pool.filter((mob) => mob !== t.sweep) : pool, mob = next.length
+    ? next[Math.floor(b.random() * next.length)] : first;
+  shoot(b, t, mob);
+  t.sweep = mob;
 }
 
 function volley(b, t, target, s, stick) {
@@ -3780,9 +3771,12 @@ const SKILLS = {
       const crit = rollCrit(b, t), hit = t.damage * (crit ? t.critMul : 1);
       if (t.style === 'minstrel') return chord(b, t, target, crit, hit);
       if (t.style === 'shamaness') {
-        b._event({ kind: 'drum', tower: t, radius: t.range, crit });
-        for (const mob of b.mobs.filter((other) => b._targetable(t, other))) b._hurt(mob, hit, t);
-        if (t.runes.has('resonance')) resonate(b, t, t.cx, t.cy, hit, new Set());
+        const centers = t.runes.has('resonance') ? echoes(b, t) : [{ x: t.cx, y: t.cy }];
+        b._event({ kind: 'drum', tower: t, radius: t.range, crit, centers });
+        for (const mob of b.mobs.slice()) {
+          if (mob.dead || hidden(mob, b.time) || b.covered(mob.x, mob.y)) continue;
+          if (b._targetable(t, mob) || centers.some((c, k) => k && near(mob, c.x, c.y, t.range))) b._hurt(mob, hit, t);
+        }
         return true;
       }
       if (t.style === 'enchantress') return t.beam ? false : conjure(b, t, target, crit, hit);
