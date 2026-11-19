@@ -373,7 +373,7 @@ export class Game {
   }
 
   goTo(member, x, y) {
-    if (!member || !this.movable || member.cls && CLASS_BY_ID.get(member.cls).rider) return false;
+    if (!member || !this.movable) return false;
     const anchored = member.cls === 'mechanic' && member.skills.includes('turret') && member.skills.includes('giant');
     if (member.tower && anchored) {
       this._note('fixed', member);
@@ -421,7 +421,7 @@ export class Game {
     member.skills = [];
     this.choices = this.choices.filter((choice) => choice.login !== member.login);
     if (member.tower) {
-      const cell = member.tower.rider ? null : { x: member.tower.x, y: member.tower.y };
+      const cell = { x: member.tower.x, y: member.tower.y };
       this.battle.remove(member.tower);
       member.tower = null;
       this._place(member, cell);
@@ -595,7 +595,6 @@ export class Game {
     const spot = cell || this.battle.randomCell(NEAR_PATH);
     if (!spot) return null;
     member.tower = this.battle.place(member, member.cls, spot.x, spot.y, this.modsOf(member));
-    if (member.tower && member.tower.cocoon && this.state === 'wave') member.tower.late = true;
     return member.tower;
   }
 
@@ -867,7 +866,7 @@ export class Game {
 
   _sleep(member) {
     const tower = member.tower, coins = member.coins;
-    member.seat = tower.rider ? null : { x: tower.x, y: tower.y };
+    member.seat = { x: tower.x, y: tower.y };
     member.held = tower.run;
     member.asleep = true;
     member.tower = null;

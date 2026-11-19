@@ -196,9 +196,9 @@ test('с 91-й волны мобы крепчают спокойно — на 10
   }
 });
 
-test('классы: одиннадцать, у каждого оружие, свой склад и набор навыков; у стрелков — по плану Реборна', () => {
-  eq(CLASSES.length, 11);
-  eq(new Set(CLASSES.map((c) => c.id)).size, 11);
+test('классы: десять, у каждого оружие, свой склад и набор навыков; у стрелков — по плану Реборна', () => {
+  eq(CLASSES.length, 10);
+  eq(new Set(CLASSES.map((c) => c.id)).size, 10);
   eq(PERKS, [10, 30, 50]);
   const runes = CLASSES.flatMap((cls) => cls.runes.map((rune) => rune.id));
   eq(new Set(runes).size, runes.length, 'руны не повторяются');
@@ -249,7 +249,6 @@ test('классы: одиннадцать, у каждого оружие, св
   eq(describe('mechanic', ['turret', 'droneAir', 'droneAir']).skills.map((skill) => [skill.id, skill.count]),
     [['turret', 1], ['droneAir', 2]], 'в профиле дрон один раз, с числом');
   for (const id of ['bomber', 'miner', 'gunner', 'hunter', 'alchemist', 'healer', 'banner', 'sage']) no(CLASS_BY_ID.has(id), 'старого класса больше нет: ' + id);
-  eq(names('parasite'), ['Шок', 'Липкий кокон', 'Заражение', 'Налёт', 'Пожиратель', 'Королева роя', 'Захват разума']);
 });
 
 test('классы: описания — простой текст, без меток и значков', () => {
@@ -328,9 +327,8 @@ test('свойство легендарного: у каждого легенд�
   eq(BOONS.map((boon) => boon.id), ['rapid', 'long', 'keen', 'swift', 'rich']);
   for (const boon of BOONS) ok(boon.name && boon.text && Object.keys(boon.mods).length === 1, boon.id);
   for (let i = 0; i < 400; i++) {
-    const cls = i % 2 ? 'parasite' : 'sniper', weapon = makeWeapon(random, cls, RARITIES[RARITIES.length - 1]);
+    const weapon = makeWeapon(random, 'sniper', RARITIES[RARITIES.length - 1]);
     ok(boonOf(weapon.boon), 'у легендарного есть свойство');
-    if (cls === 'parasite') no(weapon.boon === 'long', 'паразиту дальнобойность не выпадает');
     seen.add(weapon.boon);
   }
   eq(seen.size, BOONS.length, 'выпадают все пять');

@@ -1437,24 +1437,7 @@ const SKINS = {
   'sorceress-shamaness-beat': (m) => shamaness(m, true),
 };
 
-const HEROES = {
-  parasite: (m) => {
-    for (const s of [-1, 1]) {
-      for (const [a, b] of [[6, 9], [7, 15], [6, 21]]) {
-        m.limb(16 + s * 4, b, 4, 16 + s * (a + 6), b + (b - 15) * 0.4, 2, 1.1, '#86198f', 0, 0.6);
-      }
-    }
-    m.egg(16, 18, 5, 7.4, 8, 5, '#c026d3');
-    m.egg(16, 12, 7, 5.2, 4.6, 4.2, '#d946ef', 0.5);
-    for (const [x, y] of [[13, 19], [18, 17], [16, 22]]) m.ball(x, y, 9, 1.2, '#f0abfc', 0.8);
-    m.ball(14, 10, 10.2, 1.3, '#fde047', 1);
-    m.ball(18, 10, 10.2, 1.3, '#fde047', 1);
-    m.limb(14, 8, 9, 13, 5, 9, 0.6, '#f5d0fe');
-    m.limb(18, 8, 9, 19, 5, 9, 0.6, '#f5d0fe');
-  },
-};
-
-Object.assign(HEROES, MAGES, SKINS);
+const HEROES = Object.assign({}, MAGES, SKINS);
 export const HERO_IDS = Object.keys(HEROES);
 
 const STAFF = [[12.5, 3]];

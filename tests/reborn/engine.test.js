@@ -122,7 +122,7 @@ test('игра: клетка в чате переводит защитника, 
     say(made, 'Вика', 'привет');
     ok(until(made, () => made.state === 'placing'));
     const tower = made.members.get('вика').tower;
-    if (!tower.rider && !tower.cocoon) game = made;
+    game = made;
   }
   const free = game.battle.bestCell(2.5);
   eq(say(game, 'Вика', cellName(free.x, free.y).toLowerCase()), 'move');
@@ -158,7 +158,7 @@ test('игра: ангел встаёт с поля в клетку над го�
     say(made, 'Гена', 'привет');
     ok(until(made, () => made.state === 'placing'));
     const b = made.battle, at = Array.from(b.rough).find((cell) => b.free(cell % SIZE, Math.floor(cell / SIZE), true));
-    if (at === undefined || made.members.get('вика').tower.rider) continue;
+    if (at === undefined) continue;
     game = made;
     spot = { x: at % SIZE, y: Math.floor(at / SIZE) };
   }
@@ -200,38 +200,6 @@ test('игра: в лобби клетка ничего не двигает, н�
   game.open();
   eq(say(game, 'Гоша', 'к7'), null);
   ok(game.members.has('гоша'));
-});
-
-test('игра: паразит, пришедший посреди волны, зреет ещё 10 полных волн', () => {
-  const { game } = makeGame();
-  game.open();
-  say(game, 'Тёма', 'привет');
-  toWave(game);
-  game._randomClass = () => 'parasite';
-  say(game, 'Жук', 'привет');
-  const bug = game.members.get('жук').tower;
-  ok(bug && bug.cocoon > 0, 'встал коконом посреди волны');
-  game.battle.endWave();
-  for (let wave = 1; wave <= 10; wave++) {
-    no(bug.rider, 'ещё в коконе перед ' + wave + '-й полной волной');
-    game.battle.endWave();
-  }
-  ok(bug.rider, 'вылупился после десятой полной волны');
-});
-
-test('игра: паразит встаёт коконом на случайную клетку у дороги, переставить его нельзя', () => {
-  const { game } = makeGame();
-  game.open();
-  say(game, 'Жук', 'привет');
-  game.members.get('жук').cls = 'parasite';
-  ok(until(game, () => game.state === 'placing'));
-  const tower = game.members.get('жук').tower, spot = [tower.x, tower.y];
-  ok(tower.cocoon > 0 && !tower.rider, 'кокон');
-  ok(nearPath(game, tower), 'у дороги');
-  ok(game.battle.towerAt(tower.x, tower.y) === tower, 'занимает клетку');
-  const free = game.battle.bestCell(2.5);
-  eq(say(game, 'Жук', cellName(free.x, free.y)), null);
-  eq([tower.x, tower.y], spot, 'остался на месте');
 });
 
 test('гача: команда без восклицательного знака, оружие под класс игрока', () => {
@@ -760,7 +728,7 @@ test('за волну — только награда волны, дохода �
   say(game, 'Паша', 'привет');
   const tema = game.members.get('тёма'), pasha = game.members.get('паша');
   tema.cls = 'sniper';
-  pasha.cls = 'parasite';
+  pasha.cls = 'mechanic';
   toWave(game);
   pasha.coins = 100;
   tema.coins = 5000;
@@ -769,9 +737,7 @@ test('за волну — только награда волны, дохода �
   game.battle.events.length = 0;
   game._endWave();
   eq(tema.coins, 5000 + reward);
-  const cocoon = game.battle.events.find((e) => e.kind === 'cocoon' && e.tower === pasha.tower);
-  ok(cocoon, 'паразит в коконе получил монеты за волну');
-  eq(pasha.coins, 100 + cocoon.coins + reward);
+  eq(pasha.coins, 100 + reward);
   no('income' in REWARD);
 });
 
@@ -879,10 +845,10 @@ test('реролл: сколько угодно раз, пока не выбра
   ok(until(other, () => other.state === 'placing'));
   const lisa = other.members.get('лиза');
   const tower = lisa.tower;
-  const cell = tower.rider ? null : [tower.x, tower.y];
+  const cell = [tower.x, tower.y];
   eq(say(other, 'Лиза', 'реролл'), 'reroll');
   ok(lisa.tower && lisa.tower.cls.id === lisa.cls, 'новый защитник нового класса');
-  if (cell && !lisa.tower.rider) eq([lisa.tower.x, lisa.tower.y], cell, 'на той же клетке');
+  eq([lisa.tower.x, lisa.tower.y], cell, 'на той же клетке');
   toWave(other);
   eq(say(other, 'Лиза', 'реролл'), 'reroll', 'и во время волн');
   ok(lisa.tower && lisa.tower.cls.id === lisa.cls);
@@ -1165,7 +1131,6 @@ test('стример переставляет защитников «А1 Б2»; 
   say(game, 'Гоша', 'привет');
   ok(until(game, () => game.state === 'placing'));
   const gosha = game.members.get('гоша');
-  if (gosha.tower.rider) return;
   const tower = gosha.tower, spot = game.battle.bestCell(2.5);
   const order = cellName(tower.x, tower.y) + ' ' + cellName(spot.x, spot.y);
   eq(say(game, 'Гоша', order), null, 'зрителю нельзя');

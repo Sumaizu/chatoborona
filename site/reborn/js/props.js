@@ -365,22 +365,6 @@ export function drawMeteor() {
   return m.paint();
 }
 
-export function drawCocoon(frame) {
-  const m = new Model(32, 1.08), swell = frame ? 0.5 : 0;
-  m.egg(16, 18, 3.5, 6.6 + swell, 10 + swell, 5.4 + swell, '#ece0ef', 0.3);
-  for (let i = 0; i < 6; i++) {
-    const y = 11 + i * 3, tilt = i % 2 ? 1 : -1;
-    m.limb(9.6 - swell, y + tilt, 7.4, 22.4 + swell, y - tilt, 7.4, 0.45, '#c9b0d2');
-  }
-  m.egg(16, 8.6, 6.4, 3.6, 3.2, 3.4, '#c026d3', 0.5);
-  m.ball(14.6, 7.6, 9.4, 1, '#fde047', 1);
-  m.ball(17.4, 7.6, 9.4, 1, '#fde047', 1);
-  m.limb(14.8, 5.8, 8.4, 13.6, 3.6, 8.4, 0.4, '#f5d0fe');
-  m.limb(17.2, 5.8, 8.4, 18.4, 3.6, 8.4, 0.4, '#f5d0fe');
-  for (const [x, y] of [[13, 20], [19, 16], [15, 24]]) m.dot(x, y, '#f5d0fe');
-  return m.paint();
-}
-
 const WATCHES = {
   grass: { post: '#6e4a2c', plank: '#a87a4a', seam: '#7c5634', face: '#5e3d22', flag: '#e23b3b' },
   swamp: { post: '#4e4129', plank: '#83704a', seam: '#5f5034', face: '#43381f', flag: '#a3e635' },

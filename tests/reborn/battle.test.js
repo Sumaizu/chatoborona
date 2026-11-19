@@ -1,7 +1,7 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
 import { AIM, ARCANE, BITE_TIME, Battle, HELP, HOLY, SONG, SPELL, WOOD, DISCHARGE, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, FIRE,
-  PULSE, REACTIONS, ROT, SHOT, SPLIT_TIME, THORN }
+  PULSE, REACTIONS, ROT, SHOT, SPLIT_TIME }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
 import { AFFIXES, BOSSES, DIABLO, ELITES, FAMILIES, FAMILY_BY_ID, FINALE, LIVES, LOOKS, MIGHT, MIMIC, MOBS, POWERS,
@@ -10,11 +10,6 @@ import { AFFIXES, BOSSES, DIABLO, ELITES, FAMILIES, FAMILY_BY_ID, FINALE, LIVES,
 import { ASSIST_COINS, KILL_COINS } from '../../site/reborn/js/gacha.js';
 import { CLASSES, CLASS_BY_ID, RUNE_CAPS, baseOf, choiceOf, describe } from '../../site/reborn/js/classes.js';
 
-const ATTACK = (battle, t, target) => {
-  battle.time = Math.max(battle.time, t.leapUntil);
-  t.host = target;
-  battle._fire(t, battle.time);
-};
 const leakOf = (wave) => waveSpawns(wave).reduce((sum, s) => sum + MOBS[s.type].leak, 0);
 const near = (actual, expected, note = '') => ok(Math.abs(actual - expected) < 1e-6 * Math.max(1, Math.abs(expected)),
   (note ? note + ': ' : '') + actual + ' вместо ' + expected);
@@ -256,7 +251,6 @@ test('бой: с обеими рунами каждый класс без оши
     const battle = makeBattle(), runes = cls.runes.map((rune) => rune.id);
     const tower = battle.place(level(100), cls.id, 3, 4);
     battle.setMods(tower, { runes });
-    if (tower.cocoon) battle._hatch(tower);
     battle.place(level(100), 'mechanic', 4, 4);
     for (let wave = 8; wave <= 11; wave++) {
       battle.startWave(wave, 2);
@@ -2122,118 +2116,6 @@ test('жрец, общие: благодать, божественная защ�
   ok(holy.runes.has('sanctity'));
 });
 
-test('паразит: первые 10 волн — кокон на клетке: не кусает, за волну 1–500 монет и опыт наравне с отрядом', () => {
-  const battle = makeBattle(), larva = player(), bug = battle.place(larva, 'parasite', 3, 4);
-  battle.place(level(30), 'mechanic', 2, 6);
-  eq(bug.cocoon, CLASS_BY_ID.get('parasite').base.cocoon);
-  ok(battle.towerAt(3, 4) === bug, 'занимает клетку');
-  no(battle.move(bug, 5, 4), 'с места не сходит');
-  for (let wave = 1; wave <= 10; wave++) {
-    const coins = larva.coins;
-    battle.startWave(wave, 2);
-    finish(battle);
-    eq(bug.run.damage, 0, 'не кусает');
-    battle.endWave();
-    ok(larva.coins - coins >= 1 && larva.coins - coins <= 500, 'монеты: ' + (larva.coins - coins));
-  }
-  ok(larva.xp > 0, 'опыт отряда');
-  eq(bug.cocoon, 0);
-  ok(bug.rider, 'вылупился');
-  no(battle.towerAt(3, 4), 'клетку освободил');
-  ok(battle.events.some((e) => e.kind === 'hatch'));
-});
-
-test('паразит: цепляется к самому крепкому, после убийства прыгает на следующего', () => {
-  const battle = makeBattle(), bug = battle.placeRider(level(5), 'parasite');
-  eq([bug.x, bug.y], battle.path[0]);
-  eq(battle.byCell.size, 0, 'клетку не занимает');
-  no(battle.move(bug, 3, 4));
-  const weak = walker(battle, 6, 50), strong = walker(battle, 2, 500);
-  battle.step(TICK);
-  eq(bug.host, strong);
-  runFor(battle, bug.cls.base.leap + 0.1);
-  eq([bug.cx, bug.cy], [strong.x, strong.y], 'сидит на нём');
-  ok(strong.hp < strong.max, 'грызёт');
-  eq(weak.hp, weak.max);
-  battle._hurt(strong, 1e6, bug);
-  battle.step(TICK);
-  eq(bug.host, weak);
-  ok(battle.events.some((e) => e.kind === 'leap' && e.mob === weak));
-  runFor(battle, bug.cls.base.leap + 0.1);
-  battle._hurt(weak, 1e6, bug);
-  const spot = [weak.x, weak.y];
-  runFor(battle, 1);
-  eq(bug.host, null);
-  eq([bug.cx, bug.cy], spot, 'ждёт там, где убил');
-});
-
-test('паразит: с 10-го крит оглушает и отнимает ещё долю здоровья — у боссов меньше', () => {
-  const battle = makeBattle(), bug = battle.placeRider(level(10), 'parasite');
-  battle.random = () => 0;
-  const mob = walker(battle, 5, 1000), boss = special(battle, 'boss', 'crusher', 1e6);
-  still(mob, boss);
-  const cap = bug.skill * bug.s[0].cap;
-  ATTACK(battle, bug, mob);
-  near(hit(mob), bug.damage * bug.critMul + Math.min(1000 * bug.s[0].share, cap));
-  ok(mob.holdUntil > battle.time, 'оглушён');
-  ATTACK(battle, bug, boss);
-  near(hit(boss), bug.damage * bug.critMul + Math.min(1e6 * bug.s[0].boss, cap), 'у очень крепкого — не больше предела');
-  ok(cap < 1e6 * bug.s[0].boss);
-});
-
-test('паразит: с 30-го «Заражение» — моб, в которого он вгрызся, получает больше урона от всех', () => {
-  const battle = makeBattle(), bug = battle.placeRider(level(30), 'parasite');
-  const gun = battle.place(level(30), 'mechanic', 2, 4);
-  const weak = walker(battle, 5, 1e6), host = walker(battle, 6, 1e9);
-  still(weak, host);
-  for (let i = 0; i < 100 && !(bug.host === host && battle.time > bug.leapUntil + TICK); i++) battle.step(TICK);
-  ok(bug.host === host, 'сидит на самом крепком');
-  const hit = (mob) => {
-    const before = mob.hp;
-    battle._hurt(mob, 100, gun);
-    return before - mob.hp;
-  };
-  near(hit(host) / hit(weak), 1 + bug.s[1].vuln, 'на ' + Math.round(bug.s[1].vuln * 100) + '% больше');
-  ok(host.helpers.has(bug), 'паразиту засчитывается помощь');
-  const young = makeBattle(), larva = young.placeRider(level(29), 'parasite'), mob = walker(young, 5, 1e9);
-  still(mob);
-  for (let i = 0; i < 40; i++) young.step(TICK);
-  ok(larva.host === mob);
-  eq(mob.vuln, 0, 'до 30-го уровня — нет');
-});
-
-test('паразит: с 50-го раз в 30 с забирает монеты богатого союзника и раздаёт их всем, свои держит до 1000', () => {
-  const battle = makeBattle(), bug = battle.placeRider(level(50), 'parasite');
-  const rich = battle.place(player(), 'mechanic', 2, 4), poor = battle.place(player(), 'mechanic', 2, 6);
-  eq(bug.s[2].every, 30);
-  bug.player.coins = 600;
-  rich.player.coins = 2000;
-  battle.step(TICK);
-  const heist = battle.events.find((e) => e.kind === 'heist'), share = battle.events.find((e) => e.kind === 'share');
-  ok(heist && heist.victim === rich && heist.coins === 2000, 'забрал всё');
-  ok(share && share.coins === 2000, 'раздал только украденное');
-  eq(share.shares.map((part) => part.tower).sort(), [bug, rich, poor].sort(), 'всем, себе тоже');
-  eq(bug.player.coins, 600 + share.shares.find((part) => part.tower === bug).coins, 'свои 600 остались при нём');
-  near(rich.player.coins + poor.player.coins + bug.player.coins, 2600, 'ни одна монета не пропала');
-  ok(bug.perch && bug.perch.tower === rich, 'спит у него на голове');
-  ok(rich.napUntil >= battle.time + bug.s[2].sleep - 1, 'союзник спит минуту');
-  rich.player.coins = 5000;
-  runFor(battle, 25);
-  eq(rich.player.coins, 5000, 'раньше 30 секунд не прыгает');
-  runFor(battle, 6);
-  eq(battle.events.filter((e) => e.kind === 'heist').length, 2, 'через 30 секунд — снова');
-  const field = makeBattle(), alone = field.placeRider(level(50), 'parasite'), mate = field.place(player(), 'mechanic',
-    2, 4);
-  alone.player.coins = 1500;
-  field.step(TICK);
-  no(field.events.some((e) => e.kind === 'heist'), 'богатых нет — не прыгает');
-  const spare = field.events.find((e) => e.kind === 'share');
-  ok(spare && spare.coins === 500, 'свои сверх 1000 раздаёт');
-  near(alone.player.coins + mate.player.coins, 1500);
-  ok(alone.player.coins >= 1000, 'тысячу оставил себе');
-  no(alone.perch);
-});
-
 test('Диабло: на 100-й волне выходит один, без мобов, крепче обычного босса вчетверо, в полтора раза медленнее, огонь и сети его берут', () => {
   const battle = makeBattle();
   eq(battle.planFamily(99) === FINALE, false);
@@ -2277,23 +2159,6 @@ test('Диабло у сердца разбивает его одним удар
   for (let i = 0; i < 400 && battle.lives > 0; i++) battle.step(TICK);
   eq(battle.lives, 0, 'сердце разбито');
   ok(devil.dead);
-});
-
-test('паразит: руна «Бешенство» — кусает втрое чаще, «Смертельный шип» — иногда добивает раненого', () => {
-  const battle = makeBattle(), bug = battle.placeRider(player(), 'parasite'), interval = bug.interval;
-  battle.setMods(bug, { runes: ['frenzy', 'thorn'] });
-  near(bug.interval, interval / 3);
-  battle.random = () => THORN.chance / 2;
-  const weak = walker(battle, 5, 100), cap = bug.skill * RUNE_CAPS.thorn;
-  still(weak);
-  weak.hp = Math.min(weak.max * (THORN.below - 0.05), cap * 0.9);
-  ATTACK(battle, bug, weak);
-  ok(weak.dead, 'добит');
-  const boss = special(battle, 'boss', 'crusher', 1e6);
-  boss.hp = boss.max * (THORN.below - 0.05);
-  const left = boss.hp;
-  ATTACK(battle, bug, boss);
-  ok(!boss.dead && left - boss.hp >= cap - 1e-6, 'слишком крепкий — получает урон, но жив');
 });
 
 test('ледяной маг: буря вокруг бьёт льдом всех в радиусе', () => {
@@ -2843,33 +2708,6 @@ test('маг земли: землетрясение, разлом, зыбучи�
   fort._batter(wall, mob, TICK, fort.time);
   ok(fort.events.some((e) => e.kind === 'boom' && e.tower === f), 'рухнув, взрывается');
   ok(mob.holdUntil > fort.time, 'и оглушает');
-});
-
-test('паразит, навыки Реборна: липкий кокон, пожиратель, королева роя, захват разума', () => {
-  const battle = makeBattle(), p = battle.place(player(), 'parasite', 10, 4);
-  battle.setMods(p, { perks: [3] });
-  ok(p.cocoon > 0);
-  const slow = walker(battle, 10, 1e9);
-  still(slow);
-  battle.step(TICK);
-  near(slow.slow, p.s[3].slow, 'кокон липкий');
-
-  const nest = makeBattle(), q = nest.placeRider(player(), 'parasite');
-  nest.setMods(q, { perks: [4, 5, 6] });
-  const weak = walker(nest, 10, 0.01);
-  still(weak);
-  ATTACK(nest, q, weak);
-  ok(weak.dead);
-  near(q.feast, q.s[4].bonus, 'пожиратель: +5% за убийство');
-  nest.startWave(2, 1);
-  eq(q.feast, 0, 'до конца волны');
-  const herd = [1, 2, 3, 4, 5, 6].map((k) => walker(nest, 3 + k, 1e6 * k));
-  still(...herd);
-  q.host = herd[0];
-  nest.step(TICK);
-  ok(herd.slice(1).every((mob) => mob.vuln >= q.s[5].vuln && mob.slow > 0), 'рой облепил пятерых самых крепких');
-  ok(!(herd[0].vulnUntil > nest.time), 'шестой — нет');
-  ok(q.host && q.host.madUntil > nest.time, 'носитель сошёл с ума');
 });
 
 test('шаман: с 50-го ветер ускоряет союзников рядом, самого шамана — вдвое', () => {
@@ -3652,7 +3490,7 @@ test('биомы: на кладбище павший с телом встаёт 
   eq(plain.mobs.length, 0, 'на других картах не встают');
 });
 
-test('карта: мобы появляются у выхода из пещеры, паразит в горе не виден и не кусает', () => {
+test('карта: мобы появляются у выхода из пещеры', () => {
   const battle = mapWith({ tunnel: [[0, 5], [1, 5], [10, 0], [10, 1], [14, 5], [15, 5]] });
   battle.startWave(1, 1);
   battle.step(TICK);
@@ -3661,33 +3499,6 @@ test('карта: мобы появляются у выхода из пещер�
   ok(first.d > 2.2 && first.d < 2.5 && second.d > 2.2 && second.d < 2.5, 'у самого выхода: ' + [first.d, second.d]);
   runFor(battle, 0.3);
   no(battle.covered(first.x, first.y), 'вышел на свет');
-  const bug = battle.placeRider(level(20), 'parasite');
-  eq([bug.x, bug.y], STRAIGHT[battle.gate]);
-  no(battle.covered(bug.cx, bug.cy), 'ждёт не в горе');
-  const host = walker(battle, 15.5, 1e6);
-  host.holdUntil = 1e9;
-  bug.host = host;
-  battle.time = Math.max(battle.time, bug.leapUntil);
-  ok(battle.covered(host.x, host.y));
-  eq(battle._target(bug), null, 'в тоннеле не кусает');
-});
-
-test('паразит: на одном мобе только один — второй берёт следующего по силе, свободных нет — ждёт', () => {
-  const battle = makeBattle();
-  const first = battle.placeRider(level(20), 'parasite');
-  const second = battle.placeRider(level(20), 'parasite');
-  const strong = walker(battle, 2, 500), weak = walker(battle, 6, 50);
-  for (const mob of [strong, weak]) mob.holdUntil = 1e9;
-  battle.step(TICK);
-  ok(first.host === strong, 'первый — на самого крепкого');
-  ok(second.host === weak, 'второй — на следующего, хоть прыгали разом');
-  battle._hurt(weak, 1e6, second);
-  battle.step(TICK);
-  eq(second.host, null, 'свободных мобов нет — ждёт, на занятого не прыгает');
-  const fresh = walker(battle, 4, 80);
-  fresh.holdUntil = 1e9;
-  battle.step(TICK);
-  ok(second.host === fresh, 'появился свободный — прыгнул');
 });
 
 test('карта: на повороте моб идёт по дуге, как нарисована дорога, а не срезает угол клетки', () => {

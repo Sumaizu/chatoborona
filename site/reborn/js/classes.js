@@ -3,7 +3,7 @@ import { MIGHT, STAT, TOWER } from './balance.js';
 export const PERKS = [10, 30, 50];
 export const STONES = [1, 10, 30, 50, 70, 100];
 export const STONE_CHANCE = { first: 0.2, next: 0.05 };
-export const RUNE_CAPS = { rot: 0.6, thorn: 40, shatter: 40 };
+export const RUNE_CAPS = { rot: 0.6, shatter: 40 };
 
 const pct = (value) => Math.round(value * 100) + '%';
 export const num = (value) => String(Math.round(value * 10) / 10).replace('.', ',');
@@ -306,52 +306,6 @@ export const CLASSES = [
     react: { skill: 'fireReact', element: 'fire' },
     skills: [],
     runes: [],
-  },
-  {
-    id: 'parasite',
-    name: 'Паразит',
-    of: 'паразита',
-    color: '#d946ef',
-    primary: 'agi',
-    earn: { xp: 1.1, coins: 1 },
-    weapon: 'шип',
-    rider: true,
-    stats: { str: 'low', agi: 'high', int: 'low' },
-    base: { damage: 0.6, interval: 0.8, leap: 0.6, cocoon: 10, gold: [1, 200] },
-    summary: 'Десять волн зреет в коконе, потом грызёт самого крепкого моба',
-    main: (b) => 'Первые ' + b.cocoon + ' волн — личинка в коконе на клетке: не бьёт, зато каждую волну получает от '
-      + b.gold[0] + ' до ' + b.gold[1] + ' монет. Потом цепляется к самому крепкому мобу и грызёт его, убил — прыгает '
-      + 'на следующего',
-    skills: [
-      { name: 'Шок', v: { stun: 0.5, share: 0.1, elite: 0.05, boss: 0.03, cap: 25 },
-        scale: { stun: 'time', cap: 'dmg' },
-        text: (v) => 'крит оглушает на ' + sec(v.stun) + ' и отнимает ещё ' + pct(v.share) + ' здоровья (у элитных '
-          + pct(v.elite) + ', у боссов ' + pct(v.boss) + '), но не больше урона ×' + num(v.cap) },
-      { name: 'Заражение', v: { vuln: 0.3 }, scale: { vuln: 'power' },
-        text: (v) => 'моб, в которого он вгрызся, получает на ' + pct(v.vuln) + ' больше урона от всех' },
-      { name: 'Налёт', v: { every: 30, rich: 1000, nap: 10, sleep: 60 },
-        text: (v) => 'раз в ' + sec(v.every) + ' прыгает на голову союзнику, у которого больше ' + v.rich + ' монет, '
-          + 'забирает все его монеты и раздаёт их случайно всем, себе тоже; потом ' + sec(v.nap) + ' спит у него на '
-          + 'голове, а союзник спит ' + sec(v.sleep) + '. Свои монеты паразит держит до ' + v.rich
-          + ', лишние тоже раздаёт' },
-      { name: 'Липкий кокон', v: { radius: 1.5, slow: 0.3 },
-        text: (v) => 'пока в коконе, мобы ' + around(v.radius) + ' медленнее на ' + pct(v.slow) },
-      { name: 'Пожиратель', v: { bonus: 0.05 }, scale: { bonus: 'power' },
-        text: (v) => 'каждое его убийство — +' + pct(v.bonus) + ' урона до конца волны' },
-      { name: 'Королева роя', v: { every: 20, count: 5, slow: 0.1, vuln: 0.2, time: 8 },
-        scale: { every: 'haste', time: 'time' },
-        text: (v) => 'раз в ' + sec(v.every) + ' рой облепляет ' + v.count + ' самых крепких мобов на поле на '
-          + sec(v.time) + ': они медленнее на ' + pct(v.slow) + ' и получают на ' + pct(v.vuln) + ' больше урона' },
-      { name: 'Захват разума', v: { every: 60, time: 10, bite: 3 }, scale: { every: 'haste', time: 'time' },
-        text: (v) => 'раз в ' + sec(v.every) + ' носитель (не босс) на ' + sec(v.time) + ' сходит с ума: идёт назад и '
-          + 'кусает своих — урон ×' + num(v.bite) + ' в секунду' },
-    ],
-    pool: ['perk0', 'perk3', 'perk1', 'perk2', 'perk4', 'perk5', 'perk6'],
-    runes: [
-      { id: 'frenzy', name: 'Бешенство', text: 'кусает втрое чаще' },
-      { id: 'thorn', name: 'Смертельный шип', text: 'с шансом 3% добивает моба, у которого меньше 30% здоровья; '
-        + 'слишком крепкому наносит урон ×' + num(RUNE_CAPS.thorn) },
-    ],
   },
   {
     id: 'frost',

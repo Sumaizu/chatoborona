@@ -1,7 +1,7 @@
 import { LETTERS, SIZE } from './field.js';
 import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintRoadMask, paintRoof } from './terrain.js';
 import { FIRE, HOLY, MANTRAS, MECH, SPELL, WOOD, flightAt, heavyGun, roadCurve } from './battle.js';
-import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite, cocoonSprite,
+import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite,
   coinSprite, fireballSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
   meteorSprite, grenadeSprite, droneSprite, birdSprite, hawkSprite, snareSprite, trapSprite, cauldronSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
   rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, ventSprite, wallSprite } from './sprites.js';
@@ -118,7 +118,7 @@ const BEAMS = { arcane: ['56, 189, 248', '224, 247, 255'], fire: ['249, 115, 22'
 const UNBIND = { edge: 40, inner: 16,
   tones: ['255, 140, 60', '125, 211, 252', '163, 230, 53', '250, 204, 21', '196, 181, 253'] };
 const STONES = { count: 5, spread: 3.6, size: 2.2, glow: '232, 170, 90' };
-const ROAD_AURA = { zoom: 2, motes: 5, edge: 96 };
+const ROAD_AURA = { zoom: 2, motes: 5, reach: 1.12 };
 const SHOCK = { grow: 0.3, tail: 0.18, soft: CELL * 0.6, pieces: 120 };
 const BEAM = { core: 2.6, mid: 6, outer: 12, twist: 0.11, spin: 7, coil: 5.5, flare: 11 };
 const VENOM = { toxic: 'rgba(132, 204, 22, .9)', plague: 'rgba(91, 33, 182, .9)' };
@@ -1339,7 +1339,6 @@ export class Scene {
   _storms(ctx, battle) {
     const now = battle.time;
     for (const t of battle.towers) {
-      if (t.rider || t.cocoon) continue;
       if (t.cls.id === 'frost') this._frostStorm(ctx, t);
       if (t.windUntil > now) this._windOn(ctx, t);
     }
@@ -1388,7 +1387,7 @@ export class Scene {
 
   _ranges(ctx, battle, ranges) {
     for (const t of battle.towers) {
-      if (t.rider || t.cocoon || !ranges.has(t.player.login)) continue;
+      if (!ranges.has(t.player.login)) continue;
       const outline = this._sight(battle, t);
       ctx.save();
       ctx.beginPath();
@@ -1996,10 +1995,9 @@ export class Scene {
   }
 
   _auras(ctx, battle) {
-    for (const t of battle.towers) if (t.cls.id === 'sorceress' && !t.cocoon && t.runes.has('unbind')) this._unbind(ctx, t);
+    for (const t of battle.towers) if (t.cls.id === 'sorceress' && t.runes.has('unbind')) this._unbind(ctx, t);
     for (const banner of battle.banners) if (banner.kind === 'power') this._might(ctx, banner);
     for (const t of battle.towers) {
-      if (t.cocoon || t.rider) continue;
       if (t.style === 'monk') this._mantras(ctx, t);
       if (t.cls.id === 'forester') {
         if (t.runes.has('grace')) this._aura(ctx, t, AURAS.grace, WOOD.grace.radius, 0);
@@ -2208,39 +2206,29 @@ export class Scene {
   _swarm(g, battle, banner) {
     const look = TOTEM_LOOKS[banner.kind], x = at(banner.cx), y = at(banner.cy), r = SPELL.totem.radius * CELL;
     const flash = this._flashOf(banner), seed = banner.seed * 10;
-    const fill = g.createRadialGradient(x, y, 0, x, y, r);
+    const fill = g.createRadialGradient(x, y, 0, x, y, r * ROAD_AURA.reach);
     fill.addColorStop(0, 'rgba(' + look.tint + ', ' + (look.fill * 0.5 + 0.1 * flash) + ')');
-    fill.addColorStop(0.9, 'rgba(' + look.tint + ', ' + (look.fill + 0.1 * flash) + ')');
-    fill.addColorStop(1, 'rgba(' + look.tint + ', ' + look.fill * 0.6 + ')');
-    const torn = () => {
-      g.beginPath();
-      for (let k = 0; k <= ROAD_AURA.edge; k++) {
-        const a = k / ROAD_AURA.edge * Math.PI * 2, u = k % ROAD_AURA.edge;
-        const d = r * (0.93 + 0.1 * smoothNoise(u * 0.35, 4, seed) + 0.05 * noise(u, seed + 2));
-        if (k) g.lineTo(x + Math.cos(a) * d, y + Math.sin(a) * d);
-        else g.moveTo(x + Math.cos(a) * d, y + Math.sin(a) * d);
-      }
-      g.closePath();
-    };
+    fill.addColorStop(0.62, 'rgba(' + look.tint + ', ' + (look.fill + 0.1 * flash) + ')');
+    fill.addColorStop(1, 'rgba(' + look.tint + ', 0)');
     g.fillStyle = fill;
-    torn();
+    g.beginPath();
+    g.arc(x, y, r * ROAD_AURA.reach, 0, Math.PI * 2);
     g.fill();
-    g.save();
-    torn();
-    g.clip();
-    const cells = battle.road.filter(([cx, cy]) => Math.hypot(cx + 0.5 - banner.cx, cy + 0.5 - banner.cy) < SPELL.totem.radius + 0.7);
+    const cells = battle.road.filter(([cx, cy]) => Math.hypot(cx + 0.5 - banner.cx, cy + 0.5 - banner.cy) < SPELL.totem.radius + 1);
     g.globalCompositeOperation = 'lighter';
     cells.forEach(([cx, cy], n) => {
       for (let k = 0; k < ROAD_AURA.motes; k++) {
         const id = n * ROAD_AURA.motes + k, drift = this.clock * look.drift;
         const px = at(cx + 0.5 + (noise(id, seed) - 0.5) * 0.9 + (smoothNoise(drift + id, 1, seed) - 0.5) * 0.5);
         const py = at(cy + 0.5 + (noise(id + 50, seed) - 0.5) * 0.9 + (smoothNoise(drift + id, 2, seed) - 0.5) * 0.5);
+        const out = Math.hypot(px - x, py - y) / r, u = Math.max(0, Math.min(1, (ROAD_AURA.reach - out) / (ROAD_AURA.reach - 0.75)));
+        const edge = u * u * (3 - 2 * u);
+        if (edge <= 0) continue;
         const blink = Math.pow(Math.max(0, Math.sin(this.clock * (1.2 + noise(id + 9, seed)) + id * 2.1)), 2);
-        glow(g, px, py, 5 + 3 * blink, 'rgba(' + look.mote + ', 1)', (0.45 + 0.55 * blink) * (1 + flash));
-        glow(g, px, py, 1.8, 'rgba(' + look.core + ', 1)', 0.7 + 0.3 * blink);
+        glow(g, px, py, (5 + 3 * blink) * (0.6 + 0.4 * edge), 'rgba(' + look.mote + ', 1)', (0.45 + 0.55 * blink) * (1 + flash) * edge);
+        glow(g, px, py, 1.8, 'rgba(' + look.core + ', 1)', (0.7 + 0.3 * blink) * edge);
       }
     });
-    g.restore();
   }
 
   _standards(ctx, battle) {
@@ -2641,7 +2629,7 @@ export class Scene {
       let w = 1;
       spots.forEach(([cx, cy], n) => {
         if (n === own) return;
-        const u = Math.max(0, Math.min(1, (Math.hypot(px - cx, py - cy) - r) / SHOCK.soft));
+        const u = Math.max(0, Math.min(1, (Math.hypot(px - cx, py - cy) - r + SHOCK.soft) / SHOCK.soft));
         w = Math.min(w, u * u * (3 - 2 * u));
       });
       return w;
@@ -3531,60 +3519,35 @@ export class Scene {
   _pose(t) {
     let pose = this.poses.get(t);
     if (!pose) {
-      pose = { angle: t.angle, aim: t.angle, kick: 0, flash: 0, leap: null, x: t.cx, y: t.cy, queue: [], lock: null };
+      pose = { angle: t.angle, aim: t.angle, kick: 0, flash: 0, x: t.cx, y: t.cy, queue: [], lock: null };
       this.poses.set(t, pose);
     }
     return pose;
-  }
-
-  _riderSpot(t, pose, now) {
-    if (t.perch && t.perch.until > now) {
-      const seat = this._pose(t.perch.tower);
-      return { x: seat.x, y: seat.y, lift: 13, riding: true };
-    }
-    const host = t.host && !t.host.dead ? this.shown.get(t.host.id) : null;
-    let x = t.cx, y = t.cy, lift = 0;
-    if (host && now >= t.leapUntil) {
-      x = host.x;
-      y = host.y;
-      lift = host.lift + 3;
-      pose.aim = Math.atan2(host.dx, -host.dy);
-    }
-    const leap = pose.leap;
-    if (leap && host && now < leap.until) {
-      const k = 1 - (leap.until - now) / leap.time;
-      x = leap.x + (host.x - leap.x) * k;
-      y = leap.y + (host.y - leap.y) * k;
-      lift = Math.sin(k * Math.PI) * 16;
-      pose.aim = Math.atan2(host.x - leap.x, -(host.y - leap.y));
-    }
-    return { x, y, lift, riding: Boolean(host) };
   }
 
   _towers(ctx, battle, dt, highlight, still) {
     const now = battle.time;
     for (const t of battle.towers) {
       const pose = this._pose(t), lit = highlight && highlight.has(t.player.login);
-      let spot = { x: t.cx, y: t.cy, lift: 0, riding: false }, look = t.look;
-      if (t.rider) spot = this._riderSpot(t, pose, now);
-      else if (t.pull && now < t.pull.end) {
+      let spot = { x: t.cx, y: t.cy, lift: 0 }, look = t.look;
+      if (t.pull && now < t.pull.end) {
         const k = 1 - Math.pow(1 - Math.max(0, (now - t.pull.start) / (t.pull.end - t.pull.start)), 2);
         spot = { x: t.pull.fx + (t.cx - t.pull.fx) * k, y: t.pull.fy + (t.cy - t.pull.fy) * k,
-          lift: Math.sin(k * Math.PI) * (t.pull.fly ? 22 : 10), riding: false };
+          lift: Math.sin(k * Math.PI) * (t.pull.fly ? 22 : 10) };
         if (t.pull.fly) {
           look = t.look + (Math.floor(this.clock * 7) % 2 ? '-flap' : '-fly');
           pose.aim = Math.atan2(t.cx - t.pull.fx, -(t.cy - t.pull.fy));
         }
       }
-      if (t.style === 'angel' && !t.cocoon && t.planted) look = t.look + '-kneel';
-      else if (t.style === 'angel' && !t.cocoon && !(t.pull && now < t.pull.end)) {
+      if (t.style === 'angel' && t.planted) look = t.look + '-kneel';
+      else if (t.style === 'angel' && !(t.pull && now < t.pull.end)) {
         const u = (this.clock * HOVER.rate + t.x * 0.37) % 1, seed = t.x * 1.7 + t.y * 2.3;
         spot.lift = HOVER.lift + HOVER.bob * Math.sin(u * Math.PI * 2);
         spot.x += SWORD.drift[0] * Math.sin(this.clock * 0.55 + seed);
         spot.y += SWORD.drift[1] * Math.sin(this.clock * 0.9 + seed * 1.3);
         look = t.look + '-w' + HOVER.frames[Math.floor(((u + 0.25) % 1) * 4)];
       }
-      else if (t.style === 'dragon' && !t.cocoon && battle.aloft(t) && !(t.pull && now < t.pull.end)) {
+      else if (t.style === 'dragon' && battle.aloft(t) && !(t.pull && now < t.pull.end)) {
         spot.lift = HOVER.lift + HOVER.bob * Math.sin((this.clock * HOVER.rate + t.x * 0.37) * Math.PI * 2);
         look = t.look + (Math.floor(this.clock * 4 + t.x) % 2 ? '-flap' : '-fly');
       }
@@ -3594,57 +3557,51 @@ export class Scene {
       else if (pose.song && this.clock < pose.song.until && Math.floor(this.clock * SPELLS.play) % 2) {
         look = t.look + '-strum';
       }
-      if (t.beam && !t.cocoon) look = t.look + '-beam';
+      if (t.beam) look = t.look + '-beam';
       pose.x = spot.x;
       pose.y = spot.y;
       pose.lift = spot.lift;
       pose.look = look;
-      if (t.rider && battle.covered(spot.x, spot.y)) continue;
       const x = at(spot.x), y = at(spot.y) - spot.lift;
       if (!still) {
-        if (!t.rider && !(t.pull && now < t.pull.end)) this._steer(t, pose);
+        if (!(t.pull && now < t.pull.end)) this._steer(t, pose);
         if (t.beam && !t.beam.mob.dead) pose.aim = Math.atan2(t.beam.mob.x - t.cx, -(t.beam.mob.y - t.cy));
         pose.angle = heavyGun(t) ? t.angle : turnToward(pose.angle, pose.aim, dt);
         this._release(t, pose);
         pose.kick = Math.max(0, pose.kick - dt);
         pose.flash = Math.max(0, pose.flash - dt);
       }
-      if (!spot.riding || spot.lift > 6) {
-        const aloft = t.style === 'angel' || t.style === 'dragon' && spot.lift > 0;
-        const hover = aloft ? 1 - (spot.lift - HOVER.lift) / (HOVER.bob * 6) : 1;
-        ctx.fillStyle = aloft ? 'rgba(0, 0, 0, .22)' : 'rgba(0, 0, 0, .32)';
-        ctx.beginPath();
-        ctx.ellipse(at(spot.x), at(spot.y) + 7, 12 * hover, 5 * hover, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      const aloft = t.style === 'angel' || t.style === 'dragon' && spot.lift > 0;
+      const hover = aloft ? 1 - (spot.lift - HOVER.lift) / (HOVER.bob * 6) : 1;
+      ctx.fillStyle = aloft ? 'rgba(0, 0, 0, .22)' : 'rgba(0, 0, 0, .32)';
+      ctx.beginPath();
+      ctx.ellipse(at(spot.x), at(spot.y) + 7, 12 * hover, 5 * hover, 0, 0, Math.PI * 2);
+      ctx.fill();
       if (lit) glow(ctx, x, y, 22, 'rgba(255, 255, 255, .9)', 0.5);
-      ctx.globalAlpha = t.busy > now && !t.perch && look === t.look ? 0.5 : 1;
+      ctx.globalAlpha = t.busy > now && look === t.look ? 0.5 : 1;
       const lift = pose.kick > 0 ? Math.round(pose.kick / KICK * 2) : 0;
-      if (t.cocoon) sprite(ctx, cocoonSprite(Math.floor(this.clock * 1.6 + t.x) % 2), x, y, 0, ZOOM, 0);
-      else {
-        const reload = t.reloadUntil > now && look === t.look ? Math.floor(this.clock * 5) % RELOAD_FRAMES : -1;
-        if (FINE_HEROES.test(look)) {
-          if (t.cls.id === 'priest') this._holyAura(ctx, t, x, y);
-          const facing = turnOf(pose.angle, HERO_TURN_STEPS) * Math.PI * 2 / HERO_TURN_STEPS;
-          const lunge = t.style === 'monk' && pose.staff && this.clock < pose.staff.until ? this._thrust(t) : -1;
-          const reach = lunge * STAFF_ROD.lunge * MODEL_UNIT * sizeOf(t.look);
-          const mx = lunge > 0 ? x + Math.sin(facing) * reach : x, my = lunge > 0 ? y - Math.cos(facing) * reach : y;
-          if (lunge >= 0) this._rod(ctx, t, mx, my + lift, facing, lunge);
-          smooth(ctx, heroSprite(look, -1), mx, my + lift, facing, ZOOM);
-          if (t.style === 'angel' && !t.planted) this._sword(ctx, t, x, y + lift, facing);
-        } else if (heavyGun(t)) smooth(ctx, heroSprite(look, reload), x, y + lift, pose.angle, ZOOM);
-        else sprite(ctx, heroSprite(look, reload), x, y, pose.angle, ZOOM, lift, HERO_TURN_STEPS);
-      }
-      if (t.cls.id === 'priest' && !t.cocoon && t.style !== 'monk' && t.style !== 'angel') this._holyTip(ctx, t);
-      if (t.cls.id === 'sorceress' && !t.cocoon) this._spellGlow(ctx, t);
+      const reload = t.reloadUntil > now && look === t.look ? Math.floor(this.clock * 5) % RELOAD_FRAMES : -1;
+      if (FINE_HEROES.test(look)) {
+        if (t.cls.id === 'priest') this._holyAura(ctx, t, x, y);
+        const facing = turnOf(pose.angle, HERO_TURN_STEPS) * Math.PI * 2 / HERO_TURN_STEPS;
+        const lunge = t.style === 'monk' && pose.staff && this.clock < pose.staff.until ? this._thrust(t) : -1;
+        const reach = lunge * STAFF_ROD.lunge * MODEL_UNIT * sizeOf(t.look);
+        const mx = lunge > 0 ? x + Math.sin(facing) * reach : x, my = lunge > 0 ? y - Math.cos(facing) * reach : y;
+        if (lunge >= 0) this._rod(ctx, t, mx, my + lift, facing, lunge);
+        smooth(ctx, heroSprite(look, -1), mx, my + lift, facing, ZOOM);
+        if (t.style === 'angel' && !t.planted) this._sword(ctx, t, x, y + lift, facing);
+      } else if (heavyGun(t)) smooth(ctx, heroSprite(look, reload), x, y + lift, pose.angle, ZOOM);
+      else sprite(ctx, heroSprite(look, reload), x, y, pose.angle, ZOOM, lift, HERO_TURN_STEPS);
+      if (t.cls.id === 'priest' && t.style !== 'monk' && t.style !== 'angel') this._holyTip(ctx, t);
+      if (t.cls.id === 'sorceress') this._spellGlow(ctx, t);
       if (t.style === 'angel' || t.style === 'inquisitor') this._halo(ctx, t, x, y);
-      if (pose.flash > 0 && !t.rider && !t.cocoon && t.cls.id !== 'priest' && t.cls.id !== 'sorceress') {
+      if (pose.flash > 0 && t.cls.id !== 'priest' && t.cls.id !== 'sorceress') {
         const tip = this._muzzle(t), fx = at(tip.x), fy = at(tip.y);
         glow(ctx, fx, fy, 7, 'rgba(255, 236, 160, .95)', 0.9);
         square(ctx, fx, fy, 3, '#ffffff');
       }
       ctx.globalAlpha = 1;
-      if (t.style === 'druid' && !t.cocoon) this._leafGlow(ctx, t);
+      if (t.style === 'druid') this._leafGlow(ctx, t);
       if (t.webUntil > now) this._webOn(ctx, x, y);
       if (t.stunUntil > now) stars(ctx, x, y - 16, 9, this.clock * 5);
       else if (t.napUntil > now) {
@@ -3743,13 +3700,11 @@ export class Scene {
     const taken = [];
     for (const t of battle.towers.slice().sort((a, b) => first(a) - first(b))) {
       const pose = this._pose(t);
-      if (t.rider && battle.covered(pose.x, pose.y)) continue;
       const marked = Boolean(highlight && highlight.has(t.player.login));
       const image = this._nameLabel(t, marked ? 'lit' : '');
       const w = image.width / this.k, h = image.height / this.k;
-      const riding = t.rider && t.host && !t.host.dead;
       const x = Math.max(1, Math.min(BOARD - w - 1, at(pose.x) - w / 2));
-      let y = at(pose.y) - (pose.lift || 0) + (riding ? 31 : -23) - (marked ? 2 : 0);
+      let y = at(pose.y) - (pose.lift || 0) - 23 - (marked ? 2 : 0);
       if (y - h / 2 < EDGE) y = at(pose.y) + 31;
       const box = [x - 1, y - h / 2, x + w + 1, y + h / 2];
       if (taken.some((o) => box[0] < o[2] && o[0] < box[2] && box[1] < o[3] && o[1] < box[3])) continue;
@@ -3908,11 +3863,6 @@ export class Scene {
     const add = (effect) => this.effects.push(Object.assign({ t: 0 }, effect));
     const t = event.tower;
     if (event.kind === 'shot') {
-      if (t.rider) {
-        this._pose(t).kick = KICK;
-        this._sparks(event.x, event.y, ['#f5b8ff', '#d946ef', '#701a75'], event.crit ? 6 : 3, 1.3, 0.25);
-        return;
-      }
       const away = event.sx !== undefined;
       let bolt = STYLE_BOLTS[t.style] || BOLTS[t.cls.id] || { look: 'dot', color: t.cls.color, size: 2 };
       if (event.size) bolt = Object.assign({}, bolt, { size: event.size });
@@ -4149,24 +4099,6 @@ export class Scene {
       add({ kind: 'chain', life: 0.3, points: [[tip.x, tip.y], [event.mob.x, event.mob.y]],
         color: 'rgba(214, 180, 120, .7)' });
       this._sparks(event.mob.x, event.mob.y, ['#d6b478', '#8a6a3c'], 8, 1.6, 0.4, 2);
-    } else if (event.kind === 'cocoon') {
-      add({ kind: 'text', life: 1.6, x: t.cx, y: t.cy - 0.7, text: '+' + event.coins, color: '#fde047' });
-      this._sparks(t.cx, t.cy, ['#facc15', '#fff7c2'], 6, 1.4, 0.5, 2);
-    } else if (event.kind === 'hatch') {
-      add({ kind: 'ring', life: 0.6, x: t.cx, y: t.cy, r: 1, color: '#e879f9', width: 3 });
-      this._sparks(t.cx, t.cy, ['#ece0ef', '#f5d0fe', '#d946ef', '#86198f'], 22, 2.6, 0.6, 3);
-    } else if (event.kind === 'heist') {
-      const victim = this._pose(event.victim);
-      add({ kind: 'text', life: 2, x: victim.x, y: victim.y - 0.8, text: '−' + event.coins, color: '#f87171' });
-      add({ kind: 'ring', life: 0.6, x: victim.x, y: victim.y, r: 0.8, color: '#e879f9', width: 2 });
-      this._sparks(victim.x, victim.y, ['#facc15', '#fff7c2', '#d946ef'], 12, 2, 0.6, 2);
-    } else if (event.kind === 'share') {
-      for (const share of event.shares) {
-        if (share.coins <= 0) continue;
-        const pose = this._pose(share.tower);
-        add({ kind: 'text', life: 1.8, x: pose.x, y: pose.y - 0.7, text: '+' + share.coins, color: '#fde047' });
-        this._sparks(pose.x, pose.y, ['#facc15', '#fff7c2'], 5, 1.4, 0.5, 2);
-      }
     } else if (event.kind === 'execute') {
       const spot = this.shown.get(event.mob.id) || event.mob;
       this._sparks(spot.x, spot.y, ['#ffffff', '#ef4444', '#7a1f1f'], 10, 2, 0.45, 2);
@@ -4210,8 +4142,6 @@ export class Scene {
     } else if (event.kind === 'power') {
       const mob = event.mob;
       add({ kind: 'ring', life: 0.5, x: mob.x, y: mob.y, r: 1, color: mob.kind ? mob.kind.glow : '#e879f9', width: 2 });
-    } else if (event.kind === 'leap') {
-      this._pose(t).leap = { x: event.x, y: event.y, until: t.leapUntil, time: t.cls.base.leap };
     } else if (event.kind === 'wall') {
       this._sparks(event.x, event.y, ['#c4b8a6', '#9a8f80', '#6b6258'], 8, 1.6, 0.45, 2);
       add({ kind: 'ring', life: 0.45, x: event.x, y: event.y, r: 0.9, color: '#c4b8a6', width: 2 });

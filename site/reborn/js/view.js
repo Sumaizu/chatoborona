@@ -37,9 +37,9 @@ const SOUND_PRIORITY = ['over', 'divine', 'relic', 'win', 'boss', 'wave', 'jackp
   'meh', 'void', 'level',
   'buff', 'debuff', 'spin', 'leak', 'card', 'tick'];
 const SFX_PER_FRAME = 4;
-const SHOTS = { sniper: 'crack', mechanic: 'gun', forester: 'bolt', parasite: 'bite',
+const SHOTS = { sniper: 'crack', mechanic: 'gun', forester: 'bolt',
   priest: 'holy', sorceress: 'cast' };
-const BATTLE_SOUNDS = { chord: 'lute', drum: 'drum', totem: 'build', conjure: 'cast', strike: 'hit', wall: 'build', crumble: 'crumble', leap: 'leap',
+const BATTLE_SOUNDS = { chord: 'lute', drum: 'drum', totem: 'build', conjure: 'cast', strike: 'hit', wall: 'build', crumble: 'crumble',
   bite: 'chomp', nova: 'ice',
   spikes: 'rock', whirl: 'wind', clink: 'clink', treasure: 'treasure', rattle: 'rattle', rise: 'rise',
   hex: 'hex', blink: 'leap', burrow: 'burrow', leech: 'summon', steal: 'clink', loot: 'treasure', reflect: 'block',
@@ -48,8 +48,8 @@ const BATTLE_SOUNDS = { chord: 'lute', drum: 'drum', totem: 'build', conjure: 'c
   rocket: 'launch', mortar: 'launch', peck: 'hit', emp: 'zap', steel: 'block', airburst: 'boom', flash: 'flash',
   ignite: 'ignite', oil: 'splash',
   oilfire: 'flame', net: 'snap', snare: 'snap', trap: 'snap', hail: 'wind', blob: 'splash', absorb: 'summon',
-  trophy: 'clink', cauldron: 'splash', cocoon: 'clink',
-  hatch: 'hatch', heist: 'jackpot', share: 'treasure', shatter: 'freeze', snow: 'snow', gust: 'wind',
+  trophy: 'clink', cauldron: 'splash',
+  shatter: 'freeze', snow: 'snow', gust: 'wind',
   wind: 'wind',
   heal: 'heal', lastStand: 'rise', judgement: 'divine', holyRing: 'holy', warded: 'block', aegis: 'block',
   thorns: 'rock' };
@@ -1158,9 +1158,7 @@ export class View {
       node.className = 'note tip';
       const cls = CLASS_BY_ID.get(detail.cls);
       if (detail.tip === 'hello') {
-        const role = cls.rider ? ': первые ' + cls.base.cocoon + ' волн — кокон, потом грызёшь мобов сам. '
-          : ': бьёшь мобов сам. ';
-        node.append(nick, ', ты — ', el('b', '', cls.name), role, 'Накопишь ' + PRICE + ' монет — пиши ',
+        node.append(nick, ', ты — ', el('b', '', cls.name), ': бьёшь мобов сам. Накопишь ' + PRICE + ' монет — пиши ',
           el('b', '', 'гача'));
       } else if (detail.tip === 'spin') {
         node.append(nick, ': у тебя уже ' + PRICE + ' монет — пиши ', el('b', '', 'гача'), ', выпадет оружие');
@@ -1216,9 +1214,8 @@ export class View {
         const brief = Boolean(note && note.detail && note.detail.brief) || this._squeezed === m.login;
         const tower = m.tower;
         node.classList.toggle('brief', brief);
-        const rider = Boolean(tower && tower.rider), seat = rider ? tower.host : tower;
-        spot.hidden = !seat;
-        spotText.textContent = seat ? cellName(Math.floor(seat.x), Math.floor(seat.y)) : '';
+        spot.hidden = !tower;
+        spotText.textContent = tower ? cellName(tower.x, tower.y) : '';
         kills.hidden = helps.hidden = !tower;
         killText.textContent = tower ? String(tower.run.kills) : '';
         helpText.textContent = tower ? String(tower.run.assists) : '';

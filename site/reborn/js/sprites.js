@@ -1,6 +1,6 @@
 import { HERO, HERO_IDS, drawHero, drawPhoenix } from './models.js';
 import { MOB_IDS, drawMelt, drawMob, drawSplit, gooColor } from './monsters.js';
-import { drawCauldron, drawClod, drawCocoon, drawBird, drawHawk, drawSnare, drawTrap, drawCoinIcon, drawDrone, drawEmblem, drawFireball, drawGrenade, drawHeart,
+import { drawCauldron, drawClod, drawBird, drawHawk, drawSnare, drawTrap, drawCoinIcon, drawDrone, drawEmblem, drawFireball, drawGrenade, drawHeart,
   drawMeteor, drawMound, drawNuke, drawVent, drawRocket, drawWall } from './props.js';
 
 const OUTLINE = '#15111d';
@@ -322,7 +322,6 @@ export const fireballSprite = (tone, frame = 0) => remember('fireball:' + tone +
   () => drawFireball(tone, frame % FIREBALL_FRAMES));
 export const rocketSprite = () => remember('rocket', () => drawRocket());
 export const meteorSprite = () => remember('meteor', () => drawMeteor());
-export const cocoonSprite = (frame) => remember('cocoon:' + frame, () => drawCocoon(frame));
 
 export const bulletSprite = () => remember('bullet', () => mapSprite([
   '.C.',

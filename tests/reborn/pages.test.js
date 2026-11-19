@@ -490,25 +490,6 @@ test('страницы: парагон — церемония перед ито�
   fresh();
 });
 
-test('страницы: паразит, раз оказавшись в горе, снова виден, когда вышел', async () => {
-  fresh();
-  const frame = await overlay('lobby=10&first_wave=5');
-  const w = frame.contentWindow, game = w.chatoborona.game, scene = w.chatoborona.view.scene;
-  await until(() => game.state === 'lobby', 'набор');
-  join(game, 'Аня');
-  game.next();
-  await until(() => game.state === 'placing', 'расстановка');
-  const battle = game.battle, rock = battle.solid.indexOf(1);
-  ok(rock >= 0, 'на карте есть горы');
-  const bug = battle.placeRider(game.members.get('аня'), 'parasite');
-  await until(() => scene.poses.has(bug), 'паразит на поле');
-  no(battle.covered(bug.cx, bug.cy), 'ждёт на свету');
-  Object.assign(scene.poses.get(bug), { x: rock % SIZE + 0.5, y: Math.floor(rock / SIZE) + 0.5 });
-  await until(() => !battle.covered(scene.poses.get(bug).x, scene.poses.get(bug).y), 'вышел из горы');
-  eq([scene.poses.get(bug).x, scene.poses.get(bug).y], [bug.cx, bug.cy]);
-  frame.remove();
-});
-
 test('страницы: плашка уровня в отряде — цвета оружия, без оружия белая', async () => {
   fresh();
   const frame = await overlay('lobby=10&first_wave=5');

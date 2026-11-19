@@ -35,7 +35,7 @@ export const DIVINE = { id: 'divine', name: 'Божественный', her: 'Б
 
 export const BOONS = [
   { id: 'rapid', name: 'Скорострельность', text: 'атака на 15% чаще', mods: { rate: 0.15 } },
-  { id: 'long', name: 'Дальнобойность', text: '+0,5 клетки дальности', mods: { range: 0.5 }, skip: ['parasite'] },
+  { id: 'long', name: 'Дальнобойность', text: '+0,5 клетки дальности', mods: { range: 0.5 } },
   { id: 'keen', name: 'Меткость', text: '+10% шанса крита', mods: { crit: 0.1 } },
   { id: 'swift', name: 'Быстрота', text: 'способности на 15% чаще', mods: { haste: 0.15 } },
   { id: 'rich', name: 'Щедрость', text: '+15% монет', mods: { coins: 0.15 } },
@@ -58,8 +58,7 @@ export function makeWeapon(random, cls, rarity = pick(RARITIES, random)) {
   const owner = CLASS_BY_ID.has(cls) ? cls : CLASSES[0].id;
   const weapon = { rarity: rarity.id, cls: owner, power, plus: 0 };
   if (rarity.id === 'legendary') {
-    const boons = BOONS.filter((boon) => !(boon.skip && boon.skip.includes(owner)));
-    weapon.boon = boons[Math.floor(random() * boons.length)].id;
+    weapon.boon = BOONS[Math.floor(random() * BOONS.length)].id;
   }
   return weapon;
 }
