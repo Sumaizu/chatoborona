@@ -124,7 +124,8 @@ const SHOCK = { grow: 0.3, tail: 0.18, zoom: 2, bands: [[0.3, 1, 0.12], [0.15, 0
 const ZAP = { glow: '96, 165, 250', mid: '191, 219, 254', core: '255, 255, 255', jag: 0.42, steps: 11 };
 const RAIJU_FX = { rgb: '125, 211, 252', core: '240, 249, 255', reach: 1.5, every: 0.9 };
 const ROD = { tall: 26, coil: 5, bolts: 7 };
-const CLAW = { cut: 0.12, lag: 0.035, thick: 3.2, side: 0.72 };
+const CLAW = { cut: 0.12, lag: 0.035, thick: 3.2, side: 0.72, layers: 6 };
+const STAFF_ZAP = { rate: 14, bolts: 3, long: 11, lit: 0.7 };
 const STORM_FX = { strike: 0.25, swipe: 0.25, throw: 0.18, catch: 0.22, spin: 16 };
 const BEAM = { core: 2.6, mid: 6, outer: 12, twist: 0.11, spin: 7, coil: 5.5, flare: 11 };
 const VENOM = { toxic: 'rgba(132, 204, 22, .9)', plague: 'rgba(91, 33, 182, .9)' };
@@ -1596,14 +1597,17 @@ export class Scene {
     ctx.globalCompositeOperation = 'lighter';
     const sweep = ctx.createRadialGradient(x, y, r * 0.3, x, y, r);
     sweep.addColorStop(0, 'rgba(' + RAIJU_FX.rgb + ', 0)');
-    sweep.addColorStop(0.75, 'rgba(' + RAIJU_FX.rgb + ', ' + 0.16 * fade + ')');
+    sweep.addColorStop(0.7, 'rgba(' + RAIJU_FX.rgb + ', ' + 0.035 * fade + ')');
     sweep.addColorStop(1, 'rgba(' + RAIJU_FX.rgb + ', 0)');
     ctx.fillStyle = sweep;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.arc(x, y, r, e.angle - e.arc, e.angle + e.arc);
-    ctx.closePath();
-    ctx.fill();
+    for (let k = 0; k < CLAW.layers; k++) {
+      const arc = e.arc * 1.15 * (1 - k / CLAW.layers);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.arc(x, y, r, e.angle - arc, e.angle + arc);
+      ctx.closePath();
+      ctx.fill();
+    }
     for (let n = 0; n < 3; n++) {
       const p = Math.max(0, Math.min(1, (t - n * CLAW.lag) / CLAW.cut));
       if (p <= 0) continue;
@@ -1623,9 +1627,11 @@ export class Scene {
         }
         ctx.closePath();
       };
-      ctx.fillStyle = 'rgba(' + RAIJU_FX.rgb + ', ' + 0.35 * fade + ')';
-      blade(thick * 2.2);
-      ctx.fill();
+      ctx.fillStyle = 'rgba(' + RAIJU_FX.rgb + ', ' + 0.12 * fade + ')';
+      for (const w of [3, 2.3, 1.6]) {
+        blade(thick * w);
+        ctx.fill();
+      }
       ctx.fillStyle = 'rgba(' + RAIJU_FX.rgb + ', ' + 0.8 * fade + ')';
       blade(thick);
       ctx.fill();
@@ -1635,6 +1641,21 @@ export class Scene {
       const tip = from + span, tx = x + Math.cos(tip) * d, ty = y + Math.sin(tip) * d;
       glow(ctx, tx, ty, 6, 'rgba(' + RAIJU_FX.rgb + ', 1)', 0.8 * fade);
       if (p < 1) this._zap(ctx, tx, ty, tx + Math.cos(tip + 1.2) * 8, ty + Math.sin(tip + 1.2) * 8, 0.6, fade, n * 7 + e.x);
+    }
+    ctx.restore();
+  }
+
+  _staffZap(ctx, t) {
+    const tip = this._muzzle(t), x = at(tip.x), y = at(tip.y), seed = t.x * 7 + t.y * 13;
+    const tick = Math.floor(this.clock * STAFF_ZAP.rate) + seed, flick = 0.6 + 0.4 * noise(tick, 3);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    glow(ctx, x, y, 9 + 3 * flick, 'rgba(' + ZAP.glow + ', 1)', 0.35 * flick);
+    glow(ctx, x, y, 3.5, 'rgba(' + ZAP.core + ', 1)', 0.8 * flick);
+    for (let i = 0; i < STAFF_ZAP.bolts; i++) {
+      if (noise(tick, i + 7) > STAFF_ZAP.lit) continue;
+      const a = noise(tick + i * 31, 11) * Math.PI * 2, long = STAFF_ZAP.long * (0.6 + 0.6 * noise(tick + i, 5));
+      this._zap(ctx, x, y, x + Math.cos(a) * long, y + Math.sin(a) * long, 0.55, flick, seed + i * 5);
     }
     ctx.restore();
   }
@@ -3834,6 +3855,7 @@ export class Scene {
       else sprite(ctx, heroSprite(look, reload), x, y, pose.angle, ZOOM, lift, HERO_TURN_STEPS);
       if (t.cls.id === 'priest' && t.style !== 'monk' && t.style !== 'angel') this._holyTip(ctx, t);
       if (t.cls.id === 'sorceress') this._spellGlow(ctx, t);
+      if (t.style === 'caller') this._staffZap(ctx, t);
       if (t.style === 'angel' || t.style === 'inquisitor') this._halo(ctx, t, x, y);
       if (pose.flash > 0 && t.cls.id !== 'priest' && t.cls.id !== 'sorceress') {
         const tip = this._muzzle(t), fx = at(tip.x), fy = at(tip.y);
