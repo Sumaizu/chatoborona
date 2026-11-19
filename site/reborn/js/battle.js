@@ -114,7 +114,7 @@ export const ARCANE = { control: { count: 3, mul: 1.25, spread: 0.6 }, splash: 1
 const MARKED = new Set(['fire', 'poison', 'earth', 'lightning']);
 export const STORM = { orb: 5, caller: { reach: 3.5, interval: 1, mul: 1.2 }, raiju: { reach: 2, interval: 1.2, mul: 1.1, arc: 1.3 },
   thor: { reach: 4, interval: 1.6, mul: 1.8, out: 0.55, back: 0.55, bend: 0.35, touch: 0.6, steps: 10 },
-  frenzy: { time: 3, haste: 2 }, spark: { mul: 4, reach: 3 },
+  frenzy: { time: 3, haste: 2 }, spark: { mul: 4, reach: 2 },
   rod: { chance: 0.02, radius: 3, wave: 5, link: 3, time: 1, touch: 0.5, spot: [0.84, 0.3] } };
 export const SONG = { every: 15, time: 3, back: 1, dirge: 0.5, anthem: 0.3, ultrasound: 0.2 };
 export const TOTEMS = { totemSlow: 'slow', totemPurge: 'purge', totemPower: 'power' };

@@ -123,8 +123,8 @@ const ROAD_AURA = { zoom: 2, motes: 5, reach: 1.12 };
 const SHOCK = { grow: 0.3, tail: 0.18, zoom: 2, bands: [[0.3, 1, 0.12], [0.15, 0.55, 0.2], [0.05, 0.22, 0.5]] };
 const ZAP = { glow: '96, 165, 250', mid: '191, 219, 254', core: '255, 255, 255', jag: 0.42, steps: 11 };
 const RAIJU_FX = { rgb: '125, 211, 252', core: '240, 249, 255', reach: 1.5, every: 0.9 };
-const ROD = { tall: 26, coil: 5 };
-const CLAW = { cut: 0.12, lag: 0.035, thick: 3.2 };
+const ROD = { tall: 26, coil: 5, bolts: 7 };
+const CLAW = { cut: 0.12, lag: 0.035, thick: 3.2, side: 0.72 };
 const STORM_FX = { strike: 0.25, swipe: 0.25, throw: 0.18, catch: 0.22, spin: 16 };
 const BEAM = { core: 2.6, mid: 6, outer: 12, twist: 0.11, spin: 7, coil: 5.5, flare: 11 };
 const VENOM = { toxic: 'rgba(132, 204, 22, .9)', plague: 'rgba(91, 33, 182, .9)' };
@@ -162,7 +162,7 @@ const SPELLS = { wave: 7, chord: '94, 234, 212', shock: '251, 191, 36', lute: 'r
   notes: { siren: '#f9a8d4', dirge: '#dc2626', anthem: '#fde68a' } };
 const HOLY_LIGHT = { core: 'rgba(255, 251, 230, 1)', warm: 'rgba(253, 224, 120, 1)', ray: 'rgba(255, 244, 200, ',
   motes: 5, wave: 4 };
-const HOVER = { lift: 4, bob: 1.5, rate: 1.2, frames: [2, 1, 0, 1] };
+const HOVER = { lift: 4, bob: 1.5, rate: 1.2, frames: [2, 1, 0, 1], shadow: 0.45 };
 const MANTRA_LOOKS = { mantraSpeed: '251, 146, 60', mantraPower: '239, 68, 68', mantraRange: '244, 114, 182' };
 const STAFF_ROD = { rear: [21.4, 18.6], wide: 1.4, cap: 3.2, reach: 0.4, back: 0.3, lunge: 2.2 };
 const HOLY_BLADE = ['#8a6410', '#e0b43a', '#fffbe6', '#f5d77a', '#8a6410'];
@@ -1607,7 +1607,8 @@ export class Scene {
     for (let n = 0; n < 3; n++) {
       const p = Math.max(0, Math.min(1, (t - n * CLAW.lag) / CLAW.cut));
       if (p <= 0) continue;
-      const d = r * (0.5 + n * 0.14), from = e.angle - e.arc * 0.92, span = e.arc * 1.84 * p, thick = CLAW.thick * (1 - n * 0.15);
+      const part = n === 1 ? 1 : CLAW.side, d = r * (0.5 + n * 0.14), from = e.angle - e.arc * 0.92 * part;
+      const span = e.arc * 1.84 * part * p, thick = CLAW.thick * (n === 1 ? 1.1 : 0.85);
       const blade = (w) => {
         ctx.beginPath();
         for (let k = 0; k <= 16; k++) {
@@ -3809,7 +3810,7 @@ export class Scene {
         pose.flash = Math.max(0, pose.flash - dt);
       }
       const aloft = t.style === 'angel' || t.style === 'dragon' && spot.lift > 0;
-      const hover = aloft ? 1 - (spot.lift - HOVER.lift) / (HOVER.bob * 6) : 1;
+      const hover = aloft ? Math.max(HOVER.shadow, 1 - Math.max(0, spot.lift - HOVER.lift) / (HOVER.bob * 6)) : 1;
       ctx.fillStyle = aloft ? 'rgba(0, 0, 0, .22)' : 'rgba(0, 0, 0, .32)';
       ctx.beginPath();
       ctx.ellipse(at(spot.x), at(spot.y) + 7, 12 * hover, 5 * hover, 0, 0, Math.PI * 2);
@@ -4248,8 +4249,14 @@ export class Scene {
       if (event.ground) this._sparks(event.x, event.y, ['#bfdbfe', '#ffffff', '#fde047'], 10, 2.2, 0.35);
       add({ kind: 'glare', life: 0.25 });
     } else if (event.kind === 'surge') {
-      add({ kind: 'shock', life: SHOCK.grow + SHOCK.tail, centers: [{ x: event.x, y: event.y }], radius: event.radius,
-        seed: Math.random() * 6, rgb: RAIJU_FX.rgb });
+      const turn = Math.random() * Math.PI * 2, top = event.y - (ROD.tall - 2) / CELL;
+      for (let i = 0; i < ROD.bolts; i++) {
+        const a = turn + i * Math.PI * 2 / ROD.bolts + (Math.random() - 0.5) * 0.5, d = event.radius * (0.75 + Math.random() * 0.25);
+        const x2 = event.x + Math.cos(a) * d, y2 = event.y + Math.sin(a) * d;
+        add({ kind: 'zap', life: 0.3 + Math.random() * 0.1, x1: event.x, y1: top, x2, y2, width: 2.4, seed: i * 5 });
+        this._sparks(x2, y2, ['#bfdbfe', '#ffffff'], 3, 1.4, 0.3);
+      }
+      add({ kind: 'ring', life: 0.3, x: event.x, y: event.y, r: 0.6, color: '#bfdbfe', width: 2 });
     } else if (event.kind === 'links') {
       add({ kind: 'links', life: event.time, pairs: event.pairs });
     } else if (event.kind === 'boom') {

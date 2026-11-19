@@ -353,13 +353,23 @@ function tuft(m, x, y, z, a, long, r, color) {
 
 function raiju(m, swipe = false) {
   const c = RAIJU;
-  const tail = [[17.4, 25.6, 6.4], [19.6, 27.2, 7.4], [21.4, 27.8, 8.4], [22.6, 27, 9.2], [23, 25.6, 9.8]];
-  tail.forEach(([x, y, z], i) => {
-    m.ball(x, y, z, 2.1 - i * 0.18, i > 2 ? c.light : c.fur, 0.3);
-    for (const side of [-1, 1]) tuft(m, x, y, z, Math.PI * 0.5 + side * 1.1 + i * 0.35, 1.8, 0.6, c.light);
-  });
-  m.ball(23.1, 24.6, 10.2, 1.2, c.spike, 1);
-  m.ball(23.2, 24.2, 10.9, 0.55, c.glint, 1);
+  const tail = [];
+  for (let k = 0; k <= 10; k++) {
+    const f = k / 10;
+    tail.push([16 + Math.pow(f, 1.4) * 5.2, 25.6 + Math.sin(f * 1.4) * 6.6, 5.4 - f * 1.2,
+      0.55 + 0.95 * Math.sin(Math.min(1, f * 1.2) * Math.PI)]);
+  }
+  for (let k = 0; k < tail.length - 1; k++) {
+    const [x, y, z, r] = tail[k], [nx, ny, nz, nr] = tail[k + 1];
+    m.limb(x, y, z, nx, ny, nz, r, k > 7 ? c.light : c.fur, 0.3, nr);
+    for (const side of [-1, 1]) {
+      tuft(m, x + side * r * 0.5, y, z + 0.3, Math.PI * 0.5 + side * 0.55, 1.2 + r * 0.5, 0.45, k % 2 ? c.light : c.fur);
+    }
+    if (k > 1) m.limb(x, y, z + r * 0.7, nx, ny, nz + nr * 0.7, 0.3, c.shade, 0.1, 0.25);
+  }
+  const [tx, ty, tz] = tail[tail.length - 1];
+  for (const t of [-0.5, 0, 0.5]) m.limb(tx, ty - 0.4, tz, tx + t, ty + 1.4, tz - 0.3, 0.55, c.belly, 0.2, 0.12);
+  m.ball(tx, ty + 0.4, tz + 0.5, 0.45, c.spike, 1);
   for (const side of [-1, 1]) {
     m.egg(16 + side * 2.7, 24.2, 4.4, 1.3, 2.4, 2, c.fur, 0.3);
     m.egg(16 + side * 2.9, 27.2, 0.9, 0.9, 1, 0.7, c.shade, 0.3);
@@ -445,12 +455,11 @@ function hammer(q, x, y) {
 }
 
 function cape(m, c) {
-  const top = 16.6, strips = 12, rows = 5;
-  const left = (y) => 13.9 - 1.1 * Math.pow(Math.max(0, (y - top) / 10), 0.8);
-  const right = (y) => 18.1 + 1.1 * Math.pow(Math.max(0, (y - top) / 10), 0.8);
-  const hem = (u) => 25.8 + 0.5 * Math.sin(u * Math.PI * 4.2 + 0.4) - 0.5 * Math.pow(u - 0.5, 2) * 4;
+  const top = 16.2, strips = 12, rows = 5, back = 25.8;
+  const left = (y) => 12.8 - 0.5 * Math.max(0, (y - top) / (back - top));
+  const right = (y) => 19.2 + 0.5 * Math.max(0, (y - top) / (back - top));
+  const hem = (u) => back + 0.35 * Math.sin(u * Math.PI * 4.2 + 0.4) - 0.4 * Math.pow(u - 0.5, 2) * 4;
   const at = (u, y) => left(y) + u * (right(y) - left(y));
-  m.egg(16, 17.2, 5.2, 2.6, 1.3, 1.1, c.cape, 0.2);
   for (let i = 0; i < strips; i++) {
     const u0 = i / strips, u1 = (i + 1) / strips, mid = (u0 + u1) / 2, fold = Math.sin(mid * Math.PI * 4.2);
     const pts = [];
@@ -463,33 +472,38 @@ function cape(m, c) {
       pts.push([at(u1, y), y]);
     }
     const tone = fold > 0.35 ? c.cape : fold < -0.35 ? c.capeDark : '#871515';
-    m.sheet(pts, 3 + fold * 0.35, tone, [Math.sin((mid - 0.5) * Math.PI) * 0.5 + fold * 0.45, 0.3, 1]);
+    m.sheet(pts, 4.6 - (pts[0][1] - top) * 0, tone, [Math.sin((mid - 0.5) * Math.PI) * 0.5 + fold * 0.45, 0.75, 1]);
   }
 }
 
 function thor(m, pose = '') {
   const c = THOR;
   cape(m, c);
-  m.egg(16, 18.6, 6, 2.4, 3.2, 2.2, c.steel, 0.4);
-  m.limb(16, 16, 8, 16, 21, 7.4, 0.32, c.dark, 0.3);
-  for (const [x, y] of [[15, 17.8], [17, 17.8], [15.1, 19.7], [16.9, 19.7]]) m.ball(x, y, 8, 0.34, c.plate, 0.9);
+  m.egg(16, 18.6, 6.4, 3.4, 3.6, 2.6, c.steel, 0.4);
+  m.egg(16, 18.2, 7.6, 2.4, 2.4, 1.8, '#5b6574', 0.5);
+  m.limb(16, 15.8, 8.8, 16, 21.2, 7.8, 0.38, c.dark, 0.3);
+  for (const [x, y] of [[14.6, 17.6], [17.4, 17.6], [14.8, 19.8], [17.2, 19.8]]) m.ball(x, y, 8.6, 0.42, c.plate, 0.9);
+  m.limb(12.9, 21.6, 7, 19.1, 21.6, 7, 0.5, '#3a2416', 0.3);
+  m.ball(16, 21.6, 7.4, 0.55, '#d4a017', 1);
   for (const side of [-1, 1]) {
+    m.egg(16 + side * 2.9, 16.4, 5.8, 1.5, 1, 0.8, c.capeDark, 0.2);
+    m.ball(16 + side * 2.6, 16.2, 9, 0.5, '#d4a017', 1);
     for (let k = 0; k < 3; k++) {
-      m.limb(16 + side * (1.6 + k * 0.12), 15.8 + k * 0.9, 8.4 - k * 0.3, 16 + side * (3 + k * 0.08), 16.4 + k * 1,
-        8 - k * 0.3, 0.45 - k * 0.08, k % 2 ? c.steel : c.plate, 0.9, 0.32);
+      m.limb(16 + side * (2 + k * 0.15), 15.6 + k * 1, 9 - k * 0.3, 16 + side * (4 + k * 0.1), 16.3 + k * 1.1,
+        8.6 - k * 0.3, 0.6 - k * 0.1, k % 2 ? c.steel : c.plate, 0.9, 0.42);
     }
   }
-  m.limb(13.2, 16.9, 7.8, 12.9, 20.6, 7.4, 0.55, c.steel, 0.4, 0.48);
-  m.ball(12.8, 21, 7.6, 0.58, SKIN);
-  const hand = pose === 'throw' ? [19, 10.6] : pose === 'empty' ? [19.2, 20.4] : pose === 'catch' ? [19.4, 12.2] : [19.8, 17.4];
-  m.limb(18.8, 16.9, 7.8, hand[0], hand[1] + 0.4, 8.8, 0.55, c.steel, 0.4, 0.48);
+  m.limb(12.2, 16.8, 7.8, 11.7, 20.8, 7.4, 0.72, c.steel, 0.4, 0.62);
+  m.ball(11.6, 21.2, 7.6, 0.68, SKIN);
+  const hand = pose === 'throw' ? [19.8, 10.4] : pose === 'empty' ? [20.2, 20.4] : pose === 'catch' ? [20.4, 12.2] : [20.8, 17.4];
+  m.limb(19.8, 16.8, 7.8, hand[0], hand[1] + 0.4, 8.8, 0.72, c.steel, 0.4, 0.62);
   if (pose !== 'throw' && pose !== 'empty') hammer(m, hand[0], hand[1] - 4.4);
-  m.ball(hand[0], hand[1], 11.4, 0.6, SKIN);
-  m.egg(16, 13.8, 10.4, 1, 0.7, 0.7, SKIN);
-  m.egg(16, 15.4, 11, 1.8, 2, 1.8, c.hair, 0.3);
+  m.ball(hand[0], hand[1], 11.4, 0.7, SKIN);
+  m.egg(16, 13.7, 10.8, 1.2, 0.8, 0.8, SKIN);
+  m.egg(16, 15.4, 11.4, 2.1, 2.2, 1.9, c.hair, 0.3);
   for (let k = -3; k <= 3; k++) {
-    m.limb(16 + k * 0.36, 14.5, 12.4 - Math.abs(k) * 0.35, 16 + k * 0.55, 18.8 + Math.abs(k) * 0.2, 8.8, 0.34,
-      k % 2 ? c.hair : c.hairDark, 0.3, 0.22);
+    m.limb(16 + k * 0.42, 14.4, 12.8 - Math.abs(k) * 0.35, 16 + k * 0.65, 19 + Math.abs(k) * 0.2, 9.2, 0.4,
+      k % 2 ? c.hair : c.hairDark, 0.3, 0.26);
   }
 }
 
@@ -1648,7 +1662,7 @@ export const MUZZLES = {
   sorceress: [[20.6, 8.6]], 'sorceress-ragged': [[20.6, 8.6]], 'sorceress-minstrel': [[19.4, 14]],
   'sorceress-enchantress': [[20.4, 8.6]], 'sorceress-enchantress-beam': [[16, 8.4]], 'sorceress-shamaness': [[10.8, 13.2]],
   frost: STAFF, earth: STAFF, shaman: STAFF, thunder: PALM, 'thunder-ragged': PALM, 'thunder-caller': STAFF,
-  'thunder-caller-strike': [[12.5, 0.4]], 'thunder-raiju': [[16, 3.6]], 'thunder-thor': [[19.8, 13]],
+  'thunder-caller-strike': [[12.5, 0.4]], 'thunder-raiju': [[16, 3.6]], 'thunder-thor': [[20.8, 13]],
 };
 
 export const RELOAD_FRAMES = RELOAD.frames;
@@ -1659,7 +1673,7 @@ export const HERO = { scale: 1.3, center: [16, 18] };
 const BODIES = [[/^priest-angel/, ANGEL_BODY], [/^priest-(monk|inquisitor)/, 1.25], [/^priest/, 1.08],
   [/^sorceress-shamaness/, 1.2], [/^sorceress/, 1.35], [/^forester(-ragged)?$|^forester-hunter/, 1.2],
   [/^mechanic-(turret|mortar)$/, 1.3], [/^mechanic-demo/, 1.2], [/^mechanic-turret-giant/, 1.1], [/^sniper-marksman/, 1.2],
-  [/^thunder-raiju/, 1.05], [/^thunder-thor/, 1.55]];
+  [/^thunder-raiju/, 1.05], [/^thunder-thor/, 1.7]];
 export const sizeOf = (id) => {
   const body = BODIES.find(([kind]) => kind.test(id));
   return body ? body[1] : 1;

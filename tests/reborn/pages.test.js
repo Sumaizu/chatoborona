@@ -290,6 +290,28 @@ test('страницы: страницы отряда из одних спящи
   frame.remove();
 });
 
+test('страницы: дракон перелетает на клетку — поле рисуется дальше без ошибок', async () => {
+  fresh();
+  const frame = await overlay('lobby=10&first_wave=5');
+  const w = frame.contentWindow, game = w.chatoborona.game, scene = w.chatoborona.view.scene;
+  await until(() => game.state === 'lobby', 'набор');
+  join(game, 'Аня');
+  game.members.get('аня').cls = 'pyro';
+  game.next();
+  await until(() => game.state === 'placing', 'расстановка');
+  const m = game.members.get('аня');
+  m.skills = ['dragon', 'flight'];
+  game._refresh(m);
+  const t = m.tower, battle = game.battle;
+  const errors = [];
+  w.addEventListener('error', (e) => errors.push(String(e.message)));
+  t.pull = { fx: t.cx - 3, fy: t.cy, start: battle.time, end: battle.time + 2, fly: true };
+  const clock = scene.clock;
+  await until(() => scene.clock > clock + 0.5, 'кадры идут');
+  eq(errors, [], 'без ошибок отрисовки');
+  frame.remove();
+});
+
 test('страницы: Реборн — своё хранилище и метка «альфа» на странице и в оверлее', async () => {
   fresh();
   const page = await open('index.html', (w) => w.document.getElementById('play'));
