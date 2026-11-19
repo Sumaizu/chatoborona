@@ -1408,8 +1408,23 @@ test('чародейка: достаёт сферу из книги, броса�
   ok(battle.events.some((e) => e.kind === 'conjure'));
   runFor(battle, SPELL.enchantress.wind + 0.02);
   eq(hit(mob), 0, 'сфера ещё летит');
-  runFor(battle, SPELL.enchantress.flight + 0.05);
+  runFor(battle, 1);
   near(hit(mob), t.damage);
+});
+
+test('чародейка, концентрированный луч сильнее её обычных атак по боссу — и с контролем магии, и с критами', () => {
+  const dps = (runes) => {
+    const battle = makeBattle(), t = sorc(battle, 10, 4, runes);
+    t.critChance = 0.3;
+    const boss = put(battle, special(battle, 'boss', 'butcher', 1e9), 13);
+    still(boss);
+    boss.power = null;
+    boss.skillAt = 1e9;
+    runFor(battle, 30);
+    return hit(boss) / 30;
+  };
+  const volley = dps(['enchantress', 'arcaneControl']), beam = dps(['enchantress', 'arcaneControl', 'focusBeam']);
+  ok(beam > volley * 1.4, 'луч ' + beam + ' против залпов ' + volley);
 });
 
 test('чародейка, контроль магии: три самонаводящиеся сферы в разных врагов, каждая сильнее; один враг — все в него', () => {
@@ -1422,12 +1437,12 @@ test('чародейка, контроль магии: три самонавод
   eq(shots.length, 3, 'три сферы');
   eq(new Set(shots.map((e) => e.mob)).size, 3, 'в разных врагов');
   eq(shots.filter((e) => e.bend).length, 2, 'боковые летят дугой');
-  runFor(battle, SPELL.enchantress.flight + 0.05);
+  runFor(battle, 1);
   for (const mob of mobs) near(hit(mob), t.damage * ARCANE.control.mul);
   const lone = makeBattle(), u = sorc(lone, 10, 4, ['enchantress', 'arcaneControl']), mob = walker(lone, 13, 1e9);
   still(mob);
   ok(lone._fire(u));
-  runFor(lone, SPELL.enchantress.wind + SPELL.enchantress.flight + 0.05);
+  runFor(lone, SPELL.enchantress.wind + 1);
   near(hit(mob), u.damage * ARCANE.control.mul * 3, 'все три — в одного');
 });
 
@@ -1439,7 +1454,7 @@ test('чародейка, мастер стихий: случайная стих
     mob.element = 'fire';
     still(mob);
     ok(battle._fire(t));
-    runFor(battle, SPELL.enchantress.wind + SPELL.enchantress.flight + 0.05);
+    runFor(battle, SPELL.enchantress.wind + 1);
     const shot = battle.events.find((e) => e.kind === 'shot' && e.tower === t);
     seen.add(shot.element);
     ok(ARCANE.elements.includes(shot.element) && shot.element !== 'fire', 'seed ' + seed + ': ' + shot.element);
@@ -1484,7 +1499,8 @@ test('чародейка, концентрированный луч: босс в
   ok(t.beam && t.beam.mob === boss, 'луч в босса');
   no(battle._fire(t), 'обычной атаки нет');
   runFor(battle, 2);
-  const rate = t.damage / battle._intervalOf(t, battle.time) * ARCANE.beam.mul;
+  const rate = t.damage / battle._intervalOf(t, battle.time) * ARCANE.beam.mul
+    + t.damage * ARCANE.rain.count / ARCANE.rain.every * ARCANE.beam.mul;
   ok(Math.abs(hit(boss) / battle.time / rate - 1) < 0.15, 'урон ×1,6: ' + hit(boss) / battle.time + ' вместо ' + rate);
   eq(hit(small), 0, 'других не трогает');
   no(battle.events.some((e) => e.kind === 'shot' && e.tower === t), 'и дождя нет');

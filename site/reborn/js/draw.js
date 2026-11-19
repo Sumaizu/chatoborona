@@ -30,7 +30,8 @@ const AURAS = { team: { glow: 'rgba(100, 116, 139, 1)', tones: ['#64748b', '#475
   grace: { glow: 'rgba(132, 204, 22, 1)', tones: ['#84cc16', '#65a30d', '#a3e635'], shape: LEAF, tip: '#3f6212' } };
 const RETICLES = { red: { line: '#b91c1c', dot: '#fca5a5' }, green: { line: '#16a34a', eye: true } };
 const BLAST_TONES = { warm: ['#fff3b0', '#ffd84a', '#ff9a1f', '#e2531f', '#6b5a50'],
-  blue: ['#f0f9ff', '#bae6fd', '#4aa3ff', '#2563eb', '#4b5563'] };
+  blue: ['#f0f9ff', '#bae6fd', '#4aa3ff', '#2563eb', '#4b5563'],
+  earth: ['#fef3c7', '#e7c9a0', '#b08356', '#7c5a3a', '#4a3426'] };
 const DRONE_LIFT = 18;
 const AIRBURST = 22;
 const NUKE_ARC = 90;
@@ -154,7 +155,7 @@ const HOLY_LIGHT = { core: 'rgba(255, 251, 230, 1)', warm: 'rgba(253, 224, 120, 
   motes: 5, wave: 4 };
 const HOVER = { lift: 4, bob: 1.5, rate: 1.2, frames: [2, 1, 0, 1] };
 const MANTRA_LOOKS = { mantraSpeed: '251, 146, 60', mantraPower: '239, 68, 68', mantraRange: '244, 114, 182' };
-const STAFF_ROD = { rear: [21.4, 18.6], wide: 2, cap: 3.2, reach: 0.4, back: 0.3, lunge: 3 };
+const STAFF_ROD = { rear: [21.4, 18.6], wide: 1.4, cap: 3.2, reach: 0.4, back: 0.3, lunge: 2.2 };
 const HOLY_BLADE = ['#8a6410', '#e0b43a', '#fffbe6', '#f5d77a', '#8a6410'];
 const RED_BLADE = ['#7f1d1d', '#dc2626', '#fecaca', '#ef4444', '#7f1d1d'];
 const SWORD = { hand: [21, 12.8], blade: 14.6, grip: 3, wide: 2.6, guard: 3.2, ring: 2.3, life: 0.36, wind: 0.25,
@@ -1462,11 +1463,11 @@ export class Scene {
   }
 
   _flightOf(e, share) {
-    if (!e.bend) {
+    if (e.head === null || e.head === undefined) {
       return { cx: e.x1 + (e.x2 - e.x1) * share, cy: e.y1 + (e.y2 - e.y1) * share,
         angle: Math.atan2(e.x2 - e.x1, -(e.y2 - e.y1)) };
     }
-    const dx = e.x2 - e.x1, dy = e.y2 - e.y1, len = Math.hypot(dx, dy), a = Math.atan2(dy, dx) + e.bend;
+    const dx = e.x2 - e.x1, dy = e.y2 - e.y1, len = Math.hypot(dx, dy), a = e.head;
     const kx = e.x1 + Math.cos(a) * len * 0.55, ky = e.y1 + Math.sin(a) * len * 0.55, u = share, v = 1 - share;
     const tx = 2 * v * (kx - e.x1) + 2 * u * (e.x2 - kx), ty = 2 * v * (ky - e.y1) + 2 * u * (e.y2 - ky);
     return { cx: v * v * e.x1 + 2 * u * v * kx + u * u * e.x2, cy: v * v * e.y1 + 2 * u * v * ky + u * u * e.y2,
@@ -1870,8 +1871,8 @@ export class Scene {
       const k = spot - j;
       return (0.55 + 0.45 * noise(j, e.seed)) * (1 - k) + (0.55 + 0.45 * noise((j + 1) % 7, e.seed)) * k;
     };
-    const tones = BLAST_TONES[e.blue ? 'blue' : 'warm'];
-    glow(ctx, x, y, r * grow, e.blue ? HEAT.blue[1] : BOOM.heat, fade * 0.6);
+    const tones = BLAST_TONES[e.tone || (e.blue ? 'blue' : 'warm')];
+    glow(ctx, x, y, r * grow, e.tone ? HEAT[e.tone][1] : e.blue ? HEAT.blue[1] : BOOM.heat, fade * 0.6);
     for (let i = 0, count = Math.round(30 + 28 * e.r); i < count; i++) {
       const a = i * 2.39 + e.seed, k = Math.sqrt(noise(i, e.seed + 3)), reach = r * grow * k * lobe(a);
       const tone = Math.min(tones.length - 1, Math.floor(k * 2.2 + share * 3));
@@ -2835,7 +2836,7 @@ export class Scene {
     const spot = job.mob && !job.mob.dead ? this.shown.get(job.mob.id) || job.mob : null;
     const tx = spot ? at(spot.x) : at(job.x2), ty = spot ? at(spot.y) - (spot.lift || 0) : at(job.y2);
     const rest = 22 * u, full = Math.hypot(tx - px, ty - py), long = rest + (full - rest) * out;
-    const ax = (tx - px) / (full || 1), ay = (ty - py) / (full || 1), nx = -ay, ny = ax, w = STAFF_ROD.wide / 2;
+    const ax = (tx - px) / (full || 1), ay = (ty - py) / (full || 1), nx = -ay, ny = ax, w = STAFF_ROD.wide * u / 2;
     const ex = px + ax * long, ey = py + ay * long;
     ctx.save();
     const body = ctx.createLinearGradient(px + nx * w, py + ny * w, px - nx * w, py - ny * w);
@@ -3588,8 +3589,8 @@ export class Scene {
           if (t.cls.id === 'priest') this._holyAura(ctx, t, x, y);
           const facing = turnOf(pose.angle, HERO_TURN_STEPS) * Math.PI * 2 / HERO_TURN_STEPS;
           const lunge = t.style === 'monk' && pose.staff && this.clock < pose.staff.until ? this._thrust(t) : -1;
-          const mx = lunge > 0 ? x + Math.sin(facing) * lunge * STAFF_ROD.lunge : x;
-          const my = lunge > 0 ? y - Math.cos(facing) * lunge * STAFF_ROD.lunge : y;
+          const reach = lunge * STAFF_ROD.lunge * MODEL_UNIT * sizeOf(t.look);
+          const mx = lunge > 0 ? x + Math.sin(facing) * reach : x, my = lunge > 0 ? y - Math.cos(facing) * reach : y;
           if (lunge >= 0) this._rod(ctx, t, mx, my + lift, facing, lunge);
           smooth(ctx, heroSprite(look, -1), mx, my + lift, facing, ZOOM);
           if (t.style === 'angel' && !t.planted) this._sword(ctx, t, x, y + lift, facing);
@@ -3839,6 +3840,7 @@ export class Scene {
       const off = Math.abs(turnGap(pose.angle, bearing(t, spot)));
       if (off > AIM_SLACK && late < SHOT_WAIT && pose.queue.length <= SHOT_QUEUE) return;
       pose.queue.shift();
+      if (off > AIM_SLACK) pose.angle = bearing(t, spot);
       pose.kick = KICK;
       pose.flash = FLASH;
       pose.lock = { x: spot.x, y: spot.y, mob: next.mob, until: this.clock + Math.max(SHOT_HOLD, next.hold) };
@@ -3887,18 +3889,21 @@ export class Scene {
           look: event.element === 'earth' && !event.size ? 'spear' : 'fireball' });
       }
       const flight = event.time || TRAVEL * (bolt.look === 'lob' ? 2.5 : 1);
-      const launch = (x2, y2, late = 0) => {
+      const launch = (x2, y2, late = 0, head = null) => {
         const tip = away ? { x: event.sx, y: event.sy - (event.high ? DRONE_LIFT / CELL : 0) }
           : this._muzzle(t, event.hand || 0);
         add({ kind: 'shot', life: Math.max(FLIGHT_MIN, flight - late), x1: tip.x, y1: tip.y, x2, y2, bolt,
-          crit: event.crit, heavy: event.heavy, bend: event.bend || 0 });
+          crit: event.crit, heavy: event.heavy, head });
         if (event.heavy) {
           this._pose(t).flash = FLASH * 3;
           this._sparks(tip.x, tip.y, CHARGES.heavy.sparks, event.heavy === 'mega' ? 14 : 8, 2.4, 0.35);
         }
       };
       if (away) launch(event.x, event.y);
-      else this._fire(t, event.x, event.y, event.mob, launch);
+      else if (event.lead) {
+        const lead = event.lead, tip = this._muzzle(t), head = Math.atan2(lead.y - tip.y, lead.x - tip.x) + event.bend;
+        this._fire(t, lead.x, lead.y, lead, (x2, y2, late) => launch(event.x, event.y, late, head));
+      } else this._fire(t, event.x, event.y, event.mob, launch);
     } else if (event.kind === 'strike') {
       const monk = t.style === 'monk', life = monk ? STAFF_HIT.life : SWORD.life;
       this._fire(t, event.x, event.y, event.mob, (x2, y2) => {
@@ -4011,30 +4016,14 @@ export class Scene {
         add({ kind: 'chain', life: 0.2, points });
         for (const [x, y] of event.points.slice(1)) this._sparks(x, y, ['#bfdbfe', '#ffffff'], 3, 1.6, 0.25);
       });
-    } else if (event.kind === 'boom' && (event.fireball || t && t.style === 'demo')) {
-      add({ kind: 'blast', life: 0.55, x: event.x, y: event.y, r: event.radius, seed: Math.floor(Math.random() * 97),
-        blue: event.blue });
-      this._sparks(event.x, event.y, event.blue ? BLUE_FLAME.slice(0, 4) : ['#ffd84a', '#ff8a1f', '#e2531f', '#5a4a40'], 12,
-        event.radius * 4.5, 0.45, 3);
-      this.decals.push({ kind: 'scorch', t: 0, life: 3, x: event.x, y: event.y, r: Math.min(1, event.radius * 0.6) });
     } else if (event.kind === 'boom') {
-      const big = event.rocket || event.meteor;
-      add({ kind: 'boom', life: big ? 0.6 : 0.35, x: event.x, y: event.y, r: event.radius,
-        ring: event.meteor ? '#c08a4a' : event.blue ? '#4aa3ff' : '#ff6a1f', core: event.blue ? '#e0f2ff' : BOOM.core,
-        heat: event.blue ? HEAT.blue[1] : BOOM.heat });
-      this._sparks(event.x, event.y, event.meteor ? ['#ffd84a', '#ff8a1f', '#8a7f70', '#4a3a30']
-        : event.blue ? BLUE_FLAME.slice(0, 3) : ['#ffd84a', '#ff8a1f', '#ff4d1f'], big ? 26 : 9, event.radius * 4.5,
-        big ? 0.6 : 0.4, 3);
-      if (big) {
-        this.decals.push({ kind: 'crater', t: 0, life: 4, x: event.x, y: event.y, r: event.radius * 0.35 });
-      }
-      if (event.meteor) {
-        for (let i = 0; i < 8; i++) {
-          this.decals.push({ kind: 'rubble', t: 0, life: 3, x: event.x + (Math.random() - 0.5) * event.radius * 1.4,
-            y: event.y + (Math.random() - 0.5) * event.radius * 1.4, size: 2 + Math.floor(Math.random() * 3),
-            color: '#6b5a48' });
-        }
-      }
+      const tone = event.tone || (event.meteor ? 'earth' : null), big = event.rocket || event.meteor;
+      add({ kind: 'blast', life: big ? 0.65 : 0.55, x: event.x, y: event.y, r: event.radius,
+        seed: Math.floor(Math.random() * 97), blue: event.blue, tone });
+      this._sparks(event.x, event.y, tone ? BLAST_TONES[tone].slice(1) : event.blue ? BLUE_FLAME.slice(0, 4)
+        : ['#ffd84a', '#ff8a1f', '#e2531f', '#5a4a40'], 12, event.radius * 4.5, 0.45, 3);
+      if (big) this.decals.push({ kind: 'crater', t: 0, life: 4, x: event.x, y: event.y, r: event.radius * 0.35 });
+      else this.decals.push({ kind: 'scorch', t: 0, life: 3, x: event.x, y: event.y, r: Math.min(1, event.radius * 0.6) });
     } else if (event.kind === 'flame') {
       this._fire(t, event.x, event.y, null, () => {
         this._pose(t).flame = { until: this.clock + FLAME_HOLD, angle: event.angle, blue: event.blue };

@@ -108,7 +108,7 @@ export const HOLY = { angel: { reach: 1, interval: 1, mul: 2.6 }, monk: { reach:
   mantra: { radius: 3, haste: 0.15, damage: 0.15, range: 0.15, might: 0.2 }, burst: { radius: 2, share: 0.5 },
   repose: 3, chain: { jumps: 2, reach: 2 }, aegis: 0.2, blessing: 0.1, insight: 0.1 };
 export const SPELL = { wisp: 0.45, minstrel: { reach: 3.5, interval: 1.6, mul: 1.3, wide: 0.5, speed: 7 },
-  enchantress: { reach: 4, interval: 1.45, mul: 2.2, wind: 0.3, flight: FIREBALL_FLIGHT },
+  enchantress: { reach: 4, interval: 1.45, mul: 2.2, wind: 0.3, speed: 5, curve: 1.15 },
   shamaness: { reach: 2, interval: 1.8, mul: 1.2 }, resonance: { reach: 5, mul: 1.5, hop: 0.3 },
   totem: { radius: 3, slow: 0.1, power: 0.1, hold: 0.3, spot: [0.5, 0.35] }, courses: 0.2, catalyst: 0.15 };
 export const ARCANE = { control: { count: 3, mul: 1.25, spread: 0.6 }, splash: 1, cloud: 0.6, holy: 2, stun: 0.6,
@@ -2949,8 +2949,9 @@ function conjure(b, t, target, crit, hit) {
     aims.forEach((mob, i) => {
       const element = t.runes.has('elements') ? elementFor(b, mob) : null;
       const bend = i ? (i % 2 ? 1 : -1) * ARCANE.control.spread : 0;
-      b._event({ kind: 'shot', tower: t, x: mob.x, y: mob.y, crit, mob, time: s.flight, element, bend });
-      b._later(s.flight, () => {
+      const flight = Math.hypot(mob.x - t.cx, mob.y - t.cy) / s.speed * (bend ? s.curve : 1);
+      b._event({ kind: 'shot', tower: t, x: mob.x, y: mob.y, crit, mob, time: flight, element, bend, lead: first });
+      b._later(flight, () => {
         if (mob.dead) return;
         if (element === 'fire') landing(b, t, mob.x, mob.y, element, damage, ARCANE.splash);
         else {
@@ -2986,7 +2987,7 @@ function touch(b, t, mob, element, damage) {
 
 function landing(b, t, x, y, element, damage, radius) {
   if (element === 'fire') b._event({ kind: 'boom', tower: t, x, y, radius, fireball: true });
-  else if (element === 'earth') b._event({ kind: 'boom', tower: t, x, y, radius, meteor: true });
+  else if (element === 'earth') b._event({ kind: 'boom', tower: t, x, y, radius, fireball: true, tone: 'earth' });
   else if (element === 'lightning') b._event({ kind: 'thunderbolt', tower: t, x, y, radius });
   else if (element === 'holy') b._event({ kind: 'holyRing', tower: t, x, y, radius });
   if (element === 'poison') b._cloud(t, x, y, ARCANE.cloud);
@@ -3019,6 +3020,12 @@ function downpour(b, t, now, alive) {
   }
 }
 
+function usual(b, t, now) {
+  const volley = t.runes.has('arcaneControl') ? ARCANE.control.count * ARCANE.control.mul : 1;
+  const crits = 1 + t.critChance * (t.critMul - 1), rain = ARCANE.rain;
+  return t.damage * (volley * crits / b._intervalOf(t, now) + (t.runes.has('arcaneRain') ? rain.count / rain.every : 0));
+}
+
 function focus(b, t, now, alive) {
   if (!t.runes.has('focusBeam')) return;
   const s = ARCANE.beam, old = t.beam;
@@ -3035,7 +3042,7 @@ function focus(b, t, now, alive) {
   const beam = t.beam;
   if (now < beam.next) return;
   beam.next = now + s.tick;
-  touch(b, t, boss, beam.element, t.damage / b._intervalOf(t, now) * s.mul * s.tick);
+  touch(b, t, boss, beam.element, usual(b, t, now) * s.mul * s.tick);
   if (beam.element === 'poison' && now >= beam.cloudAt) {
     beam.cloudAt = now + s.cloud;
     b._cloud(t, boss.x, boss.y, ARCANE.cloud);
