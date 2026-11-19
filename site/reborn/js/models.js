@@ -455,7 +455,7 @@ function hammer(q, x, y) {
 }
 
 function cape(m, c) {
-  const top = 16.2, strips = 12, rows = 5, back = 25.8;
+  const top = 16.6, strips = 12, rows = 5, back = 23.6;
   const left = (y) => 12.8 - 0.5 * Math.max(0, (y - top) / (back - top));
   const right = (y) => 19.2 + 0.5 * Math.max(0, (y - top) / (back - top));
   const hem = (u) => back + 0.35 * Math.sin(u * Math.PI * 4.2 + 0.4) - 0.4 * Math.pow(u - 0.5, 2) * 4;
@@ -479,14 +479,14 @@ function cape(m, c) {
 function thor(m, pose = '') {
   const c = THOR;
   cape(m, c);
-  m.egg(16, 18.6, 6.4, 3.4, 3.6, 2.6, c.steel, 0.4);
-  m.egg(16, 18.2, 7.6, 2.4, 2.4, 1.8, '#5b6574', 0.5);
-  m.limb(16, 15.8, 8.8, 16, 21.2, 7.8, 0.38, c.dark, 0.3);
-  for (const [x, y] of [[14.6, 17.6], [17.4, 17.6], [14.8, 19.8], [17.2, 19.8]]) m.ball(x, y, 8.6, 0.42, c.plate, 0.9);
-  m.limb(12.9, 21.6, 7, 19.1, 21.6, 7, 0.5, '#3a2416', 0.3);
-  m.ball(16, 21.6, 7.4, 0.55, '#d4a017', 1);
+  m.egg(16, 18.4, 5.8, 3.3, 3.4, 2.2, c.dark, 0.3);
+  for (let k = 0; k < 6; k++) {
+    const y = 16 + k * 0.95, half = 3.3 - k * 0.22 - Math.max(0, k - 3) * 0.18, z = 8.4 - k * 0.22;
+    m.limb(16 - half, y + 0.25, z - 0.6, 16, y - 0.15, z, 0.62, k % 2 ? c.steel : c.plate, 0.85, 0.62);
+    m.limb(16, y - 0.15, z, 16 + half, y + 0.25, z - 0.6, 0.62, k % 2 ? c.steel : c.plate, 0.85, 0.62);
+  }
+  m.limb(16, 15.6, 9.2, 16, 20.6, 7.8, 0.22, '#d1d5db', 1, 0.16);
   for (const side of [-1, 1]) {
-    m.egg(16 + side * 2.9, 16.4, 5.8, 1.5, 1, 0.8, c.capeDark, 0.2);
     m.ball(16 + side * 2.6, 16.2, 9, 0.5, '#d4a017', 1);
     for (let k = 0; k < 3; k++) {
       m.limb(16 + side * (2 + k * 0.15), 15.6 + k * 1, 9 - k * 0.3, 16 + side * (4 + k * 0.1), 16.3 + k * 1.1,
