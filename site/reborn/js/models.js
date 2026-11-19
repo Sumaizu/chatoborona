@@ -460,21 +460,21 @@ function cape(m, c) {
   const right = (y) => 22.4 + 1.4 * Math.pow((y - top) / (back - top), 0.7);
   const hem = (u) => back + 0.45 * Math.sin(u * Math.PI * 4.6 + 0.4) - 0.9 * Math.pow(u - 0.5, 2) * 4;
   const at = (u, y) => left(y) + u * (right(y) - left(y));
-  const z = (y) => 10.7 - (y - top) * 0.32;
+  const z = (y, u) => 10.7 - (y - top) * 0.32 - 3.2 * Math.pow(Math.abs(u - 0.5) * 2, 1.5);
   for (let i = 0; i < strips; i++) {
     const u0 = i / strips, u1 = (i + 1) / strips, mid = (u0 + u1) / 2, fold = Math.sin(mid * Math.PI * 4.6);
     for (let r = 0; r < rows; r++) {
       const ya0 = top + (hem(u0) - top) * r / rows, ya1 = top + (hem(u0) - top) * (r + 1) / rows;
       const yb0 = top + (hem(u1) - top) * r / rows, yb1 = top + (hem(u1) - top) * (r + 1) / rows;
       const tone = fold > 0.35 ? c.cape : fold < -0.35 ? c.capeDark : '#871515';
-      m.sheet([[at(u0, ya0), ya0], [at(u1, yb0), yb0], [at(u1, yb1), yb1], [at(u0, ya1), ya1]], z((ya0 + ya1) / 2), tone,
+      m.sheet([[at(u0, ya0), ya0], [at(u1, yb0), yb0], [at(u1, yb1), yb1], [at(u0, ya1), ya1]], z((ya0 + ya1) / 2, mid), tone,
         [Math.sin((mid - 0.5) * Math.PI) * 0.5 + fold * 0.45, 0.55, 1]);
     }
   }
-  m.limb(10.4, top + 0.2, 10, 21.6, top + 0.2, 10, 0.5, c.capeDark, 0.3, 0.5);
+  m.limb(12.6, top + 0.2, 10.4, 19.4, top + 0.2, 10.4, 0.5, c.capeDark, 0.3, 0.5);
   for (const side of [-1, 1]) {
-    m.ball(16 + side * 4.2, top + 0.1, 10.6, 0.75, '#d4a017', 1);
-    m.ball(16 + side * 4.2 - 0.2, top - 0.1, 11.2, 0.3, '#fff1b8', 1);
+    m.ball(16 + side * 3.3, top + 0.1, 10.8, 0.7, '#d4a017', 1);
+    m.ball(16 + side * 3.3 - 0.2, top - 0.1, 11.4, 0.28, '#fff1b8', 1);
   }
 }
 
