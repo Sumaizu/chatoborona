@@ -3849,7 +3849,7 @@ export class Scene {
       }
       if (t.beam) look = t.look + '-beam';
       if (t.style === 'raiju' && t.howlAt !== undefined && t.howlAt !== null && !act) {
-        look = t.look + ((now - t.howlAt) % WOLF.howl.call < DASH_FX.inhale ? '-howl2' : '-howl');
+        look = t.look + (now >= t.cryAt + DASH_FX.inhale && now < t.cryUntil ? '-howl' : '-howl2');
       }
       if (t.style === 'thor' && pose.hammer) {
         const k = this.clock - pose.hammer.start, flight = pose.hammer.out + pose.hammer.back;

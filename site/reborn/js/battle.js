@@ -120,7 +120,7 @@ export const STORM = { orb: 5, caller: { reach: 3.5, interval: 1, mul: 1.2 }, ra
   globe: { every: 6, speed: 1.2, mul: 4, touch: 0.7, zap: 1, reach: 1, bolts: 3 }, tempest: { every: 8, radius: 2, mul: 3, stun: 3 },
   rod: { chance: 0.02, gap: 1, radius: 3, wave: 5, link: 3, time: 1, touch: 0.5, spot: [0.84, 0.3] } };
 export const WOLF = { dash: { idle: 2, speed: 10, touch: 0.8, mul: 1 },
-  howl: { idle: 3, self: 0.2, team: 0.1, share: 0.5, call: 4 },
+  howl: { idle: 3, self: 0.2, team: 0.1, share: 0.5, long: 3.6, short: 2.3, rest: 5 },
   rage: { steps: [[10, 0.03], [10, 0.02]], rest: 0.01, max: 3 }, pack: { boost: 0.3, per: 0.01 } };
 export const SONG = { every: 15, time: 3, back: 1, dirge: 0.5, anthem: 0.3, ultrasound: 0.2 };
 export const TOTEMS = { totemSlow: 'slow', totemPurge: 'purge', totemPower: 'power' };
@@ -2773,14 +2773,17 @@ function wolf(b, t, now, alive) {
     if (prey || dashed) {
       const long = now - t.howlAt;
       Object.assign(t, { howlAt: null, howlUntil: now + long, packUntil: now + long * s.share });
-    } else if (now >= t.howlNext) {
-      t.howlNext = now + s.call;
-      b._event({ kind: 'howl', tower: t });
-    }
+    } else if (now >= t.howlNext) cry(b, t, now);
   } else if (t.runes.has('howl') && !dashed && !prey && idle >= s.idle) {
-    Object.assign(t, { howlAt: now, howlNext: now + s.call });
-    b._event({ kind: 'howl', tower: t });
+    t.howlAt = now;
+    cry(b, t, now);
   }
+}
+
+function cry(b, t, now) {
+  const s = WOLF.howl, long = b.random() < 0.5, time = long ? s.long : s.short;
+  Object.assign(t, { cryAt: now, cryUntil: now + time, howlNext: now + time + s.rest });
+  b._event({ kind: 'howl', tower: t, long, time });
 }
 
 function dash(b, t, now) {

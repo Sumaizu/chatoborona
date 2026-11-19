@@ -39,7 +39,7 @@ const SOUND_PRIORITY = ['over', 'divine', 'relic', 'win', 'boss', 'wave', 'jackp
 const SFX_PER_FRAME = 4;
 const SHOTS = { sniper: 'crack', mechanic: 'gun', forester: 'bolt',
   priest: 'holy', sorceress: 'cast', thunder: 'zap' };
-const BATTLE_SOUNDS = { howl: 'howl', dash: 'zap', chord: 'lute', drum: 'drum', totem: 'build', claw: 'hit', hammer: 'leap', rod: 'build', conjure: 'cast', strike: 'hit', wall: 'build', crumble: 'crumble',
+const BATTLE_SOUNDS = { dash: 'zap', chord: 'lute', drum: 'drum', totem: 'build', claw: 'hit', hammer: 'leap', rod: 'build', conjure: 'cast', strike: 'hit', wall: 'build', crumble: 'crumble',
   bite: 'chomp', nova: 'ice',
   spikes: 'rock', whirl: 'wind', clink: 'clink', treasure: 'treasure', rattle: 'rattle', rise: 'rise',
   hex: 'hex', blink: 'leap', burrow: 'burrow', leech: 'summon', steal: 'clink', loot: 'treasure', reflect: 'block',
@@ -496,6 +496,8 @@ export class View {
       this._sound(id === 'shield' ? 'block' : id === 'dash' ? 'wind' : 'summon');
     } else if (kind === 'song') {
       this._sound(event.song);
+    } else if (kind === 'howl') {
+      this._sound(event.long ? 'howl' : 'yelp');
     } else if (BATTLE_SOUNDS[kind]) {
       this._sound(BATTLE_SOUNDS[kind]);
     }

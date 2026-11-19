@@ -1898,6 +1898,20 @@ test('волчий вой: воет и в ожидании волны, а рыв
   ok(Math.abs(t.howlUntil - battle.time - long) < 3 * TICK, 'усиление — сколько выл');
 });
 
+test('волчий вой: вой то длинный, то короткий, наугад, и следующий — через 5 секунд после конца прошлого', () => {
+  const battle = makeBattle(), t = storm(battle, 10, 1, ['raiju', 'howl']), s = WOLF.howl, cries = [];
+  for (let i = 0; i < (s.idle + 60) / TICK; i++) {
+    const before = battle.events.length;
+    battle.step(TICK);
+    for (const e of battle.events.slice(before)) if (e.kind === 'howl') cries.push({ at: battle.time, long: e.long, time: e.time });
+  }
+  ok(cries.some((e) => e.long) && cries.some((e) => !e.long), 'есть оба');
+  for (let i = 0; i < cries.length; i++) {
+    eq(cries[i].time, cries[i].long ? s.long : s.short);
+    if (i) ok(Math.abs(cries[i].at - cries[i - 1].at - cries[i - 1].time - s.rest) < 2 * TICK, 'пауза 5 с после конца прошлого');
+  }
+});
+
 test('ярость: повторные удары по той же цели ускоряют атаку на 3/2/1%, до +300%; смена цели сбрасывает', () => {
   const battle = makeBattle(), t = storm(battle, 10, 4, ['raiju', 'rage']);
   const a = walker(battle, 10, 1e9), b = walker(battle, 11.5, 1e9);
