@@ -455,10 +455,10 @@ function hammer(q, x, y) {
 }
 
 function cape(m, c) {
-  const top = 16.6, strips = 12, rows = 5, back = 23.6;
-  const left = (y) => 12.8 - 0.5 * Math.max(0, (y - top) / (back - top));
-  const right = (y) => 19.2 + 0.5 * Math.max(0, (y - top) / (back - top));
-  const hem = (u) => back + 0.35 * Math.sin(u * Math.PI * 4.2 + 0.4) - 0.4 * Math.pow(u - 0.5, 2) * 4;
+  const top = 16.4, strips = 12, rows = 4, back = 21.6;
+  const left = (y) => 11.6 - 0.4 * Math.max(0, (y - top) / (back - top));
+  const right = (y) => 20.4 + 0.4 * Math.max(0, (y - top) / (back - top));
+  const hem = (u) => back + 0.3 * Math.sin(u * Math.PI * 4.2 + 0.4) - 0.5 * Math.pow(u - 0.5, 2) * 4;
   const at = (u, y) => left(y) + u * (right(y) - left(y));
   for (let i = 0; i < strips; i++) {
     const u0 = i / strips, u1 = (i + 1) / strips, mid = (u0 + u1) / 2, fold = Math.sin(mid * Math.PI * 4.2);
@@ -472,37 +472,47 @@ function cape(m, c) {
       pts.push([at(u1, y), y]);
     }
     const tone = fold > 0.35 ? c.cape : fold < -0.35 ? c.capeDark : '#871515';
-    m.sheet(pts, 4.6 - (pts[0][1] - top) * 0, tone, [Math.sin((mid - 0.5) * Math.PI) * 0.5 + fold * 0.45, 0.75, 1]);
+    m.sheet(pts, 4.4, tone, [Math.sin((mid - 0.5) * Math.PI) * 0.5 + fold * 0.45, 0.75, 1]);
   }
+}
+
+function armored(m, c, sx, hx, hy, hz) {
+  const side = Math.sign(sx - 16), sy = 16, sz = 8.4, reach = Math.hypot(hx - sx, hy - sy);
+  const bend = Math.max(0.9, 2 - reach * 0.12), ex = (sx + hx) / 2 + side * bend, ey = (sy + hy) / 2 + bend * 0.3;
+  const ez = (sz + hz) / 2 - 0.2, wx = ex + (hx - ex) * 0.78, wy = ey + (hy + 0.4 - ey) * 0.78, wz = ez + (hz - ez) * 0.78;
+  m.limb(sx, sy, sz, ex, ey, ez, 0.82, c.steel, 0.4, 0.7);
+  m.ball(ex, ey, ez + 0.1, 0.62, c.plate, 0.9);
+  m.limb(ex, ey, ez, wx, wy, wz, 0.64, SKIN, 0.2, 0.5);
+  m.limb(ex + (wx - ex) * 0.4, ey + (wy - ey) * 0.4, ez + (wz - ez) * 0.4 + 0.1, wx, wy, wz + 0.1, 0.62, c.leather, 0.3, 0.55);
+  m.ball(hx, hy, hz, 0.64, SKIN, 0.2);
 }
 
 function thor(m, pose = '') {
   const c = THOR;
   cape(m, c);
-  m.egg(16, 18.4, 5.8, 3.3, 3.4, 2.2, c.dark, 0.3);
-  for (let k = 0; k < 6; k++) {
-    const y = 16 + k * 0.95, half = 3.3 - k * 0.22 - Math.max(0, k - 3) * 0.18, z = 8.4 - k * 0.22;
-    m.limb(16 - half, y + 0.25, z - 0.6, 16, y - 0.15, z, 0.62, k % 2 ? c.steel : c.plate, 0.85, 0.62);
-    m.limb(16, y - 0.15, z, 16 + half, y + 0.25, z - 0.6, 0.62, k % 2 ? c.steel : c.plate, 0.85, 0.62);
+  m.egg(16, 17.4, 6, 3.6, 2.6, 2.2, c.dark, 0.3);
+  for (let k = 0; k < 5; k++) {
+    const y = 15.6 + k * 0.85, half = 3.6 - k * 0.3, z = 8.6 - k * 0.25;
+    m.limb(16 - half, y + 0.2, z - 0.5, 16, y - 0.12, z, 0.56, k % 2 ? c.steel : c.plate, 0.85, 0.56);
+    m.limb(16, y - 0.12, z, 16 + half, y + 0.2, z - 0.5, 0.56, k % 2 ? c.steel : c.plate, 0.85, 0.56);
   }
-  m.limb(16, 15.6, 9.2, 16, 20.6, 7.8, 0.22, '#d1d5db', 1, 0.16);
   for (const side of [-1, 1]) {
-    m.ball(16 + side * 2.6, 16.2, 9, 0.5, '#d4a017', 1);
+    m.ball(16 + side * 2.6, 15.4, 9.2, 0.45, '#d4a017', 1);
     for (let k = 0; k < 3; k++) {
-      m.limb(16 + side * (2 + k * 0.15), 15.6 + k * 1, 9 - k * 0.3, 16 + side * (4 + k * 0.1), 16.3 + k * 1.1,
-        8.6 - k * 0.3, 0.6 - k * 0.1, k % 2 ? c.steel : c.plate, 0.9, 0.42);
+      m.limb(16 + side * (2.4 + k * 0.15), 15 + k * 0.8, 9.2 - k * 0.3, 16 + side * (4.4 + k * 0.1), 15.5 + k * 0.85,
+        8.8 - k * 0.3, 0.62 - k * 0.1, k % 2 ? c.steel : c.plate, 0.9, 0.44);
     }
   }
-  m.limb(12.2, 16.8, 7.8, 11.7, 20.8, 7.4, 0.72, c.steel, 0.4, 0.62);
-  m.ball(11.6, 21.2, 7.6, 0.68, SKIN);
-  const hand = pose === 'throw' ? [19.8, 10.4] : pose === 'empty' ? [20.2, 20.4] : pose === 'catch' ? [20.4, 12.2] : [20.8, 17.4];
-  m.limb(19.8, 16.8, 7.8, hand[0], hand[1] + 0.4, 8.8, 0.72, c.steel, 0.4, 0.62);
+  armored(m, c, 12, 12.4, 12.6, 9.6);
+  const hand = pose === 'throw' ? [19.8, 8.6, 12] : pose === 'empty' ? [20, 13, 9.6] : pose === 'catch' ? [20.2, 10, 11.4]
+    : [20.4, 12.4, 10.6];
+  armored(m, c, 20, hand[0], hand[1], hand[2]);
   if (pose !== 'throw' && pose !== 'empty') hammer(m, hand[0], hand[1] - 4.4);
-  m.ball(hand[0], hand[1], 11.4, 0.7, SKIN);
-  m.egg(16, 13.7, 10.8, 1.2, 0.8, 0.8, SKIN);
-  m.egg(16, 15.4, 11.4, 2.1, 2.2, 1.9, c.hair, 0.3);
+  m.ball(hand[0], hand[1], hand[2] + 1.2, 0.66, SKIN, 0.2);
+  m.egg(16, 13.4, 10.8, 1.2, 0.8, 0.8, SKIN);
+  m.egg(16, 14.9, 11.6, 2.2, 2.1, 1.9, c.hair, 0.3);
   for (let k = -3; k <= 3; k++) {
-    m.limb(16 + k * 0.42, 14.4, 12.8 - Math.abs(k) * 0.35, 16 + k * 0.65, 19 + Math.abs(k) * 0.2, 9.2, 0.4,
+    m.limb(16 + k * 0.44, 14, 12.8 - Math.abs(k) * 0.35, 16 + k * 0.6, 17.4 + Math.abs(k) * 0.15, 9.6, 0.4,
       k % 2 ? c.hair : c.hairDark, 0.3, 0.26);
   }
 }
@@ -1662,7 +1672,7 @@ export const MUZZLES = {
   sorceress: [[20.6, 8.6]], 'sorceress-ragged': [[20.6, 8.6]], 'sorceress-minstrel': [[19.4, 14]],
   'sorceress-enchantress': [[20.4, 8.6]], 'sorceress-enchantress-beam': [[16, 8.4]], 'sorceress-shamaness': [[10.8, 13.2]],
   frost: STAFF, earth: STAFF, shaman: STAFF, thunder: PALM, 'thunder-ragged': PALM, 'thunder-caller': STAFF,
-  'thunder-caller-strike': [[12.5, 0.4]], 'thunder-raiju': [[16, 3.6]], 'thunder-thor': [[20.8, 13]],
+  'thunder-caller-strike': [[12.5, 0.4]], 'thunder-raiju': [[16, 3.6]], 'thunder-thor': [[20.4, 8]],
 };
 
 export const RELOAD_FRAMES = RELOAD.frames;
