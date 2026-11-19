@@ -1078,6 +1078,7 @@ export class Scene {
       this._glints(ctx, battle);
       if (ranges && ranges.size) this._ranges(ctx, battle, ranges);
     });
+    this._roadAuras(ctx, battle);
     this._walls(ctx, battle, still);
     this._base(ctx, battle);
     this._mobs(ctx, battle, dt, still);
@@ -1459,7 +1460,7 @@ export class Scene {
   _muzzle(t, hand = 0) {
     const pose = this._pose(t), points = MUZZLES[pose.look] || MUZZLES[t.look] || MUZZLES[t.cls.id] || [[16, 4]];
     const [mx, my] = points[Math.min(hand, points.length - 1)];
-    const a = turnOf(pose.angle, HERO_TURN_STEPS) * (Math.PI * 2 / HERO_TURN_STEPS);
+    const a = heavyGun(t) ? pose.angle : turnOf(pose.angle, HERO_TURN_STEPS) * (Math.PI * 2 / HERO_TURN_STEPS);
     const u = MODEL_UNIT * sizeOf(t.look), dx = (mx - HERO_X) * u, dy = (my - HERO_Y) * u;
     return { x: pose.x + (dx * Math.cos(a) - dy * Math.sin(a)) / CELL,
       y: pose.y + (dx * Math.sin(a) + dy * Math.cos(a) - (pose.lift || 0)) / CELL };
@@ -1996,7 +1997,6 @@ export class Scene {
 
   _auras(ctx, battle) {
     for (const t of battle.towers) if (t.cls.id === 'sorceress' && !t.cocoon && t.runes.has('unbind')) this._unbind(ctx, t);
-    this._roadAuras(ctx, battle);
     for (const banner of battle.banners) if (banner.kind === 'power') this._might(ctx, banner);
     for (const t of battle.towers) {
       if (t.cocoon || t.rider) continue;
@@ -3632,7 +3632,8 @@ export class Scene {
           if (lunge >= 0) this._rod(ctx, t, mx, my + lift, facing, lunge);
           smooth(ctx, heroSprite(look, -1), mx, my + lift, facing, ZOOM);
           if (t.style === 'angel' && !t.planted) this._sword(ctx, t, x, y + lift, facing);
-        } else sprite(ctx, heroSprite(look, reload), x, y, pose.angle, ZOOM, lift, HERO_TURN_STEPS);
+        } else if (heavyGun(t)) smooth(ctx, heroSprite(look, reload), x, y + lift, pose.angle, ZOOM);
+        else sprite(ctx, heroSprite(look, reload), x, y, pose.angle, ZOOM, lift, HERO_TURN_STEPS);
       }
       if (t.cls.id === 'priest' && !t.cocoon && t.style !== 'monk' && t.style !== 'angel') this._holyTip(ctx, t);
       if (t.cls.id === 'sorceress' && !t.cocoon) this._spellGlow(ctx, t);
