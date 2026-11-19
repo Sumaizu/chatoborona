@@ -289,7 +289,7 @@ const RECIPES = {
     s.swish(at, 200, 80, 0.8, 0.2);
   },
   howl(s, at) {
-    s.howl(at, 330, 560, 2.3, 0.5, -0.1);
+    s.howl(at, 330, 560, 3.6, 0.18, -0.1);
   },
   growl(s, at) {
     s.horn(at, 82.4, 0.6, 0.12, 0);
@@ -382,7 +382,7 @@ const RECIPES = {
 export const SFX_GAPS = {
   siren: 3, dirge: 3, lute: 0.25, drum: 0.3, gun: 0.07, hit: 0.05, kill: 0.07, crack: 0.15, launch: 0.12, rock: 0.12, boom: 0.12, mine: 0.15, zap: 0.12,
   flame: 0.3, bolt: 0.08, ice: 0.1, wind: 0.2, cast: 0.12, crit: 0.15, freeze: 0.25, stun: 0.2,
-  storm: 0.3, howl: 2.4, rally: 0.5, heal: 0.5, block: 0.3, roar: 1, growl: 0.8, summon: 0.4, build: 0.4,
+  storm: 0.3, howl: 3.8, rally: 0.5, heal: 0.5, block: 0.3, roar: 1, growl: 0.8, summon: 0.4, build: 0.4,
   crumble: 0.4, leap: 0.3, chomp: 0.25, nuke: 2, fall: 1, join: 0.4, card: 0.3, holy: 0.12, splash: 0.15,
   snap: 0.15, execute: 0.3, clink: 0.2, treasure: 1, rattle: 1, rise: 0.4, hex: 0.4, burrow: 0.5, chain: 1, yank: 1,
   charge: 0.5, reload: 0.3, ricochet: 0.1, ignite: 0.2, snow: 2, flash: 0.15, quake: 0.5,
@@ -601,7 +601,7 @@ function createStudio(context) {
       for (let k = 0; k < steps; k++) {
         const u = k / (steps - 1);
         drift = drift * 0.85 + (Math.random() - 0.5) * 0.012;
-        const rise = 1 - Math.pow(1 - Math.min(1, u / 0.16), 3), fall = u > 0.72 ? Math.pow((u - 0.72) / 0.28, 1.6) : 0;
+        const rise = 1 - Math.pow(1 - Math.min(1, u / 0.1), 3), fall = u > 0.8 ? Math.pow((u - 0.8) / 0.2, 1.6) : 0;
         const tone = low + (high - low) * rise + high * 0.05 * Math.min(1, u / 0.6);
         pitch[k] = tone * (1 + drift) * (1 - 0.42 * fall);
       }
@@ -630,11 +630,13 @@ function createStudio(context) {
       breath.connect(air);
       air.connect(airGain);
       airGain.connect(gain);
-      const out = envelope(at, duration, level * 0.9, duration * 0.12, pan);
-      gain.gain.setValueAtTime(0.35, at);
-      gain.gain.linearRampToValueAtTime(1, at + duration * 0.35);
-      gain.gain.setValueAtTime(1, at + duration * 0.6);
-      gain.gain.linearRampToValueAtTime(0.25, at + duration);
+      const out = envelope(at, duration, level, duration * 0.08, pan);
+      out.gain.cancelScheduledValues(at);
+      out.gain.setValueAtTime(0.0001, at);
+      out.gain.linearRampToValueAtTime(level * 0.6, at + duration * 0.08);
+      out.gain.linearRampToValueAtTime(level, at + duration * 0.3);
+      out.gain.setValueAtTime(level, at + duration * 0.7);
+      out.gain.linearRampToValueAtTime(0.0001, at + duration);
       gain.connect(out);
       run(voices.concat(breath), at, duration);
     },
