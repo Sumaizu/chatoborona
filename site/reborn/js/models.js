@@ -455,17 +455,26 @@ function hammer(q, x, y) {
 }
 
 function cape(m, c) {
-  const top = 17, strips = 12, rows = 4, back = 25.4;
-  const left = (y) => 8.6 - 0.6 * (y - top) / (back - top), right = (y) => 23.4 + 0.6 * (y - top) / (back - top);
-  const hem = (u) => back + 0.4 * Math.sin(u * Math.PI * 4.2 + 0.4) - 0.8 * Math.pow(u - 0.5, 2) * 4;
+  const top = 15.8, strips = 14, rows = 6, back = 25.6;
+  const left = (y) => 9.6 - 1.4 * Math.pow((y - top) / (back - top), 0.7);
+  const right = (y) => 22.4 + 1.4 * Math.pow((y - top) / (back - top), 0.7);
+  const hem = (u) => back + 0.45 * Math.sin(u * Math.PI * 4.6 + 0.4) - 0.9 * Math.pow(u - 0.5, 2) * 4;
   const at = (u, y) => left(y) + u * (right(y) - left(y));
+  const z = (y) => 10.7 - (y - top) * 0.32;
   for (let i = 0; i < strips; i++) {
-    const u0 = i / strips, u1 = (i + 1) / strips, mid = (u0 + u1) / 2, fold = Math.sin(mid * Math.PI * 4.2);
-    const pts = [];
-    for (let r = 0; r <= rows; r++) pts.push([at(u0, top + (hem(u0) - top) * r / rows), top + (hem(u0) - top) * r / rows]);
-    for (let r = rows; r >= 0; r--) pts.push([at(u1, top + (hem(u1) - top) * r / rows), top + (hem(u1) - top) * r / rows]);
-    const tone = fold > 0.35 ? c.cape : fold < -0.35 ? c.capeDark : '#871515';
-    m.sheet(pts, 3.6, tone, [Math.sin((mid - 0.5) * Math.PI) * 0.5 + fold * 0.45, 0.7, 1]);
+    const u0 = i / strips, u1 = (i + 1) / strips, mid = (u0 + u1) / 2, fold = Math.sin(mid * Math.PI * 4.6);
+    for (let r = 0; r < rows; r++) {
+      const ya0 = top + (hem(u0) - top) * r / rows, ya1 = top + (hem(u0) - top) * (r + 1) / rows;
+      const yb0 = top + (hem(u1) - top) * r / rows, yb1 = top + (hem(u1) - top) * (r + 1) / rows;
+      const tone = fold > 0.35 ? c.cape : fold < -0.35 ? c.capeDark : '#871515';
+      m.sheet([[at(u0, ya0), ya0], [at(u1, yb0), yb0], [at(u1, yb1), yb1], [at(u0, ya1), ya1]], z((ya0 + ya1) / 2), tone,
+        [Math.sin((mid - 0.5) * Math.PI) * 0.5 + fold * 0.45, 0.55, 1]);
+    }
+  }
+  m.limb(10.4, top + 0.2, 10, 21.6, top + 0.2, 10, 0.5, c.capeDark, 0.3, 0.5);
+  for (const side of [-1, 1]) {
+    m.ball(16 + side * 4.2, top + 0.1, 10.6, 0.75, '#d4a017', 1);
+    m.ball(16 + side * 4.2 - 0.2, top - 0.1, 11.2, 0.3, '#fff1b8', 1);
   }
 }
 
@@ -501,12 +510,23 @@ function thor(m, pose = '') {
   brawn(m, c, 21.8, 22.2, 13.8, hand[0], hand[1], hand[2]);
   if (pose !== 'throw' && pose !== 'empty') hammer(m, hand[0], hand[1] - 4.6);
   m.ball(hand[0], hand[1], hand[2] + 1.4, 1.5, SKIN, 0.2);
-  m.egg(16, 14.6, 11.4, 2.4, 1.4, 1.2, SKIN);
-  m.ball(16, 16.8, 12.2, 3.7, c.hair, 0.3);
-  m.egg(16, 15.2, 13.4, 2.6, 1.2, 0.8, c.hairDark, 0.2);
-  for (let k = -3; k <= 3; k++) {
-    m.limb(16 + k * 0.8, 17.6, 12.6 - Math.abs(k) * 0.3, 16 + k * 1.05, 22, 9.6, 0.6, k % 2 ? c.hair : c.hairDark, 0.3, 0.36);
+  m.egg(16, 14.4, 11.6, 2.4, 1.3, 1.2, SKIN);
+  m.egg(16, 16.6, 12.4, 3.5, 3.4, 2.8, c.hairDark, 0.3);
+  for (let k = 0; k < 9; k++) {
+    const f = k / 8 - 0.5, x0 = 16 + f * 1.4, x1 = 16 + f * 6, y1 = 17.4 + Math.abs(f) * 0.8;
+    m.limb(x0, 13.6, 14.6 - Math.abs(f) * 0.4, (x0 + x1) / 2 + f * 0.6, 15.6, 15 - Math.abs(f) * 1.4, 0.75, k % 3 === 1 ? c.hairDark : c.hair, 0.45, 0.7);
+    m.limb((x0 + x1) / 2 + f * 0.6, 15.6, 15 - Math.abs(f) * 1.4, x1, y1, 13 - Math.abs(f) * 1.6, 0.7, k % 3 === 1 ? c.hairDark : c.hair, 0.45, 0.55);
+    if (k % 2 === 0) m.limb(x0, 13.8, 15.3 - Math.abs(f) * 0.4, (x0 + x1) / 2 + f * 0.6, 15.6, 15.6 - Math.abs(f) * 1.4, 0.18, '#f6e3a4', 1, 0.12);
   }
+  for (let k = 0; k < 13; k++) {
+    const f = k / 12 - 0.5, x0 = 16 + f * 5.4, y0 = 15.6 + Math.abs(f) * 1.6, sway = Math.sin(k * 1.9) * 0.45;
+    const x1 = 16 + f * 7.2 + sway, y1 = 19.2 + Math.abs(f) * 0.6, x2 = 16 + f * 7.8 - sway * 0.6, y2 = 22.4 - Math.abs(f) * 1.2;
+    const tone = k % 3 === 0 ? c.hairDark : c.hair;
+    m.limb(x0, y0, 13 - Math.abs(f) * 1.6, x1, y1, 11.6 - Math.abs(f), 0.62, tone, 0.4, 0.52);
+    m.limb(x1, y1, 11.6 - Math.abs(f), x2, y2, 10.6 - Math.abs(f), 0.52, tone, 0.4, 0.16);
+    if (k % 2) m.limb(x0, y0, 13.4 - Math.abs(f) * 1.6, x1 + 0.1, y1 - 0.4, 12 - Math.abs(f), 0.16, '#f6e3a4', 1, 0.1);
+  }
+
 }
 
 function ragged(m) {
