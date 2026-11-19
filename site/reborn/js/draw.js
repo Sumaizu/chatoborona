@@ -1674,12 +1674,13 @@ export class Scene {
       const back = k >= job.out, f = back ? (k - job.out) / job.back : k / job.out;
       const seen = !back && job.mob && !job.mob.dead ? this.shown.get(job.mob.id) : null;
       if (seen) Object.assign(job, { x: seen.x, y: seen.y });
-      const spot = hammerAt({ cx: pose.x, cy: pose.y }, job.x, job.y, f, back);
+      const palm = this._muzzle(t), hand = { cx: palm.x, cy: palm.y };
+      const spot = hammerAt(hand, job.x, job.y, f, back);
       const x = at(spot.x), y = at(spot.y), spin = this.clock * STORM_FX.spin;
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       for (let i = 1; i <= 4; i++) {
-        const past = Math.max(0, f - i * 0.05), trail = hammerAt({ cx: pose.x, cy: pose.y }, job.x, job.y, past, back);
+        const past = Math.max(0, f - i * 0.05), trail = hammerAt(hand, job.x, job.y, past, back);
         glow(ctx, at(trail.x), at(trail.y), 7 - i, 'rgba(' + ZAP.glow + ', 1)', 0.35 - i * 0.06);
       }
       glow(ctx, x, y, 11, 'rgba(' + ZAP.glow + ', 1)', 0.55);

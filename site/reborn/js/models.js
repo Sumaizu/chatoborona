@@ -504,9 +504,9 @@ function thor(m, pose = '') {
     for (let k = 0; k < 2; k++) m.limb(16 + side * 4.6, 16.2 + k * 1.2, 10 - k * 0.3, 16 + side * 7.6, 16.8 + k * 1.2, 9.4 - k * 0.3, 0.42, c.plate, 1, 0.3);
     m.ball(16 + side * 4.8, 16.2, 10.6, 0.5, '#d4a017', 1);
   }
-  brawn(m, c, 10.2, 9.8, 13.8, 13.2, 11.2, 10);
-  const hand = pose === 'throw' ? [20.6, 7.2, 12.6] : pose === 'empty' ? [18.8, 11.4, 10]
-    : pose === 'catch' ? [20.2, 9, 11.6] : [19.4, 11, 10.4];
+  brawn(m, c, 10.2, 8.8, 19.4, 10.6, 22.4, 7.2);
+  const hand = pose === 'throw' ? [20.2, 8.4, 12.2] : pose === 'empty' ? [19.4, 11.4, 10]
+    : pose === 'catch' ? [19.6, 9.8, 11.4] : [19.4, 11, 10.4];
   brawn(m, c, 21.8, 22.2, 13.8, hand[0], hand[1], hand[2]);
   if (pose !== 'throw' && pose !== 'empty') hammer(m, hand[0], hand[1] - 4.6);
   m.ball(hand[0], hand[1], hand[2] + 1.4, 1.5, SKIN, 0.2);
@@ -1684,7 +1684,8 @@ export const MUZZLES = {
   sorceress: [[20.6, 8.6]], 'sorceress-ragged': [[20.6, 8.6]], 'sorceress-minstrel': [[19.4, 14]],
   'sorceress-enchantress': [[20.4, 8.6]], 'sorceress-enchantress-beam': [[16, 8.4]], 'sorceress-shamaness': [[10.8, 13.2]],
   frost: STAFF, earth: STAFF, shaman: STAFF, thunder: PALM, 'thunder-ragged': PALM, 'thunder-caller': STAFF,
-  'thunder-caller-strike': [[12.5, 0.4]], 'thunder-raiju': [[16, 3.6]], 'thunder-thor': [[19.4, 6]],
+  'thunder-caller-strike': [[12.5, 0.4]], 'thunder-raiju': [[16, 3.6]], 'thunder-thor': [[19.4, 11]], 'thunder-thor-throw': [[19.4, 11]], 'thunder-thor-empty': [[19.4, 11]],
+  'thunder-thor-catch': [[19.4, 11]],
 };
 
 export const RELOAD_FRAMES = RELOAD.frames;
