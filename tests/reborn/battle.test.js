@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { AIM, ARCANE, BITE_TIME, Battle, HELP, HOLY, SONG, SPELL, WOOD, DISCHARGE, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, FIRE,
+import { AIM, ARCANE, BITE_TIME, Battle, hammerAt, HELP, HOLY, SONG, SPELL, STORM, WOOD, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, FIRE,
   PULSE, REACTIONS, ROT, SHOT, SPLIT_TIME }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
@@ -1578,6 +1578,107 @@ test('волшебница, чародейский круг: она и сосе�
   near(ally.range - base, SPELL.circle * 2, 'от двух волшебниц');
 });
 
+function storm(battle, x, y, runes) {
+  const t = battle.place(player(), 'thunder', x, y);
+  battle.setMods(t, { runes });
+  t.critChance = 0;
+  t.cooldown = 1e9;
+  return t;
+}
+
+test('маг молнии: шар молнии летит и бьёт по прилёту, без оглушения; стихию молнии кладёт только с реакциями', () => {
+  const battle = makeBattle(), t = storm(battle, 10, 4, []), mob = walker(battle, 13, 1e9);
+  still(mob);
+  ok(battle._fire(t));
+  eq(hit(mob), 0, 'шар ещё летит');
+  runFor(battle, 1);
+  near(hit(mob), t.damage);
+  ok(mob.holdUntil <= battle.time, 'не оглушает');
+  no(mob.marks && mob.marks.has('lightning'), 'без «Реакций молнии» стихии нет');
+  const marked = storm(battle, 10, 6, ['stormReact']);
+  ok(battle._fire(marked));
+  runFor(battle, 1);
+  ok(mob.marks && mob.marks.has('lightning'), 'с «Реакциями молнии» — есть');
+});
+
+test('громовержец: молния из посоха сразу бьёт ближайшего врага', () => {
+  const battle = makeBattle(), t = storm(battle, 10, 4, ['caller']);
+  const close = walker(battle, 11, 1e9), lead = walker(battle, 13.5, 1e9);
+  still(close, lead);
+  ok(battle._fire(t));
+  near(hit(close), t.damage, 'ближайший — сразу');
+  eq(hit(lead), 0, 'первый к сердцу, но дальше — нет');
+  ok(battle.events.some((e) => e.kind === 'chain' && e.mob === close));
+});
+
+test('райдзю: замах лапой ранит всех врагов на 2 клетки вокруг', () => {
+  const battle = makeBattle(), t = storm(battle, 10, 4, ['raiju']);
+  ok(t.range >= STORM.raiju.reach && t.range < STORM.raiju.reach + 1, 'радиус 2 клетки');
+  const a = walker(battle, 9, 1e9), b = walker(battle, 11.5, 1e9), far = walker(battle, 14, 1e9);
+  still(a, b, far);
+  ok(battle._fire(t));
+  near(hit(a), t.damage);
+  near(hit(b), t.damage);
+  eq(hit(far), 0);
+  ok(battle.events.some((e) => e.kind === 'claw' && e.tower === t));
+});
+
+test('Тор: молот летит дугой в цель и назад, ранит цель и всех на пути; пока не вернулся — второй не бросает', () => {
+  const battle = makeBattle(), t = storm(battle, 10, 4, ['thor']), s = STORM.thor;
+  ok(t.range >= s.reach && t.range < s.reach + 1, 'на 4 клетки');
+  const target = walker(battle, 13.5, 1e9);
+  still(target);
+  ok(battle._fire(t));
+  no(battle._fire(t), 'молот в полёте');
+  const out = hammerAt(t, target.x, target.y, 0.5, false), back = hammerAt(t, target.x, target.y, 0.5, true);
+  ok(Math.hypot(out.x - back.x, out.y - back.y) > 0.5, 'туда и обратно — разными дугами');
+  runFor(battle, s.out + s.back + 0.05);
+  near(hit(target), t.damage, 'цель ранена один раз за бросок');
+  ok(battle._fire(t), 'вернулся — снова бросает');
+  const path = makeBattle(), u = storm(path, 10, 4, ['thor']), aim = walker(path, 14, 1e9);
+  still(aim);
+  const mid = hammerAt(u, aim.x, aim.y, 0.5, false), side = walker(path, 3, 1e9);
+  still(side);
+  side.d = 99;
+  Object.assign(side, { x: mid.x, y: mid.y });
+  path._locate = () => {};
+  ok(path._fire(u));
+  runFor(path, s.out + 0.05);
+  ok(hit(side) > 0, 'кого задел по пути — тоже ранен');
+});
+
+test('громоотвод: стоит до конца игры; удар молнии — волна на 3 клетки, связь со всеми громоотводами и их волны', () => {
+  const battle = makeBattle(), a = storm(battle, 4, 4, ['rod']), b = storm(battle, 16, 4, ['rod']), s = STORM.rod;
+  battle.step(TICK);
+  eq(battle.rods.length, 2, 'по громоотводу у каждого');
+  const nearA = walker(battle, 4, 1e9), nearB = walker(battle, 16, 1e9), between = walker(battle, 10, 1e9);
+  const far = walker(battle, 10, 1e9);
+  still(nearA, nearB, between, far);
+  battle.step(TICK);
+  far.y += 3;
+  between.y = a.cy;
+  battle._locate = () => {};
+  let fired = false;
+  battle.random = () => {
+    if (fired) return 0.99;
+    fired = true;
+    return s.chance / 2;
+  };
+  battle.rodAt = 0;
+  battle.step(TICK);
+  ok(battle.events.some((e) => e.kind === 'skybolt'), 'молния ударила');
+  eq(battle.events.filter((e) => e.kind === 'surge').length, 2, 'волна и у второго громоотвода');
+  near(hit(nearA), a.damage * s.wave);
+  near(hit(nearB), b.damage * s.wave);
+  battle.step(TICK);
+  near(hit(between), a.damage * s.link, 'под связью — тоже');
+  eq(hit(far), 0, 'в стороне — нет');
+  runFor(battle, s.time + 0.1);
+  eq(battle.links.length, 0, 'связь держится секунду');
+  battle.leave(a);
+  eq(battle.rods.length, 2, 'спящий оставляет громоотвод');
+});
+
 test('шаманка: удар в барабан — волна на 2 клетки вокруг ранит всех', () => {
   const battle = makeBattle(), t = sorc(battle, 10, 4, ['shamaness']);
   ok(t.range >= 2 && t.range < 3);
@@ -1977,76 +2078,6 @@ test('стрелок: последний патрон, наводчик, зол�
   const before = hit(mob);
   battle._hurt(mob, 100, gun, null);
   near(hit(mob) - before, 100 * (1 + SHOT.mark.bonus), 'меченого бьют сильнее и союзники');
-});
-
-test('громовержец: молния прыгает назад по дороге ещё на девять мобов, каждому на 10% меньше', () => {
-  const battle = makeBattle(), thunder = battle.place(player(), 'thunder', 10, 4);
-  thunder.critChance = 0;
-  battle.random = () => 0.99;
-  const mobs = [];
-  for (let d = 13; d >= 0; d--) mobs.push(walker(battle, d, 1e6));
-  still(...mobs);
-  battle._fire(thunder);
-  mobs.forEach((mob, k) => near(hit(mob), k < 10 ? thunder.damage * (1 - 0.1 * k) : 0, 'моб ' + k));
-  ok(battle.events.some((e) => e.kind === 'chain' && e.points.length === 11));
-});
-
-test('громовержец: руна «Цепная молния» — без ослабления, ещё пять прыжков и в обе стороны', () => {
-  const battle = makeBattle(), thunder = battle.place(player(), 'thunder', 10, 4);
-  battle.setMods(thunder, { runes: ['chain'] });
-  thunder.critChance = 0;
-  battle.random = () => 0.99;
-  const mobs = [];
-  for (let d = 14; d >= 0; d--) mobs.push(walker(battle, d, 1e6));
-  const ahead = walker(battle, 14.6, 1e6);
-  still(ahead, ...mobs);
-  battle._fire(thunder);
-  const struck = mobs.concat([ahead]).filter((mob) => hit(mob) > 0);
-  eq(struck.length, 15);
-  for (const mob of struck) near(hit(mob), thunder.damage);
-  ok(hit(ahead) > 0, 'и вперёд');
-});
-
-test('громовержец: с 10-го задетые заряжены и получают больше от всех; с 30-го — вспышка вокруг', () => {
-  const battle = makeBattle(), thunder = battle.place(level(30), 'thunder', 10, 4);
-  const gun = battle.place(player(), 'mechanic', 18, 0);
-  thunder.critChance = 0;
-  battle.random = () => 0;
-  const target = walker(battle, 13, 1e6), side = walker(battle, 13.6, 1e6);
-  still(target, side);
-  battle._fire(thunder);
-  ok(target.charge && target.charge.by === thunder, 'заряжен');
-  ok(battle.events.some((e) => e.kind === 'flash'));
-  ok(hit(side) > 0, 'вспышка задела соседа');
-  const before = target.hp;
-  battle._hurt(target, 100, gun, null);
-  near(before - target.hp, 100 * (1 + thunder.s[0].bonus));
-});
-
-test('громовержец: с 50-го бьёт громом первого моба на дороге, где бы он ни был', () => {
-  const battle = makeBattle(), thunder = battle.place(level(50), 'thunder', 2, 4), lead = walker(battle, 18, 1e9);
-  still(lead);
-  battle.random = () => 0.99;
-  battle.step(TICK);
-  ok(battle.events.some((e) => e.kind === 'thunderbolt' && e.mob === lead));
-  ok(hit(lead) >= thunder.skill * thunder.s[2].bonus * thunder.critMul - 1e-6, 'критический урон');
-  ok(lead.holdUntil > battle.time, 'оглушён');
-});
-
-test('громовержец: руна «Разрядка» — заряженный без молнии пять секунд получает огромный урон и оглушение', () => {
-  const battle = makeBattle(), thunder = battle.place(level(10), 'thunder', 10, 4), mob = walker(battle, 11, 1e9);
-  still(mob);
-  battle.setMods(thunder, { runes: ['discharge'] });
-  thunder.critChance = 0;
-  battle.random = () => 0.99;
-  battle._fire(thunder);
-  thunder.busy = 1e9;
-  const after = hit(mob);
-  runFor(battle, thunder.s[0].time + 0.1);
-  ok(battle.events.some((e) => e.kind === 'discharge'));
-  near(hit(mob) - after, thunder.skill * DISCHARGE.mul);
-  ok(mob.holdUntil > battle.time + DISCHARGE.hold - 0.5);
-  eq(mob.charge, null);
 });
 
 const lookOf = (id) => Object.values(LOOKS).flat().find((look) => look.id === id);
@@ -2531,7 +2562,7 @@ function lab() {
     fire: at('pyro', 1, { runes: ['fireReact'] }), fire2: at('pyro', 3, { runes: ['fireReact'] }),
     fire3: at('pyro', 17, { runes: ['fireReact'] }),
     water: at('frost', 5, { perks: [6] }), earth: at('earth', 7, { perks: [6] }), air: at('shaman', 9, { perks: [6] }),
-    lightning: at('thunder', 11, { perks: [3] }), poison: at('forester', 13, { runes: ['witch'] }),
+    lightning: at('thunder', 11, { runes: ['stormReact'] }), poison: at('forester', 13, { runes: ['witch'] }),
   };
   return { battle, towers };
 }
@@ -2650,20 +2681,6 @@ test('реакции: гарантированные — лава, перегр�
   battle._pulse(battle.time);
   ok(battle.events.some((e) => e.kind === 'react' && e.name === 'Ядерный взрыв'), 'взрыв в газе — ядерный');
   ok(!battle.zones.includes(cloud), 'облако сгорело');
-});
-
-test('маг молнии: грозовая туча и гроза над полем', () => {
-  const battle = makeBattle(), t = battle.place(player(), 'thunder', 10, 4);
-  battle.setMods(t, { perks: [4, 5] });
-  t.cooldown = 1e9;
-  const close = walker(battle, 10, 1e6), far = walker(battle, 2, 1e6);
-  still(close, far);
-  battle.step(TICK);
-  ok(battle.zones.some((zone) => zone.kind === 'cloud'), 'туча над дорогой');
-  ok(battle.events.some((e) => e.kind === 'tempest'));
-  runFor(battle, 0.6);
-  ok(hit(far) >= t.skill * t.s[5].bonus, 'гроза бьёт по всему полю');
-  ok(hit(close) > hit(far), 'под тучей — ещё и туча');
 });
 
 test('маг ветра: попутный ветер, ураган, око бури', () => {

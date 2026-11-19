@@ -38,8 +38,8 @@ const SOUND_PRIORITY = ['over', 'divine', 'relic', 'win', 'boss', 'wave', 'jackp
   'buff', 'debuff', 'spin', 'leak', 'card', 'tick'];
 const SFX_PER_FRAME = 4;
 const SHOTS = { sniper: 'crack', mechanic: 'gun', forester: 'bolt',
-  priest: 'holy', sorceress: 'cast' };
-const BATTLE_SOUNDS = { chord: 'lute', drum: 'drum', totem: 'build', conjure: 'cast', strike: 'hit', wall: 'build', crumble: 'crumble',
+  priest: 'holy', sorceress: 'cast', thunder: 'zap' };
+const BATTLE_SOUNDS = { chord: 'lute', drum: 'drum', totem: 'build', claw: 'hit', hammer: 'leap', rod: 'build', conjure: 'cast', strike: 'hit', wall: 'build', crumble: 'crumble',
   bite: 'chomp', nova: 'ice',
   spikes: 'rock', whirl: 'wind', clink: 'clink', treasure: 'treasure', rattle: 'rattle', rise: 'rise',
   hex: 'hex', blink: 'leap', burrow: 'burrow', leech: 'summon', steal: 'clink', loot: 'treasure', reflect: 'block',
@@ -455,7 +455,7 @@ export class View {
       this._sound('flame');
     } else if (kind === 'boom' || kind === 'flashbang') {
       this._sound(event.meteor ? 'quake' : 'boom');
-    } else if (kind === 'thunderbolt' || kind === 'discharge') {
+    } else if (kind === 'thunderbolt' || kind === 'skybolt') {
       this._sound('storm');
     } else if (kind === 'kill') {
       this._sound('kill');

@@ -1,6 +1,6 @@
 import { LETTERS, SIZE } from './field.js';
 import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintRoadMask, paintRoof } from './terrain.js';
-import { FIRE, HOLY, MANTRAS, MECH, SPELL, WOOD, flightAt, heavyGun, roadCurve } from './battle.js';
+import { FIRE, HOLY, MANTRAS, MECH, SPELL, STORM, WOOD, flightAt, hammerAt, heavyGun, roadCurve } from './battle.js';
 import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite,
   coinSprite, fireballSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
   meteorSprite, grenadeSprite, droneSprite, birdSprite, hawkSprite, snareSprite, trapSprite, cauldronSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
@@ -64,7 +64,7 @@ const STATE_TINTS = ['steam', 'mud', 'corrosion', 'disease', 'epidemic'];
 const MARK_COLORS = { fire: '#ff7a1f', water: '#38bdf8', earth: '#c08a4a', air: '#ccfbf1', lightning: '#facc15',
   poison: '#84cc16' };
 const ZONE_LOOKS = { pool: ['#38bdf8', '#e0f2fe', '#7dd3fc'], sand: ['#c9a66b', '#e7cf9b', '#8a6a3a'],
-  cloud: ['#64748b', '#cbd5e1', '#facc15'], gas: ['#84cc16', '#d9f99d', '#4d7c0f'],
+  gas: ['#84cc16', '#d9f99d', '#4d7c0f'],
   lava: ['#ef4444', '#fb923c', '#7f1d1d'] };
 const HIT_FLASH = 0.15;
 const ELEMENT_BITS = {
@@ -102,6 +102,7 @@ const BOLTS = {
   shaman: { look: 'dot', color: '#5eead4', size: 3 },
   priest: { look: 'light', color: '#fde68a', size: 3 },
   sorceress: { look: 'wisp', color: '#c4b5fd', size: 3 },
+  thunder: { look: 'fireball', color: '#fde047', size: 9, tone: 'storm' },
 };
 const FLAME = ['#fff3b0', '#ffd84a', '#ff9a1f', '#ff5a1f', '#b8320f'];
 const BLUE_FLAME = ['#e0f2ff', '#9bd5ff', '#4aa3ff', '#2563eb', '#1e3a8a'];
@@ -119,7 +120,11 @@ const UNBIND = { edge: 40, inner: 16,
   tones: ['255, 140, 60', '125, 211, 252', '163, 230, 53', '250, 204, 21', '196, 181, 253'] };
 const STONES = { count: 5, spread: 3.6, size: 2.2, glow: '232, 170, 90' };
 const ROAD_AURA = { zoom: 2, motes: 5, reach: 1.12 };
-const SHOCK = { grow: 0.3, tail: 0.18, soft: CELL * 0.6, pieces: 120 };
+const SHOCK = { grow: 0.3, tail: 0.18, zoom: 2, bands: [[0.3, 1, 0.12], [0.15, 0.55, 0.2], [0.05, 0.22, 0.5]] };
+const ZAP = { glow: '96, 165, 250', mid: '191, 219, 254', core: '255, 255, 255', jag: 0.42, steps: 11 };
+const RAIJU_FX = { rgb: '125, 211, 252', core: '240, 249, 255', reach: 1.5, every: 0.9 };
+const ROD = { tall: 26, coil: 5 };
+const STORM_FX = { strike: 0.25, swipe: 0.25, throw: 0.18, catch: 0.22, spin: 16 };
 const BEAM = { core: 2.6, mid: 6, outer: 12, twist: 0.11, spin: 7, coil: 5.5, flare: 11 };
 const VENOM = { toxic: 'rgba(132, 204, 22, .9)', plague: 'rgba(91, 33, 182, .9)' };
 const GAS = { toxic: ['rgba(201, 246, 120, .8)', 'rgba(101, 163, 13, .45)'],
@@ -1091,6 +1096,8 @@ export class Scene {
     this._auras(ctx, battle);
     this._towers(ctx, battle, dt, highlight, still);
     this._standards(ctx, battle);
+    this._rods(ctx, battle);
+    this._hammers(ctx, battle);
     this._beams(ctx, battle);
     this._onField(ctx, () => this._phoenixes(ctx, battle, step));
     this._onField(ctx, () => this._drones(ctx, battle, step));
@@ -1549,6 +1556,199 @@ export class Scene {
     ctx.globalCompositeOperation = 'lighter';
     glow(ctx, x, y, 6, 'rgba(255, 214, 150, 1)', 0.45);
     ctx.restore();
+  }
+
+  _zap(ctx, x1, y1, x2, y2, width, alpha, seed) {
+    const tick = Math.floor(this.clock * 24) + seed * 13, len = Math.hypot(x2 - x1, y2 - y1) || 1;
+    const nx = -(y2 - y1) / len, ny = (x2 - x1) / len, points = [[x1, y1]];
+    for (let k = 1; k < ZAP.steps; k++) {
+      const f = k / ZAP.steps, off = (noise(k, tick) - 0.5) * len * ZAP.jag / Math.sqrt(ZAP.steps) * Math.sin(f * Math.PI);
+      points.push([x1 + (x2 - x1) * f + nx * off, y1 + (y2 - y1) * f + ny * off]);
+    }
+    points.push([x2, y2]);
+    const branch = points[Math.floor(ZAP.steps / 2)], fork = (noise(99, tick) - 0.5) * 2;
+    const bx = branch[0] + (nx * fork + (x2 - x1) / len * 0.6) * len * 0.22, by = branch[1] + (ny * fork + (y2 - y1) / len * 0.6) * len * 0.22;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const [w, rgb, a] of [[width * 3.2, ZAP.glow, 0.28], [width * 1.4, ZAP.mid, 0.7], [width * 0.5, ZAP.core, 1]]) {
+      ctx.strokeStyle = 'rgba(' + rgb + ', ' + a * alpha + ')';
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.stroke();
+      ctx.lineWidth = w * 0.6;
+      ctx.beginPath();
+      ctx.moveTo(branch[0], branch[1]);
+      ctx.lineTo((branch[0] + bx) / 2 + nx * 3, (branch[1] + by) / 2 + ny * 3);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+    }
+    glow(ctx, x2, y2, 6 + width * 2, 'rgba(' + ZAP.glow + ', 1)', 0.6 * alpha);
+    ctx.restore();
+  }
+
+  _claw(ctx, e, share) {
+    const x = at(e.x), y = at(e.y), r = e.radius * CELL, fade = 1 - share, grow = Math.min(1, share * 3);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    for (let n = -1; n <= 1; n++) {
+      const from = e.angle - 1.1 * grow, to = e.angle + 1.1 * grow, d = r * (0.62 + n * 0.12);
+      const lean = n * 0.18;
+      for (const [w, rgb, a] of [[6, RAIJU_FX.rgb, 0.3], [2.4, RAIJU_FX.rgb, 0.8], [0.9, RAIJU_FX.core, 1]]) {
+        ctx.strokeStyle = 'rgba(' + rgb + ', ' + a * fade + ')';
+        ctx.lineWidth = w * (1 - Math.abs(n) * 0.25);
+        ctx.beginPath();
+        ctx.arc(x + Math.cos(e.angle) * lean * r, y + Math.sin(e.angle) * lean * r, d, from, to);
+        ctx.stroke();
+      }
+    }
+    const ring = ctx.createRadialGradient(x, y, r * 0.85, x, y, r);
+    ring.addColorStop(0, 'rgba(' + RAIJU_FX.rgb + ', 0)');
+    ring.addColorStop(1, 'rgba(' + RAIJU_FX.rgb + ', ' + 0.25 * fade + ')');
+    ctx.fillStyle = ring;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  _furSparks(ctx, t, x, y, facing) {
+    const beat = Math.floor(this.clock / RAIJU_FX.every + t.x * 0.7), on = noise(beat, t.y) < 0.55;
+    if (!on) return;
+    const tick = Math.floor(this.clock * 20);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 2; i++) {
+      const along = (noise(beat * 3 + i, 4) - 0.5) * 22, side = (noise(beat * 5 + i, 6) - 0.5) * 12;
+      const fx = Math.sin(facing), fy = -Math.cos(facing), sx = -fy, sy = fx;
+      let px = x + fx * along + sx * side, py = y + fy * along + sy * side;
+      ctx.strokeStyle = 'rgba(' + RAIJU_FX.core + ', .9)';
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      for (let k = 0; k < 4; k++) {
+        px += (noise(i * 9 + k, tick) - 0.5) * 6;
+        py += (noise(i * 9 + k + 4, tick) - 0.5) * 6;
+        ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+      glow(ctx, px, py, 4, 'rgba(' + RAIJU_FX.rgb + ', 1)', 0.6);
+    }
+    ctx.restore();
+  }
+
+  _hammers(ctx, battle) {
+    for (const t of battle.towers) {
+      const pose = this.poses.get(t), job = pose && pose.hammer;
+      if (t.style !== 'thor' || !job) continue;
+      const k = this.clock - job.start;
+      if (k >= job.out + job.back) continue;
+      const back = k >= job.out, f = back ? (k - job.out) / job.back : k / job.out;
+      const spot = hammerAt({ cx: pose.x, cy: pose.y }, job.x, job.y, f, back);
+      const x = at(spot.x), y = at(spot.y), spin = this.clock * STORM_FX.spin;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 1; i <= 4; i++) {
+        const past = Math.max(0, f - i * 0.05), trail = hammerAt({ cx: pose.x, cy: pose.y }, job.x, job.y, past, back);
+        glow(ctx, at(trail.x), at(trail.y), 7 - i, 'rgba(' + ZAP.glow + ', 1)', 0.35 - i * 0.06);
+      }
+      glow(ctx, x, y, 11, 'rgba(' + ZAP.glow + ', 1)', 0.55);
+      ctx.restore();
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(spin);
+      const grip = ctx.createLinearGradient(-1, 0, 1, 0);
+      grip.addColorStop(0, '#3b2414');
+      grip.addColorStop(0.5, '#8a5a32');
+      grip.addColorStop(1, '#3b2414');
+      ctx.fillStyle = grip;
+      ctx.fillRect(-0.9, -1, 1.8, 8);
+      const w = 5.2, h = 3.2, b = 1, cy = -3;
+      ctx.fillStyle = '#3e5470';
+      ctx.fillRect(-w, cy - h, w * 2, h * 2);
+      for (const [pts, color] of [[[[-w, cy - h], [w, cy - h], [w - b, cy - h + b], [-w + b, cy - h + b]], '#c7dbf2'],
+        [[[-w, cy + h], [w, cy + h], [w - b, cy + h - b], [-w + b, cy + h - b]], '#465d7a'],
+        [[[-w, cy - h], [-w + b, cy - h + b], [-w + b, cy + h - b], [-w, cy + h]], '#8fabcc'],
+        [[[w, cy - h], [w - b, cy - h + b], [w - b, cy + h - b], [w, cy + h]], '#56708f']]) {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        pts.forEach(([px, py], n) => (n ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+        ctx.closePath();
+        ctx.fill();
+      }
+      const face = ctx.createLinearGradient(0, cy - h + b, 0, cy + h - b);
+      face.addColorStop(0, '#b7cde8');
+      face.addColorStop(1, '#7f9bbd');
+      ctx.fillStyle = face;
+      ctx.fillRect(-w + b, cy - h + b, (w - b) * 2, (h - b) * 2);
+      ctx.strokeStyle = 'rgba(224, 242, 254, .95)';
+      ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(-2, cy - 0.6);
+      ctx.lineTo(-0.6, cy + 0.8);
+      ctx.lineTo(0.6, cy - 0.8);
+      ctx.lineTo(2, cy + 0.6);
+      ctx.stroke();
+      ctx.restore();
+      if (Math.floor(this.clock * 12) % 3 === 0) {
+        this._zap(ctx, x, y, x + (noise(1, Math.floor(this.clock * 12)) - 0.5) * 18,
+          y + (noise(2, Math.floor(this.clock * 12)) - 0.5) * 18, 0.8, 0.8, t.x);
+      }
+    }
+  }
+
+  _rods(ctx, battle) {
+    for (const rod of battle.rods.slice().sort((a, b) => a.cy - b.cy)) {
+      const x = at(rod.cx), foot = at(rod.cy) + 8, top = foot - ROD.tall, pulse = 0.5 + 0.5 * Math.sin(this.clock * 6 + rod.seed * 9);
+      ctx.save();
+      ctx.fillStyle = 'rgba(0, 0, 0, .3)';
+      ctx.beginPath();
+      ctx.ellipse(x + 2, foot, 5.5, 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      const iron = ctx.createLinearGradient(x - 1.2, 0, x + 1.2, 0);
+      iron.addColorStop(0, '#1f2328');
+      iron.addColorStop(0.45, '#9ca3af');
+      iron.addColorStop(1, '#16181c');
+      ctx.fillStyle = iron;
+      ctx.fillRect(x - 1.1, top + 4, 2.2, ROD.tall - 4);
+      ctx.strokeStyle = '#b45309';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let k = 0; k <= 24; k++) {
+        const yy = top + 6 + k * 0.7, xx = x + Math.sin(k * 1.4) * 1.9;
+        if (k) ctx.lineTo(xx, yy);
+        else ctx.moveTo(xx, yy);
+      }
+      ctx.stroke();
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 0.4;
+      ctx.stroke();
+      const copper = ctx.createLinearGradient(x - 1.6, 0, x + 1.6, 0);
+      copper.addColorStop(0, '#7c2d12');
+      copper.addColorStop(0.5, '#f59e0b');
+      copper.addColorStop(1, '#78350f');
+      ctx.fillStyle = copper;
+      ctx.beginPath();
+      ctx.moveTo(x, top - 3);
+      ctx.lineTo(x + 1.6, top + 4);
+      ctx.lineTo(x - 1.6, top + 4);
+      ctx.closePath();
+      ctx.fill();
+      for (const yy of [top + 4.6, foot - 5]) {
+        ctx.fillStyle = '#4b5563';
+        ctx.fillRect(x - 2.2, yy, 4.4, 1.3);
+      }
+      ctx.globalCompositeOperation = 'lighter';
+      glow(ctx, x, top - 2, 5 + 2 * pulse, 'rgba(' + ZAP.glow + ', 1)', 0.35 + 0.3 * pulse);
+      if (noise(Math.floor(this.clock * 3), rod.seed * 50) < 0.3) {
+        this._zap(ctx, x, top - 2, x + (rod.seed - 0.5) * 10, top + 3, 0.6, 0.7, rod.seed * 10);
+      }
+      ctx.restore();
+    }
   }
 
   _beams(ctx, battle) {
@@ -2624,36 +2824,41 @@ export class Scene {
   _shock(ctx, e, share) {
     const t = share * e.life, k = Math.min(1, t / SHOCK.grow), grow = 1 - Math.pow(1 - k, 2);
     const r = Math.max(3, e.radius * CELL * grow), fade = t < SHOCK.grow ? 1 : Math.max(0, 1 - (t - SHOCK.grow) / SHOCK.tail);
-    const band = 0.55 * CELL, rgb = SPELLS.shock, spots = e.centers.map((c) => [at(c.x), at(c.y)]);
-    const open = (px, py, own) => {
-      let w = 1;
-      spots.forEach(([cx, cy], n) => {
-        if (n === own) return;
-        const u = Math.max(0, Math.min(1, (Math.hypot(px - cx, py - cy) - r + SHOCK.soft) / SHOCK.soft));
-        w = Math.min(w, u * u * (3 - 2 * u));
-      });
-      return w;
+    const band = 0.55 * CELL, rgb = e.rgb || SPELLS.shock, spots = e.centers.map((c) => [at(c.x), at(c.y)]);
+    if (!this._shockLayer) this._shockLayer = document.createElement('canvas');
+    const layer = this._shockLayer, side = BOARD * SHOCK.zoom;
+    if (layer.width !== side) layer.width = layer.height = side;
+    const g = layer.getContext('2d');
+    g.setTransform(SHOCK.zoom, 0, 0, SHOCK.zoom, 0, 0);
+    const discs = (radius) => {
+      g.beginPath();
+      for (const [x, y] of spots) {
+        g.moveTo(x + Math.max(0, radius), y);
+        g.arc(x, y, Math.max(0, radius), 0, Math.PI * 2);
+      }
+      g.fill();
     };
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    ctx.lineCap = 'butt';
-    const step = Math.PI * 2 / SHOCK.pieces;
+    ctx.imageSmoothingEnabled = true;
+    for (const [outer, inner, alpha] of SHOCK.bands) {
+      g.globalCompositeOperation = 'source-over';
+      g.clearRect(0, 0, BOARD, BOARD);
+      g.fillStyle = 'rgba(' + rgb + ', ' + alpha * fade + ')';
+      discs(r + band * outer);
+      g.globalCompositeOperation = 'destination-out';
+      g.fillStyle = '#000';
+      discs(r - band * inner);
+      ctx.drawImage(layer, 0, 0, BOARD, BOARD);
+    }
+    ctx.restore();
+    ctx.save();
     spots.forEach(([x, y], own) => {
-      for (let n = 0; n < SHOCK.pieces; n++) {
-        const a = n * step, w = open(x + Math.cos(a + step / 2) * r, y + Math.sin(a + step / 2) * r, own);
-        if (w <= 0) continue;
-        for (const [width, alpha, inset] of [[band, 0.16, band * 0.35], [band * 0.35, 0.5, band * 0.12]]) {
-          ctx.strokeStyle = 'rgba(' + rgb + ', ' + alpha * fade * w + ')';
-          ctx.lineWidth = width;
-          ctx.beginPath();
-          ctx.arc(x, y, Math.max(0.5, r - inset), a, a + step * 1.04);
-          ctx.stroke();
-        }
-      }
       for (let i = 0; i < 16; i++) {
         const a = i * 0.39 + e.seed + own, d = r * (0.85 + 0.15 * Math.sin(i * 2.3));
-        const px = x + Math.cos(a) * d, py = y + Math.sin(a) * d * 0.9, w = open(px, py, own);
-        if (w > 0) glow(ctx, px, py, 4, 'rgba(180, 150, 110, 1)', 0.35 * fade * w);
+        const px = x + Math.cos(a) * d, py = y + Math.sin(a) * d * 0.9;
+        if (spots.some(([cx, cy], n) => n !== own && Math.hypot(px - cx, py - cy) < r)) continue;
+        glow(ctx, px, py, 4, 'rgba(180, 150, 110, 1)', 0.35 * fade);
       }
     });
     ctx.restore();
@@ -3558,6 +3763,13 @@ export class Scene {
         look = t.look + '-strum';
       }
       if (t.beam) look = t.look + '-beam';
+      if (t.style === 'thor' && pose.hammer) {
+        const k = this.clock - pose.hammer.start, flight = pose.hammer.out + pose.hammer.back;
+        if (k < STORM_FX.throw) look = t.look + '-throw';
+        else if (k < flight) look = t.look + '-empty';
+        else if (k < flight + STORM_FX.catch) look = t.look + '-catch';
+        else pose.hammer = null;
+      }
       pose.x = spot.x;
       pose.y = spot.y;
       pose.lift = spot.lift;
@@ -3590,6 +3802,7 @@ export class Scene {
         if (lunge >= 0) this._rod(ctx, t, mx, my + lift, facing, lunge);
         smooth(ctx, heroSprite(look, -1), mx, my + lift, facing, ZOOM);
         if (t.style === 'angel' && !t.planted) this._sword(ctx, t, x, y + lift, facing);
+        if (t.style === 'raiju') this._furSparks(ctx, t, x, y + lift, facing);
       } else if (heavyGun(t)) smooth(ctx, heroSprite(look, reload), x, y + lift, pose.angle, ZOOM);
       else sprite(ctx, heroSprite(look, reload), x, y, pose.angle, ZOOM, lift, HERO_TURN_STEPS);
       if (t.cls.id === 'priest' && t.style !== 'monk' && t.style !== 'angel') this._holyTip(ctx, t);
@@ -3882,7 +4095,7 @@ export class Scene {
         const tip = away ? { x: event.sx, y: event.sy - (event.high ? DRONE_LIFT / CELL : 0) }
           : this._muzzle(t, event.hand || 0);
         add({ kind: 'shot', life: Math.max(FLIGHT_MIN, flight - late), x1: tip.x, y1: tip.y, x2, y2, bolt,
-          crit: event.crit, heavy: event.heavy, head, track: t.style === 'enchantress' ? event.mob : null });
+          crit: event.crit, heavy: event.heavy, head, track: t.style === 'enchantress' || t.cls.id === 'thunder' ? event.mob : null });
         if (event.heavy) {
           this._pose(t).flash = FLASH * 3;
           this._sparks(tip.x, tip.y, CHARGES.heavy.sparks, event.heavy === 'mega' ? 14 : 8, 2.4, 0.35);
@@ -3987,22 +4200,32 @@ export class Scene {
         this._sparks(tip.x, tip.y, ['#e5e7eb', '#9ca3af', '#fff3b0'], 5, 1.2, 0.35, 2);
       });
     } else if (event.kind === 'chain') {
-      const [fx, fy] = event.points[1];
-      this._fire(t, fx, fy, null, () => {
-        const tip = this._muzzle(t), points = [], route = [[tip.x, tip.y]].concat(event.points.slice(1));
-        route.forEach(([x, y], i) => {
-          if (i) {
-            const [px, py] = route[i - 1];
-            for (let k = 1; k < 4; k++) {
-              points.push([px + (x - px) * k / 4 + (Math.random() - 0.5) * 0.35,
-                py + (y - py) * k / 4 + (Math.random() - 0.5) * 0.35]);
-            }
-          }
-          points.push([x, y]);
-        });
-        add({ kind: 'chain', life: 0.2, points });
-        for (const [x, y] of event.points.slice(1)) this._sparks(x, y, ['#bfdbfe', '#ffffff'], 3, 1.6, 0.25);
-      });
+      this._fire(t, event.mob.x, event.mob.y, event.mob, () => {
+        this._pose(t).act = { frame: 'strike', until: this.clock + STORM_FX.strike };
+        const tip = this._muzzle(t);
+        add({ kind: 'zap', life: 0.2, x1: tip.x, y1: tip.y, mob: event.mob, x2: event.mob.x, y2: event.mob.y, width: 2.2 });
+        this._sparks(event.mob.x, event.mob.y, ['#bfdbfe', '#ffffff', '#fde047'], 5, 1.8, 0.3);
+      }, STORM_FX.strike);
+    } else if (event.kind === 'claw') {
+      this._fire(t, event.x, event.y, event.mob, () => {
+        this._pose(t).act = { frame: 'swipe', until: this.clock + STORM_FX.swipe };
+        add({ kind: 'claw', life: 0.4, x: t.cx, y: t.cy, angle: Math.atan2(event.y - t.cy, event.x - t.cx),
+          radius: event.radius });
+      }, STORM_FX.swipe);
+    } else if (event.kind === 'hammer') {
+      this._face(t, event.x, event.y, event.mob, event.out + event.back);
+      this._pose(t).hammer = { start: this.clock, out: event.out, back: event.back, x: event.x, y: event.y };
+    } else if (event.kind === 'rod') {
+      this._sparks(event.x, event.y, ['#bfdbfe', '#ffffff', '#d97706'], 10, 1.6, 0.45);
+    } else if (event.kind === 'skybolt') {
+      add({ kind: 'zap', life: 0.35, x1: event.x + (Math.random() - 0.5) * 1.5, y1: -0.6, x2: event.x,
+        y2: event.y - ROD.tall / CELL, width: 5 });
+      add({ kind: 'glare', life: 0.25 });
+    } else if (event.kind === 'surge') {
+      add({ kind: 'shock', life: SHOCK.grow + SHOCK.tail, centers: [{ x: event.x, y: event.y }], radius: event.radius,
+        seed: Math.random() * 6, rgb: RAIJU_FX.rgb });
+    } else if (event.kind === 'links') {
+      add({ kind: 'links', life: event.time, pairs: event.pairs });
     } else if (event.kind === 'boom') {
       const tone = event.tone || (event.meteor ? 'earth' : null), big = event.rocket || event.meteor;
       add({ kind: 'blast', life: big ? 0.65 : 0.55, x: event.x, y: event.y, r: event.radius,
@@ -4015,10 +4238,7 @@ export class Scene {
       this._fire(t, event.x, event.y, null, () => {
         this._pose(t).flame = { until: this.clock + FLAME_HOLD, blue: event.blue };
       }, FLAME_HOLD);
-    } else if (event.kind === 'flash') {
-      add({ kind: 'ring', life: 0.35, x: event.x, y: event.y, r: event.radius, color: '#fde047', width: 2 });
-      this._sparks(event.x, event.y, ['#fef9c3', '#facc15', '#ffffff'], 8, event.radius * 3, 0.3);
-    } else if (event.kind === 'thunderbolt' || event.kind === 'discharge') {
+    } else if (event.kind === 'thunderbolt') {
       const x = event.mob ? event.mob.x : event.x, y = event.mob ? event.mob.y : event.y;
       add({ kind: 'storm', life: 0.35, x, y });
       add({ kind: 'ring', life: 0.5, x, y, r: event.radius || 1, color: '#facc15', width: 3 });
@@ -4177,7 +4397,7 @@ export class Scene {
     } else if (event.kind === 'zone') {
       const zone = event.zone, look = ZONE_LOOKS[zone.kind];
       add({ kind: 'ring', life: 0.5, x: zone.x, y: zone.y, r: zone.radius, color: look[0], width: 2 });
-      this._sparks(zone.x, zone.y, look, zone.kind === 'cloud' ? 4 : 7, zone.radius * 2.4, 0.5, 2);
+      this._sparks(zone.x, zone.y, look, 7, zone.radius * 2.4, 0.5, 2);
     } else if (event.kind === 'wave' || event.kind === 'quake') {
       const color = event.kind === 'wave' ? '#38bdf8' : '#a8794a';
       add({ kind: 'ring', life: 0.6, x: t.cx, y: t.cy, r: event.radius, color, width: 3 });
@@ -4616,16 +4836,22 @@ export class Scene {
             ctx.fillRect(Math.round(x - 1), Math.round(y + 1 - h), 1, Math.max(0, Math.round(h - 2)));
           }
         });
-      } else if (e.kind === 'chain') {
-        ctx.globalAlpha = fade;
-        for (const [width, color] of [[4, e.color || 'rgba(96, 165, 250, .6)'], [1.5, '#ffffff']]) {
-          ctx.strokeStyle = color;
-          ctx.lineWidth = width;
-          ctx.beginPath();
-          e.points.forEach(([x, y], i) => (i ? ctx.lineTo(at(x), at(y)) : ctx.moveTo(at(x), at(y))));
-          ctx.stroke();
+      } else if (e.kind === 'zap') {
+        const spot = e.mob && !e.mob.dead ? this.shown.get(e.mob.id) : null;
+        if (spot) {
+          e.x2 = spot.x;
+          e.y2 = spot.y - (spot.lift || 0) / CELL;
         }
-        ctx.globalAlpha = 1;
+        this._zap(ctx, at(e.x1), at(e.y1), at(e.x2), at(e.y2), e.width, fade, e.seed || 0);
+      } else if (e.kind === 'links') {
+        for (const [x1, y1, x2, y2] of e.pairs) {
+          this._zap(ctx, at(x1), at(y1) - ROD.tall, at(x2), at(y2) - ROD.tall, 4, Math.min(1, fade * 3), x1 + y2);
+        }
+      } else if (e.kind === 'claw') {
+        this._claw(ctx, e, share);
+      } else if (e.kind === 'glare') {
+        ctx.fillStyle = 'rgba(219, 234, 254, ' + 0.18 * fade + ')';
+        ctx.fillRect(EDGE, EDGE, CELL * SIZE, CELL * SIZE);
       } else if (e.kind === 'boom') {
         const r = e.r * CELL * (0.5 + 0.6 * share);
         glow(ctx, at(e.x), at(e.y), r * 1.2, e.heat || BOOM.heat, fade * 0.8);
