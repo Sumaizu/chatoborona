@@ -1249,6 +1249,16 @@ function reliefOf(battle) {
   return reliefs.get(battle);
 }
 
+export function paintRoadMask(g, battle) {
+  strokes(g, roadLines(battle), at, [[CELL * 0.8, '#000000']]);
+  if (!battle.solid) return;
+  g.globalCompositeOperation = 'destination-out';
+  battle.solid.forEach((solid, cell) => {
+    if (solid) g.fillRect(at(cell % SIZE), at(Math.floor(cell / SIZE)), CELL, CELL);
+  });
+  g.globalCompositeOperation = 'source-over';
+}
+
 export function paintGround(ctx, battle) {
   const look = lookOf(battle.biome);
   paintSoil(ctx, look);
