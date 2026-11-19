@@ -114,6 +114,7 @@ export const ARCANE = { control: { count: 3, mul: 1.25, spread: 0.6 }, splash: 1
 const MARKED = new Set(['fire', 'poison', 'earth', 'lightning']);
 export const STORM = { orb: 5, caller: { reach: 3.5, interval: 1, mul: 1.2 }, raiju: { reach: 2, interval: 1.2, mul: 1.1, arc: 1.3 },
   thor: { reach: 4, interval: 1.6, mul: 1.8, out: 0.55, back: 0.55, bend: 0.35, touch: 0.6, steps: 10 },
+  frenzy: { time: 3, haste: 2 }, spark: { mul: 4, reach: 3 },
   rod: { chance: 0.02, radius: 3, wave: 5, link: 3, time: 1, touch: 0.5, spot: [0.84, 0.3] } };
 export const SONG = { every: 15, time: 3, back: 1, dirge: 0.5, anthem: 0.3, ultrasound: 0.2 };
 export const TOTEMS = { totemSlow: 'slow', totemPurge: 'purge', totemPower: 'power' };
@@ -540,18 +541,27 @@ export class Battle {
     }
     if (now < this.rodAt) return;
     this.rodAt = now + PULSE;
-    for (const rod of this.rods) {
-      if (this.random() >= s.chance) continue;
-      const others = this.rods.filter((other) => other !== rod), all = [rod].concat(others), pairs = [];
-      for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) pairs.push([all[i], all[j]]);
-      this._event({ kind: 'skybolt', tower: rod.tower, x: rod.cx, y: rod.cy });
-      for (const at of all) this._discharge(at);
-      if (pairs.length) {
-        this.links.push({ tower: rod.tower, pairs, until: now + s.time, damage: rod.tower.damage * s.link,
-          struck: new Set() });
-        this._event({ kind: 'links', tower: rod.tower, pairs: pairs.map(([p, q]) => [p.cx, p.cy, q.cx, q.cy]),
-          time: s.time });
-      }
+    for (const rod of this.rods) if (this.random() < s.chance) this._strikeRod(rod, now);
+  }
+
+  _strikeRod(rod, now) {
+    const s = STORM.rod, all = [rod].concat(this.rods.filter((other) => other !== rod)), pairs = [];
+    for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) pairs.push([all[i], all[j]]);
+    this._event({ kind: 'skybolt', tower: rod.tower, x: rod.cx, y: rod.cy });
+    for (const at of all) this._discharge(at);
+    if (!pairs.length) return;
+    this.links.push({ tower: rod.tower, pairs, until: now + s.time, damage: rod.tower.damage * s.link, struck: new Set() });
+    this._event({ kind: 'links', tower: rod.tower, pairs: pairs.map(([p, q]) => [p.cx, p.cy, q.cx, q.cy]), time: s.time });
+  }
+
+  _arc(mob, towers) {
+    const by = towers.find((t) => t.cls.id === 'thunder' && t.runes.has('spark'));
+    if (!by) return;
+    const s = STORM.spark, x = mob.x, y = mob.y;
+    this._event({ kind: 'skybolt', tower: by, x, y, mob, ground: true });
+    this._hurt(mob, by.damage * s.mul, by, 'storm');
+    for (const rod of this.rods.slice()) {
+      if ((rod.cx - x) ** 2 + (rod.cy - y) ** 2 <= s.reach * s.reach) this._strikeRod(rod, this.time);
     }
   }
 
@@ -1373,6 +1383,7 @@ export class Battle {
     for (const key of states) if (mob.states) mob.states.delete(key);
     const r = REACTIONS[name], x = mob.x, y = mob.y;
     this._event({ kind: 'react', mob, name: r.name, color: blue && fiery ? '#7cc4ff' : r.color });
+    if (marks.includes('lightning') || states.includes('charge')) this._arc(mob, towers);
     const hit = (target, amount, element) => {
       target.party = towers;
       this._hurt(target, amount, lead, element, true, ARMOR);
@@ -1779,7 +1790,7 @@ export class Battle {
 
   _intervalOf(t, now) {
     return t.interval * (t.webUntil > now ? t.web : 1) / ((1 + (t.windUntil > now ? t.wind : 0))
-      * (1 + t.boost.rate));
+      * (1 + t.boost.rate) * (t.frenzyUntil > now ? STORM.frenzy.haste : 1));
   }
 
   _buffs(now) {
@@ -2355,6 +2366,10 @@ export class Battle {
       if (t === killer) {
         t.run.kills += 1;
         t.player.kills += 1;
+        if (t.cls.id === 'thunder' && t.runes.has('frenzy')) {
+          t.frenzyUntil = this.time + STORM.frenzy.time;
+          t.cooldown = Math.min(t.cooldown, this._intervalOf(t, this.time));
+        }
       } else this._help(t, HELP.assist);
     }
     this._event({ kind: 'kill', mob, by: killer });

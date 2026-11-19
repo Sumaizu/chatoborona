@@ -1679,6 +1679,37 @@ test('громоотвод: стоит до конца игры; удар мол
   eq(battle.rods.length, 2, 'спящий оставляет громоотвод');
 });
 
+test('маг молнии, раж битвы: добил врага — 3 секунды бьёт вдвое быстрее', () => {
+  const battle = makeBattle(), t = storm(battle, 10, 4, ['caller', 'frenzy']), base = battle._intervalOf(t, 0);
+  const weak = walker(battle, 11, 1);
+  still(weak);
+  ok(battle._fire(t));
+  ok(weak.dead, 'добил');
+  near(battle._intervalOf(t, battle.time), base / STORM.frenzy.haste, 'вдвое быстрее');
+  near(battle._intervalOf(t, battle.time + STORM.frenzy.time + 0.1), base, 'потом — как было');
+  const other = storm(battle, 12, 2, ['caller']), prey = walker(battle, 12, 1);
+  still(prey);
+  ok(battle._fire(other));
+  ok(!(other.frenzyUntil > battle.time), 'без навыка — нет');
+});
+
+test('маг молнии, разрядка: реакция с молнией — молния с неба по врагу и громоотводы рядом срабатывают', () => {
+  const battle = makeBattle(), t = storm(battle, 10, 4, ['stormReact', 'spark', 'rod']), far = storm(battle, 2, 2, ['rod']);
+  const pyro = battle.place(player(), 'pyro', 8, 4, { runes: ['fireReact'] });
+  battle.step(TICK);
+  const mob = walker(battle, 10, 1e9);
+  still(mob);
+  battle._mark(mob, 'lightning', t);
+  battle._mark(mob, 'fire', pyro);
+  const before = mob.hp;
+  battle.pulseAt = 0;
+  battle.step(TICK);
+  ok(battle.events.some((e) => e.kind === 'skybolt' && e.mob === mob), 'молния с неба по врагу');
+  ok(before - mob.hp >= t.damage * STORM.spark.mul, 'урон');
+  ok(battle.events.some((e) => e.kind === 'links'), 'громоотвод рядом сработал и связал сеть');
+  eq(battle.events.filter((e) => e.kind === 'surge').length, 2, 'волна у обоих громоотводов');
+});
+
 test('громоотвод: у одного мага до двух — второй в соседней клетке; громоотводы разных магов работают вместе', () => {
   const battle = makeBattle(), a = storm(battle, 4, 3, ['rod', 'rod']), b = storm(battle, 16, 3, ['rod']);
   battle.step(TICK);

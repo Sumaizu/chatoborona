@@ -4244,7 +4244,8 @@ export class Scene {
       this._sparks(event.x, event.y, ['#bfdbfe', '#ffffff', '#d97706'], 10, 1.6, 0.45);
     } else if (event.kind === 'skybolt') {
       add({ kind: 'zap', life: 0.35, x1: event.x + (Math.random() - 0.5) * 1.5, y1: -0.6, x2: event.x,
-        y2: event.y - ROD.tall / CELL, width: 5 });
+        y2: event.y - (event.ground ? 0 : ROD.tall / CELL), width: event.ground ? 3.5 : 5, mob: event.mob });
+      if (event.ground) this._sparks(event.x, event.y, ['#bfdbfe', '#ffffff', '#fde047'], 10, 2.2, 0.35);
       add({ kind: 'glare', life: 0.25 });
     } else if (event.kind === 'surge') {
       add({ kind: 'shock', life: SHOCK.grow + SHOCK.tail, centers: [{ x: event.x, y: event.y }], radius: event.radius,
