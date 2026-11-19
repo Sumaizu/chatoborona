@@ -289,9 +289,7 @@ const RECIPES = {
     s.swish(at, 200, 80, 0.8, 0.2);
   },
   howl(s, at) {
-    s.howl(at, 300, 520, 2.1, 0.2, -0.1);
-    s.howl(at + 0.04, 302, 526, 2.05, 0.1, 0.2);
-    s.hiss(at, 0.3, 0.02, 2500, 4000);
+    s.howl(at, 330, 560, 2.3, 0.5, -0.1);
   },
   growl(s, at) {
     s.horn(at, 82.4, 0.6, 0.12, 0);
@@ -598,30 +596,47 @@ function createStudio(context) {
       run([oscillator, vibrato], at, duration);
     },
     howl(at, low, high, duration, level, pan = 0) {
-      const filter = context.createBiquadFilter(), vibrato = context.createOscillator(), depth = context.createGain();
-      vibrato.frequency.setValueAtTime(4, at);
-      vibrato.frequency.linearRampToValueAtTime(6, at + duration);
-      depth.gain.setValueAtTime(0, at);
-      depth.gain.linearRampToValueAtTime(high * 0.018, at + duration * 0.6);
-      vibrato.connect(depth);
-      const voices = [['triangle', 0], ['sine', 7], ['sawtooth', -5]].map(([type, cents]) => {
-        const oscillator = context.createOscillator();
-        oscillator.type = type;
-        oscillator.detune.value = cents;
-        oscillator.frequency.setValueAtTime(low, at);
-        oscillator.frequency.exponentialRampToValueAtTime(high, at + duration * 0.3);
-        oscillator.frequency.setValueAtTime(high, at + duration * 0.62);
-        oscillator.frequency.exponentialRampToValueAtTime(low * 0.82, at + duration);
-        depth.connect(oscillator.frequency);
-        oscillator.connect(filter);
+      const steps = 64, pitch = new Float32Array(steps);
+      let drift = 0;
+      for (let k = 0; k < steps; k++) {
+        const u = k / (steps - 1);
+        drift = drift * 0.85 + (Math.random() - 0.5) * 0.012;
+        const rise = 1 - Math.pow(1 - Math.min(1, u / 0.16), 3), fall = u > 0.72 ? Math.pow((u - 0.72) / 0.28, 1.6) : 0;
+        const tone = low + (high - low) * rise + high * 0.05 * Math.min(1, u / 0.6);
+        pitch[k] = tone * (1 + drift) * (1 - 0.42 * fall);
+      }
+      const voice = context.createBiquadFilter(), body = context.createBiquadFilter(), gain = context.createGain();
+      voice.type = 'bandpass';
+      voice.frequency.value = high * 1.7;
+      voice.Q.value = 0.8;
+      body.type = 'lowpass';
+      body.frequency.value = high * 3;
+      voice.connect(body);
+      body.connect(gain);
+      const voices = [[1, 1], [2, 0.28], [3, 0.08]].map(([harmonic, share]) => {
+        const oscillator = context.createOscillator(), part = context.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueCurveAtTime(pitch.map((f) => f * harmonic), at, duration);
+        part.gain.value = share;
+        oscillator.connect(part);
+        part.connect(voice);
         return oscillator;
       });
-      filter.type = 'lowpass';
-      filter.Q.value = 2;
-      filter.frequency.setValueAtTime(high * 2.2, at);
-      filter.frequency.exponentialRampToValueAtTime(high * 1.4, at + duration);
-      filter.connect(envelope(at, duration, level * 0.5, duration * 0.25, pan));
-      run(voices.concat(vibrato), at, duration);
+      const breath = noiseSource(), air = context.createBiquadFilter(), airGain = context.createGain();
+      air.type = 'bandpass';
+      air.frequency.value = high * 2.2;
+      air.Q.value = 1.5;
+      airGain.gain.value = 0.18;
+      breath.connect(air);
+      air.connect(airGain);
+      airGain.connect(gain);
+      const out = envelope(at, duration, level * 0.9, duration * 0.12, pan);
+      gain.gain.setValueAtTime(0.35, at);
+      gain.gain.linearRampToValueAtTime(1, at + duration * 0.35);
+      gain.gain.setValueAtTime(1, at + duration * 0.6);
+      gain.gain.linearRampToValueAtTime(0.25, at + duration);
+      gain.connect(out);
+      run(voices.concat(breath), at, duration);
     },
     rumble(at, duration, level) {
       const source = noiseSource(), filter = context.createBiquadFilter();

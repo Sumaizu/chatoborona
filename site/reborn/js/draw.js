@@ -1,6 +1,6 @@
 import { LETTERS, SIZE } from './field.js';
 import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintRoadMask, paintRoof } from './terrain.js';
-import { FIRE, HOLY, MANTRAS, MECH, SPELL, STORM, WOLF, WOOD, flightAt, hammerAt, heavyGun, roadCurve } from './battle.js';
+import { FIRE, HOLY, MANTRAS, MECH, SPELL, STORM, WOLF, WOOD, flightAt, hammerAt, heavyGun, pullAt, roadCurve } from './battle.js';
 import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite,
   coinSprite, fireballSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
   meteorSprite, grenadeSprite, droneSprite, birdSprite, hawkSprite, snareSprite, trapSprite, cauldronSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
@@ -126,7 +126,7 @@ const RAIJU_FX = { rgb: '125, 211, 252', core: '240, 249, 255', reach: 1.5, ever
 const ROD = { tall: 26, coil: 5, bolts: 7 };
 const CLAW = { cut: 0.12, lag: 0.035, thick: 3.2, side: 0.72, layers: 6 };
 const GLOBE_FX = { size: 10, grow: 0.15, melt: 0.3, lift: 6, bolts: 4, rate: 16 };
-const DASH_FX = { size: 13, inhale: 0.18 };
+const DASH_FX = { size: 13, inhale: 0.18, tail: 0.12 };
 const STAFF_ZAP = { rate: 14, bolts: 3, long: 11, lit: 0.7 };
 const STORM_FX = { strike: 0.25, swipe: 0.25, throw: 0.18, catch: 0.22, spin: 16 };
 const BEAM = { core: 2.6, mid: 6, outer: 12, twist: 0.11, spin: 7, coil: 5.5, flare: 11 };
@@ -3822,9 +3822,8 @@ export class Scene {
       const pose = this._pose(t), lit = highlight && highlight.has(t.player.login);
       let spot = { x: t.cx, y: t.cy, lift: 0 }, look = t.look;
       if (t.pull && now < t.pull.end) {
-        const k = 1 - Math.pow(1 - Math.max(0, (now - t.pull.start) / (t.pull.end - t.pull.start)), 2);
-        spot = { x: t.pull.fx + (t.cx - t.pull.fx) * k, y: t.pull.fy + (t.cy - t.pull.fy) * k,
-          lift: Math.sin(k * Math.PI) * (t.pull.fly ? 22 : t.pull.dash ? 0 : 10) };
+        const glide = pullAt(t, now), k = glide.k;
+        spot = { x: glide.x, y: glide.y, lift: Math.sin(k * Math.PI) * (t.pull.fly ? 22 : t.pull.dash ? 0 : 10) };
         if (t.pull.fly) {
           look = t.look + (Math.floor(this.clock * 7) % 2 ? '-flap' : '-fly');
           pose.aim = Math.atan2(t.cx - t.pull.fx, -(t.cy - t.pull.fy));
@@ -3873,6 +3872,8 @@ export class Scene {
         pose.flash = Math.max(0, pose.flash - dt);
       }
       if (t.pull && now < t.pull.end && t.pull.dash) {
+        const tail = pullAt({ pull: t.pull, cx: t.cx, cy: t.cy }, now - DASH_FX.tail);
+        this._zap(ctx, at(tail.x), at(tail.y) - 4, x, y - 4, 2.4, 0.9, 3);
         this._orb(ctx, x, y - 4, DASH_FX.size, 1, 4);
         continue;
       }
@@ -4306,8 +4307,7 @@ export class Scene {
         width: event.thin ? 1.2 : 2, seed: Math.floor(Math.random() * 97) });
       this._sparks(x2, y2, ['#bfdbfe', '#ffffff', '#fde047'], event.thin ? 2 : 4, 1.4, 0.25);
     } else if (event.kind === 'dash') {
-      add({ kind: 'zap', life: event.time + 0.25, x1: event.x1, y1: event.y1, x2: event.x, y2: event.y, width: 3.2, seed: 3 });
-      this._sparks(event.x, event.y, ['#bfdbfe', '#ffffff', '#fde047'], 10, 2, 0.35);
+      this._sparks(event.x1, event.y1, ['#bfdbfe', '#ffffff', '#fde047'], 8, 1.6, 0.3);
     } else if (event.kind === 'globe') {
       this._fire(t, event.mob.x, event.mob.y, event.mob, () => {
         this._pose(t).act = { frame: 'strike', until: this.clock + STORM_FX.strike };

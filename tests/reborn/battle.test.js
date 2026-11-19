@@ -1849,11 +1849,13 @@ test('молниеносный рывок: 2 с без атаки — рывко
   runFor(battle, s.idle - 0.2);
   eq([t.cx, t.cy], [from.x, from.y], 'раньше 2 секунд стоит');
   Object.assign(path, { x: 7.2, y: 2.9 });
-  runFor(battle, 0.3);
+  for (let i = 0; i < 60 && !t.pull; i++) battle.step(TICK);
   ok(Math.abs(t.cx - lead.x) <= 1.5 && Math.abs(t.cy - lead.y) <= 1.5, 'встал рядом с первым врагом');
   ok(t.pull && t.pull.dash, 'рывок');
   ok(battle.events.some((e) => e.kind === 'dash' && e.tower === t));
-  ok(hit(path) >= t.damage * s.mul - 1e-6, 'кто был на пути — ранен');
+  eq(hit(path), 0, 'шар ещё не долетел');
+  runFor(battle, t.pull.end - battle.time + 0.05);
+  near(hit(path), t.damage * s.mul, 'шар задел по пути — ранен один раз');
 });
 
 test('волчий вой: не атакует 3 с — воет; потом +20% себе на столько же, остальным +10% вдвое меньше', () => {
@@ -1880,6 +1882,20 @@ test('волчий вой: не атакует 3 с — воет; потом +20
   runFor(battle, long * s.share + 0.1);
   near(ally.boost.rate, 0, 'остальным — вдвое меньше времени');
   near(t.boost.rate, s.self, 'себе ещё действует');
+});
+
+test('волчий вой: воет и в ожидании волны, а рывок к пришедшим врагам обрывает вой и даёт усиление', () => {
+  const battle = makeBattle(), t = storm(battle, 10, 1, ['raiju', 'howl', 'dash']), s = WOLF.howl;
+  battle.step(TICK);
+  runFor(battle, s.idle + 0.1);
+  ok(t.howlAt !== null && t.howlAt !== undefined, 'врагов нет — воет');
+  runFor(battle, 1);
+  const long = battle.time - t.howlAt, mob = walker(battle, 3, 1e9);
+  still(mob);
+  battle.step(TICK);
+  ok(t.pull && t.pull.dash, 'враг пришёл — рывок');
+  ok(t.howlAt === null, 'вой оборван');
+  ok(Math.abs(t.howlUntil - battle.time - long) < 3 * TICK, 'усиление — сколько выл');
 });
 
 test('ярость: повторные удары по той же цели ускоряют атаку на 3/2/1%, до +300%; смена цели сбрасывает', () => {

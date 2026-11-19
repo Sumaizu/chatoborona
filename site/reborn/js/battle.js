@@ -574,6 +574,21 @@ export class Battle {
     }
   }
 
+  _dashes(now) {
+    const s = WOLF.dash;
+    for (const t of this.towers) {
+      const pull = t.pull;
+      if (!pull || !pull.dash || pull.done) continue;
+      const spot = pullAt(t, now);
+      for (const mob of this._around(spot.x, spot.y, s.touch)) {
+        if (pull.hit.has(mob)) continue;
+        pull.hit.add(mob);
+        this._hurt(mob, t.damage * s.mul, t);
+      }
+      if (now >= pull.end) pull.done = true;
+    }
+  }
+
   _globes(now) {
     const s = STORM.globe;
     this.globes = this.globes.filter((globe) => {
@@ -1292,6 +1307,7 @@ export class Battle {
     }
     if (this.phoenixes.length) this._phoenixes(now);
     if (this.globes.length) this._globes(now);
+    this._dashes(now);
     if (this.zones.length) this._zones(dt, now);
     if (this.whirls.length) this._whirls(dt, now);
     this._venom(dt, now);
@@ -2733,6 +2749,11 @@ function hurl(b, t, target, hit, crit, now) {
   return true;
 }
 
+export function pullAt(t, now) {
+  const pull = t.pull, f = Math.max(0, Math.min(1, (now - pull.start) / (pull.end - pull.start))), k = 1 - (1 - f) ** 2;
+  return { x: pull.fx + (t.cx - pull.fx) * k, y: pull.fy + (t.cy - pull.fy) * k, k };
+}
+
 function rageOf(hits) {
   const s = WOLF.rage;
   let left = hits, bonus = 0;
@@ -2746,18 +2767,17 @@ function rageOf(hits) {
 
 function wolf(b, t, now, alive) {
   if (t.lastFire === undefined) t.lastFire = now;
-  const idle = now - t.lastFire, prey = b._target(t), s = WOLF.howl;
-  if (t.runes.has('dash') && alive && !prey && idle >= WOLF.dash.idle && dash(b, t, now)) return;
-  if (!t.runes.has('howl')) return;
+  const prey = b._target(t), idle = now - t.lastFire, s = WOLF.howl;
+  const dashed = t.runes.has('dash') && alive && !prey && idle >= WOLF.dash.idle && dash(b, t, now);
   if (t.howlAt !== undefined && t.howlAt !== null) {
-    if (prey || !alive) {
+    if (prey || dashed) {
       const long = now - t.howlAt;
       Object.assign(t, { howlAt: null, howlUntil: now + long, packUntil: now + long * s.share });
     } else if (now >= t.howlNext) {
       t.howlNext = now + s.call;
       b._event({ kind: 'howl', tower: t });
     }
-  } else if (alive && !prey && idle >= s.idle) {
+  } else if (t.runes.has('howl') && !dashed && !prey && idle >= s.idle) {
     Object.assign(t, { howlAt: now, howlNext: now + s.call });
     b._event({ kind: 'howl', tower: t });
   }
@@ -2780,13 +2800,10 @@ function dash(b, t, now) {
   const from = { cx: t.cx, cy: t.cy };
   b._relocate(t, best.x, best.y);
   const time = Math.hypot(t.cx - from.cx, t.cy - from.cy) / s.speed;
-  t.pull = { fx: from.cx, fy: from.cy, start: now, end: now + time, dash: true };
+  t.pull = { fx: from.cx, fy: from.cy, start: now, end: now + time, dash: true, hit: new Set() };
   t.busy = Math.max(t.busy, now + time);
   t.lastFire = now;
   b._event({ kind: 'dash', tower: t, x1: from.cx, y1: from.cy, x: t.cx, y: t.cy, time });
-  for (const mob of b.mobs.slice()) {
-    if (!mob.dead && !hidden(mob, now) && alongside(mob, from, t, s.touch)) b._hurt(mob, t.damage * s.mul, t);
-  }
   return true;
 }
 
