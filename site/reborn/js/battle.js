@@ -34,7 +34,8 @@ const FAR_REACH = SIZE * 1.5;
 const COOLDOWNS = ['nextActive', 'nextBlaze', 'nextEye',
   'nextFar', 'nextGale', 'nextInferno', 'nextLight', 'nextPhoenix', 'nextPool',
   'nextEmp', 'nextNuke', 'nextQuake', 'nextRift', 'nextSand', 'nextStorm', 'nextTsunami',
-  'nextWall', 'nextWave', 'nextHail', 'nextHoly', 'nextBeam', 'nextRain', 'nextSiren', 'nextDirge'];
+  'nextWall', 'nextWave', 'nextHail', 'nextHoly', 'nextBeam', 'nextRain', 'nextSiren', 'nextDirge',
+  'nextGlobe', 'nextTempest'];
 const WARD_AURA = 0.25;
 const FIREBALL_FLIGHT = 0.3;
 const ZONE_PULSE = 0.5;
@@ -115,6 +116,8 @@ const MARKED = new Set(['fire', 'poison', 'earth', 'lightning']);
 export const STORM = { orb: 5, caller: { reach: 3.5, interval: 1, mul: 1.2 }, raiju: { reach: 2, interval: 1.2, mul: 1.1, arc: 1.3 },
   thor: { reach: 4, interval: 1.6, mul: 1.8, out: 0.55, back: 0.55, bend: 0.35, touch: 0.6, steps: 10 },
   frenzy: { time: 3, haste: 2 }, spark: { mul: 4, reach: 2 },
+  chain: { reach: 2, sure: 2, chance: 0.5, gap: 0.08 }, fork: { chance: 0.5, reach: 3, mul: 0.5 },
+  globe: { every: 6, speed: 1.2, mul: 4, touch: 0.7, zap: 1, reach: 1 }, tempest: { every: 8, radius: 2, mul: 3, stun: 3 },
   rod: { chance: 0.02, radius: 3, wave: 5, link: 3, time: 1, touch: 0.5, spot: [0.84, 0.3] } };
 export const SONG = { every: 15, time: 3, back: 1, dirge: 0.5, anthem: 0.3, ultrasound: 0.2 };
 export const TOTEMS = { totemSlow: 'slow', totemPurge: 'purge', totemPower: 'power' };
@@ -291,6 +294,7 @@ export class Battle {
     this.banners = [];
     this.rods = [];
     this.links = [];
+    this.globes = [];
     this.rodAt = 0;
     this.left = [];
     this.catalyst = 0;
@@ -504,7 +508,7 @@ export class Battle {
     this.towers.splice(at, 1);
     this.byCell.delete(tower.y * SIZE + tower.x);
     for (const list of ['walls', 'whirls', 'patches', 'banners', 'rods',
-      'zones', 'phoenixes', 'drones', 'traps', 'clouds', 'puddles']) {
+      'zones', 'phoenixes', 'drones', 'globes', 'traps', 'clouds', 'puddles']) {
       this[list] = this[list].filter((item) => item.tower !== tower);
     }
     this._flags();
@@ -565,6 +569,30 @@ export class Battle {
     }
   }
 
+  _globes(now) {
+    const s = STORM.globe;
+    this.globes = this.globes.filter((globe) => {
+      const age = Math.min(now - globe.born, globe.life);
+      globe.x = globe.sx + globe.dx * age * s.speed;
+      globe.y = globe.sy + globe.dy * age * s.speed;
+      for (const mob of this._around(globe.x, globe.y, s.touch)) {
+        if (globe.hit.has(mob)) continue;
+        globe.hit.add(mob);
+        this._hurt(mob, globe.tower.damage * s.mul, globe.tower);
+      }
+      if (now >= globe.zapAt) {
+        globe.zapAt = now + PULSE;
+        const prey = this._around(globe.x, globe.y, s.reach).filter((mob) => !this.covered(mob.x, mob.y));
+        if (prey.length) {
+          const mob = prey[Math.floor(this.random() * prey.length)];
+          this._event({ kind: 'jolt', tower: globe.tower, x: globe.x, y: globe.y, mob, thin: true });
+          this._hurt(mob, globe.tower.damage * s.zap, globe.tower);
+        }
+      }
+      return now - globe.born < globe.life;
+    });
+  }
+
   _discharge(rod) {
     const s = STORM.rod;
     this._event({ kind: 'surge', tower: rod.tower, x: rod.cx, y: rod.cy, radius: s.radius });
@@ -576,7 +604,7 @@ export class Battle {
   leave(tower) {
     this.towers.splice(this.towers.indexOf(tower), 1);
     this.byCell.delete(tower.y * SIZE + tower.x);
-    for (const list of ['whirls', 'zones', 'phoenixes', 'drones']) {
+    for (const list of ['whirls', 'zones', 'phoenixes', 'drones', 'globes']) {
       this[list] = this[list].filter((item) => item.tower !== tower);
     }
     if (LEFT_ITEMS.some((list) => this[list].some((item) => item.tower === tower))) this.left.push(tower);
@@ -1253,6 +1281,7 @@ export class Battle {
       }
     }
     if (this.phoenixes.length) this._phoenixes(now);
+    if (this.globes.length) this._globes(now);
     if (this.zones.length) this._zones(dt, now);
     if (this.whirls.length) this._whirls(dt, now);
     this._venom(dt, now);
@@ -2678,6 +2707,65 @@ function hurl(b, t, target, hit, crit, now) {
   return true;
 }
 
+function jolt(b, t, mob, hit, struck, jumps) {
+  const x = mob.x, y = mob.y, s = STORM.chain;
+  b._hurt(mob, hit, t);
+  if (t.runes.has('fork')) fork(b, t, x, y, mob, hit);
+  if (!t.runes.has('chain') || jumps <= 0 && b.random() >= s.chance) return;
+  const pool = b._around(x, y, s.reach).filter((other) => !struck.has(other) && !b.covered(other.x, other.y));
+  if (!pool.length) return;
+  pool.sort((a, c) => Math.hypot(a.x - x, a.y - y) - Math.hypot(c.x - x, c.y - y));
+  const next = pool[0];
+  struck.add(next);
+  b._event({ kind: 'jolt', tower: t, x, y, mob: next });
+  b._later(s.gap, () => {
+    if (!next.dead) jolt(b, t, next, hit, struck, jumps - 1);
+  }, t);
+}
+
+function fork(b, t, x, y, from, hit) {
+  const s = STORM.fork;
+  if (b.random() >= s.chance) return;
+  const prey = b._around(x, y, s.reach, from).filter((mob) => !b.covered(mob.x, mob.y));
+  const rods = b.rods.filter((rod) => (rod.cx - x) ** 2 + (rod.cy - y) ** 2 <= s.reach * s.reach);
+  const pick = Math.floor(b.random() * (prey.length + rods.length));
+  if (pick < prey.length) {
+    const mob = prey[pick];
+    b._event({ kind: 'jolt', tower: t, x, y, mob, thin: true });
+    b._hurt(mob, hit * s.mul, t);
+  } else if (rods.length) {
+    const rod = rods[pick - prey.length];
+    b._event({ kind: 'jolt', tower: t, x, y, x2: rod.cx, y2: rod.cy, rod: true, thin: true });
+    b._strikeRod(rod, b.time);
+  }
+}
+
+function globe(b, t, now) {
+  const target = farthestPrey(b, t);
+  if (!target) return;
+  const s = STORM.globe, long = Math.hypot(target.x - t.cx, target.y - t.cy) || 1;
+  t.nextGlobe = now + s.every;
+  b.globes.push({ tower: t, sx: t.cx, sy: t.cy, x: t.cx, y: t.cy, dx: (target.x - t.cx) / long,
+    dy: (target.y - t.cy) / long, born: now, life: t.range / s.speed, zapAt: now + PULSE, hit: new Set() });
+  b._event({ kind: 'globe', tower: t, mob: target });
+}
+
+function tempest(b, t, now) {
+  const prey = b.mobs.filter((mob) => !mob.dead && !hidden(mob, now) && !b.covered(mob.x, mob.y));
+  if (!prey.length) return;
+  const s = STORM.tempest, target = prey[Math.floor(b.random() * prey.length)], x = target.x, y = target.y;
+  t.nextTempest = now + s.every;
+  b._event({ kind: 'skybolt', tower: t, x, y, mob: target, ground: true });
+  b._event({ kind: 'thunderclap', tower: t, x, y, radius: s.radius });
+  for (const mob of b._around(x, y, s.radius)) {
+    b._hurt(mob, t.damage * s.mul, t);
+    if (!mob.info.boss) b._hold(mob, s.stun, t, true);
+  }
+  for (const rod of b.rods.slice()) {
+    if ((rod.cx - x) ** 2 + (rod.cy - y) ** 2 <= s.radius * s.radius) b._strikeRod(rod, now);
+  }
+}
+
 function closestPrey(b, t) {
   const prey = b.mobs.filter((mob) => b._targetable(t, mob));
   prey.sort((a, c) => (big(c) ? 1 : 0) - (big(a) ? 1 : 0)
@@ -3433,7 +3521,7 @@ const SKILLS = {
       const crit = rollCrit(b, t), hit = t.damage * (crit ? t.critMul : 1);
       if (t.style === 'caller') {
         b._event({ kind: 'chain', tower: t, mob: target });
-        b._hurt(target, hit, t);
+        jolt(b, t, target, hit, new Set([target]), STORM.chain.sure);
         return true;
       }
       if (t.style === 'raiju') {
@@ -3452,8 +3540,11 @@ const SKILLS = {
       }, t);
       return true;
     },
-    every(b, t, now) {
+    every(b, t, now, alive) {
       while (b.rods.filter((rod) => rod.tower === t).length < (t.stacks.get('rod') || 0) && b._plantRod(t));
+      if (t.style !== 'caller' || !alive) return;
+      if (t.runes.has('globe') && now >= (t.nextGlobe || 0)) globe(b, t, now);
+      if (t.runes.has('tempest') && now >= (t.nextTempest || 0)) tempest(b, t, now);
     },
   },
   pyro: {

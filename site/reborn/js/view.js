@@ -449,7 +449,7 @@ export class View {
     } else if (kind === 'shot') {
       this._sound(SHOTS[event.tower.cls.id] || 'cast');
       if (event.crit) this._sound('crit');
-    } else if (kind === 'chain' || kind === 'focus') {
+    } else if (kind === 'chain' || kind === 'focus' || kind === 'globe') {
       this._sound('zap');
     } else if (kind === 'flame' || kind === 'beam') {
       this._sound('flame');

@@ -1731,6 +1731,86 @@ test('громоотвод: у одного мага до двух — втор�
   eq(links.pairs.length, 3, 'связаны все: и свои, и чужой');
 });
 
+test('цепная молния: 2 прыжка к ближайшему в 2 клетках наверняка, дальше по 50%, назад не идёт', () => {
+  const line = (luck) => {
+    const battle = makeBattle(), t = storm(battle, 10, 4, ['caller', 'chain']);
+    const mobs = [11, 12.5, 14, 15.5, 17, 19.4].map((d) => walker(battle, d, 1e9));
+    still(...mobs);
+    battle.random = () => luck;
+    ok(battle._fire(t));
+    runFor(battle, 1);
+    return mobs.map((mob) => hit(mob) / t.damage);
+  };
+  eq(line(0.99).map(Math.round), [1, 1, 1, 0, 0, 0], 'не повезло — только два прыжка');
+  eq(line(0).map(Math.round), [1, 1, 1, 1, 1, 0], 'везёт — дальше, пока есть кто в 2 клетках, каждого по разу');
+});
+
+test('ветвящаяся молния: с шансом 50% разряд вполсилы в другого врага на 3 клетки или в громоотвод', () => {
+  const battle = makeBattle(), t = storm(battle, 10, 4, ['caller', 'fork']);
+  const target = walker(battle, 10, 1e9), other = walker(battle, 12.5, 1e9), far = walker(battle, 17, 1e9);
+  still(target, other, far);
+  battle.random = () => 0;
+  ok(battle._fire(t));
+  near(hit(target), t.damage, 'основная цель — один раз');
+  near(hit(other), t.damage * STORM.fork.mul);
+  eq(hit(far), 0);
+  const unlucky = makeBattle(), u = storm(unlucky, 10, 4, ['caller', 'fork']), a = walker(unlucky, 10, 1e9);
+  const b = walker(unlucky, 12, 1e9);
+  still(a, b);
+  unlucky.random = () => 0.99;
+  ok(unlucky._fire(u));
+  eq(hit(b), 0, 'не повезло — разряда нет');
+  const rodded = makeBattle(), r = storm(rodded, 10, 4, ['caller', 'fork', 'rod']);
+  rodded.step(TICK);
+  eq(rodded.rods.length, 1);
+  rodded.rodAt = 1e9;
+  const lone = walker(rodded, 10, 1e9);
+  still(lone);
+  rodded.random = () => 0;
+  const surges = firedBy(rodded, 'surge');
+  ok(rodded._fire(r));
+  eq(surges().length, 1, 'никого рядом — разряд ушёл в громоотвод, и тот сработал');
+});
+
+test('шаровая молния: раз в 6 с медленный шар к самому дальнему, до края радиуса; урон при касании и разряды', () => {
+  const battle = makeBattle(), t = storm(battle, 10, 4, ['caller', 'globe']), s = STORM.globe;
+  const close = walker(battle, 10, 1e9), far = walker(battle, 13, 1e9);
+  still(close, far);
+  const jolts = firedBy(battle, 'jolt');
+  battle.step(TICK);
+  eq(battle.globes.length, 1, 'шар пущен');
+  const g = battle.globes[0];
+  ok(Math.abs(Math.atan2(g.dy, g.dx) - Math.atan2(far.y - t.cy, far.x - t.cx)) < 1e-9, 'к самому дальнему');
+  runFor(battle, t.range / s.speed + 0.05);
+  eq(battle.globes.length, 0, 'долетел до края радиуса и растаял');
+  ok(hit(far) >= t.damage * s.mul - 1e-6, 'коснулся — сильно ранил');
+  ok(jolts().length > 0, 'по пути бил разрядами');
+  runFor(battle, s.every - t.range / s.speed - 0.55);
+  eq(battle.globes.length, 0, 'раньше 6 секунд второго нет');
+  runFor(battle, 0.6);
+  eq(battle.globes.length, 1);
+});
+
+test('гроза: раз в 8 с молния в случайного врага на карте — урон на 2 клетки и оглушение на 3 с, кроме боссов', () => {
+  const battle = makeBattle(), t = storm(battle, 10, 4, ['caller', 'tempest']), s = STORM.tempest;
+  const target = walker(battle, 2, 1e9), side = walker(battle, 3, 1e9), boss = walker(battle, 1, 1e9);
+  const far = walker(battle, 8, 1e9);
+  boss.info = Object.assign({}, boss.info, { boss: true });
+  still(target, side, boss, far);
+  battle.random = () => 0;
+  battle.rodAt = 1e9;
+  battle.step(TICK);
+  ok(battle.events.some((e) => e.kind === 'skybolt' && e.mob === target), 'молния с неба — хоть и далеко от мага');
+  near(hit(target), t.damage * s.mul);
+  near(hit(side), t.damage * s.mul);
+  near(hit(boss), t.damage * s.mul);
+  eq(hit(far), 0);
+  ok(target.holdUntil >= battle.time + s.stun - 0.1 && side.holdUntil >= battle.time + s.stun - 0.1, 'оглушены на 3 с');
+  ok(boss.holdUntil <= battle.time, 'босс — нет');
+  runFor(battle, s.every - 0.5);
+  near(hit(target), t.damage * s.mul, 'до 8 секунд второй нет');
+});
+
 test('шаманка: удар в барабан — волна на 2 клетки вокруг ранит всех', () => {
   const battle = makeBattle(), t = sorc(battle, 10, 4, ['shamaness']);
   ok(t.range >= 2 && t.range < 3);

@@ -125,6 +125,7 @@ const ZAP = { glow: '96, 165, 250', mid: '191, 219, 254', core: '255, 255, 255',
 const RAIJU_FX = { rgb: '125, 211, 252', core: '240, 249, 255', reach: 1.5, every: 0.9 };
 const ROD = { tall: 26, coil: 5, bolts: 7 };
 const CLAW = { cut: 0.12, lag: 0.035, thick: 3.2, side: 0.72, layers: 6 };
+const GLOBE_FX = { size: 10, grow: 0.15, melt: 0.3, lift: 6, bolts: 4, rate: 16 };
 const STAFF_ZAP = { rate: 14, bolts: 3, long: 11, lit: 0.7 };
 const STORM_FX = { strike: 0.25, swipe: 0.25, throw: 0.18, catch: 0.22, spin: 16 };
 const BEAM = { core: 2.6, mid: 6, outer: 12, twist: 0.11, spin: 7, coil: 5.5, flare: 11 };
@@ -1102,6 +1103,7 @@ export class Scene {
     this._hammers(ctx, battle);
     this._beams(ctx, battle);
     this._onField(ctx, () => this._phoenixes(ctx, battle, step));
+    this._globes(ctx, battle);
     this._onField(ctx, () => this._drones(ctx, battle, step));
     this._charges(ctx, battle);
     this._hooks(ctx, battle);
@@ -1643,6 +1645,38 @@ export class Scene {
       if (p < 1) this._zap(ctx, tx, ty, tx + Math.cos(tip + 1.2) * 8, ty + Math.sin(tip + 1.2) * 8, 0.6, fade, n * 7 + e.x);
     }
     ctx.restore();
+  }
+
+  _globes(ctx, battle) {
+    const f = GLOBE_FX;
+    for (const g of battle.globes) {
+      const age = battle.time - g.born, left = g.life - age;
+      const size = Math.max(0, Math.min(1, age / f.grow, left / (g.life * f.melt)));
+      if (size <= 0) continue;
+      const x = at(g.x), y = at(g.y) - f.lift, r = f.size * size, tick = Math.floor(this.clock * f.rate);
+      const pulse = 0.85 + 0.15 * Math.sin(this.clock * 23);
+      ctx.save();
+      const body = ctx.createRadialGradient(x, y, 0, x, y, r * 1.25);
+      body.addColorStop(0, 'rgba(255, 255, 255, ' + size + ')');
+      body.addColorStop(0.35, 'rgba(186, 230, 253, ' + size + ')');
+      body.addColorStop(0.75, 'rgba(59, 130, 246, ' + 0.85 * size + ')');
+      body.addColorStop(1, 'rgba(30, 64, 175, 0)');
+      ctx.fillStyle = body;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 1.25, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'lighter';
+      glow(ctx, x, y + f.lift, r * 1.6, 'rgba(' + ZAP.glow + ', 1)', 0.25 * size);
+      glow(ctx, x, y, r * 2.6 * pulse, 'rgba(' + ZAP.glow + ', 1)', 0.5 * size);
+      glow(ctx, x, y, r * 1.3, 'rgba(' + ZAP.mid + ', 1)', 0.85 * size);
+      glow(ctx, x, y, r * 0.6, 'rgba(' + ZAP.core + ', 1)', size);
+      for (let i = 0; i < f.bolts; i++) {
+        const a = noise(tick + i * 17, 3) * Math.PI * 2, long = r * (1.1 + 0.9 * noise(tick + i, 9));
+        this._zap(ctx, x + Math.cos(a) * r * 0.3, y + Math.sin(a) * r * 0.3, x + Math.cos(a) * long,
+          y + Math.sin(a) * long, 0.6, size, i * 7 + tick);
+      }
+      ctx.restore();
+    }
   }
 
   _staffZap(ctx, t) {
@@ -4255,6 +4289,26 @@ export class Scene {
         add({ kind: 'zap', life: 0.2, x1: tip.x, y1: tip.y, mob: event.mob, x2: event.mob.x, y2: event.mob.y, width: 2.2 });
         this._sparks(event.mob.x, event.mob.y, ['#bfdbfe', '#ffffff', '#fde047'], 5, 1.8, 0.3);
       }, STORM_FX.strike);
+    } else if (event.kind === 'jolt') {
+      const x2 = event.mob ? event.mob.x : event.x2, y2 = event.mob ? event.mob.y : event.y2 - ROD.tall / CELL;
+      add({ kind: 'zap', life: event.thin ? 0.18 : 0.24, x1: event.x, y1: event.y, mob: event.mob, x2, y2,
+        width: event.thin ? 1.2 : 2, seed: Math.floor(Math.random() * 97) });
+      this._sparks(x2, y2, ['#bfdbfe', '#ffffff', '#fde047'], event.thin ? 2 : 4, 1.4, 0.25);
+    } else if (event.kind === 'globe') {
+      this._fire(t, event.mob.x, event.mob.y, event.mob, () => {
+        this._pose(t).act = { frame: 'strike', until: this.clock + STORM_FX.strike };
+        const tip = this._muzzle(t);
+        this._sparks(tip.x, tip.y, ['#bfdbfe', '#ffffff'], 8, 1.6, 0.35);
+      }, STORM_FX.strike);
+    } else if (event.kind === 'thunderclap') {
+      const turn = Math.random() * Math.PI * 2;
+      for (let i = 0; i < ROD.bolts; i++) {
+        const a = turn + i * Math.PI * 2 / ROD.bolts + (Math.random() - 0.5) * 0.5, d = event.radius * (0.7 + Math.random() * 0.3);
+        const x2 = event.x + Math.cos(a) * d, y2 = event.y + Math.sin(a) * d;
+        add({ kind: 'zap', life: 0.3 + Math.random() * 0.15, x1: event.x, y1: event.y, x2, y2, width: 2, seed: i * 5 });
+        this._sparks(x2, y2, ['#bfdbfe', '#ffffff'], 3, 1.4, 0.3);
+      }
+      add({ kind: 'ring', life: 0.35, x: event.x, y: event.y, r: 0.8, color: '#bfdbfe', width: 2 });
     } else if (event.kind === 'claw') {
       this._fire(t, event.x, event.y, event.mob, () => {
         this._pose(t).act = { frame: 'swipe', until: this.clock + STORM_FX.swipe };
