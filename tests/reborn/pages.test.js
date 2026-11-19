@@ -274,6 +274,22 @@ test('страницы: спящий в отряде — ник серый, вм
   frame.remove();
 });
 
+test('страницы: страницы отряда из одних спящих не показываются', async () => {
+  fresh();
+  const frame = await overlay('lobby=10&first_wave=5');
+  const w = frame.contentWindow, game = w.chatoborona.game;
+  await until(() => game.state === 'lobby', 'набор');
+  for (let i = 0; i < 80; i++) join(game, 'Игрок' + i);
+  game.next();
+  await until(() => game.state === 'placing', 'расстановка');
+  const awake = Array.from(game.members.values()).slice(0, 3);
+  for (const m of game.members.values()) if (!awake.includes(m)) game._sleep(m);
+  await until(() => w.document.querySelectorAll('#players li.asleep').length, 'спящие в списке');
+  no(w.document.querySelector('#players .pages'), 'листать нечего: дальше одни спящие');
+  for (const m of awake) ok(w.document.querySelector('#players').textContent.includes(m.name), m.name);
+  frame.remove();
+});
+
 test('страницы: Реборн — своё хранилище и метка «альфа» на странице и в оверлее', async () => {
   fresh();
   const page = await open('index.html', (w) => w.document.getElementById('play'));

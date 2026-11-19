@@ -1044,12 +1044,13 @@ export class View {
     const members = Array.from(game.members.values()).sort((a, b) => Number(a.asleep) - Number(b.asleep)
       || b.xp - a.xp || (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1));
     const list = $('players'), rows = Math.max(1, Math.floor((list.clientHeight || 200) / ROWS.player));
-    const two = members.length > rows, fit = two ? rows * 2 : rows, pages = Math.ceil(members.length / fit);
+    const awake = members.filter((m) => !m.asleep).length, two = members.length > rows, fit = two ? rows * 2 : rows;
+    const pages = Math.max(1, Math.ceil(awake / fit));
     const cycle = PLAYERS_HOLD + PLAYERS_SLIDE, page = pages > 1 ? Math.floor(this.clock / cycle) % pages : 0;
     const phase = this.clock % cycle;
     const slide = pages > 1 && phase > PLAYERS_HOLD ? (phase - PLAYERS_HOLD) / PLAYERS_SLIDE : 0;
     const chunk = (k) => members.slice((k % pages) * fit, (k % pages) * fit + fit);
-    const visible = pages > 1 ? [chunk(page), chunk(page + 1)] : [members];
+    const visible = pages > 1 ? [chunk(page), chunk(page + 1)] : [chunk(0)];
     const key = JSON.stringify([fit, pages, page, visible.map((group) => group.map((m) => [m.login, m.cls,
       levelOf(m.xp), Math.floor(m.coins), m.weapon ? m.weapon.rarity : '', m.paragon, m.asleep]))]);
     $('players-count').textContent = members.length ? String(members.length) : '';
