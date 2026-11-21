@@ -1,7 +1,7 @@
 export const LIVES = 20;
 export const LEVEL_MAX = 100;
 export const TICK = 0.05;
-export const SLEEP_AFTER = 10;
+export const SLEEP_AFTER = 15;
 
 export const TOWER = { damage: 7 };
 export const RESIST = { every: 10, keep: 0.93 };

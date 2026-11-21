@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { AIM, ARCANE, BITE_TIME, Battle, WOLF, hammerAt, HELP, HOLY, SONG, SPELL, STORM, WOOD, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, FIRE,
+import { AIM, ARCANE, BITE_TIME, Battle, WOLF, godStage, hammerAt, HELP, HOLY, SONG, SPELL, STORM, WOOD, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, FIRE,
   PULSE, REACTIONS, ROT, SHOT, SPLIT_TIME }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
@@ -1967,6 +1967,75 @@ test('громоотвод срабатывает не чаще раза в се
   runFor(battle, 0.2);
   battle._strikeRod(two, battle.time);
   eq(surges().length, 4, 'через секунду — снова');
+});
+
+test('два молота: второй летит из той же руки через половину перерыва, с полным уроном; оба в полёте — третьего нет', () => {
+  const battle = makeBattle(), t = storm(battle, 10, 4, ['thor', 'twin']), mob = walker(battle, 13, 1e9);
+  still(mob);
+  const hammers = firedBy(battle, 'hammer'), half = battle._intervalOf(t, battle.time) / 2;
+  ok(battle._fire(t));
+  runFor(battle, half - 0.05);
+  eq(hammers().length, 1, 'раньше половины перерыва — один');
+  runFor(battle, 0.1);
+  eq(hammers().length, 2, 'через половину — второй');
+  no(battle._fire(t), 'оба в полёте');
+  runFor(battle, STORM.thor.out + STORM.thor.back + 0.1);
+  near(hit(mob), t.damage * 2, 'оба — полным уроном');
+  ok(battle._fire(t), 'вернулись — снова');
+});
+
+test('громовой толчок: раз в 10 с молнии по дороге на 4 клетки в обе стороны — урон и оглушение всем', () => {
+  const battle = makeBattle(), t = storm(battle, 10, 4, ['thor', 'quake']), s = STORM.quake;
+  const near1 = walker(battle, 10, 1e9), left = walker(battle, 7, 1e9), right = walker(battle, 13.5, 1e9);
+  const far = walker(battle, 16, 1e9), boss = walker(battle, 11, 1e9);
+  boss.info = Object.assign({}, boss.info, { boss: true });
+  still(near1, left, right, far, boss);
+  battle._locate = () => {};
+  const quakes = firedBy(battle, 'thunderquake');
+  battle.step(TICK);
+  eq(quakes().length, 1);
+  runFor(battle, s.step * (s.cells + 1));
+  for (const mob of [near1, left, right, boss]) {
+    near(hit(mob), t.damage);
+    ok(mob.holdUntil > battle.time, 'оглушён');
+  }
+  eq(hit(far), 0, 'дальше 4 клеток — нет');
+  runFor(battle, s.every - 1);
+  eq(quakes().length, 1, 'раньше 10 секунд второго нет');
+  runFor(battle, 1);
+  eq(quakes().length, 2);
+});
+
+test('ярость бога: каждый бросок за волну +1% урона, каждые 10% — +2% скорости; новая волна — сначала', () => {
+  const battle = makeBattle(), t = storm(battle, 10, 4, ['thor', 'godRage']), mob = walker(battle, 13, 1e9);
+  still(mob);
+  const s = STORM.god, base = t.interval;
+  for (let i = 0; i < 25; i++) {
+    t.hammers = [];
+    const before = hit(mob);
+    ok(battle._fire(t));
+    runFor(battle, STORM.thor.out + 0.05);
+    near(hit(mob) - before, t.damage * (1 + s.damage * i), 'бросок ' + (i + 1));
+  }
+  eq(t.godThrows, 25);
+  near(battle._intervalOf(t, battle.time), base / (1 + 2 * s.haste), '20% — две ступени по 2%');
+  eq(godStage(t), 3);
+  t.godThrows = 50;
+  eq(godStage(t), 5, 'к 50 броскам — пятая стадия');
+  battle.startWave(2);
+  eq(t.godThrows, 0, 'новая волна');
+  eq(godStage(t), 1);
+});
+
+test('сын бури: маги молнии и ветра дают Тору по +5% урона и скорости, а он каждому — +5% скорости', () => {
+  const battle = makeBattle(), thor = storm(battle, 10, 4, ['thor', 'stormSon']), mage = storm(battle, 2, 1, ['caller']);
+  const wind = battle.place(player(), 'shaman', 4, 1), fire = battle.place(player(), 'pyro', 6, 1);
+  battle.step(TICK);
+  near(thor.boost.rate, 2 * STORM.son.haste);
+  near(thor.boost.damage, 2 * STORM.son.damage);
+  near(mage.boost.rate, STORM.son.haste);
+  near(wind.boost.rate, STORM.son.haste);
+  near(fire.boost.rate, 0, 'маг огня — нет');
 });
 
 test('шаманка: удар в барабан — волна на 2 клетки вокруг ранит всех', () => {

@@ -126,6 +126,7 @@ const RAIJU_FX = { rgb: '125, 211, 252', core: '240, 249, 255', reach: 1.5, ever
 const ROD = { tall: 26, coil: 5, bolts: 7 };
 const CLAW = { cut: 0.12, lag: 0.035, thick: 3.2, side: 0.72, layers: 6 };
 const GLOBE_FX = { size: 10, grow: 0.15, melt: 0.3, lift: 6, bolts: 4, rate: 16 };
+const GOD_FX = { zaps: [0.34, 1, 2, 3, 5], glow: [11, 13, 15, 18, 22], reach: [18, 24, 30, 36, 44], aura: [0, 8, 11, 14, 18] };
 const DASH_FX = { size: 13, inhale: 0.18, tail: 0.12 };
 const STAFF_ZAP = { rate: 14, bolts: 3, long: 11, lit: 0.7 };
 const STORM_FX = { strike: 0.25, swipe: 0.25, throw: 0.18, catch: 0.22, spin: 16 };
@@ -1726,65 +1727,83 @@ export class Scene {
 
   _hammers(ctx, battle) {
     for (const t of battle.towers) {
-      const pose = this.poses.get(t), job = pose && pose.hammer;
-      if (t.style !== 'thor' || !job) continue;
-      const k = this.clock - job.start;
-      if (k >= job.out + job.back) continue;
-      const back = k >= job.out, f = back ? (k - job.out) / job.back : k / job.out;
-      const seen = !back && job.mob && !job.mob.dead ? this.shown.get(job.mob.id) : null;
-      if (seen) Object.assign(job, { x: seen.x, y: seen.y });
-      const palm = this._muzzle(t), hand = { cx: palm.x, cy: palm.y };
-      const spot = hammerAt(hand, job.x, job.y, f, back);
-      const x = at(spot.x), y = at(spot.y), spin = this.clock * STORM_FX.spin;
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      for (let i = 1; i <= 4; i++) {
-        const past = Math.max(0, f - i * 0.05), trail = hammerAt(hand, job.x, job.y, past, back);
-        glow(ctx, at(trail.x), at(trail.y), 7 - i, 'rgba(' + ZAP.glow + ', 1)', 0.35 - i * 0.06);
-      }
-      glow(ctx, x, y, 11, 'rgba(' + ZAP.glow + ', 1)', 0.55);
-      ctx.restore();
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(spin);
-      const grip = ctx.createLinearGradient(-1, 0, 1, 0);
-      grip.addColorStop(0, '#3b2414');
-      grip.addColorStop(0.5, '#8a5a32');
-      grip.addColorStop(1, '#3b2414');
-      ctx.fillStyle = grip;
-      ctx.fillRect(-0.9, -1, 1.8, 8);
-      const w = 5.2, h = 3.2, b = 1, cy = -3;
-      ctx.fillStyle = '#3e5470';
-      ctx.fillRect(-w, cy - h, w * 2, h * 2);
-      for (const [pts, color] of [[[[-w, cy - h], [w, cy - h], [w - b, cy - h + b], [-w + b, cy - h + b]], '#c7dbf2'],
-        [[[-w, cy + h], [w, cy + h], [w - b, cy + h - b], [-w + b, cy + h - b]], '#465d7a'],
-        [[[-w, cy - h], [-w + b, cy - h + b], [-w + b, cy + h - b], [-w, cy + h]], '#8fabcc'],
-        [[[w, cy - h], [w - b, cy - h + b], [w - b, cy + h - b], [w, cy + h]], '#56708f']]) {
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        pts.forEach(([px, py], n) => (n ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
-        ctx.closePath();
-        ctx.fill();
-      }
-      const face = ctx.createLinearGradient(0, cy - h + b, 0, cy + h - b);
-      face.addColorStop(0, '#b7cde8');
-      face.addColorStop(1, '#7f9bbd');
-      ctx.fillStyle = face;
-      ctx.fillRect(-w + b, cy - h + b, (w - b) * 2, (h - b) * 2);
-      ctx.strokeStyle = 'rgba(224, 242, 254, .95)';
-      ctx.lineWidth = 0.6;
-      ctx.beginPath();
-      ctx.moveTo(-2, cy - 0.6);
-      ctx.lineTo(-0.6, cy + 0.8);
-      ctx.lineTo(0.6, cy - 0.8);
-      ctx.lineTo(2, cy + 0.6);
-      ctx.stroke();
-      ctx.restore();
-      if (Math.floor(this.clock * 12) % 3 === 0) {
-        this._zap(ctx, x, y, x + (noise(1, Math.floor(this.clock * 12)) - 0.5) * 18,
-          y + (noise(2, Math.floor(this.clock * 12)) - 0.5) * 18, 0.8, 0.8, t.x);
-      }
+      const pose = this.poses.get(t);
+      if (t.style !== 'thor' || !pose || !pose.hammers) continue;
+      for (const job of pose.hammers) this._hammer(ctx, t, job);
     }
+  }
+
+  _hammer(ctx, t, job) {
+    const k = this.clock - job.start;
+    if (k >= job.out + job.back) return;
+    const back = k >= job.out, f = back ? (k - job.out) / job.back : k / job.out;
+    const seen = !back && job.mob && !job.mob.dead ? this.shown.get(job.mob.id) : null;
+    if (seen) Object.assign(job, { x: seen.x, y: seen.y });
+    const palm = this._muzzle(t), hand = { cx: palm.x, cy: palm.y };
+    const spot = hammerAt(hand, job.x, job.y, f, back);
+    const x = at(spot.x), y = at(spot.y), spin = this.clock * STORM_FX.spin;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 1; i <= 4; i++) {
+      const past = Math.max(0, f - i * 0.05), trail = hammerAt(hand, job.x, job.y, past, back);
+      glow(ctx, at(trail.x), at(trail.y), 7 - i, 'rgba(' + ZAP.glow + ', 1)', 0.35 - i * 0.06);
+    }
+    glow(ctx, x, y, GOD_FX.glow[job.stage - 1], 'rgba(' + ZAP.glow + ', 1)', 0.55 + job.stage * 0.05);
+    ctx.restore();
+    const aura = GOD_FX.aura[job.stage - 1];
+    if (aura) {
+      const pulse = 0.85 + 0.15 * Math.sin(this.clock * 19 + t.x), halo = ctx.createRadialGradient(x, y, 0, x, y, aura * pulse);
+      halo.addColorStop(0, 'rgba(147, 197, 253, ' + 0.12 * job.stage + ')');
+      halo.addColorStop(0.6, 'rgba(59, 130, 246, ' + 0.08 * job.stage + ')');
+      halo.addColorStop(1, 'rgba(30, 64, 175, 0)');
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(x, y, aura * pulse, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(spin);
+    const grip = ctx.createLinearGradient(-1, 0, 1, 0);
+    grip.addColorStop(0, '#3b2414');
+    grip.addColorStop(0.5, '#8a5a32');
+    grip.addColorStop(1, '#3b2414');
+    ctx.fillStyle = grip;
+    ctx.fillRect(-0.9, -1, 1.8, 8);
+    const w = 5.2, h = 3.2, b = 1, cy = -3;
+    ctx.fillStyle = '#3e5470';
+    ctx.fillRect(-w, cy - h, w * 2, h * 2);
+    for (const [pts, color] of [[[[-w, cy - h], [w, cy - h], [w - b, cy - h + b], [-w + b, cy - h + b]], '#c7dbf2'],
+      [[[-w, cy + h], [w, cy + h], [w - b, cy + h - b], [-w + b, cy + h - b]], '#465d7a'],
+      [[[-w, cy - h], [-w + b, cy - h + b], [-w + b, cy + h - b], [-w, cy + h]], '#8fabcc'],
+      [[[w, cy - h], [w - b, cy - h + b], [w - b, cy + h - b], [w, cy + h]], '#56708f']]) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      pts.forEach(([px, py], n) => (n ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+      ctx.closePath();
+      ctx.fill();
+    }
+    const face = ctx.createLinearGradient(0, cy - h + b, 0, cy + h - b);
+    face.addColorStop(0, '#b7cde8');
+    face.addColorStop(1, '#7f9bbd');
+    ctx.fillStyle = face;
+    ctx.fillRect(-w + b, cy - h + b, (w - b) * 2, (h - b) * 2);
+    ctx.strokeStyle = 'rgba(224, 242, 254, .95)';
+    ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(-2, cy - 0.6);
+    ctx.lineTo(-0.6, cy + 0.8);
+    ctx.lineTo(0.6, cy - 0.8);
+    ctx.lineTo(2, cy + 0.6);
+    ctx.stroke();
+    ctx.restore();
+    const tick = Math.floor(this.clock * 12), zaps = GOD_FX.zaps[job.stage - 1], reach = GOD_FX.reach[job.stage - 1];
+    const count = zaps < 1 ? (tick % 3 === 0 ? 1 : 0) : zaps;
+    for (let i = 0; i < count; i++) {
+      this._zap(ctx, x, y, x + (noise(1 + i * 5, tick) - 0.5) * reach, y + (noise(2 + i * 5, tick) - 0.5) * reach,
+        0.8 + job.stage * 0.1, 0.8, t.x + i * 7);
+    }
+    if (job.stage >= 4) this._sparks(spot.x, spot.y, ['#bfdbfe', '#ffffff', '#fde047'], job.stage - 3, 1.2, 0.3);
   }
 
   _rods(ctx, battle) {
@@ -3851,12 +3870,13 @@ export class Scene {
       if (t.style === 'raiju' && t.howlAt !== undefined && t.howlAt !== null && !act) {
         look = t.look + (now >= t.cryAt + DASH_FX.inhale && now < t.cryUntil ? '-howl' : '-howl2');
       }
-      if (t.style === 'thor' && pose.hammer) {
-        const k = this.clock - pose.hammer.start, flight = pose.hammer.out + pose.hammer.back;
-        if (k < STORM_FX.throw) look = t.look + '-throw';
-        else if (k < flight) look = t.look + '-empty';
-        else if (k < flight + STORM_FX.catch) look = t.look + '-catch';
-        else pose.hammer = null;
+      if (t.style === 'thor' && pose.hammers) {
+        pose.hammers = pose.hammers.filter((job) => this.clock - job.start < job.out + job.back + STORM_FX.catch);
+        const ages = pose.hammers.map((job) => [this.clock - job.start, job.out + job.back]);
+        const flying = ages.filter(([k, flight]) => k < flight).length;
+        if (ages.some(([k]) => k < STORM_FX.throw)) look = t.look + '-throw';
+        else if (ages.some(([k, flight]) => k >= flight)) look = t.look + '-catch';
+        else if (flying >= (t.runes.has('twin') ? 2 : 1)) look = t.look + '-empty';
       }
       pose.x = spot.x;
       pose.y = spot.y;
@@ -4308,6 +4328,10 @@ export class Scene {
       this._sparks(x2, y2, ['#bfdbfe', '#ffffff', '#fde047'], event.thin ? 2 : 4, 1.4, 0.25);
     } else if (event.kind === 'dash') {
       this._sparks(event.x1, event.y1, ['#bfdbfe', '#ffffff', '#fde047'], 8, 1.6, 0.3);
+    } else if (event.kind === 'thunderquake') {
+      this._pose(t).act = { frame: 'catch', until: this.clock + STORM_FX.catch * 2 };
+      this._sparks(t.cx, t.cy, ['#bfdbfe', '#ffffff', '#fde047'], 12, 2.2, 0.4);
+      add({ kind: 'thunderquake', life: event.step * (event.lines[0].length + 3), lines: event.lines, step: event.step });
     } else if (event.kind === 'globe') {
       this._fire(t, event.mob.x, event.mob.y, event.mob, () => {
         this._pose(t).act = { frame: 'strike', until: this.clock + STORM_FX.strike };
@@ -4331,7 +4355,9 @@ export class Scene {
       }, STORM_FX.swipe);
     } else if (event.kind === 'hammer') {
       this._face(t, event.x, event.y, event.mob, event.out + event.back);
-      this._pose(t).hammer = { start: this.clock, out: event.out, back: event.back, x: event.x, y: event.y, mob: event.mob };
+      const pose = this._pose(t);
+      pose.hammers = (pose.hammers || []).concat({ start: this.clock, out: event.out, back: event.back, x: event.x, y: event.y,
+        mob: event.mob, stage: event.stage || 1 });
     } else if (event.kind === 'rod') {
       this._sparks(event.x, event.y, ['#bfdbfe', '#ffffff', '#d97706'], 10, 1.6, 0.45);
     } else if (event.kind === 'skybolt') {
@@ -4973,6 +4999,16 @@ export class Scene {
         }
       } else if (e.kind === 'claw') {
         this._claw(ctx, e, share);
+      } else if (e.kind === 'thunderquake') {
+        const front = share * e.life / e.step;
+        for (const cells of e.lines) {
+          for (let i = 0; i + 1 < cells.length && i < front; i++) {
+            const lit = Math.max(0, 1 - (front - i - 1) / 3);
+            if (lit <= 0) continue;
+            const [x1, y1] = cells[i], [x2, y2] = cells[i + 1];
+            this._zap(ctx, at(x1), at(y1), at(x2), at(y2), 2.4, lit, i * 3 + cells.length);
+          }
+        }
       } else if (e.kind === 'glare') {
         ctx.fillStyle = 'rgba(219, 234, 254, ' + 0.18 * fade + ')';
         ctx.fillRect(EDGE, EDGE, CELL * SIZE, CELL * SIZE);

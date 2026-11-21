@@ -115,6 +115,8 @@ export const ARCANE = { control: { count: 3, mul: 1.25, spread: 0.6 }, splash: 1
 const MARKED = new Set(['fire', 'poison', 'earth', 'lightning']);
 export const STORM = { orb: 5, caller: { reach: 3.5, interval: 1, mul: 1.2 }, raiju: { reach: 2, interval: 1.2, mul: 1.1, arc: 1.3 },
   thor: { reach: 4, interval: 1.6, mul: 1.8, out: 0.55, back: 0.55, bend: 0.35, touch: 0.6, steps: 10 },
+  quake: { every: 10, cells: 4, step: 0.1, touch: 0.75, stun: 1 }, god: { damage: 0.01, per: 10, haste: 0.02, stage: 12.5 },
+  son: { damage: 0.05, haste: 0.05, kin: ['thunder', 'shaman'] },
   frenzy: { time: 3, haste: 2 }, spark: { mul: 4, reach: 2 },
   chain: { reach: 2, sure: 2, chance: 0.5, gap: 0.08 }, fork: { chance: 0.5, reach: 3, mul: 0.5 },
   globe: { every: 6, speed: 1.2, mul: 4, touch: 0.7, zap: 1, reach: 1, bolts: 3 }, tempest: { every: 8, radius: 2, mul: 3, stun: 3 },
@@ -669,6 +671,7 @@ export class Battle {
 
   startWave(wave, players = this.towers.length) {
     this.wave = wave;
+    for (const t of this.towers) t.godThrows = 0;
     this.players = players;
     this.steel = 0;
     this.shields = [];
@@ -1845,7 +1848,8 @@ export class Battle {
 
   _intervalOf(t, now) {
     return t.interval * (t.webUntil > now ? t.web : 1) / ((1 + (t.windUntil > now ? t.wind : 0))
-      * (1 + t.boost.rate) * (t.frenzyUntil > now ? STORM.frenzy.haste : 1) * (t.style === 'raiju' ? this._wolfRate(t) : 1));
+      * (1 + t.boost.rate) * (t.frenzyUntil > now ? STORM.frenzy.haste : 1) * (t.style === 'raiju' ? this._wolfRate(t) : 1)
+      * (1 + godHaste(t)));
   }
 
   _wolfRate(t) {
@@ -1923,7 +1927,10 @@ export class Battle {
         }
       }
       const chant = (id, value) => fade(mantras[id].map(() => value));
-      const howls = [];
+      const howls = [], son = STORM.son, kin = (o) => o !== t && son.kin.includes(o.cls.id);
+      const sons = this.towers.filter((o) => o !== t && o.style === 'thor' && o.runes.has('stormSon') && son.kin.includes(t.cls.id));
+      const kinship = t.style === 'thor' && t.runes.has('stormSon') ? this.towers.filter(kin).length : 0;
+      for (const o of sons) by.add(o);
       for (const wolf of this.towers) {
         if (wolf === t ? wolf.howlUntil > now : wolf.packUntil > now) {
           howls.push(wolf === t ? WOLF.howl.self : WOLF.howl.team);
@@ -1931,8 +1938,8 @@ export class Battle {
         }
       }
       boost.rate = bless * (fade(winds) + fade(team) + fade(grace) + fade(tuning) + chant('mantraSpeed', HOLY.mantra.haste)
-        + fade(howls));
-      boost.damage = bless * (chant('mantraPower', HOLY.mantra.damage) + fade(howls)
+        + fade(howls) + son.haste * (kinship + sons.length));
+      boost.damage = bless * (chant('mantraPower', HOLY.mantra.damage) + fade(howls) + son.damage * kinship
         + this._totems({ x: t.cx, y: t.cy }, 'power'));
       boost.range = bless * chant('mantraRange', HOLY.mantra.range);
       boost.might = bless * fade(might);
@@ -2728,10 +2735,24 @@ function hammerAt(t, x, y, k, back) {
   return { x: u * u * ax + 2 * u * k * kx + k * k * bx, y: u * u * ay + 2 * u * k * ky + k * k * by };
 }
 
+export const godStage = (t) => (t.runes.has('godRage') ? Math.min(5, 1 + Math.floor((t.godThrows || 0) / STORM.god.stage)) : 1);
+
+function godHaste(t) {
+  return t.style === 'thor' && t.runes.has('godRage') ? STORM.god.haste * Math.floor((t.godThrows || 0) / STORM.god.per) : 0;
+}
+
+function hammerFree(t, now) {
+  return (t.hammers || []).filter((until) => until > now).length < (t.runes.has('twin') ? 2 : 1);
+}
+
 function hurl(b, t, target, hit, crit, now) {
   const s = STORM.thor, aim = { x: target.x, y: target.y };
-  t.hammerBack = now + s.out + s.back;
-  b._event({ kind: 'hammer', tower: t, x: aim.x, y: aim.y, mob: target, out: s.out, back: s.back, crit });
+  t.hammers = (t.hammers || []).filter((until) => until > now).concat(now + s.out + s.back);
+  if (t.runes.has('godRage')) {
+    hit *= 1 + STORM.god.damage * (t.godThrows || 0);
+    t.godThrows = (t.godThrows || 0) + 1;
+  }
+  b._event({ kind: 'hammer', tower: t, x: aim.x, y: aim.y, mob: target, out: s.out, back: s.back, crit, stage: godStage(t) });
   const struck = new Set();
   for (const back of [false, true]) {
     for (let k = 1; k <= s.steps; k++) {
@@ -2747,6 +2768,41 @@ function hurl(b, t, target, hit, crit, now) {
     }
   }
   return true;
+}
+
+function quake(b, t, now) {
+  const s = STORM.quake;
+  t.nextQuake = now + s.every;
+  let best = null;
+  for (const route of [b.path, b.branch]) {
+    route.forEach(([x, y], i) => {
+      const gap = (x + 0.5 - t.cx) ** 2 + (y + 0.5 - t.cy) ** 2;
+      if (!best || gap < best.gap) best = { route, i, gap };
+    });
+  }
+  if (!best) return;
+  const lines = [-1, 1].map((way) => {
+    const cells = [];
+    for (let k = 0; k <= s.cells; k++) {
+      const cell = best.route[best.i + way * k];
+      if (cell) cells.push([cell[0] + 0.5, cell[1] + 0.5]);
+    }
+    return cells;
+  });
+  b._event({ kind: 'thunderquake', tower: t, lines, step: s.step });
+  const struck = new Set();
+  for (const cells of lines) {
+    cells.forEach(([x, y], k) => {
+      b._later(k * s.step, () => {
+        for (const mob of b._around(x, y, s.touch)) {
+          if (struck.has(mob)) continue;
+          struck.add(mob);
+          b._hurt(mob, t.damage, t);
+          b._hold(mob, s.stun, t, true);
+        }
+      }, t);
+    });
+  }
 }
 
 export function pullAt(t, now) {
@@ -3618,7 +3674,7 @@ const SKILLS = {
 
   thunder: {
     fire(b, t, now) {
-      if (t.style === 'thor' && t.hammerBack > now) return false;
+      if (t.style === 'thor' && !hammerFree(t, now)) return false;
       const target = t.style === 'caller' ? closestPrey(b, t) : t.style === 'thor' ? farthestPrey(b, t) : b._target(t);
       if (!target) return false;
       const crit = rollCrit(b, t), hit = t.damage * (crit ? t.critMul : 1);
@@ -3638,7 +3694,18 @@ const SKILLS = {
         }
         return true;
       }
-      if (t.style === 'thor') return hurl(b, t, target, hit, crit, now);
+      if (t.style === 'thor') {
+        hurl(b, t, target, hit, crit, now);
+        if (t.runes.has('twin')) {
+          b._later(b._intervalOf(t, now) / 2, () => {
+            const next = farthestPrey(b, t);
+            if (!b.towers.includes(t) || !next || !hammerFree(t, b.time)) return;
+            const again = rollCrit(b, t);
+            hurl(b, t, next, t.damage * (again ? t.critMul : 1), again, b.time);
+          }, t);
+        }
+        return true;
+      }
       const flight = Math.hypot(target.x - t.cx, target.y - t.cy) / STORM.orb;
       b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target, time: flight });
       b._later(flight, () => {
@@ -3649,6 +3716,7 @@ const SKILLS = {
     every(b, t, now, alive) {
       while (b.rods.filter((rod) => rod.tower === t).length < (t.stacks.get('rod') || 0) && b._plantRod(t));
       if (t.style === 'raiju') wolf(b, t, now, alive);
+      if (t.style === 'thor' && alive && t.runes.has('quake') && now >= (t.nextQuake || 0)) quake(b, t, now);
       if (t.style !== 'caller' || !alive) return;
       if (t.runes.has('globe') && now >= (t.nextGlobe || 0)) globe(b, t, now);
       if (t.runes.has('tempest') && now >= (t.nextTempest || 0)) tempest(b, t, now);
