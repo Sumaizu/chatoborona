@@ -2762,7 +2762,8 @@ function hurl(b, t, target, hit, crit, now) {
         for (const mob of b._around(spot.x, spot.y, s.touch)) {
           if (struck.has(mob) || mob === target && !back && k < s.steps) continue;
           struck.add(mob);
-          b._hurt(mob, hit, t);
+          b._hurt(mob, hit / 2, t, null);
+          b._hurt(mob, hit / 2, t, 'storm');
         }
       }, t);
     }

@@ -1969,6 +1969,20 @@ test('громоотвод срабатывает не чаще раза в се
   eq(surges().length, 4, 'через секунду — снова');
 });
 
+test('Тор: молот бьёт наполовину обычным уроном, наполовину молнией', () => {
+  const battle = makeBattle(), t = storm(battle, 10, 4, ['thor']), mob = walker(battle, 13, 1e9), dealt = [];
+  still(mob);
+  const hurt = battle._hurt.bind(battle);
+  battle._hurt = (target, amount, by, element, ...rest) => {
+    if (by === t && target === mob) dealt.push([amount, element === undefined ? by.element : element]);
+    return hurt(target, amount, by, element, ...rest);
+  };
+  ok(battle._fire(t));
+  runFor(battle, STORM.thor.out + 0.05);
+  eq(dealt.map(([, element]) => element).sort(), [null, 'storm'].sort());
+  dealt.forEach(([amount]) => near(amount, t.damage / 2));
+});
+
 test('два молота: второй летит из той же руки через половину перерыва, с полным уроном; оба в полёте — третьего нет', () => {
   const battle = makeBattle(), t = storm(battle, 10, 4, ['thor', 'twin']), mob = walker(battle, 13, 1e9);
   still(mob);
