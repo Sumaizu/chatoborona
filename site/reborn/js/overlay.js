@@ -12,10 +12,8 @@ const CODE_FILES = ['overlay.html', 'css/overlay.css', 'js/overlay.js', 'js/view
   'js/guide.js', 'js/rules.js', 'js/stats.js'];
 const LOCAL = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
 const UPDATE_CHECK_SECONDS = LOCAL ? 5 : 300;
-const RELOAD_PAUSE_SECONDS = LOCAL ? 0 : 600;
 const STATS_EVERY_SECONDS = 600;
 const STEP_MS = 50;
-const RELOAD_CHECK_MS = 500;
 const FRAME_MAX = 0.1;
 const FRAME_MIN_MS = 12;
 const EMBEDDED = new URLSearchParams(location.search).get('embed') === '1';
@@ -52,35 +50,19 @@ function refreshCache() {
   return Promise.all(CODE_FILES.map((name) => fetch(fileUrl(name), { cache: 'reload' })));
 }
 
-function watchUpdates(canReload) {
-  let fingerprint = null, fetching = false, ready = false;
-  const prepare = () => {
-    if (fetching) return;
-    fetching = true;
-    const done = () => {
-      ready = true;
-    };
-    refreshCache().then(done, done);
-  };
-  const reload = () => {
-    const storage = browserStorage();
-    const last = storage ? Number(storage.getItem('reborn.reloaded')) || 0 : 0;
-    if (!ready || !canReload() || Date.now() - last < RELOAD_PAUSE_SECONDS * 1000) return;
-    if (storage) storage.setItem('reborn.reloaded', String(Date.now()));
-    location.reload();
-  };
+function prefetchUpdates() {
+  let fingerprint = null;
   const check = async () => {
     try {
       const current = await filesFingerprint();
-      if (fingerprint === null) fingerprint = current;
-      if (current !== fingerprint) prepare();
+      if (fingerprint !== null && current !== fingerprint) await refreshCache();
+      fingerprint = current;
     } catch (error) {
       return;
     }
   };
   check();
   setInterval(check, UPDATE_CHECK_SECONDS * 1000);
-  setInterval(reload, RELOAD_CHECK_MS);
 }
 
 function run(view) {
@@ -174,8 +156,7 @@ function run(view) {
   if (EMBEDDED) return;
   chat.start();
   watchVisibility(show, hide);
-  watchUpdates(() => game.state === 'over' || game.state === 'stopped' || game.state === 'lobby'
-    && game.members.size === 0);
+  prefetchUpdates();
 }
 
 run(new View());
