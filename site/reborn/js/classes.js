@@ -2,7 +2,7 @@ import { MIGHT, STAT, TOWER } from './balance.js';
 
 export const PERKS = [10, 30, 50];
 export const STONES = [1, 10, 30, 50, 70, 100];
-export const STONE_CHANCE = { first: 0.2, next: 0.05 };
+export const STONE_CHANCE = { first: 0.2, second: 0.1, next: 0.05 };
 export const RUNE_CAPS = { rot: 0.6, shatter: 40 };
 
 const pct = (value) => Math.round(value * 100) + '%';
@@ -644,17 +644,11 @@ export function choiceOf(id, taken) {
   if (!style && pool.some((skill) => skill.kind === 'style')) {
     return pool.filter((skill) => skill.kind === 'style').map((skill) => ({ skill, state: 'open', count: 0 }));
   }
-  const options = pool.filter((skill) => skill.kind !== 'style' && (!skill.style || style && skill.style === style.id))
+  return pool.filter((skill) => skill.kind !== 'style' && (!skill.style || style && skill.style === style.id))
     .map((skill) => {
       const count = countOf(taken, skill.id);
       return { skill, count, state: count >= (skill.max || 1) ? 'taken' : 'open' };
     });
-  const master = masterOf(id, taken);
-  if (!master) return options;
-  const at = options.findIndex((option) => master.parts.includes(option.skill.id));
-  const rest = options.filter((option) => !master.parts.includes(option.skill.id));
-  rest.splice(at, 0, { skill: Object.assign({ kind: 'upgrade', perk: null }, master), count: 1, state: 'taken' });
-  return rest;
 }
 
 function masterOf(id, taken) {

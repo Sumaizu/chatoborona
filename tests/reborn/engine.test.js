@@ -901,6 +901,20 @@ function frost(game, name) {
   game.members.get(name.toLowerCase()).cls = 'frost';
 }
 
+test('камень навыка: первый после выбора стиля — 10%, дальше — 5%', () => {
+  const { game } = makeGame();
+  game.open();
+  say(game, 'Рина', 'привет');
+  const member = game.members.get('рина');
+  member.cls = 'thunder';
+  toWave(game);
+  member.xp = xpForLevel(LEVEL_MAX);
+  member.skills = ['caller'];
+  eq(game._stoneDue(member), STONE_CHANCE.second, 'стиль взят — 10%');
+  member.skills = ['caller', 'chain'];
+  eq(game._stoneDue(member), STONE_CHANCE.next, 'дальше — 5%');
+});
+
 test('камень навыка: первый с 1 уровня (20%), дальше по ступеням 10, 30, 50, 70, 100 (3%)', () => {
   const { game } = makeGame();
   game.open();

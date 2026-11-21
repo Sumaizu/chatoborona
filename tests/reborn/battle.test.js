@@ -1368,14 +1368,15 @@ test('монах, мантры: аура на 3 клетки — быстрее,
   near(hit(mob), 10 * (1 + ally.boost.damage) * (1 + ally.boost.might));
 });
 
-test('монах, повелитель мантр: три мантры в профиле и в выборе — одним навыком', () => {
+test('монах, повелитель мантр: в профиле три мантры — одним навыком, а в выборе камня — тремя взятыми', () => {
   const taken = ['monk', 'mantraSpeed', 'mantraPower', 'mantraRange'];
   const info = describe('priest', taken), names = info.skills.map((skill) => skill.name);
   ok(names.includes('Повелитель мантр'));
   no(names.some((name) => name.startsWith('Мантра')), 'мантр по отдельности нет');
   const options = choiceOf('priest', taken);
-  eq(options.filter((option) => option.skill.name === 'Повелитель мантр').length, 1);
-  no(options.some((option) => option.skill.name.startsWith('Мантра')));
+  no(options.some((option) => option.skill.name === 'Повелитель мантр'), 'в выборе общего навыка нет');
+  eq(options.filter((option) => option.skill.name.startsWith('Мантра') && option.state === 'taken').length, 3,
+    'три мантры — взятыми');
   ok(options.some((option) => option.skill.id === 'heavyShaft' && option.state === 'open'));
   ok(choiceOf('priest', ['monk', 'mantraSpeed']).some((option) => option.skill.id === 'mantraPower'), 'пока не все три — по одной');
 });

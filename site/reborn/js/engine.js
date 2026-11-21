@@ -835,7 +835,8 @@ export class Game {
     const taken = member.skills.length + waiting;
     if (waiting || taken >= stonesAt(levelOf(member.xp))) return 0;
     if (!choiceOf(member.cls, member.skills).some((option) => option.state === 'open')) return 0;
-    return taken ? STONE_CHANCE.next : STONE_CHANCE.first;
+    if (!taken) return STONE_CHANCE.first;
+    return taken === 1 && CLASS_BY_ID.get(member.cls).styles ? STONE_CHANCE.second : STONE_CHANCE.next;
   }
 
   optionsOf(choice) {
