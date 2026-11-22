@@ -1077,21 +1077,21 @@ export class View {
     const all = Array.from(game.members.values()), sleeping = all.filter((m) => m.asleep).length;
     const members = all.filter((m) => !m.asleep).sort((a, b) => b.xp - a.xp
       || (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1));
-    const fit = ROSTER.columns * ROSTER.rows - (sleeping ? 1 : 0);
+    const fit = ROSTER.columns * ROSTER.rows;
     const pages = Math.max(1, Math.ceil(members.length / fit));
     const cycle = PLAYERS_HOLD + PLAYERS_SLIDE, page = pages > 1 ? Math.floor(this.clock / cycle) % pages : 0;
     const phase = this.clock % cycle;
     const slide = pages > 1 && phase > PLAYERS_HOLD ? (phase - PLAYERS_HOLD) / PLAYERS_SLIDE : 0;
     const chunk = (k) => members.slice((k % pages) * fit, (k % pages) * fit + fit);
-    const visible = pages > 1 ? [chunk(page + 1), chunk(page)] : [chunk(0)];
-    const key = JSON.stringify([fit, pages, page, sleeping, visible.map((group) => group.map((m) => [m.login, m.cls,
+    const visible = (pages > 1 ? [page + 1, page] : [0]).map((k) => ({ group: chunk(k), last: k % pages === pages - 1 }));
+    const key = JSON.stringify([fit, pages, page, sleeping, visible.map(({ group }) => group.map((m) => [m.login, m.cls,
       levelOf(m.xp), Math.floor(m.coins), m.weapon ? m.weapon.rarity : '', m.paragon]))]);
     const list = $('players');
     this._once('players', key, () => {
       list.textContent = '';
       list.classList.toggle('paged', pages > 1);
       const track = el('div', 'pages');
-      visible.forEach((group, i) => {
+      visible.forEach(({ group, last }, i) => {
         const box = el('div', 'page' + (i === visible.length - 1 ? ' current' : ''));
         if (!all.length) box.append(el('li', 'empty', 'Пока никого — напиши что-нибудь в чат'));
         for (const m of group) {
@@ -1103,7 +1103,7 @@ export class View {
           row.append(level, this._coins(m.coins));
           box.append(row);
         }
-        if (sleeping) {
+        if (sleeping && last && group.length < fit) {
           box.append(el('li', 'sleepers', (members.length ? 'и ' : '') + sleeping + ' '
             + plural(sleeping, 'спящий', 'спящих', 'спящих')));
         }

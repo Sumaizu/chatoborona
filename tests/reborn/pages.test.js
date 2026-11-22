@@ -479,6 +479,33 @@ test('страницы: профиль не влезает в столбец —
   frame.remove();
 });
 
+test('страницы: «и N спящих» — только на последней странице отряда, если там есть место', async () => {
+  fresh();
+  const frame = await overlay('lobby=10&first_wave=5');
+  const w = frame.contentWindow, game = w.chatoborona.game, view = w.chatoborona.view;
+  await until(() => game.state === 'lobby', 'набор');
+  for (let i = 0; i < 13; i++) join(game, 'Игрок' + i);
+  game.next();
+  await until(() => game.state === 'placing', 'расстановка');
+  const members = Array.from(game.members.values());
+  for (const m of members.slice(10)) game._sleep(m);
+  const current = () => Array.from(w.document.querySelectorAll('#players .page.current li'));
+  const pages = new Map();
+  for (let turn = 0; turn < 6; turn++) {
+    await until(() => current().length, 'страница');
+    const rows = current().map((li) => li.textContent);
+    pages.set(rows[0], rows);
+    view.clock += 5.7;
+    await wait(250);
+  }
+  const list = Array.from(pages.values());
+  eq(list.length, 2, 'десять бодрых — две страницы');
+  const full = list.find((rows) => rows.length === 6), rest = list.find((rows) => rows.length === 5);
+  ok(full && !full.some((row) => row.includes('спящ')), 'на полной странице спящих нет');
+  ok(rest && rest[4] === 'и 3 спящих', 'на последней — после четырёх игроков');
+  frame.remove();
+});
+
 test('страницы: игроков больше, чем помещается над картой, — отряд перескакивает на следующих по кругу', async () => {
   fresh();
   const frame = await overlay('lobby=60');
