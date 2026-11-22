@@ -342,7 +342,7 @@ export class Game {
     }
     let done = null;
     if (picked) {
-      done = this._choose(choice, this.openOf(choice)[picked - 1]);
+      done = this._choose(choice, picked - 1);
     } else if (control) {
       done = mod && this.s.chat_commands ? this._control(control) : null;
     } else if (action === 'spin') {

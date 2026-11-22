@@ -240,13 +240,14 @@ test('страницы: камень навыка — окно выбора по
   ok(element(w, 'side').contains(element(w, 'pick')), 'выбор — справа, а не поверх карты');
   ok(element(w, 'side').classList.contains('picking'), 'эффекты на время выбора убраны');
   const options = w.document.querySelectorAll('#pick-options li');
-  eq(options.length, game.openOf(game.choice).length);
+  eq(options.length, game.optionsOf(game.choice).length, 'все навыки набора, взятые — на своих местах');
   ok(text(w, 'pick-who').includes('Аня'));
   ok(/^\d+ с$/.test(text(w, 'pick-clock')), 'секунды до конца выбора: ' + text(w, 'pick-clock'));
   no(text(w, 'status') === 'Выбор навыка', 'игра идёт — в строке состояния волна');
   const skill = game.optionsOf(game.choice)[1].skill, name = skill.name;
   ok(options[1].textContent.startsWith('2' + name));
-  eq(options[1].querySelector('.desc').textContent, skill.brief, 'короткое описание');
+  eq(options[1].querySelector('.desc').textContent, skill.brief[0].toUpperCase() + skill.brief.slice(1),
+    'короткое описание с большой буквы');
   ok(skill.brief.length < skill.text.length, 'короче полного');
   eq(game.feed('Аня', '2', { login: 'аня' }), 'skill');
   await until(() => element(w, 'pick').hidden, 'выбор закрылся');
@@ -485,8 +486,7 @@ test('страницы: крутят много — окошек гачи сто
   await until(() => shown() === 3, 'сначала три окошка');
   game.members.get('аня').coins = 1e6;
   game.queue = [{ login: 'аня', count: 120 }];
-  await until(() => shown() > 5, 'весь столбец под гачу');
-  ok(element(w, 'side').classList.contains('rush'));
+  await until(() => shown() > 5 && element(w, 'side').classList.contains('rush'), 'весь столбец под гачу');
   eq(w.getComputedStyle(element(w, 'effects')).display === 'none' || !element(w, 'effects').offsetParent, true,
     'эффекты убраны');
   const side = element(w, 'side').getBoundingClientRect(), last = w.document.querySelector('#slots .slot:not([hidden]):last-child');

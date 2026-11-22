@@ -28,9 +28,9 @@ const BIOME_GLOW = { grass: '#4ade80', volcano: '#fb923c', swamp: '#a3e635', sno
 const LOW_LIVES = 5;
 const BOSS_EVERY = 10;
 const FINAL_SECONDS = 3;
-const ROWS = { over: 10, pause: 10, pauseShort: 8, queue: 3, cards: 4 };
+const ROWS = { over: 10, pause: 10, pauseShort: 8, queue: 5, cards: 4 };
 const ROSTER = { columns: 3, rows: 2, width: 640 };
-const SLOT_FIT = { tall: 72, gap: 6, frame: 62, space: 8 };
+const SLOT_FIT = { tall: 72, short: 62, gap: 6, frame: 40, space: 8 };
 const CARD_GAP = 6;
 const REEL = { cells: 26, result: 21, width: 34 };
 const BIG_PRIZES = new Set(['epic', 'legendary']);
@@ -726,16 +726,16 @@ export class View {
       if (style) who.append(' · ', el('b', 'cls', style.name));
       const list = $('pick-options');
       list.textContent = '';
-      let number = 0;
-      options.forEach(({ skill, state, count }) => {
+      options.forEach(({ skill, state, count }, i) => {
         const item = el('li', state), text = el('div', 'text');
-        text.append(el('b', 'name', stacked(skill, count)), el('span', 'desc', skill.brief));
-        item.append(el('i', 'digit', state === 'open' ? String(++number) : '✓'), text);
+        text.append(el('b', 'name', stacked(skill, count)), el('span', 'desc', skill.brief[0].toUpperCase()
+          + skill.brief.slice(1)));
+        item.append(el('i', 'digit', state === 'open' ? String(i + 1) : '✓'), text);
         list.append(item);
       });
-      const how = $('pick-how');
-      how.textContent = 'Пиши цифру в чат.';
-      if (queue.length) how.append(' Дальше: ', el('b', '', queue.join(', ')));
+      const next = $('pick-next');
+      next.textContent = '';
+      if (queue.length) next.append('Дальше: ', el('b', '', queue.join(', ')));
     });
     $('pick-bar').style.width = (Math.max(0, choice.left) / choice.span * 100).toFixed(1) + '%';
     $('pick-clock').textContent = Math.max(0, Math.ceil(choice.left)) + ' с';
@@ -916,7 +916,8 @@ export class View {
     if (!side.clientHeight) return;
     const pick = $('pick'), head = side.querySelector('.head');
     const free = side.clientHeight - head.offsetHeight - f.space - (pick.hidden ? 0 : pick.offsetHeight + f.space);
-    game.slotRoom = Math.max(SLOTS, Math.floor((free - f.frame + f.gap) / (f.tall + f.gap)));
+    const tall = pick.hidden ? f.tall : f.short;
+    game.slotRoom = Math.max(SLOTS, Math.floor((free - f.frame + f.gap) / (tall + f.gap)));
   }
 
   _slotBox(i) {
@@ -993,14 +994,17 @@ export class View {
       const line = $('queue');
       line.textContent = '';
       if (!queue.length) return;
-      line.append('Дальше: ');
-      queue.slice(0, ROWS.queue).forEach(([login, count], i) => {
-        if (i) line.append(', ');
-        line.append(el('b', '', game.members.get(login).name));
-        if (count > 1) line.append(' ×' + count);
-      });
-      const more = queue.length - ROWS.queue;
-      if (more > 0) line.append(' и ещё ' + more);
+      for (let shown = Math.min(queue.length, ROWS.queue); shown >= 1; shown--) {
+        line.textContent = '';
+        line.append('Дальше: ');
+        queue.slice(0, shown).forEach(([login, count], i) => {
+          if (i) line.append(', ');
+          line.append(el('b', '', game.members.get(login).name));
+          if (count > 1) line.append(' ×' + count);
+        });
+        if (shown < queue.length) line.append(' и ещё ' + (queue.length - shown));
+        if (!line.clientWidth || line.scrollWidth <= line.clientWidth) break;
+      }
     });
   }
 

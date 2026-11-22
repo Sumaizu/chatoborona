@@ -937,7 +937,7 @@ test('камень навыка: первый с 1 уровня (20%), даль�
   no(game.modsOf(member).perks.length, 'уровень сам приёмов не открывает');
 });
 
-test('камень навыка: игра идёт дальше, игрок пишет цифру из доступных — навык его до конца игры', () => {
+test('камень навыка: игра идёт дальше, игрок пишет цифру — навык его до конца игры', () => {
   const { game } = makeGame();
   game.open();
   frost(game, 'Рина');
@@ -961,8 +961,8 @@ test('камень навыка: игра идёт дальше, игрок пи
   ok(game.notes.some((n) => n.kind === 'skill' && n.detail.skill === second.id && !n.detail.auto));
   stone(game, 'рина');
   eq(game.optionsOf(game.choice)[1].state, 'taken', 'взятый — отмечен');
-  eq(game.openOf(game.choice).length, pool.length - 1, 'цифры — только у тех, что ещё не взяты');
-  eq(say(game, 'Рина', '3'), 'skill', 'третий из доступных');
+  eq(say(game, 'Рина', '2'), null, 'и второй раз не берётся');
+  eq(say(game, 'Рина', '4'), 'skill', 'номера на своих местах');
   eq(member.skills, [second.id, fourth.id]);
   game.restart();
   say(game, 'Рина', 'снова');
@@ -1011,8 +1011,8 @@ test('камень навыка: не выбрал за 30 секунд — сл
   ok(game.notes.some((n) => n.kind === 'skill' && n.detail.auto), 'с пометкой «случайно»');
   stone(game, 'рина');
   const free = game.optionsOf(game.choice).findIndex((option) => option.state === 'open');
-  eq(say(game, 'Лев', '@рина 1'), null, 'зрителю нельзя');
-  eq(game.feed('Streamer', '@Рина 1', { login: 'streamer' }), 'skill');
+  eq(say(game, 'Лев', '@рина ' + (free + 1)), null, 'зрителю нельзя');
+  eq(game.feed('Streamer', '@Рина ' + (free + 1), { login: 'streamer' }), 'skill');
   eq(member.skills[1], poolOf('frost')[free].id);
   const other = makeGame().game;
   other.open();
