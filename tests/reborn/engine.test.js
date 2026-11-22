@@ -915,7 +915,7 @@ test('камень навыка: первый после выбора стиля
   eq(game._stoneDue(member), STONE_CHANCE.next, 'дальше — 5%');
 });
 
-test('камень навыка: первый с 1 уровня (20%), дальше по ступеням 10, 30, 50, 70, 100 (3%)', () => {
+test('камень навыка: первый с 1 уровня (20%), дальше по ступеням 10, 20, 30, 50, 75, 100', () => {
   const { game } = makeGame();
   game.open();
   frost(game, 'Рина');
@@ -931,8 +931,8 @@ test('камень навыка: первый с 1 уровня (20%), даль�
   member.xp = xpForLevel(10);
   eq(game._stoneDue(member), STONE_CHANCE.next, 'на 10-м — 3%');
   member.xp = xpForLevel(LEVEL_MAX);
-  member.skills = poolOf('frost').map((skill) => skill.id).slice(0, 6);
-  eq(game._stoneDue(member), 0, 'шесть ступеней — шесть камней');
+  member.skills = poolOf('frost').map((skill) => skill.id).slice(0, 7);
+  eq(game._stoneDue(member), 0, 'семь ступеней — семь камней');
   member.skills = [];
   no(game.modsOf(member).perks.length, 'уровень сам приёмов не открывает');
 });
