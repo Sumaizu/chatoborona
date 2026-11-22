@@ -1045,8 +1045,17 @@ export class View {
   _scrollEffects() {
     const box = $('effects'), track = box.querySelector('.track');
     if (!track) return;
-    const over = Math.max(0, track.offsetHeight - box.clientHeight);
-    const roll = this._effectsRoll || (this._effectsRoll = { y: 0, dir: 1, wait: EFFECTS_ROLL.wait, at: this.clock });
+    this._effectsRoll = this._effectsRoll || this._newRoll();
+    const y = this._roll(this._effectsRoll, track.offsetHeight - box.clientHeight);
+    track.style.transform = 'translateY(' + -y + 'px)';
+  }
+
+  _newRoll() {
+    return { y: 0, dir: 1, wait: EFFECTS_ROLL.wait, at: this.clock };
+  }
+
+  _roll(roll, overflow) {
+    const over = Math.max(0, overflow);
     const dt = Math.max(0, Math.min(0.25, this.clock - roll.at));
     roll.at = this.clock;
     if (over <= 0) {
@@ -1061,7 +1070,7 @@ export class View {
         roll.wait = EFFECTS_ROLL.wait;
       }
     }
-    track.style.transform = 'translateY(' + -Math.round(Math.min(roll.y, over)) + 'px)';
+    return Math.round(Math.min(roll.y, over));
   }
 
   _paintPlayers(game) {
@@ -1138,6 +1147,13 @@ export class View {
       this._cards.delete(key);
     }
     this._fitCards(game, box);
+    for (const card of this._cards.values()) {
+      if (!card.inner) continue;
+      card.roll = card.roll || this._newRoll();
+      const style = getComputedStyle(card.node), room = card.node.clientHeight - parseFloat(style.paddingTop)
+        - parseFloat(style.paddingBottom);
+      card.inner.style.transform = 'translateY(' + -this._roll(card.roll, card.inner.offsetHeight - room) + 'px)';
+    }
   }
 
   _fitCards(game, box) {
@@ -1221,13 +1237,16 @@ export class View {
     const [dealt, dealtText] = mark('burst', 'урон в этой игре');
     const [kills, killText] = mark('sword', 'добивания в этой игре');
     const [helps, helpText] = mark('shield', 'помощь в этой игре');
-    top.append(this._starName(member.name, member.star, member.color, 'nick'), lvl, spot, coins);
-    marks.append(dealt, kills, helps);
-    const face = image(heroUrl(skinOf(member.cls, member.skills), 64));
-    node.append(face, top, marks, kind, gear, body);
+    top.append(this._starName(member.name, member.star, member.color, 'nick'), lvl, spot);
+    marks.append(dealt, kills, helps, coins);
+    const face = image(heroUrl(skinOf(member.cls, member.skills), 64)), inner = el('div', 'inner');
+    inner.append(face, top, marks, kind, gear, body);
+    node.append(inner);
     const state = { body: '', kind: '', gear: null };
     return {
       node,
+      inner,
+      roll: null,
       update: (m, game, note) => {
         const brief = Boolean(note && note.detail && note.detail.brief) || this._squeezed === m.login;
         const tower = m.tower;
@@ -1249,9 +1268,15 @@ export class View {
           face.src = heroUrl(skinOf(m.cls, skills), 64);
           const cls = CLASS_BY_ID.get(m.cls), style = styleOf(m.cls, skills), name = el('b', 'cls', cls.name);
           name.style.color = cls.color;
+          const title = el('span', 'kind-name');
+          title.append(name);
+          if (style) {
+            const sub = el('b', 'cls', style.name);
+            sub.style.color = cls.color;
+            title.append(', ', sub);
+          }
           kind.textContent = '';
-          kind.append(name);
-          if (style) kind.append(', ' + style.name);
+          kind.append(title);
           kind.append(el('span', 'power', 'мощь '));
           kind.lastChild.append(mightTag(might));
         }

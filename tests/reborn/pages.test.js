@@ -457,6 +457,28 @@ test('страницы: в карточке игрока — убийства, �
   frame.remove();
 });
 
+test('страницы: профиль не влезает в столбец — его содержимое медленно листается вверх-вниз', async () => {
+  fresh();
+  const frame = await overlay('lobby=10&first_wave=5&webcam=vtuber');
+  const w = frame.contentWindow, game = w.chatoborona.game;
+  await until(() => game.state === 'lobby', 'набор');
+  join(game, 'Аня');
+  game.members.get('аня').cls = 'sorceress';
+  game.next();
+  await until(() => game.state === 'placing', 'расстановка');
+  const anya = game.members.get('аня');
+  anya.skills = ['enchantress', 'arcaneControl', 'elements', 'arcaneRain', 'focusBeam', 'courses', 'catalyst', 'unbind',
+    'circle'];
+  game._refresh(anya);
+  game.feed('Аня', 'профиль', { login: 'аня' });
+  await until(() => w.document.querySelector('#cards .profile .inner'), 'профиль');
+  const card = w.document.querySelector('#cards .profile'), inner = card.querySelector('.inner');
+  ok(inner.offsetHeight > card.clientHeight, 'целиком не влезает');
+  ok(card.getBoundingClientRect().bottom <= w.document.querySelector('.cam').getBoundingClientRect().top, 'над окошком');
+  await until(() => /translateY\(-[1-9]/.test(inner.style.transform), 'листается', 10000);
+  frame.remove();
+});
+
 test('страницы: игроков больше, чем помещается над картой, — отряд перескакивает на следующих по кругу', async () => {
   fresh();
   const frame = await overlay('lobby=60');
