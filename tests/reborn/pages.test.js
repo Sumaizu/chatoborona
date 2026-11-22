@@ -392,6 +392,7 @@ test('страницы: божественное оружие — плашка �
   await until(() => game.state === 'lobby', 'набор');
   join(game, 'higashi_vo');
   join(game, 'Renozis');
+  join(game, 'sulffur_');
   join(game, 'Аня');
   game.next();
   await until(() => game.state === 'placing', 'расстановка');
@@ -413,6 +414,8 @@ test('страницы: божественное оружие — плашка �
   await until(() => w.document.querySelector('#players .snow'), 'снежный ник higashi_vo');
   await until(() => w.document.querySelector('#players .glare'), 'ник Renozis с бликом');
   eq(w.getComputedStyle(w.document.querySelector('#players .glare')).animationName, 'glare');
+  await until(() => w.document.querySelector('#players .gem'), 'ник sulffur_ с переливами');
+  eq(w.getComputedStyle(w.document.querySelector('#players .gem')).animationName, 'gem');
   frame.remove();
 });
 
