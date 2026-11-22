@@ -1150,9 +1150,8 @@ export class View {
     for (const card of this._cards.values()) {
       if (!card.inner) continue;
       card.roll = card.roll || this._newRoll();
-      const style = getComputedStyle(card.node), room = card.node.clientHeight - parseFloat(style.paddingTop)
-        - parseFloat(style.paddingBottom);
-      card.inner.style.transform = 'translateY(' + -this._roll(card.roll, card.inner.offsetHeight - room) + 'px)';
+      const y = this._roll(card.roll, card.inner.offsetHeight - card.pane.clientHeight);
+      card.inner.style.transform = 'translateY(' + -y + 'px)';
     }
   }
 
@@ -1240,12 +1239,15 @@ export class View {
     top.append(this._starName(member.name, member.star, member.color, 'nick'), lvl, spot);
     marks.append(dealt, kills, helps, coins);
     const face = image(heroUrl(skinOf(member.cls, member.skills), 64)), inner = el('div', 'inner');
+    const pane = el('div', 'window');
     inner.append(face, top, marks, kind, gear, body);
-    node.append(inner);
+    pane.append(inner);
+    node.append(pane);
     const state = { body: '', kind: '', gear: null };
     return {
       node,
       inner,
+      pane,
       roll: null,
       update: (m, game, note) => {
         const brief = Boolean(note && note.detail && note.detail.brief) || this._squeezed === m.login;

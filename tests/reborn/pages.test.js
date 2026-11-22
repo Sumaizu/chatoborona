@@ -473,7 +473,7 @@ test('страницы: профиль не влезает в столбец —
   game.feed('Аня', 'профиль', { login: 'аня' });
   await until(() => w.document.querySelector('#cards .profile .inner'), 'профиль');
   const card = w.document.querySelector('#cards .profile'), inner = card.querySelector('.inner');
-  ok(inner.offsetHeight > card.clientHeight, 'целиком не влезает');
+  ok(inner.offsetHeight > card.querySelector('.window').clientHeight, 'целиком не влезает');
   ok(card.getBoundingClientRect().bottom <= w.document.querySelector('.cam').getBoundingClientRect().top, 'над окошком');
   await until(() => /translateY\(-[1-9]/.test(inner.style.transform), 'листается', 10000);
   frame.remove();
