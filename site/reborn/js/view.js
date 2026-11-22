@@ -1082,7 +1082,7 @@ export class View {
     const cycle = PLAYERS_HOLD + PLAYERS_SLIDE, page = pages > 1 ? Math.floor(this.clock / cycle) % pages : 0;
     this._rosterPages = pages;
     const chunk = (k) => members.slice((k % pages) * fit, (k % pages) * fit + fit);
-    const visible = (pages > 1 ? [page + 1, page] : [0]).map((k) => ({ group: chunk(k), last: k % pages === pages - 1 }));
+    const visible = (pages > 1 ? [page, page + 1] : [0]).map((k) => ({ group: chunk(k), last: k % pages === pages - 1 }));
     const key = JSON.stringify([fit, pages, page, sleeping, visible.map(({ group }) => group.map((m) => [m.login, m.cls,
       levelOf(m.xp), Math.floor(m.coins), m.weapon ? m.weapon.rarity : '', m.paragon]))]);
     const list = $('players');
@@ -1091,7 +1091,7 @@ export class View {
       list.classList.toggle('paged', pages > 1);
       const track = el('div', 'pages');
       visible.forEach(({ group, last }, i) => {
-        const box = el('div', 'page' + (i === visible.length - 1 ? ' current' : ''));
+        const box = el('div', 'page' + (i === 0 ? ' current' : ''));
         if (!all.length) box.append(el('li', 'empty', 'Пока никого — напиши что-нибудь в чат'));
         for (const m of group) {
           const row = el('li'), level = el('span', 'lvl', 'ур. ' + levelOf(m.xp));
@@ -1118,7 +1118,7 @@ export class View {
     if (!track) return;
     const pages = this._rosterPages || 1, cycle = PLAYERS_HOLD + PLAYERS_SLIDE, phase = this.clock % cycle;
     const slide = pages > 1 && phase > PLAYERS_HOLD ? (phase - PLAYERS_HOLD) / PLAYERS_SLIDE : 0;
-    track.style.transform = pages > 1 ? 'translateX(' + ((easeInOut(slide) - 1) * ROSTER.width).toFixed(1) + 'px)' : '';
+    track.style.transform = pages > 1 ? 'translateX(' + (-easeInOut(slide) * ROSTER.width).toFixed(1) + 'px)' : '';
   }
 
   _paintCards(game, still) {
