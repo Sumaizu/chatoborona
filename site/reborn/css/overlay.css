@@ -61,7 +61,10 @@ body {
 .alpha-line { margin: -6px 0 0; font-size: 14px; line-height: 18px; color: var(--muted); }
 .alpha-line b { color: var(--ink); letter-spacing: .12em; text-transform: uppercase; }
 .alpha-line span { color: var(--alpha); font-weight: 800; }
-.wave { flex: none; font-size: 14px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.wave {
+  flex: none; min-width: 30px; padding: 1px 9px; border-radius: 10px; background: rgba(56, 189, 248, .16);
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, .45); text-align: center; font-size: 15px;
+}
 .wave b { color: var(--ink); font-weight: 800; font-variant-numeric: tabular-nums; }
 .status {
   flex: 1; min-width: 0; text-align: center; font-size: 14px; font-weight: 700;
@@ -81,7 +84,6 @@ body {
   padding: 1px 8px; border-radius: 10px; background: var(--empty); white-space: nowrap;
 }
 .clock:empty { display: none; }
-.clock.mobs { font-size: 13px; color: #fca5a5; }
 .lives {
   flex: none; display: flex; align-items: center; gap: 5px; padding: 1px 9px 1px 8px; border-radius: 10px;
   background: var(--empty); font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums;
@@ -295,7 +297,7 @@ body {
 .pause h2 { color: var(--accent); font-size: 40px; }
 .record-line { margin: 0; font-size: 18px; font-weight: 700; color: var(--gold); }
 .pick {
-  flex: none; display: flex; flex-direction: column; gap: 5px;
+  flex: none; display: flex; flex-direction: column; gap: 4px;
   box-shadow: inset 0 0 0 1.5px var(--stone), 0 0 16px rgba(255, 46, 77, .3); animation: fade-in .4s ease-out;
 }
 .pick h3 { margin: 0; color: var(--stone); }
@@ -303,31 +305,38 @@ body {
   margin: 0; display: flex; align-items: center; gap: 5px; min-width: 0; font-size: 13px; line-height: 16px;
   color: var(--muted); white-space: nowrap; overflow: hidden;
 }
-.pick .who .face { flex: none; width: 26px; height: 26px; image-rendering: pixelated; }
+.pick .who .face { flex: none; width: 24px; height: 24px; image-rendering: pixelated; }
 .pick .who .nick { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 800; }
 .pick .who .cls { flex: none; font-weight: 800; }
-.pick .options { display: flex; flex-direction: column; gap: 3px; }
+.pick .options { display: flex; flex-direction: column; gap: 1px; }
 .pick .options li {
-  height: auto; display: flex; align-items: center; gap: 8px; padding: 3px 6px 4px 4px; border-radius: 9px;
+  height: auto; display: flex; align-items: center; gap: 8px; padding: 1px 6px 1px 4px; border-radius: 8px;
   background: rgba(255, 255, 255, .055);
 }
+.pick .options li.taken { background: rgba(250, 204, 21, .07); }
+.pick .options li.taken .name { color: var(--learned); }
+.pick .options li.taken .desc { color: #a39878; }
+.pick .options li.taken .digit { background: var(--learned); box-shadow: none; color: #2a1d05; }
 .pick .options .digit {
   flex: none; width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; font-style: normal;
   font-size: 14px; font-weight: 900; color: #1d0b22; background: var(--stone); box-shadow: 0 2px 0 #a3132b;
 }
 .pick .options .text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.pick .options .name { font-size: 13px; line-height: 15px; font-weight: 800; color: var(--ink); }
+.pick .options .name { font-size: 12.5px; line-height: 14px; font-weight: 800; color: var(--ink); }
 .pick .options .desc {
-  font-size: 11.5px; line-height: 14px; color: #aaa4c2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 11px; line-height: 13px; color: #aaa4c2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .pick-bar { flex: none; height: 4px; border-radius: 2px; background: var(--empty); overflow: hidden; }
 .pick-bar i { display: block; height: 100%; background: var(--stone); }
-.pick .how { margin: 0; font-size: 11.5px; line-height: 14px; color: var(--muted); }
-.pick .how:empty { display: none; }
-.pick .how span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pick .how {
+  margin: 0; font-size: 11.5px; line-height: 14px; color: var(--muted); white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis;
+}
 .pick .how b { color: var(--ink); }
-.pick .how .taken b { color: var(--learned); }
-.side.picking .effects { display: none; }
+.side.picking .effects, .side.rush .effects { display: none; }
+.side.picking .gacha, .side.rush .gacha { flex: 1 1 0; min-height: 0; overflow: hidden; }
+.side.picking .below { flex: none; }
+.side.rush:not(.picking) .below { display: none; }
 
 
 .list {
@@ -362,6 +371,7 @@ body {
   font-variant-numeric: tabular-nums;
 }
 .gacha { flex: none; display: flex; flex-direction: column; gap: 6px; }
+.slots { display: flex; flex-direction: column; gap: 6px; }
 .slot {
   flex: none; height: 72px; padding: 5px 8px; border-radius: 12px; background: var(--empty); overflow: hidden;
   display: flex; flex-direction: column; gap: 2px;

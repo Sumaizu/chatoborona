@@ -5,7 +5,7 @@ import { ASCEND_TIME, CARD_MIN, CARD_ROOM, CARD_TIME, DIVINE_TIME, OVER_TIME, PI
   from '../../site/reborn/js/engine.js';
 import { FAMILY_BY_ID, LEVEL_MAX, MIGHT, REWARD, SLEEP_AFTER, TEMPO, TICK, waveReward, xpForLevel }
   from '../../site/reborn/js/balance.js';
-import { ASCEND_AT, EXTRA_SLOTS, PRICE, QUEUE_CAP, RARITIES, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, ascend,
+import { ASCEND_AT, PRICE, QUEUE_CAP, RARITIES, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, ascend,
   makeWeapon, weaponName } from '../../site/reborn/js/gacha.js';
 import { CLASSES, CLASS_BY_ID, STONE_CHANCE, poolOf } from '../../site/reborn/js/classes.js';
 import { ODDS, effectOf, rollEvent } from '../../site/reborn/js/events.js';
@@ -340,7 +340,7 @@ test('гача: в очереди у игрока не больше десяти
   ok(game.slots.every((slot) => slot && slot.left <= RUSH.spin), 'крутится быстрее');
 });
 
-test('гача: при очереди больше 30 круток — четвёртое окошко, больше 100 — пятое; очередь спала — лишние уходят', () => {
+test('гача: крутят много — окошек столько, сколько помещается; очередь спала — снова три', () => {
   const { game } = makeGame();
   game._stoneDue = () => 0;
   game.open();
@@ -349,14 +349,14 @@ test('гача: при очереди больше 30 круток — четв�
   const members = Array.from(game.members.values());
   for (const member of members) member.coins = PRICE * 10;
   eq(game.slots.length, SLOTS);
-  for (const member of members.slice(0, 7)) say(game, member.name, 'гача 5');
+  game.slotRoom = 7;
+  for (const member of members) say(game, member.name, 'гача 5');
   game.step(TICK);
-  eq(game.slots.length, SLOTS + 1, 'больше 30 — четыре окошка');
-  for (const member of members.slice(7)) say(game, member.name, 'гача 5');
-  game.step(TICK);
-  ok(game.pending > EXTRA_SLOTS[1]);
-  eq(game.slots.length, SLOTS + 2, 'больше 100 — пять');
+  eq(game.slots.length, 7, 'место на семь — семь окошек');
   ok(game.slots.every(Boolean), 'все крутят');
+  game.slotRoom = 1;
+  game.step(TICK);
+  ok(game.slots.length >= SLOTS, 'меньше трёх не бывает');
   game.queue = [];
   ok(until(game, () => game.slots.length === SLOTS, 60), 'очередь кончилась — снова три');
 });

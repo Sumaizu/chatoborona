@@ -2,7 +2,7 @@ import { Battle, flier } from './battle.js';
 import { makeMap, parseCell, parseMove } from './field.js';
 import { CLASSES, CLASS_BY_ID, STONE_CHANCE, choiceOf, skillOf, skinOf, stonesAt } from './classes.js';
 import { FINALE, LEVEL_MAX, SLEEP_AFTER, TICK, levelOf, rollTempo, waveReward } from './balance.js';
-import { DIVINE, EXTRA_SLOTS, PRICE, QUEUE_CAP, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, UPGRADE_PRICE, boonOf,
+import { DIVINE, PRICE, QUEUE_CAP, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, UPGRADE_PRICE, boonOf,
   rankOf, spin, upgrade } from './gacha.js';
 import { LASTING, effectOf, rollEvent } from './events.js';
 
@@ -44,6 +44,7 @@ export const OVER_TIME = 15;
 export const CARD_MIN = 10;
 export const CARD_TIME = 20;
 export const CARD_ROOM = 2;
+export const SLOT_ROOM = 5;
 export const SPIN_LIMIT = QUEUE_CAP;
 export const NOTE_TIME = 4;
 export const DIVINE_TIME = 10;
@@ -179,6 +180,7 @@ export class Game {
     this.rulesShown = false;
     this.speed = 1;
     this.cardRoom = CARD_ROOM;
+    this.slotRoom = SLOT_ROOM;
     this.events = [];
     this._noteNo = 0;
     this._spinNo = 0;
@@ -746,7 +748,7 @@ export class Game {
   }
 
   _gacha(dt) {
-    const wanted = SLOTS + EXTRA_SLOTS.filter((size) => this.pending > size).length;
+    const room = Math.max(SLOTS, this.slotRoom), wanted = this.pending >= RUSH.queue ? room : SLOTS;
     while (this.slots.length < wanted) this.slots.push(null);
     while (this.slots.length > wanted && !this.slots[this.slots.length - 1]) this.slots.pop();
     this.slots.forEach((slot, i) => {
@@ -758,7 +760,7 @@ export class Game {
       }
       if (slot.left <= 0) this.slots[i] = null;
     });
-    for (let i = 0; i < this.slots.length && this.queue.length && this.battle; i++) {
+    for (let i = 0; i < Math.min(this.slots.length, room) && this.queue.length && this.battle; i++) {
       if (this.slots[i]) continue;
       const spinning = new Set(this.slots.filter(Boolean).map((slot) => slot.login));
       const next = Math.max(0, this.queue.findIndex((entry) => !spinning.has(entry.login)));

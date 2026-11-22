@@ -108,7 +108,7 @@ test('страницы: оверлей сам открывает набор, ч�
   await until(() => text(w, 'status') === 'Дальше — ' + family.name, 'какой вид мобов будет, видно заранее');
   game.next();
   await until(() => game.state === 'wave', 'волна');
-  await until(() => element(w, 'clock').textContent.includes('моб'), 'счётчик мобов');
+  await until(() => text(w, 'clock') === '', 'во время волны ни отсчёта, ни счётчика мобов');
   eq(game.battle.family, family, 'вышли те, кого объявили');
   eq(text(w, 'status'), 'Волна ' + family.of);
   game.feed('Аня', 'профиль', { login: 'аня' });
@@ -472,7 +472,7 @@ test('страницы: игроков больше, чем помещается
   frame.remove();
 });
 
-test('страницы: при длинной очереди гачи появляются четвёртое и пятое окошки', async () => {
+test('страницы: крутят много — окошек гачи столько, сколько помещается в правом столбце', async () => {
   fresh();
   const frame = await overlay('lobby=10&first_wave=5');
   const w = frame.contentWindow, game = w.chatoborona.game;
@@ -481,12 +481,18 @@ test('страницы: при длинной очереди гачи появл
   join(game, 'Аня');
   game.next();
   await until(() => game.state === 'placing', 'расстановка');
-  ok(element(w, 'slot-3').hidden && element(w, 'slot-4').hidden, 'сначала три окошка');
+  const shown = () => w.document.querySelectorAll('#slots .slot:not([hidden])').length;
+  await until(() => shown() === 3, 'сначала три окошка');
   game.members.get('аня').coins = 1e6;
   game.queue = [{ login: 'аня', count: 120 }];
-  await until(() => !element(w, 'slot-3').hidden && !element(w, 'slot-4').hidden, 'пять окошек');
+  await until(() => shown() > 5, 'весь столбец под гачу');
+  ok(element(w, 'side').classList.contains('rush'));
+  eq(w.getComputedStyle(element(w, 'effects')).display === 'none' || !element(w, 'effects').offsetParent, true,
+    'эффекты убраны');
+  const side = element(w, 'side').getBoundingClientRect(), last = w.document.querySelector('#slots .slot:not([hidden]):last-child');
+  ok(last.getBoundingClientRect().bottom <= side.bottom + 1, 'окошки не вылезают за столбец');
   game.queue = [];
-  await until(() => element(w, 'slot-4').hidden && element(w, 'slot-3').hidden, 'очередь кончилась — снова три', 30000);
+  await until(() => shown() === 3, 'очередь кончилась — снова три', 30000);
   frame.remove();
 });
 

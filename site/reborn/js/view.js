@@ -2,7 +2,7 @@ import { Scene } from './draw.js';
 import { CLASSES, CLASS_BY_ID, choiceOf, describe, mightOf, skillOf, skinOf, stonesAt, styleOf } from './classes.js';
 import { coinUrl, effectUrl, emblemUrl, flagCanvas, flagUrl, heroUrl, markUrl, mightUrl, particleSprite, particleUrl,
   prizeUrl } from './sprites.js';
-import { EXTRA_SLOTS, OUTCOMES, PRICE, RARITIES, SLOTS, SPIN_TIME, UPGRADE_PRICE, boonOf, gearColor,
+import { OUTCOMES, PRICE, RARITIES, SLOTS, SPIN_TIME, UPGRADE_PRICE, boonOf, gearColor,
   outcomeOf, rarityOf, weaponName, weaponTitle } from './gacha.js';
 import { ASCEND_TIME } from './engine.js';
 import { effectOf } from './events.js';
@@ -30,6 +30,7 @@ const BOSS_EVERY = 10;
 const FINAL_SECONDS = 3;
 const ROWS = { over: 10, pause: 10, pauseShort: 8, queue: 3, cards: 4 };
 const ROSTER = { columns: 3, rows: 2, width: 640 };
+const SLOT_FIT = { tall: 72, gap: 6, frame: 62, space: 8 };
 const CARD_GAP = 6;
 const REEL = { cells: 26, result: 21, width: 34 };
 const BIG_PRIZES = new Set(['epic', 'legendary']);
@@ -678,11 +679,7 @@ export class View {
     speed.classList.toggle('x3', game.speed >= 3);
     status.classList.toggle('boss', boss);
     const clock = $('clock');
-    clock.classList.toggle('mobs', fighting);
-    if (fighting) {
-      const left = battle.mobs.length + battle.spawns.length;
-      clock.textContent = left + ' ' + plural(left, 'моб', 'моба', 'мобов');
-    } else clock.textContent = clockText(game.left);
+    clock.textContent = fighting ? '' : clockText(game.left);
     if (game.paused) clock.textContent = '';
     const lives = battle ? Math.max(0, battle.lives) : LIVES, box = $('lives-box');
     $('lives').textContent = lives;
@@ -700,11 +697,13 @@ export class View {
     $('rules-board').hidden = !rules;
     $('pick').hidden = !choice;
     $('side').classList.toggle('picking', Boolean(choice));
+    $('side').classList.toggle('rush', game.slots.length > SLOTS);
     if (choice) this._paintPick(game, choice);
     if (game.state === 'lobby') this._paintLobby(game, still);
     if (game.state === 'over' || game.state === 'summit') this._paintOver(game);
     if (state === 'paused' && !rules) this._paintPause(game);
     this._paintSlots(game);
+    this._fitSlots(game);
     this._paintEffects(game);
     this._paintPlayers(game);
     this._paintCards(game, still);
@@ -713,11 +712,10 @@ export class View {
   _paintPick(game, choice) {
     const member = game.members.get(choice.login), cls = CLASS_BY_ID.get(choice.cls);
     const taken = member ? member.skills : [], options = game.optionsOf(choice);
-    const open = options.filter((option) => option.state === 'open');
     const styling = options.some((option) => option.skill.kind === 'style');
     const queue = game.choices.slice(1).map((next) => (game.members.get(next.login) || { name: next.login }).name);
     this._once('pick', choice.id + ':' + taken.join() + ':' + queue.join(), () => {
-      const style = styleOf(choice.cls, taken), title = el('b', 'cls', style ? style.name : cls.name);
+      const style = styleOf(choice.cls, taken), title = el('b', 'cls', cls.name);
       title.style.color = cls.color;
       $('pick-title').textContent = styling ? 'Выбор стиля' : 'Камень навыка';
       const who = $('pick-who');
@@ -725,27 +723,19 @@ export class View {
       who.append(image(heroUrl(skinOf(choice.cls, taken), 64), 'face'),
         member ? this._starName(member.name, member.star, member.color, 'nick') : el('b', 'nick', choice.login),
         ' · ', title);
+      if (style) who.append(' · ', el('b', 'cls', style.name));
       const list = $('pick-options');
       list.textContent = '';
-      open.forEach(({ skill, count }, i) => {
-        const item = el('li'), text = el('div', 'text');
+      let number = 0;
+      options.forEach(({ skill, state, count }) => {
+        const item = el('li', state), text = el('div', 'text');
         text.append(el('b', 'name', stacked(skill, count)), el('span', 'desc', skill.brief));
-        item.append(el('i', 'digit', String(i + 1)), text);
+        item.append(el('i', 'digit', state === 'open' ? String(++number) : '✓'), text);
         list.append(item);
       });
-      const how = $('pick-how'), learned = options.filter((option) => option.state === 'taken');
-      how.textContent = '';
-      how.append(el('span', '', 'Цифра в чат — выбор, иначе выпадет случайный'));
-      if (learned.length) {
-        const line = el('span', 'taken');
-        line.append('взято: ', el('b', '', learned.map((option) => option.skill.name).join(', ')));
-        how.append(line);
-      }
-      if (queue.length) {
-        const line = el('span');
-        line.append('дальше: ', el('b', '', queue.join(', ')));
-        how.append(line);
-      }
+      const how = $('pick-how');
+      how.textContent = 'Пиши цифру в чат.';
+      if (queue.length) how.append(' Дальше: ', el('b', '', queue.join(', ')));
     });
     $('pick-bar').style.width = (Math.max(0, choice.left) / choice.span * 100).toFixed(1) + '%';
     $('pick-clock').textContent = Math.max(0, Math.ceil(choice.left)) + ' с';
@@ -891,7 +881,7 @@ export class View {
   _slotView(index, slot, game) {
     let view = this._slots[index];
     if (view && view.id === slot.id) return view;
-    const box = $('slot-' + index), member = game.members.get(slot.login), cls = member ? member.cls : 'sniper';
+    const box = this._slotBox(index), member = game.members.get(slot.login), cls = member ? member.cls : 'sniper';
     box.className = 'slot busy';
     box.textContent = '';
     const who = el('div', 'who'), reel = el('div', 'reel'), strip = el('div', 'strip'), result = el('div', 'result');
@@ -921,15 +911,33 @@ export class View {
     });
   }
 
+  _fitSlots(game) {
+    const side = $('side'), f = SLOT_FIT;
+    if (!side.clientHeight) return;
+    const pick = $('pick'), head = side.querySelector('.head');
+    const free = side.clientHeight - head.offsetHeight - f.space - (pick.hidden ? 0 : pick.offsetHeight + f.space);
+    game.slotRoom = Math.max(SLOTS, Math.floor((free - f.frame + f.gap) / (f.tall + f.gap)));
+  }
+
+  _slotBox(i) {
+    let box = $('slot-' + i);
+    if (!box) {
+      box = el('div', 'slot');
+      box.id = 'slot-' + i;
+      $('slots').append(box);
+    }
+    return box;
+  }
+
   _paintSlots(game) {
     $('price').textContent = PRICE + ' ' + plural(PRICE, 'монета', 'монеты', 'монет');
-    for (let i = game.slots.length; i < SLOTS + EXTRA_SLOTS.length; i++) {
+    for (let i = game.slots.length; $('slot-' + i); i++) {
       $('slot-' + i).hidden = true;
       this._slots[i] = null;
       this._keys['slot' + i] = '';
     }
     game.slots.forEach((slot, i) => {
-      const box = $('slot-' + i);
+      const box = this._slotBox(i);
       box.hidden = false;
       if (!slot) {
         this._slots[i] = null;
@@ -964,7 +972,7 @@ export class View {
         const prize = outcomeOf(kind), title = el('b', 'prize', prize.name);
         title.style.color = prize.color;
         const what = kind === 'void' ? 'ничего не выпало — повезёт в другой раз' : kind === 'particle'
-          ? 'навсегда, для парагона' : kind === 'stone' ? (slot.took ? 'выбор навыка — в центре экрана'
+          ? 'навсегда, для парагона' : kind === 'stone' ? (slot.took ? 'выбор навыка — ниже'
             : 'все навыки класса уже есть') : '+' + slot.coins + ' ' + plural(slot.coins, 'монета', 'монеты', 'монет');
         view.result.append(title, el('div', 'now', what));
         return;
