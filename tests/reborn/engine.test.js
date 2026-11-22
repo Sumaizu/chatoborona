@@ -514,7 +514,7 @@ test('чат: боты не играют, обычное сообщение — 
   ok(game.members.has('тоня'), 'но в отряд вступила');
 });
 
-test('профиль показывает карточку игрока 20 секунд, повторный — ещё 20', () => {
+test('профиль показывает карточку игрока 20 секунд, повторный — ещё 20; последний висит, пока не позовут другой', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Уля', 'привет');
@@ -528,9 +528,11 @@ test('профиль показывает карточку игрока 20 се�
   say(game, 'Уля', 'профиль');
   runFor(game, CARD_TIME - 1);
   ok(game.notes.some((n) => n.kind === 'card'), 'повторный профиль продлил показ');
-  runFor(game, 1.2);
-  no(game.notes.some((n) => n.kind === 'card'), 'отвисела — убрана, эффекты не загораживает');
+  runFor(game, 60);
+  ok(game.notes.some((n) => n.kind === 'card' && n.login === 'уля'), 'других нет — последний профиль остаётся');
   eq(say(game, 'Федя', 'Профиль'), 'card', 'новичок вступает и сразу видит карточку');
+  runFor(game, 1);
+  eq(game.notes.filter((n) => n.kind === 'card').map((n) => n.login), ['федя'], 'позвали другой — старый ушёл');
 });
 
 test('гача: пустота ничего не даёт, мешок — монеты', () => {
@@ -797,7 +799,7 @@ test('число и «все» в команде: «гача 3», «гача в�
   eq(say(game, 'Гена', 'улучшить 3'), 'poor');
 });
 
-test('профиль: две карточки сразу, третья ждёт десять секунд старшей; без очереди — 20 секунд; «проф» — короткая', () => {
+test('профиль: две карточки сразу, третья ждёт десять секунд старшей; без очереди — 20 секунд, последняя остаётся; «проф» — короткая', () => {
   const { game } = makeGame();
   game.open();
   for (const name of ['Аня', 'Боря', 'Вика', 'Гоша']) say(game, name, 'привет');
@@ -823,7 +825,7 @@ test('профиль: две карточки сразу, третья ждёт 
   runFor(game, CARD_TIME - 1.2);
   eq(shown(), [['гоша', true]], 'очередь пуста — висит до 20 секунд');
   runFor(game, 1.5);
-  eq(shown(), [], 'и уходит');
+  eq(shown(), [['гоша', true]], 'последняя остаётся, пока не позовут другую');
 });
 
 test('реролл: сколько угодно раз, пока не выбран первый навык; на поле — новый класс на той же клетке', () => {
@@ -1096,12 +1098,15 @@ test('парагон: сотый уровень, божественное ору
   game.open();
   const best = hero(game, 'Вера'), bare = hero(game, 'Глеб', { particle: false });
   const plain = hero(game, 'Дина', { divine: false }), young = hero(game, 'Егор', { level: 99 });
+  best.cls = 'thunder';
+  best.skills = ['thor'];
   toWave(game);
   for (const member of [best, bare, plain, young]) member.tower.run.kills = 5;
   game.battle.lives = 0;
   game.step(TICK);
   eq(game.state, 'ascend', 'перед итогами — церемония');
   eq(game.ascents.map((a) => [a.login, a.from, a.to]), [['вера', 0, 1]]);
+  eq(game.ascents[0].skin, 'thunder-thor', 'в церемонии — моделька подкласса');
   eq(best.paragon, 1);
   eq(best.xp, 0, 'уровень снова первый');
   no(best.particle, 'частица сгорает');

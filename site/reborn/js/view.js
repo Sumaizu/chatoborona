@@ -329,6 +329,7 @@ export class View {
     this._paintAscend(game, dt, still);
     this._paintConfetti(dt);
     this._turnReels(game);
+    this._slidePlayers();
     this._paintIn -= dt;
     if (this._paintIn <= 0 || still) {
       this._paintIn = PAINT_EVERY;
@@ -520,7 +521,7 @@ export class View {
       const player = this._cheers.shift(), card = $('cheer-box');
       this._cheer = { left: CHEER_TIME };
       card.textContent = '';
-      card.append(image(heroUrl(player.cls, 96), 'face'),
+      card.append(image(heroUrl(skinOf(player.cls, player.skills), 96), 'face'),
         el('h2', '', '100 уровень!'), this._starName(player.name, player.star, player.color, 'who'),
         el('span', 'wish', 'Поздравляем! Это самый высокий уровень в игре'));
       card.style.animation = 'none';
@@ -580,12 +581,12 @@ export class View {
   _ascendView(ascent) {
     const box = $('ascend');
     box.textContent = '';
-    const hero = image(heroUrl(ascent.cls, 120), 'hero'), relic = image(particleSprite(17).toDataURL(), 'relic');
+    const hero = image(heroUrl(ascent.skin, 120), 'hero'), relic = image(particleSprite(17).toDataURL(), 'relic');
     const pill = el('span', 'pill', 'ур. 100'), flash = el('div', 'flash'), flag = el('div', 'flag');
     const older = el('b', 'old', ascent.from ? String(ascent.from) : ''), newer = el('b', 'new', String(ascent.to));
     flag.append(flagCanvas(120, 165, 2), older, newer);
     const who = el('div', 'who'), title = el('div', 'caption');
-    who.append(image(heroUrl(ascent.cls, 56)), this._starName(ascent.name, ascent.star, ascent.color, 'nick'));
+    who.append(image(heroUrl(ascent.skin, 56)), this._starName(ascent.name, ascent.star, ascent.color, 'nick'));
     title.append(el('b', '', 'Парагон ' + ascent.to + '!'), el('span', '', 'уровень снова первый — путь к сотому '
       + 'начинается заново'));
     box.append(el('div', 'glow'), hero, pill, relic, flag, who, title, flash);
@@ -939,7 +940,6 @@ export class View {
   }
 
   _paintSlots(game) {
-    $('price').textContent = PRICE + ' ' + plural(PRICE, 'монета', 'монеты', 'монет');
     for (let i = game.slots.length; $('slot-' + i); i++) {
       $('slot-' + i).hidden = true;
       this._slots[i] = null;
@@ -1080,8 +1080,7 @@ export class View {
     const fit = ROSTER.columns * ROSTER.rows;
     const pages = Math.max(1, Math.ceil(members.length / fit));
     const cycle = PLAYERS_HOLD + PLAYERS_SLIDE, page = pages > 1 ? Math.floor(this.clock / cycle) % pages : 0;
-    const phase = this.clock % cycle;
-    const slide = pages > 1 && phase > PLAYERS_HOLD ? (phase - PLAYERS_HOLD) / PLAYERS_SLIDE : 0;
+    this._rosterPages = pages;
     const chunk = (k) => members.slice((k % pages) * fit, (k % pages) * fit + fit);
     const visible = (pages > 1 ? [page + 1, page] : [0]).map((k) => ({ group: chunk(k), last: k % pages === pages - 1 }));
     const key = JSON.stringify([fit, pages, page, sleeping, visible.map(({ group }) => group.map((m) => [m.login, m.cls,
@@ -1111,10 +1110,15 @@ export class View {
       });
       list.append(track);
     });
-    const track = list.querySelector('.pages');
-    if (track) {
-      track.style.transform = pages > 1 ? 'translateX(' + ((easeInOut(slide) - 1) * ROSTER.width).toFixed(1) + 'px)' : '';
-    }
+    this._slidePlayers();
+  }
+
+  _slidePlayers() {
+    const track = $('players').querySelector('.pages');
+    if (!track) return;
+    const pages = this._rosterPages || 1, cycle = PLAYERS_HOLD + PLAYERS_SLIDE, phase = this.clock % cycle;
+    const slide = pages > 1 && phase > PLAYERS_HOLD ? (phase - PLAYERS_HOLD) / PLAYERS_SLIDE : 0;
+    track.style.transform = pages > 1 ? 'translateX(' + ((easeInOut(slide) - 1) * ROSTER.width).toFixed(1) + 'px)' : '';
   }
 
   _paintCards(game, still) {

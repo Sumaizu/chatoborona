@@ -43,6 +43,7 @@ export const BOTS = [
 export const OVER_TIME = 15;
 export const CARD_MIN = 10;
 export const CARD_TIME = 20;
+const CARD_HOLD = 0.5;
 export const CARD_ROOM = 2;
 export const SLOT_ROOM = 5;
 export const SPIN_LIMIT = QUEUE_CAP;
@@ -691,7 +692,7 @@ export class Game {
       const weapon = member.weapon;
       if (levelOf(member.xp) < LEVEL_MAX || !member.particle || !weapon || weapon.rarity !== DIVINE.id) continue;
       ascents.push({ login: member.login, name: member.name, star: member.star, color: member.color, cls: member.cls,
-        from: member.paragon, to: member.paragon + 1 });
+        skin: skinOf(member.cls, member.skills), from: member.paragon, to: member.paragon + 1 });
       member.paragon += 1;
       member.xp = 0;
       member.particle = false;
@@ -727,6 +728,8 @@ export class Game {
             note.left = 0;
           });
       }
+      const alone = shown.length === 1 && !this.cards.length ? shown[0] : null;
+      if (alone && alone.left <= 0) alone.left = CARD_HOLD;
       this.notes = this.notes.filter((note) => note.left > 0 && this.members.has(note.login));
     }
     this._turnCards();
