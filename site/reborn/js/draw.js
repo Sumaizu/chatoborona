@@ -1049,7 +1049,7 @@ export class Scene {
       image.height / this.k);
   }
 
-  draw(battle, dt, { names = null, highlight = null, still = false, ranges = null, pace = 1 } = {}) {
+  draw(battle, dt, { names = null, highlight = null, still = false, ranges = null, pace = 1, choosing = null } = {}) {
     const ctx = this.ctx;
     this.pace = pace;
     this.impacts = 0;
@@ -1113,7 +1113,7 @@ export class Scene {
       this._effects(ctx, step);
       this._ambient(ctx, battle);
     });
-    if (names) this._names(ctx, battle, names, highlight);
+    if (names) this._names(ctx, battle, names, highlight, choosing);
     this._mobTops(ctx, battle);
     return fresh;
   }
@@ -4022,9 +4022,10 @@ export class Scene {
     });
   }
 
-  _names(ctx, battle, names, highlight) {
+  _names(ctx, battle, names, highlight, choosing) {
     const named = (t) => names !== true && names.has(t.player.login);
-    const first = (t) => (highlight && highlight.has(t.player.login) ? 0 : named(t) ? 1 : 2);
+    const lit = (t) => t.player.login === choosing || Boolean(highlight && highlight.has(t.player.login));
+    const first = (t) => (lit(t) ? 0 : named(t) ? 1 : 2);
     const taken = [];
     for (const t of battle.towers.slice().sort((a, b) => first(a) - first(b))) {
       const pose = this._pose(t);
@@ -4039,7 +4040,24 @@ export class Scene {
       taken.push(box);
       if (marked) glow(ctx, at(pose.x), y, w * 0.7, 'rgba(255, 110, 110, 1)', 0.3 + 0.12 * Math.sin(this.clock * 2.4));
       this._stamp(ctx, image, x, y - h / 2);
+      if (t.player.login === choosing) this._stoneMark(ctx, x - 7, y);
     }
+  }
+
+  _stoneMark(ctx, x, y) {
+    const r = 4.5 + 0.8 * Math.sin(this.clock * 5);
+    glow(ctx, x, y, 11, 'rgba(255, 46, 77, 1)', 0.55);
+    ctx.fillStyle = '#ff2e4d';
+    ctx.strokeStyle = '#4a0612';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x, y - r * 1.3);
+    ctx.lineTo(x + r, y);
+    ctx.lineTo(x, y + r * 1.3);
+    ctx.lineTo(x - r, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
   }
 
   _nameLabel(t, mark) {

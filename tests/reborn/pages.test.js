@@ -65,7 +65,9 @@ test('страницы: окошко под вебку и окошко виту�
   eq(camAt(vtuber.contentWindow), [18, 344, 280, 360]);
   const at = (id) => element(vtuber.contentWindow, id).getBoundingClientRect();
   ok(at('effects').left > at('main').right && at('effects').top >= at('slot-2').bottom, 'эффекты — под гачей');
-  ok(at('players').height > 60 && at('players').bottom < 344, 'отряд — над окошком');
+  ok(at('cards').height > 200 && at('cards').bottom < 344, 'профили — над окошком');
+  ok(at('roster').bottom <= at('board').top && at('roster').left >= at('main').left, 'отряд — над картой');
+  ok(at('wave').bottom <= at('slot-0').top && at('wave').left > at('main').right, 'волна и сердце — над гачей');
   vtuber.remove();
 });
 
@@ -82,12 +84,11 @@ test('страницы: пример в рамке — середина волн
   no(w.document.getElementById('chat'), 'чата на экране нет');
   eq(w.document.querySelectorAll('#slot-1 .cell').length, 26, 'вторая карусель крутится');
   eq(w.document.querySelectorAll('.side .slot:not([hidden])').length, 3, 'три окна гачи');
-  ok(w.document.querySelectorAll('#left #players li').length >= 5, 'отряд слева');
+  ok(w.document.querySelectorAll('#roster #players .current li').length >= 5, 'отряд над картой');
   ok(w.document.querySelectorAll('#side #effects .effect').length >= 3, 'эффекты справа');
   const effects = element(w, 'effects').getBoundingClientRect(), gacha = element(w, 'queue').getBoundingClientRect();
-  const cards = element(w, 'cards').getBoundingClientRect();
-  ok(effects.top >= gacha.bottom && cards.top <= effects.top, 'эффекты под гачей, профили поверх них');
-  ok(w.document.querySelector('#cards .profile'), 'карточка игрока справа');
+  ok(effects.top >= gacha.bottom, 'эффекты под гачей');
+  ok(w.document.querySelector('#left #cards .profile'), 'карточка игрока слева');
   no(w.chatoborona.live);
   frame.remove();
 });
@@ -235,19 +236,20 @@ test('страницы: камень навыка — окно выбора по
   const slot = { id: 97, login: 'аня', outcome: { kind: 'stone' }, phase: 'spin', left: 0 };
   game.slots[0] = slot;
   game._apply(slot);
-  await until(() => !element(w, 'pick').hidden, 'окно выбора на экране');
-  const options = w.document.querySelectorAll('#pick-options li:not(.split)');
-  ok(Array.from(w.document.querySelectorAll('#pick-options li.split')).some((li) => li.textContent.startsWith('Навыки')),
-    'группы разделены чертой с подписью');
-  eq(options.length, game.optionsOf(game.choice).length);
+  await until(() => !element(w, 'pick').hidden, 'выбор на экране');
+  ok(element(w, 'side').contains(element(w, 'pick')), 'выбор — справа, а не поверх карты');
+  ok(element(w, 'side').classList.contains('picking'), 'эффекты на время выбора убраны');
+  const options = w.document.querySelectorAll('#pick-options li');
+  eq(options.length, game.openOf(game.choice).length);
   ok(text(w, 'pick-who').includes('Аня'));
-  ok(text(w, 'pick-how').includes('цифру от 1 до ' + options.length));
-  eq(text(w, 'status'), 'Выбор навыка');
-  const name = game.optionsOf(game.choice)[1].skill.name;
+  ok(/^\d+ с$/.test(text(w, 'pick-clock')), 'секунды до конца выбора: ' + text(w, 'pick-clock'));
+  no(text(w, 'status') === 'Выбор навыка', 'игра идёт — в строке состояния волна');
+  const skill = game.optionsOf(game.choice)[1].skill, name = skill.name;
   ok(options[1].textContent.startsWith('2' + name));
-  ok(options[1].querySelector('.desc'), 'описание отдельной строкой');
+  eq(options[1].querySelector('.desc').textContent, skill.brief, 'короткое описание');
+  ok(skill.brief.length < skill.text.length, 'короче полного');
   eq(game.feed('Аня', '2', { login: 'аня' }), 'skill');
-  await until(() => element(w, 'pick').hidden, 'окно закрылось');
+  await until(() => element(w, 'pick').hidden, 'выбор закрылся');
   await until(() => text(w, 'cards').includes(name), 'плашка «Новый навык»');
   game.feed('Аня', 'профиль', { login: 'аня' });
   await until(() => w.document.querySelector('#cards .profile .skill-line'), 'навык в профиле');
@@ -255,7 +257,7 @@ test('страницы: камень навыка — окно выбора по
   frame.remove();
 });
 
-test('страницы: спящий в отряде — ник серый, вместо уровня и монет «Zzz»', async () => {
+test('страницы: спящих в отряде не перечисляют — только «и N спящих»', async () => {
   fresh();
   const frame = await overlay('lobby=10&first_wave=5');
   const w = frame.contentWindow, game = w.chatoborona.game;
@@ -265,12 +267,12 @@ test('страницы: спящий в отряде — ник серый, вм
   game.next();
   await until(() => game.state === 'placing', 'расстановка');
   game._sleep(game.members.get('боря'));
-  await until(() => w.document.querySelector('#players li.asleep'), 'спящий в списке');
-  const row = w.document.querySelector('#players li.asleep');
-  ok(row.textContent.includes('Боря') && row.textContent.includes('Zzz'));
-  no(row.querySelector('.lvl') || row.querySelector('.coins'), 'без уровня и монет');
+  await until(() => w.document.querySelector('#players li.sleepers'), 'спящие счётом');
+  eq(w.document.querySelector('#players li.sleepers').textContent, 'и 1 спящий');
+  no(text(w, 'players').includes('Боря'), 'ника спящего нет');
   game.feed('Боря', 'гача', { login: 'боря' });
-  await until(() => !w.document.querySelector('#players li.asleep'), 'проснулся');
+  await until(() => !w.document.querySelector('#players li.sleepers') && text(w, 'players').includes('Боря'),
+    'проснулся');
   frame.remove();
 });
 
@@ -284,8 +286,9 @@ test('страницы: страницы отряда из одних спящи
   await until(() => game.state === 'placing', 'расстановка');
   const awake = Array.from(game.members.values()).slice(0, 3);
   for (const m of game.members.values()) if (!awake.includes(m)) game._sleep(m);
-  await until(() => w.document.querySelectorAll('#players li.asleep').length, 'спящие в списке');
-  no(w.document.querySelector('#players .pages'), 'листать нечего: дальше одни спящие');
+  await until(() => w.document.querySelector('#players li.sleepers'), 'спящие счётом');
+  eq(w.document.querySelector('#players li.sleepers').textContent, 'и 77 спящих');
+  no(w.document.querySelector('#players.paged'), 'листать нечего: дальше одни спящие');
   for (const m of awake) ok(w.document.querySelector('#players').textContent.includes(m.name), m.name);
   frame.remove();
 });
@@ -449,14 +452,14 @@ test('страницы: в карточке игрока — убийства, �
   frame.remove();
 });
 
-test('страницы: игроков больше, чем помещается в «Отряде», — список листается страницами по кругу', async () => {
+test('страницы: игроков больше, чем помещается над картой, — отряд перескакивает на следующих по кругу', async () => {
   fresh();
   const frame = await overlay('lobby=60');
   const w = frame.contentWindow, game = w.chatoborona.game, view = w.chatoborona.view;
   await until(() => game.state === 'lobby', 'набор');
   for (let i = 0; i < 70; i++) join(game, 'Игрок' + i);
   await until(() => w.document.querySelector('#players.paged .pages'), 'список листается');
-  const page = () => Array.from(w.document.querySelectorAll('#players .page:first-child li')).map((li) => li.textContent);
+  const page = () => Array.from(w.document.querySelectorAll('#players .page.current li')).map((li) => li.textContent);
   const first = page(), seen = new Set(first);
   ok(first.length > 0 && first.length < 70, 'на странице часть отряда: ' + first.length);
   for (let turn = 0; turn < 12 && seen.size < 70; turn++) {

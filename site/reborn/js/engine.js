@@ -54,7 +54,7 @@ const TIP_EVERY = 0.5;
 export const QUICK_WAVE = 10;
 export const QUICK_PAUSE = 5;
 export const ASCEND_TIME = 16;
-export const PICK_TIME = 60;
+export const PICK_TIME = 30;
 export const SKILL_TIME = 10;
 
 const STEP_MAX = 1;
@@ -278,10 +278,7 @@ export class Game {
 
   step(dt) {
     if (this.state === 'stopped' || this.paused) return;
-    if (this.choices.length) {
-      this._waitChoice(Math.min(Math.max(0, dt), STEP_MAX));
-      return;
-    }
+    if (this.choices.length) this._waitChoice(Math.min(Math.max(0, dt), STEP_MAX));
     this._carry += Math.min(Math.max(0, dt), STEP_MAX) * this.speed;
     while (this._carry >= TICK) {
       this._carry -= TICK;
@@ -343,7 +340,7 @@ export class Game {
     }
     let done = null;
     if (picked) {
-      done = this._choose(choice, picked - 1);
+      done = this._choose(choice, this.openOf(choice)[picked - 1]);
     } else if (control) {
       done = mod && this.s.chat_commands ? this._control(control) : null;
     } else if (action === 'spin') {
@@ -840,6 +837,10 @@ export class Game {
     return taken === 1 && CLASS_BY_ID.get(member.cls).styles ? STONE_CHANCE.second : STONE_CHANCE.next;
   }
 
+  openOf(choice) {
+    return this.optionsOf(choice).map((option, i) => (option.state === 'open' ? i : -1)).filter((i) => i >= 0);
+  }
+
   optionsOf(choice) {
     const member = this.members.get(choice.login);
     return member && member.cls === choice.cls ? choiceOf(choice.cls, member.skills) : [];
@@ -849,7 +850,7 @@ export class Game {
     const choice = this.choices[0];
     choice.left -= dt;
     if (choice.left > 0) return;
-    const open = this.optionsOf(choice).map((option, i) => (option.state === 'open' ? i : -1)).filter((i) => i >= 0);
+    const open = this.openOf(choice);
     if (!open.length) this.choices.shift();
     else this._choose(choice, open[Math.floor(this.random() * open.length)], true);
   }

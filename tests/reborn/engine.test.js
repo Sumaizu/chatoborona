@@ -937,7 +937,7 @@ test('камень навыка: первый с 1 уровня (20%), даль�
   no(game.modsOf(member).perks.length, 'уровень сам приёмов не открывает');
 });
 
-test('камень навыка: игра замирает, игрок пишет цифру — навык его до конца игры', () => {
+test('камень навыка: игра идёт дальше, игрок пишет цифру из доступных — навык его до конца игры', () => {
   const { game } = makeGame();
   game.open();
   frost(game, 'Рина');
@@ -950,7 +950,7 @@ test('камень навыка: игра замирает, игрок пише�
   eq(game.optionsOf(choice).map((option) => option.skill.id), pool.map((skill) => skill.id), 'все навыки класса');
   const time = game.battle.time;
   runFor(game, 5);
-  eq(game.battle.time, time, 'бой стоит');
+  ok(game.battle.time > time, 'бой идёт');
   ok(Math.abs(choice.left - (PICK_TIME - 5)) < 1e-6, 'отсчёт выбора идёт');
   eq(say(game, 'Лев', '2'), null, 'чужая цифра не считается');
   eq(say(game, 'Рина', '9'), null, 'такого номера нет');
@@ -961,8 +961,8 @@ test('камень навыка: игра замирает, игрок пише�
   ok(game.notes.some((n) => n.kind === 'skill' && n.detail.skill === second.id && !n.detail.auto));
   stone(game, 'рина');
   eq(game.optionsOf(game.choice)[1].state, 'taken', 'взятый — отмечен');
-  eq(say(game, 'Рина', '2'), null, 'и второй раз не берётся');
-  eq(say(game, 'Рина', '4'), 'skill');
+  eq(game.openOf(game.choice).length, pool.length - 1, 'цифры — только у тех, что ещё не взяты');
+  eq(say(game, 'Рина', '3'), 'skill', 'третий из доступных');
   eq(member.skills, [second.id, fourth.id]);
   game.restart();
   say(game, 'Рина', 'снова');
@@ -991,7 +991,7 @@ test('камень навыка: маг огня сперва выбирает �
   eq(member.tower.look, 'pyro-dragon-blue', 'синее пламя — синий дракон');
 });
 
-test('камень навыка: не выбрал за минуту — случайный; хозяин канала выбирает за игрока; пауза держит отсчёт', () => {
+test('камень навыка: не выбрал за 30 секунд — случайный; хозяин канала выбирает за игрока; пауза держит отсчёт', () => {
   const { game } = makeGame({ settings: { channel: 'streamer' } });
   game.open();
   frost(game, 'Рина');
@@ -1004,15 +1004,15 @@ test('камень навыка: не выбрал за минуту — слу�
   ok(game.choice, 'на паузе выбор ждёт');
   game.pause();
   runFor(game, PICK_TIME - 1);
-  ok(game.choice, 'минута ещё не прошла');
+  ok(game.choice, '30 секунд ещё не прошло');
   runFor(game, 1.1);
   eq(game.choice, null);
   eq(member.skills.length, 1, 'навык выпал сам');
   ok(game.notes.some((n) => n.kind === 'skill' && n.detail.auto), 'с пометкой «случайно»');
   stone(game, 'рина');
   const free = game.optionsOf(game.choice).findIndex((option) => option.state === 'open');
-  eq(say(game, 'Лев', '@рина ' + (free + 1)), null, 'зрителю нельзя');
-  eq(game.feed('Streamer', '@Рина ' + (free + 1), { login: 'streamer' }), 'skill');
+  eq(say(game, 'Лев', '@рина 1'), null, 'зрителю нельзя');
+  eq(game.feed('Streamer', '@Рина 1', { login: 'streamer' }), 'skill');
   eq(member.skills[1], poolOf('frost')[free].id);
   const other = makeGame().game;
   other.open();

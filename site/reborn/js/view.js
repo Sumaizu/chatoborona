@@ -28,7 +28,8 @@ const BIOME_GLOW = { grass: '#4ade80', volcano: '#fb923c', swamp: '#a3e635', sno
 const LOW_LIVES = 5;
 const BOSS_EVERY = 10;
 const FINAL_SECONDS = 3;
-const ROWS = { over: 10, pause: 10, pauseShort: 8, queue: 3, cards: 4, player: 22 };
+const ROWS = { over: 10, pause: 10, pauseShort: 8, queue: 3, cards: 4 };
+const ROSTER = { columns: 3, rows: 2, width: 640 };
 const CARD_GAP = 6;
 const REEL = { cells: 26, result: 21, width: 34 };
 const BIG_PRIZES = new Set(['epic', 'legendary']);
@@ -304,13 +305,15 @@ export class View {
       }
     }
     const showField = game.state !== 'lobby' && game.battle;
+    const choosing = game.paused || !game.choice ? null : game.choice.login;
     const names = game.state === 'placing' ? true : this._namesShown(game);
+    if (choosing && names !== true) names.add(choosing);
     const ranges = new Set(this._ranges.keys());
     for (const note of game.notes) if (note.kind === 'card') ranges.add(note.login);
     const pace = game.paused ? 1 : game.speed;
     this._pace = pace;
     const fresh = this.scene.draw(showField ? game.battle : null, dt * pace,
-      { names, highlight: this._lit(game), still, ranges, pace });
+      { names, highlight: this._lit(game), still, ranges, pace, choosing });
     for (const event of fresh) this._battleEvent(event);
     if (this.scene.impacts) this._sound('hit');
     this._paintCheer(dt, game);
@@ -667,7 +670,6 @@ export class View {
       text = giant ? giant.kind.name : 'Босс!';
     }
     const choice = game.paused ? null : game.choice;
-    if (choice) text = 'Выбор навыка';
     if (game.paused) text = 'Пауза';
     status.textContent = text;
     const speed = $('speed');
@@ -681,7 +683,6 @@ export class View {
       const left = battle.mobs.length + battle.spawns.length;
       clock.textContent = left + ' ' + plural(left, 'моб', 'моба', 'мобов');
     } else clock.textContent = clockText(game.left);
-    if (choice) clock.textContent = clockText(choice.left);
     if (game.paused) clock.textContent = '';
     const lives = battle ? Math.max(0, battle.lives) : LIVES, box = $('lives-box');
     $('lives').textContent = lives;
@@ -698,6 +699,7 @@ export class View {
     $('pause').hidden = state !== 'paused' || rules;
     $('rules-board').hidden = !rules;
     $('pick').hidden = !choice;
+    $('side').classList.toggle('picking', Boolean(choice));
     if (choice) this._paintPick(game, choice);
     if (game.state === 'lobby') this._paintLobby(game, still);
     if (game.state === 'over' || game.state === 'summit') this._paintOver(game);
@@ -710,43 +712,43 @@ export class View {
 
   _paintPick(game, choice) {
     const member = game.members.get(choice.login), cls = CLASS_BY_ID.get(choice.cls);
-    const name = member ? member.name : choice.login, taken = member ? member.skills : [];
-    const options = game.optionsOf(choice), styling = options.some((option) => option.skill.kind === 'style');
-    this._once('pick', choice.id + ':' + taken.join(), () => {
-      const who = $('pick-who'), title = el('b', 'cls', cls.name), style = styleOf(choice.cls, taken);
+    const taken = member ? member.skills : [], options = game.optionsOf(choice);
+    const open = options.filter((option) => option.state === 'open');
+    const styling = options.some((option) => option.skill.kind === 'style');
+    const queue = game.choices.slice(1).map((next) => (game.members.get(next.login) || { name: next.login }).name);
+    this._once('pick', choice.id + ':' + taken.join() + ':' + queue.join(), () => {
+      const style = styleOf(choice.cls, taken), title = el('b', 'cls', style ? style.name : cls.name);
       title.style.color = cls.color;
+      $('pick-title').textContent = styling ? 'Выбор стиля' : 'Камень навыка';
+      const who = $('pick-who');
       who.textContent = '';
       who.append(image(heroUrl(skinOf(choice.cls, taken), 64), 'face'),
-        member ? this._starName(member.name, member.star, member.color, 'nick') : el('b', 'nick', name), ' · ', title,
-        styling ? ' — выбирает стиль игры' : style ? ' · стиль «' + style.name + '»' : ' — навык до конца игры');
-      $('pick-title').textContent = styling ? 'Выбор стиля' : 'Камень навыка';
+        member ? this._starName(member.name, member.star, member.color, 'nick') : el('b', 'nick', choice.login),
+        ' · ', title);
       const list = $('pick-options');
       list.textContent = '';
-      list.style.setProperty('--own', cls.color);
-      list.classList.toggle('many', options.length > 6);
-      $('pick').classList.toggle('many', options.length > 6);
-      let group = null;
-      options.forEach(({ skill, state, count }, i) => {
-        const kind = skill.kind === 'style' ? null : skill.kind === 'upgrade' ? 'upgrade' : 'ability';
-        if (kind && kind !== group) {
-          group = kind;
-          list.append(el('li', 'split', 'Навыки ' + (kind === 'upgrade' && style ? style.of : cls.of)));
-        }
-        const item = el('li', state), text = el('div', 'text'), title = el('b', 'name', stacked(skill, count));
-        if (state === 'taken') title.append(el('span', 'learned', 'изучено'));
-        text.append(title, el('span', 'desc', skill.text[0].toUpperCase() + skill.text.slice(1)));
+      open.forEach(({ skill, count }, i) => {
+        const item = el('li'), text = el('div', 'text');
+        text.append(el('b', 'name', stacked(skill, count)), el('span', 'desc', skill.brief));
         item.append(el('i', 'digit', String(i + 1)), text);
         list.append(item);
       });
+      const how = $('pick-how'), learned = options.filter((option) => option.state === 'taken');
+      how.textContent = '';
+      how.append(el('span', '', 'Цифра в чат — выбор, иначе выпадет случайный'));
+      if (learned.length) {
+        const line = el('span', 'taken');
+        line.append('взято: ', el('b', '', learned.map((option) => option.skill.name).join(', ')));
+        how.append(line);
+      }
+      if (queue.length) {
+        const line = el('span');
+        line.append('дальше: ', el('b', '', queue.join(', ')));
+        how.append(line);
+      }
     });
     $('pick-bar').style.width = (Math.max(0, choice.left) / choice.span * 100).toFixed(1) + '%';
-    const seconds = Math.max(0, Math.ceil(choice.left));
-    this._once('pickClock', choice.id + ':' + seconds, () => {
-      const how = $('pick-how'), count = options.length;
-      how.textContent = '';
-      how.append(el('b', '', name), ', напиши в чат цифру от 1 до ' + count + '. Отряд, подскажи! Не выберет за ',
-        el('b', 'timer', clockText(choice.left)), styling ? ' — стиль выпадет случайно' : ' — навык выпадет случайно');
-    });
+    $('pick-clock').textContent = Math.max(0, Math.ceil(choice.left)) + ' с';
   }
 
   _starName(name, star, color, className = 'name') {
@@ -1043,38 +1045,28 @@ export class View {
   }
 
   _paintPlayers(game) {
-    const members = Array.from(game.members.values()).sort((a, b) => Number(a.asleep) - Number(b.asleep)
-      || b.xp - a.xp || (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1));
-    const list = $('players'), rows = Math.max(1, Math.floor((list.clientHeight || 200) / ROWS.player));
-    const awake = members.filter((m) => !m.asleep).length, two = members.length > rows, fit = two ? rows * 2 : rows;
-    const pages = Math.max(1, Math.ceil(awake / fit));
+    const all = Array.from(game.members.values()), sleeping = all.filter((m) => m.asleep).length;
+    const members = all.filter((m) => !m.asleep).sort((a, b) => b.xp - a.xp
+      || (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1));
+    const fit = ROSTER.columns * ROSTER.rows - (sleeping ? 1 : 0);
+    const pages = Math.max(1, Math.ceil(members.length / fit));
     const cycle = PLAYERS_HOLD + PLAYERS_SLIDE, page = pages > 1 ? Math.floor(this.clock / cycle) % pages : 0;
     const phase = this.clock % cycle;
     const slide = pages > 1 && phase > PLAYERS_HOLD ? (phase - PLAYERS_HOLD) / PLAYERS_SLIDE : 0;
     const chunk = (k) => members.slice((k % pages) * fit, (k % pages) * fit + fit);
-    const visible = pages > 1 ? [chunk(page), chunk(page + 1)] : [chunk(0)];
-    const key = JSON.stringify([fit, pages, page, visible.map((group) => group.map((m) => [m.login, m.cls,
-      levelOf(m.xp), Math.floor(m.coins), m.weapon ? m.weapon.rarity : '', m.paragon, m.asleep]))]);
-    $('players-count').textContent = members.length ? String(members.length) : '';
+    const visible = pages > 1 ? [chunk(page + 1), chunk(page)] : [chunk(0)];
+    const key = JSON.stringify([fit, pages, page, sleeping, visible.map((group) => group.map((m) => [m.login, m.cls,
+      levelOf(m.xp), Math.floor(m.coins), m.weapon ? m.weapon.rarity : '', m.paragon]))]);
+    const list = $('players');
     this._once('players', key, () => {
       list.textContent = '';
-      list.classList.toggle('two', two);
       list.classList.toggle('paged', pages > 1);
-      if (!members.length) list.append(el('li', 'empty', 'Пока никого — напиши что-нибудь в чат'));
-      const track = pages > 1 ? el('div', 'pages') : null;
-      for (const group of visible) {
-        const box = track ? el('div', 'page') : list;
-        if (track) box.style.height = rows * ROWS.player + 'px';
+      const track = el('div', 'pages');
+      visible.forEach((group, i) => {
+        const box = el('div', 'page' + (i === visible.length - 1 ? ' current' : ''));
+        if (!all.length) box.append(el('li', 'empty', 'Пока никого — напиши что-нибудь в чат'));
         for (const m of group) {
-          if (m.asleep) {
-            const row = el('li', 'asleep');
-            row.title = 'спит: любая команда — и снова в строю';
-            row.append(image(heroUrl(skinOf(m.cls, m.skills)), 'face'), el('span', 'name', m.name),
-              el('span', 'zzz', 'Zzz'));
-            box.append(row);
-            continue;
-          }
-          const row = el('li'), level = el('span', 'lvl', (two ? '' : 'ур. ') + levelOf(m.xp));
+          const row = el('li'), level = el('span', 'lvl', 'ур. ' + levelOf(m.xp));
           level.style.background = gearColor(m.weapon);
           level.title = 'уровень';
           row.append(image(heroUrl(skinOf(m.cls, m.skills)), 'face'), this._starName(m.name, m.star, m.color));
@@ -1082,17 +1074,18 @@ export class View {
           row.append(level, this._coins(m.coins));
           box.append(row);
         }
-        if (track) track.append(box);
-      }
-      if (track) {
-        const pane = el('div', 'page-window');
-        pane.style.height = rows * ROWS.player + 'px';
-        pane.append(track);
-        list.append(pane);
-      }
+        if (sleeping) {
+          box.append(el('li', 'sleepers', (members.length ? 'и ' : '') + sleeping + ' '
+            + plural(sleeping, 'спящий', 'спящих', 'спящих')));
+        }
+        track.append(box);
+      });
+      list.append(track);
     });
     const track = list.querySelector('.pages');
-    if (track) track.style.transform = 'translateY(' + (-easeInOut(slide) * rows * ROWS.player).toFixed(1) + 'px)';
+    if (track) {
+      track.style.transform = pages > 1 ? 'translateX(' + ((easeInOut(slide) - 1) * ROSTER.width).toFixed(1) + 'px)' : '';
+    }
   }
 
   _paintCards(game, still) {

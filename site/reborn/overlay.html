@@ -17,21 +17,11 @@
     </section>
     <div class="cam"></div>
     <aside class="left" id="left">
-      <div class="list players" id="players-box">
-        <h3>Отряд <span class="count" id="players-count"></span></h3>
-        <ol id="players"></ol>
-        <p class="hint" id="hint"></p>
-      </div>
+      <div class="cards" id="cards"></div>
+      <p class="hint" id="hint"></p>
     </aside>
     <section class="main" id="main">
-      <header class="head">
-        <div class="brand">Чатоборона<span class="alpha">Реборн · альфа</span><span class="speed" id="speed"
-          hidden></span></div>
-        <div class="wave">волна <b id="wave"></b></div>
-        <div class="status" id="status"></div>
-        <div class="clock" id="clock"></div>
-        <div class="lives" id="lives-box"><i class="heart-icon"></i><b id="lives"></b></div>
-      </header>
+      <div class="roster" id="roster"><ol id="players"></ol></div>
       <div class="board" id="board">
         <canvas id="field"></canvas>
         <div class="blackout" id="blackout"></div>
@@ -66,16 +56,16 @@
             <div class="list"><h3>Помощь</h3><ol id="pause-assists"></ol></div>
           </div>
         </div>
-        <div class="screen pick" id="pick" hidden>
-          <h2 id="pick-title">Камень навыка</h2>
-          <p class="who" id="pick-who"></p>
-          <ol class="options" id="pick-options"></ol>
-          <div class="pick-bar"><i id="pick-bar"></i></div>
-          <p class="how" id="pick-how"></p>
-        </div>
       </div>
     </section>
     <aside class="side" id="side">
+      <header class="head">
+        <div class="wave">волна <b id="wave"></b></div>
+        <div class="status" id="status"></div>
+        <div class="clock" id="clock"></div>
+        <span class="speed" id="speed" hidden></span>
+        <div class="lives" id="lives-box"><i class="heart-icon"></i><b id="lives"></b></div>
+      </header>
       <div class="list gacha">
         <h3>Гача <span class="price" id="price"></span></h3>
         <div class="slot" id="slot-0"></div>
@@ -86,8 +76,14 @@
         <div class="queue" id="queue"></div>
       </div>
       <div class="below">
+        <div class="list pick" id="pick" hidden>
+          <h3><span id="pick-title"></span><span class="price" id="pick-clock"></span></h3>
+          <p class="who" id="pick-who"></p>
+          <div class="pick-bar"><i id="pick-bar"></i></div>
+          <ol class="options" id="pick-options"></ol>
+          <p class="how" id="pick-how"></p>
+        </div>
         <div class="list effects"><h3>Эффекты</h3><div id="effects"></div></div>
-        <div class="cards" id="cards"></div>
       </div>
     </aside>
   </div>
