@@ -1,9 +1,9 @@
 import { Scene } from './draw.js';
-import { CLASSES, CLASS_BY_ID, choiceOf, describe, mightOf, skillOf, skinOf, stonesAt, styleOf } from './classes.js';
+import { CLASSES, CLASS_BY_ID, describe, mightOf, skillOf, skinOf, styleOf } from './classes.js';
 import { coinUrl, effectUrl, emblemUrl, flagCanvas, flagUrl, heroUrl, markUrl, mightUrl, particleSprite, particleUrl,
   prizeUrl } from './sprites.js';
 import { OUTCOMES, PRICE, RARITIES, SLOTS, SPIN_TIME, UPGRADE_PRICE, boonOf, gearColor,
-  outcomeOf, rarityOf, weaponName, weaponTitle } from './gacha.js';
+  outcomeOf, rarityOf, WEAPON, weaponTitle } from './gacha.js';
 import { ASCEND_TIME } from './engine.js';
 import { effectOf } from './events.js';
 import { BIOME_RULES, LEVEL_MAX, LIVES, MIGHT, levelOf, resistOf } from './balance.js';
@@ -152,7 +152,15 @@ const stacked = (skill, count) => skill.name + (skill.max ? ' ' + count + '/' + 
 function skillLine(skill, brief) {
   const line = el('div', 'skill-line');
   line.append(el('i', '', '◆'), ' ', el('b', '', stacked(skill, skill.count)));
-  if (!brief) line.append(': ' + skill.text);
+  if (!brief) line.append(': ' + (skill.about || skill.text));
+  return line;
+}
+
+function weaponLine(weapon) {
+  const line = el('div', 'gear-line'), name = el('b', '', weaponTitle(weapon)), boon = boonOf(weapon.boon);
+  name.style.color = rarityOf(weapon.rarity).color;
+  line.append(name);
+  if (boon) line.append(' · ' + boon.text);
   return line;
 }
 
@@ -978,11 +986,11 @@ export class View {
         view.result.append(title, el('div', 'now', what));
         return;
       }
-      const weapon = slot.outcome.weapon, title = el('b', 'prize', weaponName(weapon));
+      const weapon = slot.outcome.weapon, title = el('b', 'prize', WEAPON);
       title.style.color = rarityOf(weapon.rarity).color;
       view.result.append(title, statLine(weapon));
       if (!slot.took && member && member.weapon) {
-        const now = el('div', 'now'), old = el('b', '', weaponName(member.weapon));
+        const now = el('div', 'now'), old = el('b', '', WEAPON);
         old.style.color = rarityOf(member.weapon.rarity).color;
         now.append('у него ', old, ' ', mightTag(member.weapon.power), ' — не хуже');
         view.result.append(now);
@@ -1202,28 +1210,31 @@ export class View {
   _profileCard(member) {
     const node = el('div', 'note profile'), top = el('div', 'top'), lvl = el('span', 'lvl');
     const coins = this._coins(0, true), relic = coins.querySelector('.relic'), body = el('div', 'body');
-    const gear = el('div', 'gear-box'), marks = el('div', 'marks');
-    const spot = el('span', 'mark'), spotText = el('span'), kills = el('span', 'mark'), killText = el('span');
-    const helps = el('span', 'mark'), helpText = el('span');
-    spot.append(image(markUrl('spot')), spotText);
-    kills.append(image(markUrl('sword')), killText);
-    helps.append(image(markUrl('shield')), helpText);
-    kills.title = 'убийства в этой игре';
-    helps.title = 'помощь в этой игре';
-    marks.append(lvl, spot, kills, helps);
-    top.append(this._starName(member.name, member.star, member.color, 'nick'), coins);
+    const marks = el('div', 'marks'), kind = el('div', 'kind'), gear = el('div', 'gear-box');
+    const mark = (kind, title) => {
+      const box = el('span', 'mark'), text = el('span');
+      box.append(image(markUrl(kind)), text);
+      box.title = title;
+      return [box, text];
+    };
+    const [spot, spotText] = mark('spot', 'клетка');
+    const [dealt, dealtText] = mark('burst', 'урон в этой игре');
+    const [kills, killText] = mark('sword', 'добивания в этой игре');
+    const [helps, helpText] = mark('shield', 'помощь в этой игре');
+    top.append(this._starName(member.name, member.star, member.color, 'nick'), lvl, spot, coins);
+    marks.append(dealt, kills, helps);
     const face = image(heroUrl(skinOf(member.cls, member.skills), 64));
-    node.append(face, top, marks, body, gear);
-    const state = { body: '', gear: null, power: '', powerBox: null };
+    node.append(face, top, marks, kind, gear, body);
+    const state = { body: '', kind: '', gear: null };
     return {
       node,
       update: (m, game, note) => {
         const brief = Boolean(note && note.detail && note.detail.brief) || this._squeezed === m.login;
         const tower = m.tower;
         node.classList.toggle('brief', brief);
-        spot.hidden = !tower;
+        spot.hidden = dealt.hidden = kills.hidden = helps.hidden = !tower;
         spotText.textContent = tower ? cellName(tower.x, tower.y) : '';
-        kills.hidden = helps.hidden = !tower;
+        dealtText.textContent = tower ? shortNumber(tower.run.damage) : '';
         killText.textContent = tower ? String(tower.run.kills) : '';
         helpText.textContent = tower ? String(tower.run.assists) : '';
         const level = levelOf(m.xp);
@@ -1232,47 +1243,31 @@ export class View {
         lvl.append('ур. ' + level);
         relic.hidden = !m.particle;
         coins.querySelector('.sum').textContent = String(Math.floor(m.coins));
-        const skills = m.skills || [], bodyKey = JSON.stringify([level, m.cls, brief, skills]);
-        if (state.body !== bodyKey) {
-          state.body = bodyKey;
+        const skills = m.skills || [], might = mightOfMember(m), kindKey = JSON.stringify([m.cls, skills, might]);
+        if (state.kind !== kindKey) {
+          state.kind = kindKey;
           face.src = heroUrl(skinOf(m.cls, skills), 64);
-          const cls = CLASS_BY_ID.get(m.cls), info = describe(m.cls, skills), kind = el('div', 'line');
-          const clsName = el('b', '', cls.name);
-          clsName.style.color = cls.color;
-          kind.append(clsName);
-          if (!brief) kind.append(' ', info.main);
-          body.textContent = '';
-          state.power = '';
-          state.powerBox = el('div', 'stat-line power');
-          body.append(kind, state.powerBox);
-          const style = styleOf(m.cls, skills);
-          if (style) {
-            const line = el('div', 'skill-line style');
-            line.append('Стиль: ', el('b', '', style.name));
-            line.style.setProperty('--own', cls.color);
-            body.append(line);
-          }
-          for (const skill of info.skills) if (skill.kind !== 'style') body.append(skillLine(skill, brief));
-          const open = choiceOf(m.cls, skills).filter((option) => option.state === 'open').length;
-          const free = Math.max(0, Math.min(stonesAt(level) - skills.length, open));
-          if (!brief && free) {
-            body.append(el('div', 'skill-line none', 'Свободных мест под камни навыка: ' + free));
-          } else if (!brief && !skills.length) {
-            body.append(el('div', 'skill-line none', 'Навыков пока нет: камень навыка выпадает в гаче'));
-          }
+          const cls = CLASS_BY_ID.get(m.cls), style = styleOf(m.cls, skills), name = el('b', 'cls', cls.name);
+          name.style.color = cls.color;
+          kind.textContent = '';
+          kind.append(name);
+          if (style) kind.append(', ' + style.name);
+          kind.append(el('span', 'power', 'мощь '));
+          kind.lastChild.append(mightTag(might));
         }
-        const might = mightOfMember(m);
-        if (state.power !== might) {
-          state.power = might;
-          state.powerBox.textContent = '';
-          state.powerBox.append('мощь ', mightTag(might));
-        }
-        const gearKey = m.weapon ? JSON.stringify([m.weapon.rarity, m.weapon.power, m.weapon.plus, m.weapon.boon]) : '';
+        const gearKey = m.weapon ? JSON.stringify([m.weapon.rarity, m.weapon.plus, m.weapon.boon]) : '';
         if (state.gear !== gearKey) {
           state.gear = gearKey;
           gear.textContent = '';
-          if (m.weapon) gear.append(gearLine(m.weapon));
-          else gear.append(el('div', 'line', 'Оружия нет — пиши гача'));
+          gear.append(m.weapon ? weaponLine(m.weapon) : el('div', 'gear-line', 'Оружия нет — пиши гача'));
+        }
+        const bodyKey = JSON.stringify([m.cls, brief, skills]);
+        if (state.body !== bodyKey) {
+          state.body = bodyKey;
+          body.textContent = '';
+          for (const skill of describe(m.cls, skills).skills) {
+            if (skill.kind !== 'style') body.append(skillLine(skill, brief));
+          }
         }
       },
     };

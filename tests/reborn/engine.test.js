@@ -6,7 +6,7 @@ import { ASCEND_TIME, CARD_MIN, CARD_ROOM, CARD_TIME, DIVINE_TIME, OVER_TIME, PI
 import { FAMILY_BY_ID, LEVEL_MAX, MIGHT, REWARD, SLEEP_AFTER, TEMPO, TICK, waveReward, xpForLevel }
   from '../../site/reborn/js/balance.js';
 import { ASCEND_AT, PRICE, QUEUE_CAP, RARITIES, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, ascend,
-  makeWeapon, weaponName } from '../../site/reborn/js/gacha.js';
+  makeWeapon, WEAPON } from '../../site/reborn/js/gacha.js';
 import { CLASSES, CLASS_BY_ID, STONE_CHANCE, poolOf } from '../../site/reborn/js/classes.js';
 import { ODDS, effectOf, rollEvent } from '../../site/reborn/js/events.js';
 import { SIZE, cellName } from '../../site/reborn/js/field.js';
@@ -215,10 +215,7 @@ test('гача: команда без восклицательного знак�
   eq(slot.login, 'нина');
   ok(['weapon', 'void', 'handful', 'bag', 'chest', 'particle', 'rune'].includes(slot.outcome.kind));
   if (slot.outcome.kind === 'weapon') eq(slot.outcome.weapon.cls, member.cls);
-  for (const cls of CLASSES) {
-    ok(weaponName(makeWeapon(() => 0.5, cls.id, RARITIES[3])).endsWith(cls.weapon), cls.id);
-  }
-  ok(weaponName(makeWeapon(() => 0.5, 'earth', RARITIES[4])).startsWith('Легендарный'), 'посох мага — он');
+  eq(WEAPON, 'Оружие', 'у оружия нет названий — только «Оружие» цветом редкости');
 });
 
 test('гача: «!гача» тоже работает, старых команд больше нет', () => {

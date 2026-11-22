@@ -196,14 +196,14 @@ test('с 91-й волны мобы крепчают спокойно — на 10
   }
 });
 
-test('классы: десять, у каждого оружие, свой склад и набор навыков; у стрелков — по плану Реборна', () => {
+test('классы: десять, у каждого свой склад и набор навыков; у стрелков — по плану Реборна', () => {
   eq(CLASSES.length, 10);
   eq(new Set(CLASSES.map((c) => c.id)).size, 10);
   eq(PERKS, [10, 30, 50]);
   const runes = CLASSES.flatMap((cls) => cls.runes.map((rune) => rune.id));
   eq(new Set(runes).size, runes.length, 'руны не повторяются');
   for (const cls of CLASSES) {
-    ok(cls.weapon && cls.name && ['str', 'agi', 'int'].includes(cls.primary), cls.id);
+    ok(cls.name && ['str', 'agi', 'int'].includes(cls.primary), cls.id);
     for (const stat of ['str', 'agi', 'int']) ok(STAT.grades[cls.stats[stat]], cls.id + ' ' + stat);
     if (!cls.styles) ok(cls.skills.length >= 3 && cls.runes.length >= 2, cls.id);
     ok(cls.earn.xp > 0 && cls.earn.coins > 0, cls.id);
@@ -344,7 +344,7 @@ test('улучшение: легендарное на +30 становится �
     no(upgrade(weapon).ascended);
     eq(weapon.plus, i);
   }
-  eq(weaponTitle(weapon), 'Легендарный карабин +' + (ASCEND_AT - 1));
+  eq(weaponTitle(weapon), 'Оружие +' + (ASCEND_AT - 1));
   eq(ASCEND_AT, 30);
   const last = upgrade(weapon);
   ok(last.ascended, 'тридцатое улучшение');
@@ -357,7 +357,7 @@ test('улучшение: легендарное на +30 становится �
   eq(next.amount, MIGHT.divine, 'по ' + MIGHT.divine + ' мощи');
   ok(MIGHT.divine > MIGHT.upgrade, 'больше обычного улучшения');
   eq(weapon.power, before + next.amount);
-  eq(weaponTitle(weapon), 'Божественный карабин +1');
+  eq(weaponTitle(weapon), 'Оружие +1');
   for (let i = 0; i < 499; i++) upgrade(weapon);
   eq(weapon.power, before + 500 * MIGHT.divine, 'растёт ровно, а не процентами от набранного');
 });

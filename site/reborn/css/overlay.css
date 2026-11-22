@@ -520,7 +520,18 @@ body {
 .mark { display: inline-flex; align-items: center; gap: 3px; font-weight: 800; color: #d6d2e6; white-space: nowrap; }
 .mark[hidden] { display: none; }
 .mark img { width: 13px; height: 13px; image-rendering: pixelated; }
-.profile .body, .profile .gear-box { grid-column: 1 / -1; }
+.profile .body, .profile .gear-box, .profile .kind { grid-column: 1 / -1; }
+.profile .kind {
+  display: flex; align-items: baseline; margin-top: 2px; font-size: 12.5px; line-height: 16px;
+  white-space: nowrap; overflow: hidden;
+}
+.profile .kind .cls { font-weight: 800; }
+.profile .kind .power { margin-left: auto; padding-left: 6px; font-size: 12px; color: var(--muted); }
+.profile .gear-line {
+  font-size: 12px; line-height: 15px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.profile .gear-line b { font-weight: 800; }
+.profile .body { margin-top: 1px; }
 .profile .line { margin-top: 2px; font-size: 12px; line-height: 15px; color: var(--muted); }
 .profile .line b { color: var(--ink); font-weight: 700; }
 .stat-line { font-size: 11.5px; line-height: 14px; color: var(--muted); margin: 1px 0 2px; }

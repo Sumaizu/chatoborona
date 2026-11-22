@@ -23,14 +23,14 @@ export const OUTCOMES = [
 ];
 
 export const RARITIES = [
-  { id: 'common', name: 'Обычный', her: 'Обычная', color: '#4ade80', chance: 0.27 },
-  { id: 'rare', name: 'Редкий', her: 'Редкая', color: '#60a5fa', chance: 0.2 },
-  { id: 'mythic', name: 'Мифический', her: 'Мифическая', color: '#c084fc', chance: 0.1 },
-  { id: 'epic', name: 'Эпический', her: 'Эпическая', color: '#facc15', chance: 0.07 },
-  { id: 'legendary', name: 'Легендарный', her: 'Легендарная', color: '#f97316', chance: 0.06 },
+  { id: 'common', name: 'Обычный', color: '#4ade80', chance: 0.27 },
+  { id: 'rare', name: 'Редкий', color: '#60a5fa', chance: 0.2 },
+  { id: 'mythic', name: 'Мифический', color: '#c084fc', chance: 0.1 },
+  { id: 'epic', name: 'Эпический', color: '#facc15', chance: 0.07 },
+  { id: 'legendary', name: 'Легендарный', color: '#f97316', chance: 0.06 },
 ];
 
-export const DIVINE = { id: 'divine', name: 'Божественный', her: 'Божественная', color: '#ff2e4d' };
+export const DIVINE = { id: 'divine', name: 'Божественный', color: '#ff2e4d' };
 
 export const BOONS = [
   { id: 'rapid', name: 'Скорострельность', text: 'атака на 15% чаще', mods: { rate: 0.15 } },
@@ -94,15 +94,12 @@ export function spin(random, cls, { particle = false, stone = 0 } = {}) {
 export const rarityOf = (id) => (id === DIVINE.id ? DIVINE : RARITIES.find((rarity) => rarity.id === id)
   || RARITIES[0]);
 
-export const weaponName = (weapon) => {
-  const rarity = rarityOf(weapon.rarity), cls = CLASS_BY_ID.get(weapon.cls);
-  return (cls && cls.her ? rarity.her : rarity.name) + ' ' + (cls ? cls.weapon : '');
-};
+export const WEAPON = 'Оружие';
 
 export const rankOf = (weapon) => (weapon.rarity === DIVINE.id ? RARITIES.length
   : RARITIES.findIndex((rarity) => rarity.id === weapon.rarity));
 
-export const weaponTitle = (weapon) => weaponName(weapon) + (weapon.plus ? ' +' + weapon.plus : '');
+export const weaponTitle = (weapon) => WEAPON + (weapon.plus ? ' +' + weapon.plus : '');
 
 export const gearColor = (weapon) => (weapon ? rarityOf(weapon.rarity).color : '#ffffff');
 

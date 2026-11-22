@@ -437,14 +437,18 @@ test('страницы: в карточке игрока — убийства, �
   anya.tower.run.kills = 4;
   anya.tower.run.assists = 7;
   game.feed('Аня', 'профиль', { login: 'аня' });
-  await until(() => w.document.querySelector('#cards .profile .stat-line.power'), 'строка мощи');
+  await until(() => w.document.querySelector('#cards .profile .kind .power'), 'строка класса и мощи');
   const card = w.document.querySelector('#cards .profile');
   const marks = () => Array.from(card.querySelectorAll('.marks .mark')).map((mark) => mark.textContent);
   await until(() => marks().includes(String(anya.tower.run.kills)) && marks().includes(String(anya.tower.run.assists)),
     'убийства и помощь');
-  const might = () => card.querySelector('.stat-line.power').textContent;
+  eq(card.querySelectorAll('.marks .mark').length, 3, 'урон, добивания, помощь');
+  ok(card.querySelector('.top').textContent.includes('ур. ') && card.querySelector('.top .mark'), 'уровень и клетка у ника');
+  ok(card.querySelector('.kind').textContent.startsWith(anya.cls === 'pyro' ? 'Маг огня' : ''), 'класс');
+  eq(card.querySelector('.gear-line').textContent, 'Оружия нет — пиши гача');
+  const might = () => card.querySelector('.kind .power').textContent;
   eq(might(), 'мощь 100', 'без оружия — мощь 100');
-  ok(card.querySelector('.stat-line.power img.might-icon'), 'со значком мощи');
+  ok(card.querySelector('.kind .power img.might-icon'), 'со значком мощи');
   no(/КШ|КУ|скор \d|ловкост|интеллект|мастерств/.test(card.textContent), 'статов в карточке нет');
   game.battle.setMods(anya.tower, Object.assign({}, anya.tower.mods, { power: 40 }));
   await until(() => might() === 'мощь 140', 'мощь обновилась');
