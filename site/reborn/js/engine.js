@@ -814,6 +814,7 @@ export class Game {
     if (slot.took) {
       member.weapon = weapon;
       this._refresh(member);
+      if (weapon.rarity === 'legendary') this._note('legend', member, NOTE_TIME, { boon: weapon.boon });
     }
     this._emit(slot.took ? 'took' : 'kept', { login: member.login });
   }

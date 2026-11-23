@@ -362,6 +362,8 @@ test('гача: первое легендарное у игрока и каме�
   game.speed = 3;
   const legend = drop(game, 'ося', makeWeapon(seeded(3), member.cls, RARITIES[RARITIES.length - 1]));
   ok(legend.real && legend.left === HOLD_SHOW, 'первое легендарное — на 5 секунд');
+  ok(game.notes.some((n) => n.kind === 'legend' && n.login === 'ося' && n.detail.boon === legend.outcome.weapon.boon),
+    'надел легендарное — в «События», с аспектом');
   runFor(game, HOLD_SHOW - 0.2);
   ok(game.slots.includes(legend), 'не ускоряется вместе с игрой');
   runFor(game, 0.3);

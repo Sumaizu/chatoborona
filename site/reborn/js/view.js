@@ -56,7 +56,7 @@ const BATTLE_SOUNDS = { dash: 'zap', chord: 'lute', drum: 'drum', totem: 'build'
 const GOOD_EVENTS = new Set(['buff', 'blessing']);
 const COIN_FINDS = { handful: ' находит горстку монет', bag: ' находит мешок монет!',
   chest: ' открывает сундук монет!' };
-const LOG_KINDS = new Set(['skill', 'divine', 'upgrade']);
+const LOG_KINDS = new Set(['skill', 'divine', 'upgrade', 'legend']);
 const LOG_SIZE = 30;
 const NICK_COLORS = ['#ff8f85', '#ffb547', '#f2dd6e', '#8fe3ae', '#7fd4ff', '#b7a6ff', '#ff9ad5', '#8fe0d2'];
 const STATUS = {
@@ -315,6 +315,7 @@ export class View {
     this._paintConfetti(dt);
     this._turnReels(game);
     this._slidePlayers();
+    if (this._pickRoll) this._rollPick();
     this._paintIn -= dt;
     if (this._paintIn <= 0 || still) {
       this._paintIn = PAINT_EVERY;
@@ -731,8 +732,9 @@ export class View {
         if (!learned.length) list.append(el('li', 'empty', 'Навыков пока нет — камень навыка выпадает в гаче'));
         for (const skill of learned) {
           const item = el('li', 'taken'), text = el('div', 'text');
-          text.append(el('b', 'name', stacked(skill, skill.count)), el('span', 'desc', skill.text[0].toUpperCase()
-            + skill.text.slice(1)));
+          const about = skill.about || skill.text;
+          text.append(el('b', 'name', stacked(skill, skill.count)), el('span', 'desc', about[0].toUpperCase()
+            + about.slice(1)));
           item.append(el('i', 'digit', '◆'), text);
           list.append(item);
         }
@@ -750,9 +752,13 @@ export class View {
     });
     $('pick-bar').style.width = (Math.max(0, choice.left) / choice.span * 100).toFixed(1) + '%';
     $('pick-clock').textContent = Math.max(0, Math.ceil(choice.left)) + ' с';
-    const list = $('pick-options');
-    const y = showing ? this._roll(this._pickRoll, list.offsetHeight - $('pick-window').clientHeight) : 0;
-    list.style.transform = y ? 'translateY(' + -y + 'px)' : '';
+    this._rollPick();
+  }
+
+  _rollPick() {
+    const list = $('pick-options'), showing = $('pick').classList.contains('skills') && !$('pick').hidden;
+    const y = showing ? this._roll(this._pickRoll, list.offsetHeight - $('pick-window').clientHeight, true) : 0;
+    list.style.transform = y ? 'translateY(' + (-y).toFixed(1) + 'px)' : '';
   }
 
   _starName(name, star, color, className = 'name') {
@@ -1010,7 +1016,7 @@ export class View {
     return { y: 0, dir: 1, wait: EFFECTS_ROLL.wait, at: this.clock };
   }
 
-  _roll(roll, overflow) {
+  _roll(roll, overflow, smooth = false) {
     const over = Math.max(0, overflow);
     const dt = Math.max(0, Math.min(0.25, this.clock - roll.at));
     roll.at = this.clock;
@@ -1026,7 +1032,7 @@ export class View {
         roll.wait = EFFECTS_ROLL.wait;
       }
     }
-    return Math.round(Math.min(roll.y, over));
+    return smooth ? Math.min(roll.y, over) : Math.round(Math.min(roll.y, over));
   }
 
   _paintPlayers(game) {
@@ -1138,7 +1144,7 @@ export class View {
     const others = notes.filter((node) => !node.classList.contains('profile'))
       .reduce((sum, node) => sum + node.offsetHeight + CARD_GAP, 0);
     const pair = this._cardTall * 2 + CARD_GAP;
-    game.cardRoom = box.clientHeight - others >= pair ? 2 : 1;
+    game.cardRoom = box.clientHeight - others + 1 >= pair ? 2 : 1;
   }
 
   _paintLog(game, still) {
@@ -1170,8 +1176,13 @@ export class View {
       if (skill && skill.brief) text.append(' ', el('span', 'desc', skill.brief));
     } else if (entry.kind === 'divine') {
       text.append(nick, ' ', el('b', 'what', 'божественное оружие'));
+    } else if (entry.kind === 'legend') {
+      const gear = el('b', 'what', 'легендарное оружие'), boon = boonOf(detail.boon);
+      gear.style.color = rarityOf('legendary').color;
+      text.append(nick, ' ', gear);
+      if (boon) text.append(' ', el('span', 'desc', boon.text));
     } else {
-      const gear = el('b', 'what', 'оружие' + (entry.weapon && entry.weapon.plus ? ' +' + entry.weapon.plus : ''));
+      const gear = el('b', 'what', 'оружие +' + (detail.times || 1));
       if (entry.weapon) gear.style.color = rarityOf(entry.weapon.rarity).color;
       text.append(nick, ' ', gear);
     }

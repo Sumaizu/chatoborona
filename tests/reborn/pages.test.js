@@ -413,6 +413,7 @@ test('страницы: божественное оружие — плашка �
   anya.particle = true;
   game.feed('Аня', 'улучшить', { login: 'аня' });
   await until(() => w.document.querySelector('#notes .log.upgrade'), 'прокачка оружия — в истории');
+  ok(w.document.querySelector('#notes .log.upgrade').textContent.endsWith('оружие +1'), 'на сколько улучшено, а не итог');
   game.feed('Аня', 'улучшить', { login: 'аня' });
   await until(() => w.document.querySelector('#notes .log.divine'), 'строка в «Событиях», между эффектами и профилями');
   const note = w.document.querySelector('#notes .log.divine');
