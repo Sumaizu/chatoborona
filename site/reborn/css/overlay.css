@@ -51,7 +51,9 @@ body {
 }
 
 .nocam .cam { display: none; }
-.nocam .left { grid-row: 1 / 3; }
+.nocam .card { grid-template: "left main side" minmax(0, 1fr) "cam main side" 354px / 280px 640px minmax(0, 1fr); }
+.nocam .side { grid-template-rows: 296px 1fr; }
+.zone.corner { grid-area: cam; }
 .vtuber .card { grid-template: "left main side" minmax(0, 1fr) "cam main side" 360px / 280px 640px minmax(0, 1fr); }
 .nocam .card { background: var(--card); }
 
@@ -73,8 +75,11 @@ body {
 .alpha-line { margin: -6px 0 0; font-size: 14px; line-height: 18px; color: var(--muted); }
 .alpha-line b { color: var(--ink); letter-spacing: .12em; text-transform: uppercase; }
 .alpha-line span { color: var(--alpha); font-weight: 800; }
-.wave { color: var(--muted); font-weight: 600; }
-.wave b { color: var(--ink); font-weight: 800; font-variant-numeric: tabular-nums; }
+.wave {
+  display: inline-block; margin-right: 4px; padding: 0 8px; border-radius: 9px; background: rgba(56, 189, 248, .16);
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, .45); color: var(--ink); font-weight: 700;
+}
+.wave b { font-weight: 900; font-variant-numeric: tabular-nums; }
 .status { display: inline-block; max-width: 100%; vertical-align: bottom; overflow: hidden; text-overflow: ellipsis; }
 .status.lower::first-letter { text-transform: lowercase; }
 .status.boss { color: var(--bad); }

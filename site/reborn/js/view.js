@@ -30,6 +30,8 @@ const BOSS_EVERY = 10;
 const FINAL_SECONDS = 3;
 const ROWS = { over: 10, pause: 10, cards: 4, player: 22 };
 const CARD_GAP = 6;
+const CARD_MOST = 3;
+const CARD_TALL = 110;
 const REEL = { cells: 26, result: 21, width: 28 };
 const BIG_PRIZES = new Set(['epic', 'legendary']);
 const CYCLES = new Map([['rainbow', 2400], ['heart-reds', 8000], ['snow-glint', 6000], ['glare', 3000], ['gem', 6000]]);
@@ -257,6 +259,10 @@ export class View {
     const body = document.body;
     body.classList.toggle('nocam', settings.webcam === 'none');
     body.classList.toggle('vtuber', settings.webcam === 'vtuber');
+    const zone = $('cards').parentNode;
+    if (settings.webcam === 'none') $('card').append(zone);
+    else $('side').append(zone);
+    zone.classList.toggle('corner', settings.webcam === 'none');
     const rules = $('lobby-rules');
     rules.textContent = '';
     for (const [command, text] of RULES) {
@@ -661,7 +667,7 @@ export class View {
     let text = STATUS[game.state] || '';
     const family = battle && (fighting ? battle.family : battle.nextFamily);
     if (fighting) text = family ? 'Волна ' + family.of : 'Идёт волна';
-    else if (family && (game.state === 'placing' || game.state === 'break')) text = 'Дальше — ' + family.name;
+    else if (family && (game.state === 'placing' || game.state === 'break')) text = '→ ' + family.name;
     if (boss) {
       const giant = battle.mobs.concat(battle.spawns).find((m) => m.kind && m.type === 'boss');
       text = giant ? giant.kind.name : 'Босс!';
@@ -669,7 +675,7 @@ export class View {
     const choice = game.paused ? null : game.choice;
     if (game.paused) text = 'Пауза';
     status.textContent = text;
-    status.classList.toggle('lower', Boolean(game.wave) && /^(Волна|Дальше|Подготовка|Набор|Пауза)/.test(text));
+    status.classList.toggle('lower', /^Волна /.test(text));
     const speed = $('speed');
     speed.hidden = game.speed <= 1 || game.paused;
     speed.textContent = '×' + game.speed;
@@ -1143,8 +1149,8 @@ export class View {
     }
     const others = notes.filter((node) => !node.classList.contains('profile'))
       .reduce((sum, node) => sum + node.offsetHeight + CARD_GAP, 0);
-    const pair = this._cardTall * 2 + CARD_GAP;
-    game.cardRoom = box.clientHeight - others + 1 >= pair ? 2 : 1;
+    const room = box.clientHeight - others + 1 + CARD_GAP;
+    game.cardRoom = Math.max(1, Math.min(CARD_MOST, Math.floor(room / ((this._cardTall || CARD_TALL) + CARD_GAP))));
   }
 
   _paintLog(game, still) {

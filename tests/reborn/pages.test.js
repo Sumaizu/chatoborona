@@ -70,6 +70,13 @@ test('страницы: окошко под вебку и окошко виту�
   ok(at('effects').left > at('main').right && at('effects').bottom <= at('notes').top, 'эффекты — справа наверху');
   ok(at('notes').bottom <= at('cards').top && at('cards').height > 180, 'профили — внизу, под полную карточку');
   vtuber.remove();
+  const bare = await overlay('embed=1&webcam=none');
+  await until(() => element(bare.contentWindow, 'cards').getBoundingClientRect().width > 0, 'без вебки');
+  const on = (id) => element(bare.contentWindow, id).getBoundingClientRect();
+  ok(on('cards').right <= on('main').left && on('cards').top >= on('players').bottom, 'без вебки профили — слева внизу');
+  ok(on('notes').bottom >= on('side').bottom - 12, 'а «События» — до низа справа');
+  ok(on('cards').height >= 3 * 110 + 2 * 6, 'место под три профиля');
+  bare.remove();
 });
 
 test('страницы: пример в рамке — середина волны, гача, отряд и эффекты слева, чата нет', async () => {
@@ -104,7 +111,7 @@ test('страницы: оверлей сам открывает набор, ч�
   await until(() => game.state === 'placing', 'расстановка');
   await until(() => element(w, 'lobby').hidden, 'карта на экране');
   const family = game.battle.nextFamily;
-  await until(() => text(w, 'status') === 'Дальше — ' + family.name, 'какой вид мобов будет, видно заранее');
+  await until(() => text(w, 'status') === '→ ' + family.name, 'какой вид мобов будет, видно заранее');
   game.next();
   await until(() => game.state === 'wave', 'волна');
   await until(() => text(w, 'clock') === '', 'во время волны ни отсчёта, ни счётчика мобов');
