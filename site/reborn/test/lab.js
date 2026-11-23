@@ -92,9 +92,12 @@ const lab = {
       lives: b ? b.lives : null, maxLives: b ? b.maxLives : null, biome: b ? BIOME_RULES[b.biome].name : null,
       mobs: b ? b.mobs.filter((mob) => !mob.dead).length : 0, queued: b ? b.spawns.length : 0,
       routes: b ? b.starts.length : 1, family: b && b.nextFamily ? b.nextFamily.name : null, immortal,
-      choice: choice ? { login: choice.login, left: Math.ceil(choice.left), options: g.optionsOf(choice)
-        .map((option) => ({ id: option.skill.id, name: option.skill.name, kind: option.skill.kind,
-          state: option.state })) } : null,
+      choice: choice ? { login: choice.login, kind: choice.kind || 'stone', late: Boolean(choice.late),
+        left: Math.ceil(choice.left), options: g.optionsOf(choice).map((option) => ({ id: option.skill.id,
+          name: option.skill.name, kind: option.skill.kind, state: option.state })) } : null,
+      queue: g.choices.slice(1).map((item) => ({ login: item.login, kind: item.kind || 'stone' })),
+      cards: g.notes.filter((note) => note.kind === 'card').map((note) => note.login),
+      view: api().view.settings ? api().view.settings.webcam : 'none',
       effects: g.run ? g.run.now.concat(g.run.next).map((effect) => effect.name).concat(g.run.effects
         .map((effect) => (effectOf(effect.kind, effect.id) || {}).name)) : [],
       players: Array.from(g.members.values()).map((m) => ({
@@ -116,6 +119,9 @@ const lab = {
     log = [];
   },
   stop: () => api().stop(),
+  setView(webcam) {
+    api().view.use(Object.assign({}, api().view.settings, { webcam }));
+  },
   pause: () => game().pause(),
   next: () => game().next(),
   restart: () => game().restart(),
@@ -257,6 +263,14 @@ const lab = {
     g._emit('stone', { login });
     return true;
   },
+  showCard(login) {
+    const m = member(login);
+    return m ? game()._card(m) : null;
+  },
+  showSkills(login) {
+    const m = member(login);
+    return m ? game().showSkills(m) : null;
+  },
   pick(index) {
     const g = game();
     return g.choice ? g._choose(g.choice, index) : null;
@@ -302,8 +316,7 @@ const lab = {
     } else if (prize.startsWith('weapon:')) {
       outcome = { kind: 'weapon', weapon: weaponOf(m, prize.slice(7)) };
     }
-    let slot = g.slots.findIndex((item) => !item);
-    if (slot < 0) slot = g.slots.push(null) - 1;
+    const slot = Math.max(0, g.slots.findIndex((item) => !item));
     g.slots[slot] = { id: ++g._spinNo, login, outcome, phase: 'spin', left: SPIN_TIME, span: SPIN_TIME };
     g._emit('spin', { login });
     return true;

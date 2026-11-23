@@ -805,6 +805,19 @@ test('страницы: тестовый симулятор — вход по н
   await until(() => d.querySelector('[data-act="pick-0"]'), 'кнопки выбора');
   click('pick-0');
   eq(m.skills.length, 2);
+  click('show-skills');
+  eq(game.choice && game.choice.kind, 'skills', 'кнопка «Показать навыки» — панель навыков');
+  await until(() => d.getElementById('a-choice-who').textContent.startsWith('Показаны навыки'), 'в панели видно');
+  frame.rebornLab.dropChoice();
+  click('show-card');
+  ok(game.notes.some((note) => note.kind === 'card' && note.login === login), 'кнопка «Показать профиль»');
+  ok(d.querySelector('[data-act="owner-skills"]'), 'кнопки стримера о выбранном игроке');
+  pick('a-view', 'vtuber');
+  ok(frame.document.body.classList.contains('vtuber'), 'вид экрана — витубер');
+  pick('a-view', 'none');
+  ok(frame.document.body.classList.contains('nocam'), 'без вебки');
+  ok(Array.from(d.querySelectorAll('#a-chat ~ .row button, .row button')).some((b) => b.textContent === 'навыки'),
+    'быстрая команда «навыки»');
   frame.rebornLab.setClass(login, 'mechanic');
   frame.rebornLab.setSkills(login, ['turret']);
   const drones = await until(() => d.querySelector('#a-skills input[data-skill="droneAir"]'), 'дроны в списке');

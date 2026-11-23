@@ -6,8 +6,9 @@ const SPEEDS = [1, 2, 3, 5, 10];
 const STATES = { stopped: 'остановлена', lobby: 'набор', placing: 'подготовка', wave: 'идёт волна', break: 'перерыв',
   summit: 'сотая волна', over: 'итоги', ascend: 'парагон' };
 const KIND_NAMES = { style: 'стиль', upgrade: 'усиление', ability: 'способность' };
-const QUICK = ['привет', 'гача', 'гача 10', 'улучшить', 'улучшить все', 'профиль', 'проф', 'реролл', 'ускорить',
-  'замедлить', '1', '2', '3', '4', '5'];
+const QUICK = ['привет', 'гача', 'гача 10', 'гача все', 'улучшить', 'улучшить все', 'профиль', 'проф', 'навыки',
+  'реролл', 'ускорить', 'замедлить', '1', '2', '3', '4', '5', '6', '7', '8'];
+const VIEWS = [['cam', 'С вебкой'], ['vtuber', 'Витубер'], ['none', 'Без вебки']];
 const OWNER_COMMANDS = [['пауза', '!чатоборона-пауза'], ['дальше', '!чатоборона-дальше'],
   ['заново', '!чатоборона-заново'], ['сброс', '!чатоборона-сброс'], ['правила', '!чатоборона'],
   ['ускорить', '!чатоборона-ускорить'], ['замедлить', '!чатоборона-замедлить']];
@@ -85,11 +86,14 @@ function gameSection() {
   const immortal = tick('бессмертие', 'a-immortal', (on) => lab.setImmortal(on));
   const biome = choose([['', 'случайная']].concat(catalog.biomes.map((item) => [item.id, item.name])), 'a-biome');
   const family = choose(catalog.families.map((item) => [item.id, item.name]), 'a-family');
+  const view = choose(VIEWS, 'a-view');
+  view.addEventListener('change', () => lab.setView(view.value));
   return section('Игра', true,
     el('p', { className: 'state', id: 'a-state' }),
     row(act('Старт', 'start', () => lab.start(), 'primary'), act('Стоп', 'stop', () => lab.stop()),
       act('Пауза', 'pause', () => lab.pause()), act('Дальше', 'next', () => lab.next()),
       act('Заново', 'restart', () => lab.restart())),
+    row(span('Вид экрана'), view),
     row(span('Скорость'), speed, span('Таймер'), timer, act('Задать', 'timer', () => lab.setTimer(timer.value))),
     row(span('Жизни'), lives, act('Задать', 'lives', () => lab.setLives(lives.value)), immortal.label),
     row(span('Волна №'), wave, act('Начать волну', 'wave', () => lab.startWave(Number(wave.value)))),
@@ -122,7 +126,13 @@ function chatSection() {
     node.addEventListener('click', () => send(words, true));
     return node;
   }));
-  return section('Чат', true, row(nick, mod.label, owner.label), form, quick, commands,
+  const about = (words) => () => {
+    const who = player(lab.info());
+    if (who) send('@' + who.name + ' ' + words, true);
+  };
+  const named = row(span('Стример о выбранном игроке:'), act('@ник профиль', 'owner-card', about('профиль')),
+    act('@ник навыки', 'owner-skills', about('навыки')));
+  return section('Чат', true, row(nick, mod.label, owner.label), form, quick, commands, named,
     el('ul', { className: 'log', id: 'a-log' }));
 }
 
@@ -164,6 +174,8 @@ function playersSection() {
     row(act('Все навыки стиля', 'skills-all', () => lab.setSkills(chosen, fullSet())),
       act('Снять все', 'skills-none', () => lab.setSkills(chosen, [])),
       act('Камень навыка', 'stone', () => lab.giveStone(chosen))),
+    row(act('Показать профиль', 'show-card', () => lab.showCard(chosen)),
+      act('Показать навыки', 'show-skills', () => lab.showSkills(chosen))),
     row(cell, act('Перейти', 'move', () => lab.moveTo(chosen, cell.value)),
       act('Усыпить', 'sleep', () => lab.sleep(chosen)),
       act('Разбудить', 'wake', () => lab.wake(chosen)), act('Убрать', 'remove', () => lab.remove(chosen))));
@@ -190,7 +202,7 @@ function gachaSection() {
 }
 
 function choiceSection() {
-  return section('Выбор навыка', true,
+  return section('Выбор и показ навыков', true,
     el('p', { className: 'state', id: 'a-choice-who' }),
     el('div', { className: 'options', id: 'a-choice' }),
     row(act('Случайно', 'pick-random', () => lab.pickRandom()),
@@ -283,14 +295,18 @@ function drawSkills(who) {
 }
 
 function drawChoice(info) {
-  const choice = info.choice, who = choice ? info.players.find((item) => item.login === choice.login) : null;
-  $('a-choice-who').textContent = choice ? 'Выбирает ' + (who ? who.name : choice.login) + ', осталось '
-    + choice.left + ' с' : 'Сейчас никто не выбирает';
-  const key = choice ? choice.login + ':' + choice.options.map((option) => option.id + option.state).join() : '';
+  const choice = info.choice, nameOf = (login) => (info.players.find((item) => item.login === login) || { name: login }).name;
+  const showing = choice && choice.kind === 'skills';
+  const queue = info.queue.map((item) => nameOf(item.login) + (item.kind === 'skills' ? ' (навыки)' : ''));
+  $('a-choice-who').textContent = (choice ? (showing ? 'Показаны навыки ' : 'Выбирает ') + nameOf(choice.login)
+    + (choice.late ? ' (второй раз)' : '') + ', осталось ' + choice.left + ' с' : 'Сейчас никто не выбирает')
+    + (queue.length ? '. Дальше: ' + queue.join(', ') : '');
+  const key = choice ? choice.kind + choice.login + ':' + choice.options.map((option) => option.id + option.state).join()
+    : '';
   if (!changed('choice', key)) return;
   const box = $('a-choice');
   box.textContent = '';
-  if (!choice) return;
+  if (!choice || showing) return;
   choice.options.forEach((option, i) => {
     const node = act(i + 1 + '. ' + option.name + ' (' + KIND_NAMES[option.kind] + ')', 'pick-' + i, () => lab.pick(i));
     node.disabled = option.state !== 'open';
@@ -314,7 +330,9 @@ function update() {
   facts($('a-state'), [['', STATES[info.state] + (info.paused ? ', пауза' : '')], ['волна', info.wave],
     ['таймер', info.state === 'wave' ? null : info.left], ['жизни', info.lives === null ? null
       : info.lives + '/' + info.maxLives], ['мобов', info.mobs + (info.queued ? ' +' + info.queued : '')],
-    ['карта', info.biome], ['дальше', info.family], ['скорость', '×' + info.speed]]);
+    ['карта', info.biome], ['дальше', info.family], ['скорость', '×' + info.speed],
+    ['профили', info.cards.length ? info.cards.join(', ') : null]]);
+  $('a-view').value = info.view;
   $('a-immortal').checked = info.immortal;
   $('a-route').disabled = info.routes < 2;
   $('a-effects').textContent = info.effects.length ? 'Действуют и ждут: ' + info.effects.join(', ') : 'Событий нет';
@@ -343,7 +361,7 @@ async function enter() {
   $('gate').hidden = true;
   $('lab').hidden = false;
   const frame = $('game');
-  frame.src = '../overlay.html?embed=1&webcam=none';
+  frame.src = '../overlay.html?embed=1&webcam=cam';
   await waitFor(() => frame.contentWindow.chatoborona);
   const script = frame.contentDocument.createElement('script');
   script.type = 'module';
