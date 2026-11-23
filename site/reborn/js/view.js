@@ -31,7 +31,7 @@ const FINAL_SECONDS = 3;
 const ROWS = { over: 10, pause: 10, cards: 4, player: 22 };
 const CARD_GAP = 6;
 const CARD_MOST = 3;
-const CARD_TALL = 110;
+const CARD_TALL = 94;
 const REEL = { cells: 26, result: 21, width: 28 };
 const BIG_PRIZES = new Set(['epic', 'legendary']);
 const CYCLES = new Map([['rainbow', 2400], ['heart-reds', 8000], ['snow-glint', 6000], ['glare', 3000], ['gem', 6000]]);
@@ -79,6 +79,7 @@ const MAGE_SAYS = {
 };
 const PLAYERS_HOLD = 5;
 const PLAYERS_SLIDE = 0.6;
+const HINT = ['гача', 'улучшить', 'проф', 'навыки', 'реролл'];
 const RULES = [
   ['К7', '— клетка'],
   ['гача', '— оружие'],
@@ -271,13 +272,12 @@ export class View {
       rules.append(item);
     }
     const hint = $('hint');
-    hint.textContent = 'Пиши в чат — и ты в игре:';
+    hint.textContent = '';
     const line = el('span', 'group');
-    RULES.forEach(([command], i) => line.append(i ? ' · ' : '', el('b', '', command)));
-    const upgrade = el('span', 'group wrap');
-    upgrade.append(el('b', '', 'улучшить'), ' + ', el('b', '', '5'), ' или ', el('b', '', 'все'), ' — мощь оружия ',
-      mightIcon());
-    hint.append(line, upgrade);
+    HINT.forEach((command, i) => line.append(i ? ' • ' : '', el('b', '', command)));
+    const times = el('span', 'group');
+    times.append('команда + ', el('b', '', 'цифра'), ' или ', el('b', '', 'все'), ' — несколько раз');
+    hint.append(line, times);
     this._keys = {};
   }
 
@@ -666,8 +666,9 @@ export class View {
     const fighting = game.state === 'wave', boss = fighting && game.wave % BOSS_EVERY === 0;
     let text = STATUS[game.state] || '';
     const family = battle && (fighting ? battle.family : battle.nextFamily);
-    if (fighting) text = family ? 'Волна ' + family.of : 'Идёт волна';
-    else if (family && (game.state === 'placing' || game.state === 'break')) text = '→ ' + family.name;
+    const kind = family ? family.name[0].toUpperCase() + family.name.slice(1) : '';
+    if (fighting) text = family ? kind : 'Идёт волна';
+    else if (family && (game.state === 'placing' || game.state === 'break')) text = '→ ' + kind;
     if (boss) {
       const giant = battle.mobs.concat(battle.spawns).find((m) => m.kind && m.type === 'boss');
       text = giant ? giant.kind.name : 'Босс!';
@@ -675,7 +676,6 @@ export class View {
     const choice = game.paused ? null : game.choice;
     if (game.paused) text = 'Пауза';
     status.textContent = text;
-    status.classList.toggle('lower', /^Волна /.test(text));
     const speed = $('speed');
     speed.hidden = game.speed <= 1 || game.paused;
     speed.textContent = '×' + game.speed;
@@ -1198,8 +1198,12 @@ export class View {
 
   _profileCard(member) {
     const node = el('div', 'note profile'), top = el('div', 'top'), lvl = el('span', 'lvl');
-    const coins = this._coins(0, true), relic = coins.querySelector('.relic'), body = el('div', 'body');
-    const marks = el('div', 'marks'), kind = el('div', 'kind'), gear = el('div', 'gear-box');
+    const coins = this._coins(0, true), relic = coins.querySelector('.relic');
+    const marks = el('div', 'marks'), kind = el('div', 'kind'), gear = el('div', 'gear-box'), weapon = el('div', 'gear-slot');
+    const count = el('b'), badge = el('span', 'skill-count');
+    badge.append(image(markUrl('stone')), count);
+    badge.title = 'камни навыка: взято / доступно на уровне';
+    gear.append(weapon, badge);
     const mark = (kind, title) => {
       const box = el('span', 'mark'), text = el('span');
       box.append(image(markUrl(kind)), text);
@@ -1214,10 +1218,10 @@ export class View {
     marks.append(dealt, kills, helps, coins);
     const face = image(heroUrl(skinOf(member.cls, member.skills), 64)), inner = el('div', 'inner');
     const pane = el('div', 'window');
-    inner.append(face, top, marks, kind, gear, body);
+    inner.append(face, top, marks, kind, gear);
     pane.append(inner);
     node.append(pane);
-    const state = { body: '', kind: '', gear: null };
+    const state = { kind: '', gear: null };
     return {
       node,
       inner,
@@ -1257,17 +1261,10 @@ export class View {
         const gearKey = m.weapon ? JSON.stringify([m.weapon.rarity, m.weapon.plus, m.weapon.boon]) : '';
         if (state.gear !== gearKey) {
           state.gear = gearKey;
-          gear.textContent = '';
-          gear.append(m.weapon ? weaponLine(m.weapon) : el('div', 'gear-line', 'Оружия нет — пиши гача'));
+          weapon.textContent = '';
+          weapon.append(m.weapon ? weaponLine(m.weapon) : el('div', 'gear-line', 'Оружия нет — пиши гача'));
         }
-        const bodyKey = skills.length + '/' + stonesAt(level);
-        if (state.body !== bodyKey) {
-          state.body = bodyKey;
-          body.textContent = '';
-          const line = el('div', 'skill-count', 'Навыки ');
-          line.append(el('b', '', bodyKey));
-          body.append(line);
-        }
+        count.textContent = skills.length + '/' + stonesAt(level);
       },
     };
   }

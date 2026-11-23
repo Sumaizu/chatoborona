@@ -604,6 +604,13 @@ const MARKS = {
     });
     for (let y = 1; y < 6; y++) p.px(3, y, '#1e3a8a');
   },
+  stone(p) {
+    const rows = [[3, 3], [2, 4], [1, 5], [0, 6], [1, 5], [2, 4], [3, 3]];
+    rows.forEach(([from, to], y) => {
+      for (let x = from; x <= to; x++) p.px(x, y, x + y < 5 ? '#ff8a9a' : x - y > 1 ? '#a3132b' : '#ff2e4d');
+    });
+    p.px(2, 2, '#ffe4e8');
+  },
   burst(p) {
     for (const [x, y] of [[3, 0], [0, 3], [6, 3], [3, 6], [1, 1], [5, 1], [1, 5], [5, 5]]) p.px(x, y, '#f97316');
     for (const [x, y] of [[3, 1], [1, 3], [5, 3], [3, 5]]) p.px(x, y, '#fb923c');

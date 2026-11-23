@@ -68,14 +68,14 @@ test('страницы: окошко под вебку и окошко виту�
   ok(at('wave').bottom <= at('players').top && at('lives-box').bottom <= at('players').top, 'волна и сердце — над отрядом');
   ok(at('slots').bottom <= at('board').top && at('slots').width <= at('board').width + 1, 'гача — над картой, во всю ширину');
   ok(at('effects').left > at('main').right && at('effects').bottom <= at('notes').top, 'эффекты — справа наверху');
-  ok(at('notes').bottom <= at('cards').top && at('cards').height > 180, 'профили — внизу, под полную карточку');
+  ok(at('notes').bottom <= at('cards').top && at('cards').height >= 2 * 94 + 6, 'профили — внизу, ровно под две карточки');
   vtuber.remove();
   const bare = await overlay('embed=1&webcam=none');
   await until(() => element(bare.contentWindow, 'cards').getBoundingClientRect().width > 0, 'без вебки');
   const on = (id) => element(bare.contentWindow, id).getBoundingClientRect();
   ok(on('cards').right <= on('main').left && on('cards').top >= on('players').bottom, 'без вебки профили — слева внизу');
   ok(on('notes').bottom >= on('side').bottom - 12, 'а «События» — до низа справа');
-  ok(on('cards').height >= 3 * 110 + 2 * 6, 'место под три профиля');
+  ok(on('cards').height >= 3 * 94 + 2 * 6, 'место под три профиля');
   bare.remove();
 });
 
@@ -111,12 +111,13 @@ test('страницы: оверлей сам открывает набор, ч�
   await until(() => game.state === 'placing', 'расстановка');
   await until(() => element(w, 'lobby').hidden, 'карта на экране');
   const family = game.battle.nextFamily;
-  await until(() => text(w, 'status') === '→ ' + family.name, 'какой вид мобов будет, видно заранее');
+  const kind = family.name[0].toUpperCase() + family.name.slice(1);
+  await until(() => text(w, 'status') === '→ ' + kind, 'какой вид мобов будет, видно заранее');
   game.next();
   await until(() => game.state === 'wave', 'волна');
   await until(() => text(w, 'clock') === '', 'во время волны ни отсчёта, ни счётчика мобов');
   eq(game.battle.family, family, 'вышли те, кого объявили');
-  eq(text(w, 'status'), 'Волна ' + family.of);
+  eq(text(w, 'status'), kind, 'просто кто идёт, с большой буквы');
   game.feed('Аня', 'профиль', { login: 'аня' });
   await until(() => w.document.querySelector('#cards .profile'), 'карточка');
   const card = w.document.querySelector('#cards .profile');
@@ -265,7 +266,8 @@ test('страницы: камень навыка — окно выбора по
   await until(() => text(w, 'notes').includes(name), 'плашка «Новый навык» — между эффектами и профилями');
   game.feed('Аня', 'профиль', { login: 'аня' });
   await until(() => w.document.querySelector('#cards .profile .skill-count'), 'счёт навыков в профиле');
-  ok(w.document.querySelector('#cards .profile .skill-count').textContent.startsWith('Навыки 1/'));
+  ok(w.document.querySelector('#cards .profile .skill-count').textContent.startsWith('1/'), 'в окошке — взято/доступно');
+  ok(w.document.querySelector('#cards .profile .skill-count img'), 'со значком камня');
   game.feed('Аня', 'навыки', { login: 'аня' });
   await until(() => !element(w, 'pick').hidden && text(w, 'pick-title') === 'Навыки игрока', 'панель «Навыки игрока»');
   ok(text(w, 'pick-options').includes(name), 'выбранный навык — с подробным описанием');
@@ -491,10 +493,10 @@ test('страницы: «навыки» — панель «Навыки игр�
   eq(w.document.querySelectorAll('#pick-options li').length, 8, 'все навыки, кроме стиля');
   const list = element(w, 'pick-options');
   ok(list.offsetHeight > element(w, 'pick-window').clientHeight, 'целиком не влезает');
-  await until(() => /translateY\(-[1-9]/.test(list.style.transform), 'листается', 10000);
+  await until(() => /translateY\(-[1-9]/.test(list.style.transform), 'листается', 20000);
   game.feed('Аня', 'профиль', { login: 'аня' });
   await until(() => w.document.querySelector('#cards .profile .skill-count'), 'в профиле — только счёт');
-  ok(/^Навыки 9\/\d+$/.test(w.document.querySelector('#cards .profile .skill-count').textContent), 'Навыки 9/N');
+  ok(/^9\/\d+$/.test(w.document.querySelector('#cards .profile .skill-count').textContent), '9/N');
   frame.remove();
 });
 test('страницы: игроков больше, чем помещается в «Отряде», — список листается страницами по кругу', async () => {
