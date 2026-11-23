@@ -68,7 +68,7 @@ test('страницы: окошко под вебку и окошко виту�
   ok(at('wave').bottom <= at('players').top && at('lives-box').bottom <= at('players').top, 'волна и сердце — над отрядом');
   ok(at('slots').bottom <= at('board').top && at('slots').width <= at('board').width + 1, 'гача — над картой, во всю ширину');
   ok(at('effects').left > at('main').right && at('effects').bottom <= at('notes').top, 'эффекты — справа наверху');
-  ok(at('notes').bottom <= at('cards').top && at('cards').height > at('side').height * 0.4, 'профили — внизу, на половину');
+  ok(at('notes').bottom <= at('cards').top && at('cards').height > 180, 'профили — внизу, под полную карточку');
   vtuber.remove();
 });
 
@@ -238,7 +238,7 @@ test('страницы: камень навыка — окно выбора по
   await until(() => !element(w, 'pick').hidden, 'выбор на экране');
   ok(element(w, 'side').contains(element(w, 'pick')), 'выбор — справа, а не поверх карты');
   const top = w.document.querySelector('.side .upper').getBoundingClientRect(), pick = element(w, 'pick').getBoundingClientRect();
-  ok(pick.top >= top.top - 1 && pick.bottom <= element(w, 'cards').getBoundingClientRect().top, 'поверх эффектов, профили открыты');
+  ok(pick.top >= top.top - 1 && pick.bottom <= element(w, 'notes').getBoundingClientRect().top, 'поверх эффектов, события открыты');
   const desc = w.document.querySelector('#pick-options .desc');
   ok(desc.scrollWidth <= desc.clientWidth + 1, 'описание навыка влезает целиком');
   ok(w.document.querySelector('#pick-options li').scrollWidth <= w.document.querySelector('#pick-options li').clientWidth + 1,
@@ -405,14 +405,16 @@ test('страницы: божественное оружие — плашка �
   await until(() => game.state === 'placing', 'расстановка');
   const anya = game.members.get('аня');
   anya.weapon = makeWeapon(Math.random, anya.cls, RARITIES[RARITIES.length - 1]);
-  anya.weapon.plus = 29;
-  anya.coins = 100;
+  anya.weapon.plus = 28;
+  anya.coins = 200;
   anya.particle = true;
   game.feed('Аня', 'улучшить', { login: 'аня' });
-  await until(() => w.document.querySelector('#notes .note.divine'), 'плашка справа, между эффектами и профилями');
-  const note = w.document.querySelector('#notes .note.divine');
-  ok(note.textContent.includes('Божественное оружие') && note.textContent.includes('Аня'), note.textContent);
-  ok(note.textContent.includes('Божественн'), 'и само оружие');
+  await until(() => w.document.querySelector('#notes .log.upgrade'), 'прокачка оружия — в истории');
+  game.feed('Аня', 'улучшить', { login: 'аня' });
+  await until(() => w.document.querySelector('#notes .log.divine'), 'строка в «Событиях», между эффектами и профилями');
+  const note = w.document.querySelector('#notes .log.divine');
+  ok(note.textContent.includes('божественное оружие') && note.textContent.includes('Аня'), note.textContent);
+  ok(w.document.querySelector('#notes .log.upgrade'), 'прокачка до этого — тоже осталась');
   ok(element(w, 'cheer-box').hidden, 'посреди поля ничего');
   game.feed('Аня', 'профиль', { login: 'аня' });
   await until(() => w.document.querySelector('#cards .profile'), 'профиль');

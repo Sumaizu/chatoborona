@@ -2,11 +2,11 @@ import { Scene } from './draw.js';
 import { CLASSES, CLASS_BY_ID, describe, mightOf, skillOf, skinOf, styleOf } from './classes.js';
 import { coinUrl, effectUrl, emblemUrl, flagCanvas, flagUrl, heroUrl, markUrl, mightUrl, particleSprite, particleUrl,
   prizeUrl } from './sprites.js';
-import { OUTCOMES, PRICE, RARITIES, SLOTS, SPIN_TIME, UPGRADE_PRICE, boonOf, gearColor,
+import { OUTCOMES, RARITIES, SPIN_TIME, boonOf, gearColor,
   outcomeOf, rarityOf, WEAPON, weaponTitle } from './gacha.js';
 import { ASCEND_TIME } from './engine.js';
 import { effectOf } from './events.js';
-import { BIOME_RULES, LEVEL_MAX, LIVES, MIGHT, levelOf, resistOf } from './balance.js';
+import { BIOME_RULES, LEVEL_MAX, LIVES, levelOf, resistOf } from './balance.js';
 import { cellName } from './field.js';
 import { SFX_GAPS, play } from './sound.js';
 import { PAGES, pageAt } from './guide.js';
@@ -56,7 +56,8 @@ const BATTLE_SOUNDS = { dash: 'zap', chord: 'lute', drum: 'drum', totem: 'build'
 const GOOD_EVENTS = new Set(['buff', 'blessing']);
 const COIN_FINDS = { handful: ' находит горстку монет', bag: ' находит мешок монет!',
   chest: ' открывает сундук монет!' };
-const NOTE_KINDS = new Set(['card', 'poor', 'bare', 'upgrade', 'queue', 'tip', 'divine', 'skill', 'fixed']);
+const LOG_KINDS = new Set(['skill', 'divine', 'upgrade']);
+const LOG_SIZE = 30;
 const NICK_COLORS = ['#ff8f85', '#ffb547', '#f2dd6e', '#8fe3ae', '#7fd4ff', '#b7a6ff', '#ff9ad5', '#8fe0d2'];
 const STATUS = {
   lobby: 'Набор в отряд',
@@ -224,13 +225,6 @@ function statLine(weapon) {
 const PRIZES = OUTCOMES.concat(RARITIES);
 const prizeOf = (outcome) => (outcome.kind === 'weapon' ? rarityOf(outcome.weapon.rarity) : outcomeOf(outcome.kind));
 
-function gearLine(weapon) {
-  const line = el('div', 'gear'), name = el('b', '', weaponTitle(weapon));
-  name.style.color = rarityOf(weapon.rarity).color;
-  line.append(name, statLine(weapon));
-  return line;
-}
-
 export class View {
   constructor() {
     this.scene = new Scene($('field'));
@@ -254,6 +248,7 @@ export class View {
     this._ascend = null;
     this._slots = [];
     this._cards = new Map();
+    this._log = [];
     this._cardTall = 0;
     this._briefTall = 0;
     this._squeezed = null;
@@ -299,6 +294,7 @@ export class View {
       this._slots = [];
       this._cards.forEach((card) => card.node.remove());
       this._cards.clear();
+      this._log = [];
     }
     this.clock += dt;
     const stage = $('stage');
@@ -1088,8 +1084,9 @@ export class View {
   }
 
   _paintCards(game, still) {
-    const notes = game.notes.filter((note) => NOTE_KINDS.has(note.kind)).slice(-ROWS.cards);
-    const box = $('cards'), side = $('notes');
+    this._paintLog(game, still);
+    const notes = game.notes.filter((note) => note.kind === 'card').slice(-ROWS.cards);
+    const box = $('cards');
     const wanted = new Set(), profiles = notes.filter((note) => note.kind === 'card');
     this._squeezed = profiles.length > 1 ? profiles[0].login : null;
     for (const note of notes) {
@@ -1098,17 +1095,16 @@ export class View {
       const key = note.kind + ':' + note.login;
       wanted.add(key);
       let card = this._cards.get(key);
-      const home = note.kind === 'card' ? box : side;
-      if (!card || card.node.parentNode !== home || note.kind !== 'card' && card.id !== note.id) {
+      if (!card || card.node.parentNode !== box) {
         if (card) card.node.remove();
-        card = note.kind === 'card' ? this._profileCard(member) : this._shortCard(member, note);
+        card = this._profileCard(member);
         card.id = note.id;
         if (!still) {
           card.node.classList.add('pop');
           card.node.addEventListener('animationend', () => card.node.classList.remove('pop'), { once: true });
         }
         this._cards.set(key, card);
-        home.append(card.node);
+        box.append(card.node);
       }
       card.update(member, game, note);
     }
@@ -1142,55 +1138,41 @@ export class View {
     game.cardRoom = box.clientHeight - others >= pair ? 2 : 1;
   }
 
-  _shortCard(member, note) {
-    const node = el('div', 'note poor'), has = el('b'), nick = this._starName(member.name, member.star, member.color,
-      'nick');
-    const detail = note.detail || {};
-    if (note.kind === 'poor') {
-      node.append(nick, detail.price === UPGRADE_PRICE ? ': на улучшение нужно ' : ': на крутку нужно ',
-        el('b', '', String(detail.price || PRICE)), ', у тебя ', has);
-    } else if (note.kind === 'queue') {
-      node.append(nick, ': твои крутки ещё в очереди — дождись, пока они выпадут');
-    } else if (note.kind === 'bare') {
-      node.append(nick, ': улучшать нечего — сначала выбей оружие в гаче');
-    } else if (note.kind === 'fixed') {
-      node.append(nick, ': гигантская турель стоит на месте — переставить её нельзя');
-    } else if (note.kind === 'tip') {
-      node.className = 'note tip';
-      const cls = CLASS_BY_ID.get(detail.cls);
-      if (detail.tip === 'hello') {
-        node.append(nick, ', ты — ', el('b', '', cls.name), ': бьёшь мобов сам. Накопишь ' + PRICE + ' монет — пиши ',
-          el('b', '', 'гача'));
-      } else if (detail.tip === 'spin') {
-        node.append(nick, ': у тебя уже ' + PRICE + ' монет — пиши ', el('b', '', 'гача'), ', выпадет оружие');
-      } else {
-        node.append(nick, ': пиши ', el('b', '', 'улучшить'), ' — +' + MIGHT.upgrade + ' мощи оружию за '
-          + UPGRADE_PRICE + ' монет');
-      }
-    } else if (note.kind === 'skill') {
-      node.className = 'note skill';
-      const skill = skillOf(member.cls, detail.skill), text = el('div');
-      const label = detail.style ? 'стиль' : 'навык';
-      text.append(el('b', 'title', detail.auto ? 'Случайный ' + label : 'Новый ' + label), nick, ': ',
-        el('b', 'what', skill ? skill.name : ''));
-      if (skill) text.append(el('span', 'desc', skill.text[0].toUpperCase() + skill.text.slice(1)));
-      node.append(image(heroUrl(skinOf(member.cls, member.skills), 64)), text);
-    } else if (note.kind === 'divine') {
-      node.className = 'note divine';
-      const text = el('div');
-      text.append(el('b', 'title', 'Божественное оружие!'), nick, gearLine(detail.weapon));
-      node.append(image(heroUrl(skinOf(member.cls, member.skills), 64)), text);
-    } else {
-      node.className = 'note upgrade';
-      node.append(nick, ' улучшает оружие' + (detail.times > 1 ? ' ×' + detail.times : '') + ': ',
-        mightTag(detail.amount || 0, '+'));
+  _paintLog(game, still) {
+    const known = new Set(this._log.map((entry) => entry.id));
+    for (const note of game.notes) {
+      const member = game.members.get(note.login);
+      if (!LOG_KINDS.has(note.kind) || known.has(note.id) || !member) continue;
+      const weapon = member.weapon ? Object.assign({}, member.weapon) : null;
+      this._log.unshift({ id: note.id, kind: note.kind, login: note.login, detail: note.detail || {}, weapon, fresh: !still });
     }
-    return {
-      node,
-      update: (m) => {
-        has.textContent = String(Math.floor(m.coins));
-      },
-    };
+    this._log.length = Math.min(this._log.length, LOG_SIZE);
+    this._once('log', this._log.map((entry) => entry.id).join(), () => {
+      const box = $('notes');
+      box.textContent = '';
+      for (const entry of this._log) {
+        const member = game.members.get(entry.login);
+        if (member) box.append(this._logRow(member, entry));
+        entry.fresh = false;
+      }
+    });
+  }
+
+  _logRow(member, entry) {
+    const row = el('div', 'log ' + entry.kind + (entry.fresh ? ' pop' : '')), text = el('div', 'text');
+    const nick = this._starName(member.name, member.star, member.color, 'nick'), detail = entry.detail;
+    if (entry.kind === 'skill') {
+      const skill = skillOf(member.cls, detail.skill), label = detail.style ? 'стиль' : 'навык';
+      text.append(nick, ' — ' + (detail.auto ? 'случайный ' : '') + label + ' ', el('b', 'what', skill ? skill.name : ''));
+    } else if (entry.kind === 'divine') {
+      text.append(nick, ' — ', el('b', 'what', 'божественное оружие!'));
+    } else {
+      const gear = el('b', 'what', entry.weapon ? weaponTitle(entry.weapon) : WEAPON);
+      if (entry.weapon) gear.style.color = rarityOf(entry.weapon.rarity).color;
+      text.append(nick, ' — ', gear, detail.times > 1 ? ' ×' + detail.times + ' ' : ' ', mightTag(detail.amount || 0, '+'));
+    }
+    row.append(image(heroUrl(skinOf(member.cls, member.skills), 64)), text);
+    return row;
   }
 
   _profileCard(member) {

@@ -307,10 +307,10 @@ body {
 .record-line { margin: 0; font-size: 18px; font-weight: 700; color: var(--gold); }
 .side .upper { position: relative; min-height: 0; display: flex; flex-direction: column; }
 .list.pick {
-  position: absolute; left: 0; right: 0; top: 0; height: calc((100% - 16px) / 2 + 8px); z-index: 3; display: flex; flex-direction: column; gap: 3px; background: #171427;
+  position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; gap: 3px; background: #171427;
   box-shadow: inset 0 0 0 1.5px var(--stone), 0 0 16px rgba(255, 46, 77, .3); animation: fade-in .4s ease-out;
 }
-.list.pick h3 { margin: 0; line-height: 13px; color: var(--stone); }
+.list.pick h3 { margin: 0; line-height: 13px; }
 .pick h3 .next {
   flex: 0 1 auto; min-width: 0; margin-left: auto; padding-left: 8px; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; letter-spacing: 0; text-transform: none; font-size: 12px; font-weight: 600; color: var(--muted);
@@ -325,9 +325,9 @@ body {
 .pick .who .face { flex: none; width: 20px; height: 20px; margin: -2px 0; image-rendering: pixelated; }
 .pick .who .nick { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 800; }
 .pick .who .cls { flex: none; font-weight: 800; }
-.pick .options { display: flex; flex-direction: column; gap: 2px; }
+.pick .options { display: flex; flex-direction: column; gap: 1px; }
 .pick .options li {
-  height: auto; display: flex; align-items: center; gap: 7px; padding: 2px 6px 2px 4px; border-radius: 7px; line-height: 14px;
+  height: auto; display: flex; align-items: center; gap: 7px; padding: 1px 6px 1px 4px; border-radius: 7px; line-height: 14px;
   background: rgba(255, 255, 255, .055);
 }
 .pick .options li.taken { background: rgba(250, 204, 21, .07); }
@@ -368,7 +368,7 @@ body {
 .boards ol li { height: 26px; font-size: 15.5px; }
 
 .side {
-  position: relative; grid-area: side; display: grid; grid-template-rows: 2fr 1fr 3fr; gap: 8px; min-width: 0;
+  position: relative; grid-area: side; display: grid; grid-template-rows: 296px 1fr 1.7fr; gap: 8px; min-width: 0;
   min-height: 0;
 }
 .left { grid-area: left; display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; }
@@ -487,6 +487,19 @@ body {
 }
 .notes:empty::after, .cards:empty::after { margin: auto; padding: 0 8px; text-align: center; font-size: 12px; color: var(--muted); }
 .notes:empty::after { content: 'Здесь — новые навыки и оружие игроков'; }
+.notes { gap: 0; }
+.log {
+  flex: none; display: flex; align-items: center; gap: 6px; padding: 3px 2px; font-size: 12px; line-height: 15px;
+  color: var(--muted); border-bottom: 1px solid var(--line);
+}
+.log > img { flex: none; width: 20px; height: 20px; image-rendering: pixelated; }
+.log .text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.log .nick { font-weight: 800; }
+.log .what { color: var(--ink); font-weight: 800; }
+.log.skill .what { color: var(--learned); }
+.log.divine .what { color: var(--divine); }
+.log .might { font-size: 11.5px; }
+.log.pop { animation: note-in .3s cubic-bezier(.2, 1.3, .4, 1); }
 .cards:empty::after { content: 'Напиши «профиль» — здесь будет твоя карточка'; }
 .note {
   padding: 8px 11px 9px; border-radius: 14px; background: #13111f; font-size: 13px; line-height: 17px;
@@ -497,8 +510,6 @@ body {
 .note.poor { color: var(--muted); box-shadow: 0 6px 18px rgba(0, 0, 0, .5), inset 0 0 0 1.5px rgba(248, 113, 113, .6); }
 .note.poor b { color: var(--ink); }
 .note .nick { font-weight: 800; }
-.note.tip { box-shadow: 0 6px 18px rgba(0, 0, 0, .5), inset 0 0 0 1.5px rgba(250, 204, 21, .75); }
-.note.tip b { color: #fde047; }
 .note.divine {
   display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center; gap: 0 9px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, .5), inset 0 0 0 1.5px var(--divine), 0 0 14px rgba(255, 46, 77, .35);
