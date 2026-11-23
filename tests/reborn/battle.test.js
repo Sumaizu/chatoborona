@@ -2052,6 +2052,21 @@ test('сын бури: маги молнии и ветра дают Тору п�
   near(fire.boost.rate, 0, 'маг огня — нет');
 });
 
+test('отброс не загоняет мобов за портал: дальше выхода из тоннеля назад не уходят', () => {
+  const tiles = new Array(SIZE * SIZE).fill(null);
+  for (const [x, y] of STRAIGHT.slice(0, 3)) tiles[y * SIZE + x] = 'tunnel';
+  const battle = new Battle({ path: STRAIGHT, tiles }, { random: seeded(3) }), t = battle.place(player(), 'frost', 10, 4);
+  eq(battle.gates[0], 3.5, 'портал — у выхода из тоннеля');
+  const mob = walker(battle, 6, 1e9);
+  battle._push(mob, 10, t);
+  eq(mob.d, 3.5, 'отброшен только до портала');
+  const deep = walker(battle, 2, 1e9);
+  battle._push(deep, 1, t);
+  eq(deep.d, 2, 'кто ещё в тоннеле — назад не толкается');
+  battle._sweep(10);
+  eq([mob.d, deep.d], [3.5, 2], 'волна до сердца — тоже');
+});
+
 test('шаманка: удар в барабан — волна на 2 клетки вокруг ранит всех', () => {
   const battle = makeBattle(), t = sorc(battle, 10, 4, ['shamaness']);
   ok(t.range >= 2 && t.range < 3);

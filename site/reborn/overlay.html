@@ -17,11 +17,24 @@
     </section>
     <div class="cam"></div>
     <aside class="left" id="left">
-      <div class="cards" id="cards"></div>
-      <p class="hint" id="hint"></p>
+      <header class="head">
+        <div class="brand">Чатоборона<span class="alpha">Реборн · альфа</span><span class="speed" id="speed"
+          hidden></span></div>
+        <div class="state">
+          <div class="wave-line"><span class="wave">Волна <b id="wave"></b>:</span> <span class="status"
+            id="status"></span></div>
+          <div class="clock" id="clock"></div>
+          <div class="lives" id="lives-box"><i class="heart-icon"></i><b id="lives"></b></div>
+        </div>
+      </header>
+      <div class="list players" id="players-box">
+        <h3>Отряд <span class="count" id="players-count"></span></h3>
+        <ol id="players"></ol>
+        <p class="hint" id="hint"></p>
+      </div>
     </aside>
     <section class="main" id="main">
-      <div class="roster" id="roster"><ol id="players"></ol></div>
+      <div class="gacha" id="gacha"><div class="slots" id="slots"></div></div>
       <div class="board" id="board">
         <canvas id="field"></canvas>
         <div class="blackout" id="blackout"></div>
@@ -51,7 +64,7 @@
           <h2>Пауза</h2>
           <p class="record-line" id="pause-record"></p>
           <div class="boards three">
-            <div class="list"><h3>Сильнейшие</h3><ol id="pause-top"></ol></div>
+            <div class="list"><h3>Урон</h3><ol id="pause-damage"></ol></div>
             <div class="list"><h3>Убийства</h3><ol id="pause-kills"></ol></div>
             <div class="list"><h3>Помощь</h3><ol id="pause-assists"></ol></div>
           </div>
@@ -59,18 +72,8 @@
       </div>
     </section>
     <aside class="side" id="side">
-      <header class="head">
-        <div class="wave" title="волна"><b id="wave"></b></div>
-        <div class="status" id="status"></div>
-        <div class="clock" id="clock"></div>
-        <span class="speed" id="speed" hidden></span>
-        <div class="lives" id="lives-box"><i class="heart-icon"></i><b id="lives"></b></div>
-      </header>
-      <div class="list gacha">
-        <h3>Гача <span class="queue" id="queue"></span></h3>
-        <div class="slots" id="slots"></div>
-      </div>
-      <div class="below">
+      <div class="upper">
+        <div class="list effects"><h3>Эффекты</h3><div id="effects"></div></div>
         <div class="list pick" id="pick" hidden>
           <h3><span id="pick-title"></span><span class="next" id="pick-next"></span><span class="price"
             id="pick-clock"></span></h3>
@@ -78,8 +81,9 @@
           <div class="pick-bar"><i id="pick-bar"></i></div>
           <ol class="options" id="pick-options"></ol>
         </div>
-        <div class="list effects"><h3>Эффекты</h3><div id="effects"></div></div>
       </div>
+      <div class="notes" id="notes"></div>
+      <div class="cards" id="cards"></div>
     </aside>
   </div>
 </div>

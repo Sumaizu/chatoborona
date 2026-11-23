@@ -59,6 +59,7 @@ export function demoGame(settings) {
     { id: 2, login: 'марго', outcome: { kind: 'weapon', weapon: makeWeapon(random, member('Марго').cls) },
       phase: 'spin', left: 1.4 },
     null,
+    null,
   ];
   game.run.now = [Object.assign({ kind: 'buff' }, effectOf('buff', 'fury'))];
   game.run.next = [Object.assign({ kind: 'debuff' }, effectOf('debuff', 'tired'))];

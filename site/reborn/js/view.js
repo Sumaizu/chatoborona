@@ -28,11 +28,9 @@ const BIOME_GLOW = { grass: '#4ade80', volcano: '#fb923c', swamp: '#a3e635', sno
 const LOW_LIVES = 5;
 const BOSS_EVERY = 10;
 const FINAL_SECONDS = 3;
-const ROWS = { over: 10, pause: 10, pauseShort: 8, queue: 5, cards: 4 };
-const ROSTER = { columns: 3, rows: 2, width: 640 };
-const SLOT_FIT = { tall: 72, short: 62, gap: 6, frame: 40, space: 8 };
+const ROWS = { over: 10, pause: 10, cards: 4, player: 22 };
 const CARD_GAP = 6;
-const REEL = { cells: 26, result: 21, width: 34 };
+const REEL = { cells: 26, result: 21, width: 28 };
 const BIG_PRIZES = new Set(['epic', 'legendary']);
 const CYCLES = new Map([['rainbow', 2400], ['heart-reds', 8000], ['snow-glint', 6000], ['glare', 3000], ['gem', 6000]]);
 const SOUND_PRIORITY = ['over', 'divine', 'relic', 'win', 'boss', 'wave', 'jackpot', 'prize', 'upgrade', 'reward',
@@ -668,7 +666,8 @@ export class View {
   _paint(game, still) {
     const state = game.paused ? 'paused' : game.state;
     const battle = game.battle;
-    $('wave').textContent = game.wave || '—';
+    $('wave').textContent = game.wave || '';
+    $('wave').parentNode.hidden = !game.wave;
     const status = $('status');
     const fighting = game.state === 'wave', boss = fighting && game.wave % BOSS_EVERY === 0;
     let text = STATUS[game.state] || '';
@@ -682,6 +681,7 @@ export class View {
     const choice = game.paused ? null : game.choice;
     if (game.paused) text = 'Пауза';
     status.textContent = text;
+    status.classList.toggle('lower', Boolean(game.wave) && /^(Волна|Дальше|Подготовка|Набор|Пауза)/.test(text));
     const speed = $('speed');
     speed.hidden = game.speed <= 1 || game.paused;
     speed.textContent = '×' + game.speed;
@@ -705,14 +705,11 @@ export class View {
     $('pause').hidden = state !== 'paused' || rules;
     $('rules-board').hidden = !rules;
     $('pick').hidden = !choice;
-    $('side').classList.toggle('picking', Boolean(choice));
-    $('side').classList.toggle('rush', game.slots.length > SLOTS);
     if (choice) this._paintPick(game, choice);
     if (game.state === 'lobby') this._paintLobby(game, still);
     if (game.state === 'over' || game.state === 'summit') this._paintOver(game);
     if (state === 'paused' && !rules) this._paintPause(game);
     this._paintSlots(game);
-    this._fitSlots(game);
     this._paintEffects(game);
     this._paintPlayers(game);
     this._paintCards(game, still);
@@ -855,35 +852,20 @@ export class View {
     });
   }
 
-  _people(game) {
-    const people = new Map();
-    for (const [login, entry] of game.profiles.data) people.set(login, Object.assign({ login }, entry));
-    for (const m of game.members.values()) {
-      people.set(m.login, { login: m.login, name: m.name, xp: m.xp, kills: m.kills, assists: m.assists,
-        paragon: m.paragon });
-    }
-    return Array.from(people.values());
-  }
-
   _paintPause(game) {
-    const people = this._people(game);
-    const best = (field, count) => people.filter((p) => p[field] > 0).sort((a, b) => b[field] - a[field]
-      || (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1)).slice(0, count);
-    const strength = (p) => (p.paragon || 0) * 1e9 + p.xp;
-    const top = people.filter((p) => strength(p) > 0).sort((a, b) => strength(b) - strength(a)
-      || (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1)).slice(0, ROWS.pause)
-      .map((p) => ({ login: p.login, name: p.name, value: levelOf(p.xp), paragon: p.paragon || 0 }));
-    const kills = best('kills', ROWS.pauseShort).map((p) => ({ login: p.login, name: p.name, value: p.kills }));
-    const assists = best('assists', ROWS.pauseShort).map((p) => ({ login: p.login, name: p.name, value: p.assists }));
-    const record = game.profiles.best;
-    this._once('pause', JSON.stringify([top, kills, assists, record]), () => {
+    const rows = Array.from(game.members.values()).filter((m) => m.tower || m.held).map((m) => {
+      const run = m.tower ? m.tower.run : m.held;
+      return { login: m.login, name: m.name, damage: run.damage, kills: run.kills, assists: run.assists };
+    });
+    const best = (field) => rows.filter((row) => row[field] > 0).sort((a, b) => b[field] - a[field]).slice(0, ROWS.pause)
+      .map((row) => ({ login: row.login, name: row.name, value: shortNumber(row[field]) }));
+    const record = game.profiles.best, lists = [best('damage'), best('kills'), best('assists')];
+    this._once('pause', JSON.stringify([lists, record]), () => {
       $('pause-record').textContent = record.waves
         ? 'Рекорд канала: ' + record.waves + ' ' + plural(record.waves, 'волна', 'волны', 'волн')
           + (record.players ? ' · в отряде было ' + record.players : '')
         : 'Рекорда пока нет';
-      this._fillList($('pause-top'), top, 'пока никого', 'ур. ');
-      this._fillList($('pause-kills'), kills, 'пока никого');
-      this._fillList($('pause-assists'), assists, 'пока никого');
+      ['pause-damage', 'pause-kills', 'pause-assists'].forEach((id, k) => this._fillList($(id), lists[k], 'пока никого'));
     });
   }
 
@@ -918,15 +900,6 @@ export class View {
       view.strip.style.transform = 'translateX(' + (-view.stop * eased).toFixed(1) + 'px)';
       view.cells[REEL.result].classList.toggle('won', slot.phase !== 'spin');
     });
-  }
-
-  _fitSlots(game) {
-    const side = $('side'), f = SLOT_FIT;
-    if (!side.clientHeight) return;
-    const pick = $('pick'), head = side.querySelector('.head');
-    const free = side.clientHeight - head.offsetHeight - f.space - (pick.hidden ? 0 : pick.offsetHeight + f.space);
-    const tall = pick.hidden ? f.tall : f.short;
-    game.slotRoom = Math.max(SLOTS, Math.floor((free - f.frame + f.gap) / (tall + f.gap)));
   }
 
   _slotBox(i) {
@@ -996,24 +969,6 @@ export class View {
         view.result.append(now);
       }
     });
-    const queue = game.queue.filter((entry) => game.members.has(entry.login))
-      .map((entry) => [entry.login, entry.count]);
-    this._once('queue', JSON.stringify(queue), () => {
-      const line = $('queue');
-      line.textContent = '';
-      if (!queue.length) return;
-      for (let shown = Math.min(queue.length, ROWS.queue); shown >= 1; shown--) {
-        line.textContent = '';
-        line.append('Дальше: ');
-        queue.slice(0, shown).forEach(([login, count], i) => {
-          if (i) line.append(', ');
-          line.append(el('b', '', game.members.get(login).name));
-          if (count > 1) line.append(' ×' + count);
-        });
-        if (shown < queue.length) line.append(' и ещё ' + (queue.length - shown));
-        if (!line.clientWidth || line.scrollWidth <= line.clientWidth) break;
-      }
-    });
   }
 
   _paintEffects(game) {
@@ -1074,27 +1029,37 @@ export class View {
   }
 
   _paintPlayers(game) {
-    const all = Array.from(game.members.values()), sleeping = all.filter((m) => m.asleep).length;
-    const members = all.filter((m) => !m.asleep).sort((a, b) => b.xp - a.xp
-      || (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1));
-    const fit = ROSTER.columns * ROSTER.rows;
-    const pages = Math.max(1, Math.ceil(members.length / fit));
+    const members = Array.from(game.members.values()).sort((a, b) => Number(a.asleep) - Number(b.asleep)
+      || b.xp - a.xp || (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1));
+    const list = $('players'), rows = Math.max(1, Math.floor((list.clientHeight || 200) / ROWS.player));
+    const awake = members.filter((m) => !m.asleep).length, two = members.length > rows, fit = two ? rows * 2 : rows;
+    const pages = Math.max(1, Math.ceil(awake / fit));
     const cycle = PLAYERS_HOLD + PLAYERS_SLIDE, page = pages > 1 ? Math.floor(this.clock / cycle) % pages : 0;
-    this._rosterPages = pages;
+    this._roster = { pages, height: rows * ROWS.player };
     const chunk = (k) => members.slice((k % pages) * fit, (k % pages) * fit + fit);
-    const visible = (pages > 1 ? [page, page + 1] : [0]).map((k) => ({ group: chunk(k), last: k % pages === pages - 1 }));
-    const key = JSON.stringify([fit, pages, page, sleeping, visible.map(({ group }) => group.map((m) => [m.login, m.cls,
-      levelOf(m.xp), Math.floor(m.coins), m.weapon ? m.weapon.rarity : '', m.paragon]))]);
-    const list = $('players');
+    const visible = pages > 1 ? [chunk(page), chunk(page + 1)] : [chunk(0)];
+    const key = JSON.stringify([fit, pages, page, visible.map((group) => group.map((m) => [m.login, m.cls,
+      levelOf(m.xp), Math.floor(m.coins), m.weapon ? m.weapon.rarity : '', m.paragon, m.asleep]))]);
+    $('players-count').textContent = members.length ? String(members.length) : '';
     this._once('players', key, () => {
       list.textContent = '';
+      list.classList.toggle('two', two);
       list.classList.toggle('paged', pages > 1);
-      const track = el('div', 'pages');
-      visible.forEach(({ group, last }, i) => {
-        const box = el('div', 'page' + (i === 0 ? ' current' : ''));
-        if (!all.length) box.append(el('li', 'empty', 'Пока никого — напиши что-нибудь в чат'));
+      if (!members.length) list.append(el('li', 'empty', 'Пока никого — напиши что-нибудь в чат'));
+      const track = pages > 1 ? el('div', 'pages') : null;
+      for (const group of visible) {
+        const box = track ? el('div', 'page') : list;
+        if (track) box.style.height = rows * ROWS.player + 'px';
         for (const m of group) {
-          const row = el('li'), level = el('span', 'lvl', 'ур. ' + levelOf(m.xp));
+          if (m.asleep) {
+            const row = el('li', 'asleep');
+            row.title = 'спит: любая команда — и снова в строю';
+            row.append(image(heroUrl(skinOf(m.cls, m.skills)), 'face'), el('span', 'name', m.name),
+              el('span', 'zzz', 'Zzz'));
+            box.append(row);
+            continue;
+          }
+          const row = el('li'), level = el('span', 'lvl', (two ? '' : 'ур. ') + levelOf(m.xp));
           level.style.background = gearColor(m.weapon);
           level.title = 'уровень';
           row.append(image(heroUrl(skinOf(m.cls, m.skills)), 'face'), this._starName(m.name, m.star, m.color));
@@ -1102,28 +1067,29 @@ export class View {
           row.append(level, this._coins(m.coins));
           box.append(row);
         }
-        if (sleeping && last && group.length < fit) {
-          box.append(el('li', 'sleepers', (members.length ? 'и ' : '') + sleeping + ' '
-            + plural(sleeping, 'спящий', 'спящих', 'спящих')));
-        }
-        track.append(box);
-      });
-      list.append(track);
+        if (track) track.append(box);
+      }
+      if (track) {
+        const pane = el('div', 'page-window');
+        pane.style.height = rows * ROWS.player + 'px';
+        pane.append(track);
+        list.append(pane);
+      }
     });
     this._slidePlayers();
   }
 
   _slidePlayers() {
-    const track = $('players').querySelector('.pages');
-    if (!track) return;
-    const pages = this._rosterPages || 1, cycle = PLAYERS_HOLD + PLAYERS_SLIDE, phase = this.clock % cycle;
-    const slide = pages > 1 && phase > PLAYERS_HOLD ? (phase - PLAYERS_HOLD) / PLAYERS_SLIDE : 0;
-    track.style.transform = pages > 1 ? 'translateX(' + (-easeInOut(slide) * ROSTER.width).toFixed(1) + 'px)' : '';
+    const track = $('players').querySelector('.pages'), roster = this._roster;
+    if (!track || !roster) return;
+    const cycle = PLAYERS_HOLD + PLAYERS_SLIDE, phase = this.clock % cycle;
+    const slide = roster.pages > 1 && phase > PLAYERS_HOLD ? (phase - PLAYERS_HOLD) / PLAYERS_SLIDE : 0;
+    track.style.transform = 'translateY(' + (-easeInOut(slide) * roster.height).toFixed(1) + 'px)';
   }
 
   _paintCards(game, still) {
     const notes = game.notes.filter((note) => NOTE_KINDS.has(note.kind)).slice(-ROWS.cards);
-    const box = $('cards');
+    const box = $('cards'), side = $('notes');
     const wanted = new Set(), profiles = notes.filter((note) => note.kind === 'card');
     this._squeezed = profiles.length > 1 ? profiles[0].login : null;
     for (const note of notes) {
@@ -1132,7 +1098,8 @@ export class View {
       const key = note.kind + ':' + note.login;
       wanted.add(key);
       let card = this._cards.get(key);
-      if (!card || card.node.parentNode !== box || note.kind !== 'card' && card.id !== note.id) {
+      const home = note.kind === 'card' ? box : side;
+      if (!card || card.node.parentNode !== home || note.kind !== 'card' && card.id !== note.id) {
         if (card) card.node.remove();
         card = note.kind === 'card' ? this._profileCard(member) : this._shortCard(member, note);
         card.id = note.id;
@@ -1141,7 +1108,7 @@ export class View {
           card.node.addEventListener('animationend', () => card.node.classList.remove('pop'), { once: true });
         }
         this._cards.set(key, card);
-        box.append(card.node);
+        home.append(card.node);
       }
       card.update(member, game, note);
     }

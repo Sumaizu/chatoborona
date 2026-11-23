@@ -40,15 +40,14 @@ export const BOTS = [
   'kofistreambot', 'tangiabot', 'botisimo', 'lumiastream', 'streamstickers', 'creatisbot', 'own3d', 'dixperbro',
   'pokemoncommunitygame', 'songlistbot', 'pretzelrocks', 'restreambot', 'commanderroot', 'frostytoolsdotcom',
 ];
-export const OVER_TIME = 15;
+export const OVER_TIME = 60;
 export const CARD_MIN = 10;
 export const CARD_TIME = 20;
 const CARD_HOLD = 0.5;
 export const CARD_ROOM = 2;
-export const SLOT_ROOM = 5;
 export const SPIN_LIMIT = QUEUE_CAP;
 export const NOTE_TIME = 4;
-export const DIVINE_TIME = 10;
+export const DIVINE_TIME = 5;
 export const TIP_LEVEL = 5;
 export const TIP_TIME = 7;
 const TIP_QUEUE = 3;
@@ -56,8 +55,9 @@ const TIP_EVERY = 0.5;
 export const QUICK_WAVE = 10;
 export const QUICK_PAUSE = 5;
 export const ASCEND_TIME = 16;
-export const PICK_TIME = 30;
-export const SKILL_TIME = 10;
+export const PICK_TIME = 45;
+export const SKILL_TIME = 5;
+export const HOLD_SHOW = 5;
 
 const STEP_MAX = 1;
 const EVENTS_MAX = 500;
@@ -181,7 +181,6 @@ export class Game {
     this.rulesShown = false;
     this.speed = 1;
     this.cardRoom = CARD_ROOM;
-    this.slotRoom = SLOT_ROOM;
     this.events = [];
     this._noteNo = 0;
     this._spinNo = 0;
@@ -281,7 +280,11 @@ export class Game {
 
   step(dt) {
     if (this.state === 'stopped' || this.paused) return;
-    if (this.choices.length) this._waitChoice(Math.min(Math.max(0, dt), STEP_MAX));
+    const real = Math.min(Math.max(0, dt), STEP_MAX);
+    if (this.choices.length) this._waitChoice(real);
+    this.slots.forEach((slot, i) => {
+      if (slot && slot.real && slot.phase === 'show' && (slot.left -= real) <= 0) this.slots[i] = null;
+    });
     this._carry += Math.min(Math.max(0, dt), STEP_MAX) * this.speed;
     while (this._carry >= TICK) {
       this._carry -= TICK;
@@ -679,6 +682,10 @@ export class Game {
     this._saveAll();
     this.state = this.ascents.length ? 'ascend' : 'over';
     this.left = this.ascents.length ? ASCEND_TIME * this.ascents.length : OVER_TIME;
+    if (this.speed !== 1) {
+      this.speed = 1;
+      this._emit('speed', { speed: 1 });
+    }
     this.queue = [];
     this.slots = Array(SLOTS).fill(null);
     this.choices = [];
@@ -751,11 +758,9 @@ export class Game {
   }
 
   _gacha(dt) {
-    const room = Math.max(SLOTS, this.slotRoom), wanted = this.pending >= RUSH.queue ? room : SLOTS;
-    while (this.slots.length < wanted) this.slots.push(null);
-    while (this.slots.length > wanted && !this.slots[this.slots.length - 1]) this.slots.pop();
+    while (this.slots.length < SLOTS) this.slots.push(null);
     this.slots.forEach((slot, i) => {
-      if (!slot) return;
+      if (!slot || slot.real && slot.phase === 'show') return;
       slot.left -= dt;
       if (slot.phase === 'spin') {
         if (slot.left <= 0) this._apply(slot);
@@ -763,7 +768,7 @@ export class Game {
       }
       if (slot.left <= 0) this.slots[i] = null;
     });
-    for (let i = 0; i < Math.min(this.slots.length, room) && this.queue.length && this.battle; i++) {
+    for (let i = 0; i < this.slots.length && this.queue.length && this.battle; i++) {
       if (this.slots[i]) continue;
       const spinning = new Set(this.slots.filter(Boolean).map((slot) => slot.login));
       const next = Math.max(0, this.queue.findIndex((entry) => !spinning.has(entry.login)));
@@ -806,6 +811,7 @@ export class Game {
     if (outcome.kind === 'stone') {
       slot.took = choiceOf(member.cls, member.skills).some((option) => option.state === 'open');
       if (!slot.took) return;
+      Object.assign(slot, { real: true, left: HOLD_SHOW });
       this.choices.push({ id: ++this._choiceNo, login: member.login, cls: member.cls, left: PICK_TIME,
         span: PICK_TIME });
       this._emit('stone', { login: member.login });
@@ -817,6 +823,10 @@ export class Game {
       member.coins += slot.coins;
       this._emit('jackpot', { login: member.login, coins: slot.coins, prize: outcome.kind });
       return;
+    }
+    if (weapon.rarity === 'legendary' && !member.legend) {
+      member.legend = true;
+      Object.assign(slot, { real: true, left: HOLD_SHOW });
     }
     const held = member.weapon;
     slot.took = !held || rankOf(weapon) > rankOf(held) || rankOf(weapon) === rankOf(held) && weapon.power > held.power;
@@ -855,6 +865,12 @@ export class Game {
     const choice = this.choices[0];
     choice.left -= dt;
     if (choice.left > 0) return;
+    if (!choice.late) {
+      Object.assign(choice, { late: true, left: PICK_TIME });
+      this.choices.push(this.choices.shift());
+      this._emit('late', { login: choice.login });
+      return;
+    }
     const open = this.openOf(choice);
     if (!open.length) this.choices.shift();
     else this._choose(choice, open[Math.floor(this.random() * open.length)], true);

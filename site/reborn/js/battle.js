@@ -243,6 +243,10 @@ export class Battle {
     this.joinAt = this.branch.length + 1;
     this.joinShift = this.merge - this.branch.length;
     this.bends = this.routes.map((route, r) => bendsOf(r ? route.slice(0, -1) : route));
+    this.gates = [this.path, this.branch].slice(0, this.routes.length).map((cells) => {
+      const open = cells.findIndex(([x, y]) => !this.tiles || this.tiles[y * SIZE + x] !== 'tunnel');
+      return open > 0 ? open + 0.5 : 0;
+    });
     this.blocked = pathCells(this.road);
     this.rough = new Set();
     this.solid = null;
@@ -1268,7 +1272,7 @@ export class Battle {
     if (mob.info.boss || mob.dead || mob.biting || steady(mob, this.time)) return;
     const shift = Math.min(distance * (elite(mob) ? ELITE_PUSH : 1) * (1 - this._resistOf(mob)),
       PUSH_LIMIT - mob.pushed,
-      mob.d);
+      mob.d - this.gates[mob.r]);
     if (shift <= 0) return;
     mob.pushed += shift;
     mob.d -= shift;
@@ -1565,7 +1569,7 @@ export class Battle {
   _sweep(push) {
     for (const mob of this.mobs) {
       if (mob.dead || mob.info.boss) continue;
-      mob.d = Math.max(0, mob.d - push);
+      mob.d = Math.max(Math.min(mob.d, this.gates[mob.r]), mob.d - push);
       mob.biting = 0;
       this._locate(mob);
     }

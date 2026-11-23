@@ -64,10 +64,11 @@ test('страницы: окошко под вебку и окошко виту�
   await until(() => camAt(vtuber.contentWindow)[2] > 0, 'окошко витубера на экране');
   eq(camAt(vtuber.contentWindow), [18, 344, 280, 360]);
   const at = (id) => element(vtuber.contentWindow, id).getBoundingClientRect();
-  ok(at('effects').left > at('main').right && at('effects').top >= at('slot-2').bottom, 'эффекты — под гачей');
-  ok(at('cards').height > 200 && at('cards').bottom < 344, 'профили — над окошком');
-  ok(at('roster').bottom <= at('board').top && at('roster').left >= at('main').left, 'отряд — над картой');
-  ok(at('wave').bottom <= at('slot-0').top && at('wave').left > at('main').right, 'волна и сердце — над гачей');
+  ok(at('players').height > 60 && at('players').bottom < 344, 'отряд — над окошком, слева');
+  ok(at('wave').bottom <= at('players').top && at('lives-box').bottom <= at('players').top, 'волна и сердце — над отрядом');
+  ok(at('slots').bottom <= at('board').top && at('slots').width <= at('board').width + 1, 'гача — над картой, во всю ширину');
+  ok(at('effects').left > at('main').right && at('effects').bottom <= at('notes').top, 'эффекты — справа наверху');
+  ok(at('notes').bottom <= at('cards').top && at('cards').height > at('side').height * 0.45, 'профили — внизу, на половину');
   vtuber.remove();
 });
 
@@ -83,12 +84,10 @@ test('страницы: пример в рамке — середина волн
   ok(w.document.querySelector('#slot-0 .stats .might-icon'), 'у оружия видна мощь');
   no(w.document.getElementById('chat'), 'чата на экране нет');
   eq(w.document.querySelectorAll('#slot-1 .cell').length, 26, 'вторая карусель крутится');
-  eq(w.document.querySelectorAll('.side .slot:not([hidden])').length, 3, 'три окна гачи');
-  ok(w.document.querySelectorAll('#roster #players .current li').length >= 5, 'отряд над картой');
+  eq(w.document.querySelectorAll('#main #slots .slot:not([hidden])').length, 4, 'четыре окна гачи над картой');
+  ok(w.document.querySelectorAll('#left #players li').length >= 5, 'отряд слева');
   ok(w.document.querySelectorAll('#side #effects .effect').length >= 3, 'эффекты справа');
-  const effects = element(w, 'effects').getBoundingClientRect(), gacha = element(w, 'queue').getBoundingClientRect();
-  ok(effects.top >= gacha.bottom, 'эффекты под гачей');
-  ok(w.document.querySelector('#left #cards .profile'), 'карточка игрока слева');
+  ok(w.document.querySelector('#side #cards .profile'), 'карточка игрока справа внизу');
   no(w.chatoborona.live);
   frame.remove();
 });
@@ -238,7 +237,10 @@ test('страницы: камень навыка — окно выбора по
   game._apply(slot);
   await until(() => !element(w, 'pick').hidden, 'выбор на экране');
   ok(element(w, 'side').contains(element(w, 'pick')), 'выбор — справа, а не поверх карты');
-  ok(element(w, 'side').classList.contains('picking'), 'эффекты на время выбора убраны');
+  const top = w.document.querySelector('.side .upper').getBoundingClientRect(), pick = element(w, 'pick').getBoundingClientRect();
+  ok(pick.top >= top.top - 1 && pick.bottom <= top.bottom + 1, 'поверх эффектов, в верхней трети');
+  ok(w.document.querySelector('#pick-options li').scrollWidth <= w.document.querySelector('#pick-options li').clientWidth + 1,
+    'строка навыка влезает');
   const options = w.document.querySelectorAll('#pick-options li');
   eq(options.length, game.optionsOf(game.choice).length, 'все навыки набора, взятые — на своих местах');
   ok(text(w, 'pick-who').includes('Аня'));
@@ -251,14 +253,14 @@ test('страницы: камень навыка — окно выбора по
   ok(skill.brief.length < skill.text.length, 'короче полного');
   eq(game.feed('Аня', '2', { login: 'аня' }), 'skill');
   await until(() => element(w, 'pick').hidden, 'выбор закрылся');
-  await until(() => text(w, 'cards').includes(name), 'плашка «Новый навык»');
+  await until(() => text(w, 'notes').includes(name), 'плашка «Новый навык» — между эффектами и профилями');
   game.feed('Аня', 'профиль', { login: 'аня' });
   await until(() => w.document.querySelector('#cards .profile .skill-line'), 'навык в профиле');
   ok(w.document.querySelector('#cards .profile .skill-line').textContent.includes(name));
   frame.remove();
 });
 
-test('страницы: спящих в отряде не перечисляют — только «и N спящих»', async () => {
+test('страницы: спящий в отряде — ник серый, вместо уровня и монет «Zzz»', async () => {
   fresh();
   const frame = await overlay('lobby=10&first_wave=5');
   const w = frame.contentWindow, game = w.chatoborona.game;
@@ -268,12 +270,12 @@ test('страницы: спящих в отряде не перечисляют
   game.next();
   await until(() => game.state === 'placing', 'расстановка');
   game._sleep(game.members.get('боря'));
-  await until(() => w.document.querySelector('#players li.sleepers'), 'спящие счётом');
-  eq(w.document.querySelector('#players li.sleepers').textContent, 'и 1 спящий');
-  no(text(w, 'players').includes('Боря'), 'ника спящего нет');
+  await until(() => w.document.querySelector('#players li.asleep'), 'спящий в списке');
+  const row = w.document.querySelector('#players li.asleep');
+  ok(row.textContent.includes('Боря') && row.textContent.includes('Zzz'));
+  no(row.querySelector('.lvl') || row.querySelector('.coins'), 'без уровня и монет');
   game.feed('Боря', 'гача', { login: 'боря' });
-  await until(() => !w.document.querySelector('#players li.sleepers') && text(w, 'players').includes('Боря'),
-    'проснулся');
+  await until(() => !w.document.querySelector('#players li.asleep'), 'проснулся');
   frame.remove();
 });
 
@@ -287,9 +289,8 @@ test('страницы: страницы отряда из одних спящи
   await until(() => game.state === 'placing', 'расстановка');
   const awake = Array.from(game.members.values()).slice(0, 3);
   for (const m of game.members.values()) if (!awake.includes(m)) game._sleep(m);
-  await until(() => w.document.querySelector('#players li.sleepers'), 'спящие счётом');
-  eq(w.document.querySelector('#players li.sleepers').textContent, 'и 77 спящих');
-  no(w.document.querySelector('#players.paged'), 'листать нечего: дальше одни спящие');
+  await until(() => w.document.querySelectorAll('#players li.asleep').length, 'спящие в списке');
+  no(w.document.querySelector('#players .pages'), 'листать нечего: дальше одни спящие');
   for (const m of awake) ok(w.document.querySelector('#players').textContent.includes(m.name), m.name);
   frame.remove();
 });
@@ -406,15 +407,15 @@ test('страницы: божественное оружие — плашка �
   anya.coins = 100;
   anya.particle = true;
   game.feed('Аня', 'улучшить', { login: 'аня' });
-  await until(() => w.document.querySelector('#cards .note.divine'), 'плашка справа');
-  const note = w.document.querySelector('#cards .note.divine');
+  await until(() => w.document.querySelector('#notes .note.divine'), 'плашка справа, между эффектами и профилями');
+  const note = w.document.querySelector('#notes .note.divine');
   ok(note.textContent.includes('Божественное оружие') && note.textContent.includes('Аня'), note.textContent);
   ok(note.textContent.includes('Божественн'), 'и само оружие');
   ok(element(w, 'cheer-box').hidden, 'посреди поля ничего');
   game.feed('Аня', 'профиль', { login: 'аня' });
   await until(() => w.document.querySelector('#cards .profile'), 'профиль');
   await until(() => !w.document.querySelector('#cards .profile .relic').hidden, 'частица слева от монет');
-  ok(text(w, 'cards').includes('Божественн'));
+  ok(text(w, 'cards').includes('Оружие'));
   await until(() => w.document.querySelector('#players .snow'), 'снежный ник higashi_vo');
   await until(() => w.document.querySelector('#players .glare'), 'ник Renozis с бликом');
   eq(w.getComputedStyle(w.document.querySelector('#players .glare')).animationName, 'glare');
@@ -470,50 +471,25 @@ test('страницы: профиль не влезает в столбец —
   anya.skills = ['enchantress', 'arcaneControl', 'elements', 'arcaneRain', 'focusBeam', 'courses', 'catalyst', 'unbind',
     'circle'];
   game._refresh(anya);
+  element(w, 'cards').style.maxHeight = '160px';
   game.feed('Аня', 'профиль', { login: 'аня' });
   await until(() => w.document.querySelector('#cards .profile .inner'), 'профиль');
   const card = w.document.querySelector('#cards .profile'), inner = card.querySelector('.inner');
   ok(inner.offsetHeight > card.querySelector('.window').clientHeight, 'целиком не влезает');
-  ok(card.getBoundingClientRect().bottom <= w.document.querySelector('.cam').getBoundingClientRect().top, 'над окошком');
+  await until(() => !card.classList.contains('pop'), 'карточка встала на место');
+  ok(card.getBoundingClientRect().bottom <= element(w, 'side').getBoundingClientRect().bottom + 1, 'в своём месте справа');
   await until(() => /translateY\(-[1-9]/.test(inner.style.transform), 'листается', 10000);
   frame.remove();
 });
 
-test('страницы: «и N спящих» — только на последней странице отряда, если там есть место', async () => {
-  fresh();
-  const frame = await overlay('lobby=10&first_wave=5');
-  const w = frame.contentWindow, game = w.chatoborona.game, view = w.chatoborona.view;
-  await until(() => game.state === 'lobby', 'набор');
-  for (let i = 0; i < 13; i++) join(game, 'Игрок' + i);
-  game.next();
-  await until(() => game.state === 'placing', 'расстановка');
-  const members = Array.from(game.members.values());
-  for (const m of members.slice(10)) game._sleep(m);
-  const current = () => Array.from(w.document.querySelectorAll('#players .page.current li'));
-  const pages = new Map();
-  for (let turn = 0; turn < 6; turn++) {
-    await until(() => current().length, 'страница');
-    const rows = current().map((li) => li.textContent);
-    pages.set(rows[0], rows);
-    view.clock += 5.7;
-    await wait(250);
-  }
-  const list = Array.from(pages.values());
-  eq(list.length, 2, 'десять бодрых — две страницы');
-  const full = list.find((rows) => rows.length === 6), rest = list.find((rows) => rows.length === 5);
-  ok(full && !full.some((row) => row.includes('спящ')), 'на полной странице спящих нет');
-  ok(rest && rest[4] === 'и 3 спящих', 'на последней — после четырёх игроков');
-  frame.remove();
-});
-
-test('страницы: игроков больше, чем помещается над картой, — отряд перескакивает на следующих по кругу', async () => {
+test('страницы: игроков больше, чем помещается в «Отряде», — список листается страницами по кругу', async () => {
   fresh();
   const frame = await overlay('lobby=60');
   const w = frame.contentWindow, game = w.chatoborona.game, view = w.chatoborona.view;
   await until(() => game.state === 'lobby', 'набор');
   for (let i = 0; i < 70; i++) join(game, 'Игрок' + i);
   await until(() => w.document.querySelector('#players.paged .pages'), 'список листается');
-  const page = () => Array.from(w.document.querySelectorAll('#players .page.current li')).map((li) => li.textContent);
+  const page = () => Array.from(w.document.querySelectorAll('#players .page:first-child li')).map((li) => li.textContent);
   const first = page(), seen = new Set(first);
   ok(first.length > 0 && first.length < 70, 'на странице часть отряда: ' + first.length);
   for (let turn = 0; turn < 12 && seen.size < 70; turn++) {
@@ -526,26 +502,41 @@ test('страницы: игроков больше, чем помещается
   frame.remove();
 });
 
-test('страницы: крутят много — окошек гачи столько, сколько помещается в правом столбце', async () => {
+test('страницы: ник того, кто выбирает навык, на карте красный и крупнее; особые ники — своими цветами', async () => {
   fresh();
   const frame = await overlay('lobby=10&first_wave=5');
-  const w = frame.contentWindow, game = w.chatoborona.game;
-  game._stoneDue = () => 0;
+  const w = frame.contentWindow, game = w.chatoborona.game, scene = w.chatoborona.view.scene;
   await until(() => game.state === 'lobby', 'набор');
   join(game, 'Аня');
+  game.feed('Sumaizu', 'привет', { login: 'sumaizu' });
   game.next();
   await until(() => game.state === 'placing', 'расстановка');
-  const shown = () => w.document.querySelectorAll('#slots .slot:not([hidden])').length;
-  await until(() => shown() === 3, 'сначала три окошка');
-  game.members.get('аня').coins = 1e6;
-  game.queue = [{ login: 'аня', count: 120 }];
-  await until(() => shown() > 5 && element(w, 'side').classList.contains('rush'), 'весь столбец под гачу');
-  eq(w.getComputedStyle(element(w, 'effects')).display === 'none' || !element(w, 'effects').offsetParent, true,
-    'эффекты убраны');
-  const side = element(w, 'side').getBoundingClientRect(), last = w.document.querySelector('#slots .slot:not([hidden]):last-child');
-  ok(last.getBoundingClientRect().bottom <= side.bottom + 1, 'окошки не вылезают за столбец');
-  game.queue = [];
-  await until(() => shown() === 3, 'очередь кончилась — снова три', 30000);
+  const anya = game.members.get('аня').tower, star = game.members.get('sumaizu').tower;
+  const plain = scene._nameLabel(anya, ''), pick = scene._nameLabel(anya, 'pick');
+  ok(pick.height > plain.height && pick.width > plain.width, 'выбирающий — крупнее');
+  const red = (image) => {
+    const data = image.getContext('2d').getImageData(0, 0, image.width, image.height).data;
+    let count = 0;
+    for (let i = 0; i < data.length; i += 4) if (data[i] > 200 && data[i + 1] < 110 && data[i + 2] < 130) count++;
+    return count;
+  };
+  ok(red(pick) > red(plain) * 3, 'и красный');
+  const colors = (image) => {
+    const data = image.getContext('2d').getImageData(0, 0, image.width, image.height).data, seen = new Set();
+    for (let i = 0; i < data.length; i += 4) if (data[i + 3] > 200) seen.add((data[i] >> 5) + ',' + (data[i + 1] >> 5) + ',' + (data[i + 2] >> 5));
+    return seen.size;
+  };
+  ok(colors(scene._nameLabel(star, '')) > colors(plain) + 5, 'радужный ник автора на карте — радугой');
+  frame.remove();
+});
+
+test('страницы: затемнение карты — только внутри карты', async () => {
+  fresh();
+  const frame = await overlay('embed=1');
+  const w = frame.contentWindow;
+  await until(() => !element(w, 'stage').hidden, 'пример');
+  const shade = w.getComputedStyle(element(w, 'blackout'));
+  eq(shade.boxShadow, 'none', 'тень за края не выходит');
   frame.remove();
 });
 

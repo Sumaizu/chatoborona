@@ -839,6 +839,18 @@ function softCircle(cache, key, size, paint) {
   return cache.get(key);
 }
 
+const STAR_INKS = { white: '#ffffff', thyme: '#5edc1f', heart: '#e3333d', snow: '#a6d6ff', glare: '#ff2b2b' };
+const STAR_BANDS = { rainbow: ['#ff2b2b', '#ff8a00', '#ffe100', '#1ee35a', '#00b2ff', '#7b3cff', '#ff2bd2'],
+  gem: ['#00d980', '#7a2dff', '#ff1a3c'] };
+
+function starInk(g, star, x, width) {
+  const bands = STAR_BANDS[star];
+  if (!bands) return STAR_INKS[star] || null;
+  const ink = g.createLinearGradient(x, 0, x + Math.max(1, width), 0);
+  bands.forEach((color, i) => ink.addColorStop(i / (bands.length - 1), color));
+  return ink;
+}
+
 function glow(ctx, x, y, r, color, strength) {
   const image = softCircle(glows, color, 64, (g, half) => {
     const fill = g.createRadialGradient(half, half, 0, half, half, half);
@@ -4028,9 +4040,9 @@ export class Scene {
     const first = (t) => (lit(t) ? 0 : named(t) ? 1 : 2);
     const taken = [];
     for (const t of battle.towers.slice().sort((a, b) => first(a) - first(b))) {
-      const pose = this._pose(t);
-      const marked = Boolean(highlight && highlight.has(t.player.login));
-      const image = this._nameLabel(t, marked ? 'lit' : '');
+      const pose = this._pose(t), picking = t.player.login === choosing;
+      const marked = picking || Boolean(highlight && highlight.has(t.player.login));
+      const image = this._nameLabel(t, picking ? 'pick' : marked ? 'lit' : '');
       const w = image.width / this.k, h = image.height / this.k;
       const x = Math.max(1, Math.min(BOARD - w - 1, at(pose.x) - w / 2));
       let y = at(pose.y) - (pose.lift || 0) - 23 - (marked ? 2 : 0);
@@ -4038,33 +4050,19 @@ export class Scene {
       const box = [x - 1, y - h / 2, x + w + 1, y + h / 2];
       if (taken.some((o) => box[0] < o[2] && o[0] < box[2] && box[1] < o[3] && o[1] < box[3])) continue;
       taken.push(box);
-      if (marked) glow(ctx, at(pose.x), y, w * 0.7, 'rgba(255, 110, 110, 1)', 0.3 + 0.12 * Math.sin(this.clock * 2.4));
+      if (picking) glow(ctx, at(pose.x), y, w * 0.8, 'rgba(255, 46, 77, 1)', 0.45 + 0.2 * Math.sin(this.clock * 6));
+      else if (marked) glow(ctx, at(pose.x), y, w * 0.7, 'rgba(255, 110, 110, 1)', 0.3 + 0.12 * Math.sin(this.clock * 2.4));
       this._stamp(ctx, image, x, y - h / 2);
-      if (t.player.login === choosing) this._stoneMark(ctx, x - 7, y);
     }
-  }
-
-  _stoneMark(ctx, x, y) {
-    const r = 4.5 + 0.8 * Math.sin(this.clock * 5);
-    glow(ctx, x, y, 11, 'rgba(255, 46, 77, 1)', 0.55);
-    ctx.fillStyle = '#ff2e4d';
-    ctx.strokeStyle = '#4a0612';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(x, y - r * 1.3);
-    ctx.lineTo(x + r, y);
-    ctx.lineTo(x, y + r * 1.3);
-    ctx.lineTo(x - r, y);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
   }
 
   _nameLabel(t, mark) {
     const text = t.player.name.length > 12 ? t.player.name.slice(0, 11) + '…' : t.player.name;
-    const coins = String(Math.floor(t.player.coins || 0)), size = mark ? 11.5 : 9.5, h = mark ? 16 : 13;
+    const pick = mark === 'pick', star = pick ? '' : t.player.star || '';
+    const coins = String(Math.floor(t.player.coins || 0)), size = pick ? 13 : mark ? 11.5 : 9.5;
+    const h = pick ? 18 : mark ? 16 : 13;
     const font = (mark ? '900 ' : '700 ') + size + 'px "Segoe UI", system-ui, sans-serif';
-    const key = 'name:' + mark + ':' + text + ':' + coins;
+    const key = 'name:' + mark + ':' + star + ':' + text + ':' + coins;
     if (!this.labels.has(key)) this.ctx.font = font;
     const nameWidth = this.labels.has(key) ? 0 : this.ctx.measureText(text).width;
     const coinWidth = this.labels.has(key) ? 0 : this.ctx.measureText(coins).width;
@@ -4076,7 +4074,7 @@ export class Scene {
       if (mark) {
         g.lineWidth = 3;
         g.lineJoin = 'round';
-        g.strokeStyle = 'rgba(40, 8, 12, .85)';
+        g.strokeStyle = pick ? 'rgba(42, 4, 10, .95)' : 'rgba(40, 8, 12, .85)';
         g.strokeText(text, 4.5, h / 2 + 0.5);
         g.strokeText(coins, 10 + coin + nameWidth, h / 2 + 0.5);
       } else {
@@ -4084,10 +4082,10 @@ export class Scene {
         roundRect(g, 0, 0, w, h, h / 2 - 0.5);
         g.fill();
       }
-      g.fillStyle = mark ? '#ffd2d2' : INK;
+      g.fillStyle = pick ? '#ff4d63' : starInk(g, star, 4.5, nameWidth) || (mark ? '#ffd2d2' : INK);
       g.fillText(text, 4.5, h / 2 + 0.5);
       g.drawImage(coinSprite(), Math.round(8 + nameWidth), Math.round((h - coin) / 2), coin, coin);
-      g.fillStyle = mark ? '#ffe9a8' : '#ffd86b';
+      g.fillStyle = pick ? '#ffb3bd' : mark ? '#ffe9a8' : '#ffd86b';
       g.fillText(coins, 10 + coin + nameWidth, h / 2 + 0.5);
     });
   }

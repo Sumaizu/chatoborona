@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { PLAIN, makeGame, memoryStorage, runFor, seeded, until } from './fixtures.js';
-import { ASCEND_TIME, CARD_MIN, CARD_ROOM, CARD_TIME, DIVINE_TIME, OVER_TIME, PICK_TIME, Profiles, QUICK_PAUSE,
+import { ASCEND_TIME, CARD_MIN, CARD_ROOM, CARD_TIME, DIVINE_TIME, HOLD_SHOW, OVER_TIME, PICK_TIME, Profiles, QUICK_PAUSE,
   QUICK_WAVE, SKILL_TIME, SPEED_MAX, SPIN_LIMIT, SUMMIT_EVERY, SUMMIT_TIME, TIP_LEVEL, TIP_TIME }
   from '../../site/reborn/js/engine.js';
 import { FAMILY_BY_ID, LEVEL_MAX, MIGHT, REWARD, SLEEP_AFTER, TEMPO, TICK, waveReward, xpForLevel }
@@ -268,24 +268,24 @@ test('игра: поражение — итоги, рекорд, через вр
   eq(game.games, 2);
 });
 
-test('гача: без монет нельзя, крутят трое сразу, место — сперва тому, кто не крутит, докупка — в конец очереди', () => {
+test('гача: без монет нельзя, крутят четверо сразу, место — сперва тому, кто не крутит, докупка — в конец очереди', () => {
   const { game } = makeGame();
   game._stoneDue = () => 0;
   game.open();
-  for (const name of ['Ева', 'Жора', 'Зина', 'Ия']) say(game, name, 'привет');
+  for (const name of ['Ева', 'Жора', 'Зина', 'Ия', 'Йод']) say(game, name, 'привет');
   toWave(game);
   eq(say(game, 'Ева', 'гача'), 'poor');
   ok(game.notes.some((n) => n.kind === 'poor' && n.login === 'ева'));
-  for (const login of ['ева', 'жора', 'зина', 'ия']) game.members.get(login).coins = 500;
+  for (const login of ['ева', 'жора', 'зина', 'ия', 'йод']) game.members.get(login).coins = 500;
   eq(say(game, 'Ева', 'гача 2'), 'queued');
-  for (const name of ['Жора', 'Зина', 'Ия']) eq(say(game, name, 'гача'), 'queued');
+  for (const name of ['Жора', 'Зина', 'Ия', 'Йод']) eq(say(game, name, 'гача'), 'queued');
   eq(game.members.get('ева').coins, 500 - 2 * PRICE, 'монеты списаны сразу');
   game.step(TICK);
-  eq(game.slots.map((slot) => slot && slot.login), ['ева', 'жора', 'зина'], 'места — сперва тем, кто не крутит');
+  eq(game.slots.map((slot) => slot && slot.login), ['ева', 'жора', 'зина', 'ия'], 'места — сперва тем, кто не крутит');
   const queue = () => game.queue.map((entry) => [entry.login, entry.count]);
-  eq(queue(), [['ева', 1], ['ия', 1]]);
+  eq(queue(), [['ева', 1], ['йод', 1]]);
   eq(say(game, 'Ева', 'гача'), 'queued', 'пока крутится — можно ещё');
-  eq(queue(), [['ева', 1], ['ия', 1], ['ева', 1]], 'докупка — новой записью в конец');
+  eq(queue(), [['ева', 1], ['йод', 1], ['ева', 1]], 'докупка — новой записью в конец');
   runFor(game, SPIN_TIME - 0.2);
   eq(game.slots[0].phase, 'spin');
   runFor(game, 0.4);
@@ -293,7 +293,7 @@ test('гача: без монет нельзя, крутят трое сразу
   const kind = game.slots[0].outcome.kind;
   eq(game.slots[0].took, kind !== 'void', 'оружие надето или монеты удвоены, пустота — ничего');
   runFor(game, SHOW_FAST + 0.2);
-  eq(game.slots.map((slot) => slot && slot.login), ['ева', 'ия', 'ева'], 'освободились места — крутят ждавшие');
+  eq(game.slots.map((slot) => slot && slot.login), ['ева', 'йод', 'ева', null], 'освободились места — крутят ждавшие');
 });
 
 test('гача: один игрок занимает все свободные места, за раз — не больше десяти круток', () => {
@@ -302,11 +302,11 @@ test('гача: один игрок занимает все свободные �
   say(game, 'Ося', 'привет');
   toWave(game);
   const member = game.members.get('ося');
-  member.coins = PRICE * 3 + 10;
-  eq(say(game, 'Ося', 'гача 3'), 'queued');
-  eq(say(game, 'Ося', 'гача'), 'poor', 'на четвёртую не хватает');
+  member.coins = PRICE * 4 + 10;
+  eq(say(game, 'Ося', 'гача 4'), 'queued');
+  eq(say(game, 'Ося', 'гача'), 'poor', 'на пятую не хватает');
   game.step(TICK);
-  eq(game.slots.map((slot) => slot && slot.login), ['ося', 'ося', 'ося']);
+  eq(game.slots.map((slot) => slot && slot.login), ['ося', 'ося', 'ося', 'ося']);
   eq(game.queue.length, 0);
   member.coins = PRICE * 100;
   eq(say(game, 'Ося', 'гача 15'), 'queued');
@@ -337,7 +337,7 @@ test('гача: в очереди у игрока не больше десяти
   ok(game.slots.every((slot) => slot && slot.left <= RUSH.spin), 'крутится быстрее');
 });
 
-test('гача: крутят много — окошек столько, сколько помещается; очередь спала — снова три', () => {
+test('гача: окошек всегда четыре — над картой, во всю её ширину', () => {
   const { game } = makeGame();
   game._stoneDue = () => 0;
   game.open();
@@ -345,17 +345,29 @@ test('гача: крутят много — окошек столько, ско�
   toWave(game);
   const members = Array.from(game.members.values());
   for (const member of members) member.coins = PRICE * 10;
-  eq(game.slots.length, SLOTS);
-  game.slotRoom = 7;
+  eq(SLOTS, 4);
   for (const member of members) say(game, member.name, 'гача 5');
   game.step(TICK);
-  eq(game.slots.length, 7, 'место на семь — семь окошек');
+  eq(game.slots.length, SLOTS, 'очередь большая — окошек столько же');
   ok(game.slots.every(Boolean), 'все крутят');
-  game.slotRoom = 1;
-  game.step(TICK);
-  ok(game.slots.length >= SLOTS, 'меньше трёх не бывает');
-  game.queue = [];
-  ok(until(game, () => game.slots.length === SLOTS, 60), 'очередь кончилась — снова три');
+});
+
+test('гача: первое легендарное у игрока и камень навыка видны 5 настоящих секунд, даже на ×3', () => {
+  const { game } = makeGame();
+  game._stoneDue = () => 0;
+  game.open();
+  say(game, 'Ося', 'привет');
+  toWave(game);
+  const member = game.members.get('ося');
+  game.speed = 3;
+  const legend = drop(game, 'ося', makeWeapon(seeded(3), member.cls, RARITIES[RARITIES.length - 1]));
+  ok(legend.real && legend.left === HOLD_SHOW, 'первое легендарное — на 5 секунд');
+  runFor(game, HOLD_SHOW - 0.2);
+  ok(game.slots.includes(legend), 'не ускоряется вместе с игрой');
+  runFor(game, 0.3);
+  no(game.slots.includes(legend), 'через 5 настоящих секунд ушло');
+  const again = drop(game, 'ося', makeWeapon(seeded(4), member.cls, RARITIES[RARITIES.length - 1]));
+  no(again.real, 'второе легендарное — как обычно');
 });
 
 test('гача: редкость выше — меняется само, та же — если мощь больше, ниже — остаётся своё; без оружия — любое', () => {
@@ -872,8 +884,8 @@ test('улучшение до божественного: событие, сво
   ok(game.events.some((e) => e.kind === 'divine' && e.login === 'рая'));
   eq(member.tower.mods.power, member.weapon.power, 'мощь божественного дошла до бойца');
   const note = game.notes.find((n) => n.login === 'рая' && n.kind === 'divine');
-  ok(note && note.left === DIVINE_TIME && note.detail.weapon.rarity === 'divine', 'плашка на 10 секунд');
-  eq(DIVINE_TIME, 10);
+  ok(note && note.left === DIVINE_TIME && note.detail.weapon.rarity === 'divine', 'плашка на 5 секунд');
+  eq(DIVINE_TIME, 5);
 });
 
 test('частица бога: выпадает в гаче, хранится между играми и при перезагрузке', () => {
@@ -990,7 +1002,7 @@ test('камень навыка: маг огня сперва выбирает �
   eq(member.tower.look, 'pyro-dragon-blue', 'синее пламя — синий дракон');
 });
 
-test('камень навыка: не выбрал за 30 секунд — случайный; хозяин канала выбирает за игрока; пауза держит отсчёт', () => {
+test('камень навыка: не выбрал за 45 секунд — в конец очереди, второй раз — случайный; хозяин канала выбирает за игрока; пауза держит отсчёт', () => {
   const { game } = makeGame({ settings: { channel: 'streamer' } });
   game.open();
   frost(game, 'Рина');
@@ -1003,8 +1015,11 @@ test('камень навыка: не выбрал за 30 секунд — сл
   ok(game.choice, 'на паузе выбор ждёт');
   game.pause();
   runFor(game, PICK_TIME - 1);
-  ok(game.choice, '30 секунд ещё не прошло');
+  ok(game.choice, '45 секунд ещё не прошло');
   runFor(game, 1.1);
+  ok(game.choice && game.choice.late, 'первый раз не успел — снова ждёт, теперь в конце очереди');
+  ok(game.events.some((e) => e.kind === 'late' && e.login === 'рина'));
+  runFor(game, PICK_TIME + 0.1);
   eq(game.choice, null);
   eq(member.skills.length, 1, 'навык выпал сам');
   ok(game.notes.some((n) => n.kind === 'skill' && n.detail.auto), 'с пометкой «случайно»');
@@ -1021,6 +1036,38 @@ test('камень навыка: не выбрал за 30 секунд — сл
   eq(say(other, 'Лев', 'реролл'), 'reroll');
   eq(other.choice, null, 'реролл закрывает выбор старого класса');
   eq(other.members.get('лев').skills, []);
+});
+
+test('камень навыка: опоздавший уходит в конец очереди, следующий выбирает сразу', () => {
+  const { game } = makeGame();
+  game.open();
+  frost(game, 'Рина');
+  frost(game, 'Лев');
+  toWave(game);
+  for (const login of ['рина', 'лев']) game.members.get(login).xp = xpForLevel(50);
+  stone(game, 'рина');
+  stone(game, 'лев');
+  eq(game.choices.map((c) => c.login), ['рина', 'лев']);
+  runFor(game, PICK_TIME + 0.1);
+  eq(game.choices.map((c) => c.login), ['лев', 'рина'], 'Рина — в конец, теперь выбирает Лев');
+  eq(say(game, 'Лев', '1'), 'skill');
+  eq(game.choice.login, 'рина');
+  eq(say(game, 'Рина', '2'), 'skill', 'со второго раза успела');
+});
+
+test('поражение: скорость снова обычная, итоги — минуту', () => {
+  const { game } = makeGame();
+  game.open();
+  say(game, 'Рина', 'привет');
+  toWave(game);
+  game.speed = 3;
+  game.battle.lives = 0;
+  game.step(TICK);
+  eq(game.state, 'over');
+  eq(game.speed, 1);
+  eq(OVER_TIME, 60);
+  runFor(game, 59);
+  eq(game.state, 'over', 'итоги висят минуту');
 });
 
 test('сон: ' + SLEEP_AFTER + ' волн без команд — уходит с карты, монеты поровну отряду; любая команда будит', () => {
