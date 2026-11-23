@@ -257,8 +257,11 @@ test('страницы: камень навыка — окно выбора по
   await until(() => element(w, 'pick').hidden, 'выбор закрылся');
   await until(() => text(w, 'notes').includes(name), 'плашка «Новый навык» — между эффектами и профилями');
   game.feed('Аня', 'профиль', { login: 'аня' });
-  await until(() => w.document.querySelector('#cards .profile .skill-line'), 'навык в профиле');
-  ok(w.document.querySelector('#cards .profile .skill-line').textContent.includes(name));
+  await until(() => w.document.querySelector('#cards .profile .skill-count'), 'счёт навыков в профиле');
+  ok(w.document.querySelector('#cards .profile .skill-count').textContent.startsWith('Навыки 1/'));
+  game.feed('Аня', 'навыки', { login: 'аня' });
+  await until(() => !element(w, 'pick').hidden && text(w, 'pick-title') === 'Навыки игрока', 'панель «Навыки игрока»');
+  ok(text(w, 'pick-options').includes(name), 'выбранный навык — с подробным описанием');
   frame.remove();
 });
 
@@ -462,7 +465,7 @@ test('страницы: в карточке игрока — убийства, �
   frame.remove();
 });
 
-test('страницы: профиль не влезает в столбец — его содержимое медленно листается вверх-вниз', async () => {
+test('страницы: «навыки» — панель «Навыки игрока»; не влезает — плавно листается вверх-вниз', async () => {
   fresh();
   const frame = await overlay('lobby=10&first_wave=5&webcam=vtuber');
   const w = frame.contentWindow, game = w.chatoborona.game;
@@ -475,17 +478,17 @@ test('страницы: профиль не влезает в столбец —
   anya.skills = ['enchantress', 'arcaneControl', 'elements', 'arcaneRain', 'focusBeam', 'courses', 'catalyst', 'unbind',
     'circle'];
   game._refresh(anya);
-  element(w, 'cards').style.maxHeight = '160px';
+  game.feed('Аня', 'навыки', { login: 'аня' });
+  await until(() => !element(w, 'pick').hidden && element(w, 'pick').classList.contains('skills'), 'панель навыков');
+  eq(w.document.querySelectorAll('#pick-options li').length, 8, 'все навыки, кроме стиля');
+  const list = element(w, 'pick-options');
+  ok(list.offsetHeight > element(w, 'pick-window').clientHeight, 'целиком не влезает');
+  await until(() => /translateY\(-[1-9]/.test(list.style.transform), 'листается', 10000);
   game.feed('Аня', 'профиль', { login: 'аня' });
-  await until(() => w.document.querySelector('#cards .profile .inner'), 'профиль');
-  const card = w.document.querySelector('#cards .profile'), inner = card.querySelector('.inner');
-  ok(inner.offsetHeight > card.querySelector('.window').clientHeight, 'целиком не влезает');
-  await until(() => !card.classList.contains('pop'), 'карточка встала на место');
-  ok(card.getBoundingClientRect().bottom <= element(w, 'side').getBoundingClientRect().bottom + 1, 'в своём месте справа');
-  await until(() => /translateY\(-[1-9]/.test(inner.style.transform), 'листается', 10000);
+  await until(() => w.document.querySelector('#cards .profile .skill-count'), 'в профиле — только счёт');
+  ok(/^Навыки 9\/\d+$/.test(w.document.querySelector('#cards .profile .skill-count').textContent), 'Навыки 9/N');
   frame.remove();
 });
-
 test('страницы: игроков больше, чем помещается в «Отряде», — список листается страницами по кругу', async () => {
   fresh();
   const frame = await overlay('lobby=60');

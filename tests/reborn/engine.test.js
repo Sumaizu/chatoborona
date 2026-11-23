@@ -1,7 +1,7 @@
 import { test, eq, ok, no } from './harness.js';
 import { PLAIN, makeGame, memoryStorage, runFor, seeded, until } from './fixtures.js';
 import { ASCEND_TIME, CARD_MIN, CARD_ROOM, CARD_TIME, DIVINE_TIME, HOLD_SHOW, OVER_TIME, PICK_TIME, Profiles, QUICK_PAUSE,
-  QUICK_WAVE, SKILL_TIME, SPEED_MAX, SPIN_LIMIT, SUMMIT_EVERY, SUMMIT_TIME }
+  QUICK_WAVE, SKILL_TIME, SKILLS_TIME, SPEED_MAX, SPIN_LIMIT, SUMMIT_EVERY, SUMMIT_TIME }
   from '../../site/reborn/js/engine.js';
 import { FAMILY_BY_ID, LEVEL_MAX, MIGHT, REWARD, SLEEP_AFTER, TEMPO, TICK, waveReward, xpForLevel }
   from '../../site/reborn/js/balance.js';
@@ -526,7 +526,7 @@ test('чат: боты не играют, обычное сообщение — 
   ok(game.members.has('тоня'), 'но в отряд вступила');
 });
 
-test('профиль показывает карточку игрока 20 секунд, повторный — ещё 20; последний висит, пока не позовут другой', () => {
+test('профиль показывает карточку игрока 20 секунд, повторный — ещё 20; без очереди две последние остаются', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Уля', 'привет');
@@ -543,8 +543,8 @@ test('профиль показывает карточку игрока 20 се�
   runFor(game, 60);
   ok(game.notes.some((n) => n.kind === 'card' && n.login === 'уля'), 'других нет — последний профиль остаётся');
   eq(say(game, 'Федя', 'Профиль'), 'card', 'новичок вступает и сразу видит карточку');
-  runFor(game, 1);
-  eq(game.notes.filter((n) => n.kind === 'card').map((n) => n.login), ['федя'], 'позвали другой — старый ушёл');
+  runFor(game, 60);
+  eq(game.notes.filter((n) => n.kind === 'card').map((n) => n.login), ['уля', 'федя'], 'обе остаются, пока не позовут третью');
 });
 
 test('гача: пустота ничего не даёт, мешок — монеты', () => {
@@ -782,33 +782,32 @@ test('число и «все» в команде: «гача 3», «гача в�
   eq(say(game, 'Гена', 'улучшить 3'), 'poor');
 });
 
-test('профиль: две карточки сразу, третья ждёт десять секунд старшей; без очереди — 20 секунд, последняя остаётся; «проф» — короткая', () => {
+test('профиль: две карточки сразу, третья ждёт десять секунд старшей; без очереди остаются; «проф» — то же, что «профиль»', () => {
   const { game } = makeGame();
   game.open();
   for (const name of ['Аня', 'Боря', 'Вика', 'Гоша']) say(game, name, 'привет');
   toWave(game);
-  const shown = () => game.notes.filter((n) => n.kind === 'card').map((n) => [n.login, n.detail.brief]);
+  const shown = () => game.notes.filter((n) => n.kind === 'card').map((n) => n.login);
   eq(game.cardRoom, CARD_ROOM);
   eq(say(game, 'Аня', 'профиль'), 'card');
   eq(say(game, 'Боря', 'проф'), 'card');
   eq(say(game, 'Вика', 'профиль'), 'card');
-  eq(shown(), [['аня', false], ['боря', true]], 'двое сразу, Вика ждёт');
+  eq(shown(), ['аня', 'боря'], 'двое сразу, Вика ждёт');
   runFor(game, CARD_MIN - 1);
-  eq(shown(), [['аня', false], ['боря', true]]);
+  eq(shown(), ['аня', 'боря']);
   runFor(game, 1.2);
-  eq(shown(), [['боря', true], ['вика', false]], 'уходит только старшая — по одной на каждого ждущего');
+  eq(shown(), ['боря', 'вика'], 'уходит только старшая — по одной на каждого ждущего');
   game.cardRoom = 1;
   game.step(TICK);
-  eq(shown(), [['боря', true]], 'места на одну — младшая вернулась в очередь');
+  eq(shown(), ['боря'], 'места на одну — младшая вернулась в очередь');
   say(game, 'Гоша', 'проф');
   game.step(TICK);
-  eq(shown(), [['вика', false]], 'Боря своё отвисел — сразу следующая');
+  eq(shown(), ['вика'], 'Боря своё отвисел — сразу следующая');
   runFor(game, CARD_MIN + 0.2);
-  eq(shown(), [['гоша', true]]);
-  runFor(game, CARD_TIME - 1.2);
-  eq(shown(), [['гоша', true]], 'очередь пуста — висит до 20 секунд');
-  runFor(game, 1.5);
-  eq(shown(), [['гоша', true]], 'последняя остаётся, пока не позовут другую');
+  eq(shown(), ['гоша']);
+  game.cardRoom = 2;
+  runFor(game, CARD_TIME * 3);
+  eq(shown(), ['гоша'], 'очередь пуста — остаётся, пока не позовут другую');
 });
 
 test('реролл: сколько угодно раз, пока не выбран первый навык; на поле — новый класс на той же клетке', () => {
@@ -1041,6 +1040,25 @@ test('поражение: скорость снова обычная, итоги
   eq(game.state, 'over', 'итоги висят минуту');
 });
 
+test('навыки: «навыки» показывает навыки игрока в общей очереди с камнями навыка; цифры в это время не выбирают', () => {
+  const { game } = makeGame();
+  game.open();
+  frost(game, 'Рина');
+  frost(game, 'Лев');
+  toWave(game);
+  const rina = game.members.get('рина');
+  rina.xp = xpForLevel(50);
+  rina.skills = ['perk0'];
+  eq(say(game, 'Лев', 'навыки'), 'skills');
+  eq(say(game, 'Лев', 'навыки'), null, 'второй раз в очередь не встаёт');
+  stone(game, 'рина');
+  eq(game.choices.map((c) => [c.login, c.kind || 'stone']), [['лев', 'skills'], ['рина', 'stone']], 'общая очередь');
+  eq(say(game, 'Рина', '2'), null, 'пока показаны навыки Льва — выбора нет');
+  runFor(game, SKILLS_TIME + 0.1);
+  eq(game.choice.login, 'рина', 'показали — дальше камень Рины');
+  eq(say(game, 'Рина', '2'), 'skill');
+});
+
 test('сон: ' + SLEEP_AFTER + ' волн без команд — уходит с карты, монеты поровну отряду; любая команда будит', () => {
   const { game } = makeGame();
   game.open();
@@ -1177,18 +1195,20 @@ test('стример переставляет защитников «А1 Б2»; 
   eq([tower.x, tower.y], [next.x, next.y]);
 });
 
-test('стример открывает чужую карточку: «@ник профиль», «@ник проф» — короткую; зрителям так нельзя', () => {
+test('стример открывает чужую карточку и навыки: «@ник профиль», «@ник проф», «@ник навыки»; зрителям так нельзя', () => {
   const { game } = makeGame({ settings: { channel: 'streamer' } });
   game.open();
   say(game, 'Гоша', 'привет');
   say(game, 'Лиза', 'привет');
-  const shown = () => game.notes.filter((n) => n.kind === 'card').map((n) => [n.login, n.detail.brief]);
+  const shown = () => game.notes.filter((n) => n.kind === 'card').map((n) => n.login);
   eq(say(game, 'Лиза', '@Гоша профиль'), null, 'зрителю нельзя');
   eq(shown(), []);
   eq(game.feed('Streamer', '@Гоша профиль', { login: 'streamer' }), 'card');
-  eq(shown(), [['гоша', false]]);
+  eq(shown(), ['гоша']);
   eq(game.feed('Streamer', '@лиза, проф', { login: 'streamer' }), 'card');
-  eq(shown(), [['гоша', false], ['лиза', true]]);
+  eq(shown(), ['гоша', 'лиза']);
+  eq(game.feed('Streamer', '@Гоша навыки', { login: 'streamer' }), 'skills');
+  eq(game.choice.kind, 'skills');
   eq(game.feed('Streamer', '@никого профиль', { login: 'streamer' }), null, 'такого игрока нет');
 });
 

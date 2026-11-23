@@ -22,7 +22,8 @@ export const SUMMIT_TIME = 60;
 export const ACTIONS = new Map([
   ['гача', 'spin'],
   ['профиль', 'card'],
-  ['проф', 'brief'],
+  ['проф', 'card'],
+  ['навыки', 'skills'],
   ['улучшить', 'upgrade'],
   ['реролл', 'reroll'],
 ]);
@@ -53,6 +54,7 @@ export const QUICK_PAUSE = 5;
 export const ASCEND_TIME = 16;
 export const PICK_TIME = 45;
 export const SKILL_TIME = 5;
+export const SKILLS_TIME = 20;
 export const HOLD_SHOW = 5;
 
 const STEP_MAX = 1;
@@ -331,7 +333,8 @@ export class Game {
     const asked = other ? ACTIONS.get((words[1] || '').replace(/^!/, '')) : null;
     const all = amount === 'все' || amount === 'всё', count = all ? Infinity : Math.max(1, Number(amount) || 1);
     const member = this.join(login, name, { color, cell: cell && this.movable ? cell : null });
-    const choice = this.choice, digit = words.length === 1 && /^\d{1,2}$/.test(word) ? Number(word) : 0;
+    const choice = this.choice && this.choice.kind !== 'skills' ? this.choice : null;
+    const digit = words.length === 1 && /^\d{1,2}$/.test(word) ? Number(word) : 0;
     const picked = !choice ? 0 : member && member.login === choice.login && digit ? digit
       : other && other.login === choice.login && /^\d{1,2}$/.test(words[1] || '') ? Number(words[1]) : 0;
     if (member && (action || cell || control || asked || picked || move && owner)) {
@@ -344,10 +347,14 @@ export class Game {
       done = mod && this.s.chat_commands ? this._control(control) : null;
     } else if (action === 'spin') {
       done = this.order(member, Math.min(SPIN_LIMIT, count));
-    } else if (asked === 'card' || asked === 'brief') {
-      done = this._card(other, asked === 'brief');
-    } else if (action === 'card' || action === 'brief') {
-      done = member ? this._card(member, action === 'brief') : null;
+    } else if (asked === 'card') {
+      done = this._card(other);
+    } else if (action === 'card') {
+      done = member ? this._card(member) : null;
+    } else if (asked === 'skills') {
+      done = this.showSkills(other);
+    } else if (action === 'skills') {
+      done = member ? this.showSkills(member) : null;
     } else if (action === 'reroll') {
       done = this.reroll(member);
     } else if (action === 'upgrade') {
@@ -500,19 +507,25 @@ export class Game {
     this.notes.push({ kind, login: member.login, left: time, detail, id: ++this._noteNo });
   }
 
-  _card(member, brief) {
+  _card(member) {
     const shown = this._shownCards(), own = shown.find((note) => note.login === member.login);
-    const waiting = this.cards.find((card) => card.login === member.login);
-    if (own) Object.assign(own, { since: 0, left: CARD_TIME, detail: { brief } });
-    else if (waiting) waiting.brief = brief;
-    else if (shown.length >= this.cardRoom) this.cards.push({ login: member.login, brief });
-    else this._showCard(member.login, brief);
+    const waiting = this.cards.some((card) => card.login === member.login);
+    if (own) Object.assign(own, { since: 0, left: CARD_TIME });
+    else if (!waiting && shown.length >= this.cardRoom) this.cards.push({ login: member.login });
+    else if (!waiting) this._showCard(member.login);
     this._emit('card', { login: member.login });
     return 'card';
   }
 
-  _showCard(login, brief) {
-    const note = { kind: 'card', login, left: CARD_TIME, since: 0, detail: { brief }, id: ++this._noteNo };
+  showSkills(member) {
+    if (!member || this.choices.some((choice) => choice.kind === 'skills' && choice.login === member.login)) return null;
+    this.choices.push({ id: ++this._choiceNo, kind: 'skills', login: member.login, cls: member.cls, left: SKILLS_TIME,
+      span: SKILLS_TIME });
+    return 'skills';
+  }
+
+  _showCard(login) {
+    const note = { kind: 'card', login, left: CARD_TIME, since: 0, detail: {}, id: ++this._noteNo };
     this.notes.push(note);
     return note;
   }
@@ -526,11 +539,11 @@ export class Game {
     while (shown.length > room) {
       const last = shown.pop();
       this.notes.splice(this.notes.indexOf(last), 1);
-      this.cards.unshift({ login: last.login, brief: last.detail.brief });
+      this.cards.unshift({ login: last.login });
     }
     while (this.cards.length && shown.length < room) {
       const next = this.cards.shift();
-      if (this.members.has(next.login)) shown.push(this._showCard(next.login, next.brief));
+      if (this.members.has(next.login)) shown.push(this._showCard(next.login));
     }
   }
 
@@ -704,8 +717,7 @@ export class Game {
             note.left = 0;
           });
       }
-      const alone = shown.length === 1 && !this.cards.length ? shown[0] : null;
-      if (alone && alone.left <= 0) alone.left = CARD_HOLD;
+      if (!this.cards.length) for (const note of shown) if (note.left <= 0) note.left = CARD_HOLD;
       this.notes = this.notes.filter((note) => note.left > 0 && this.members.has(note.login));
     }
     this._turnCards();
@@ -813,7 +825,7 @@ export class Game {
   _stoneDue(member) {
     const rolling = this.slots.filter((slot) => slot && slot.login === member.login && slot.phase === 'spin'
       && slot.outcome.kind === 'stone').length;
-    const waiting = rolling + this.choices.filter((c) => c.login === member.login).length;
+    const waiting = rolling + this.choices.filter((c) => c.login === member.login && c.kind !== 'skills').length;
     const taken = member.skills.length + waiting;
     if (waiting || taken >= stonesAt(levelOf(member.xp))) return 0;
     if (!choiceOf(member.cls, member.skills).some((option) => option.state === 'open')) return 0;
@@ -834,6 +846,10 @@ export class Game {
     const choice = this.choices[0];
     choice.left -= dt;
     if (choice.left > 0) return;
+    if (choice.kind === 'skills') {
+      this.choices.shift();
+      return;
+    }
     if (!choice.late) {
       Object.assign(choice, { late: true, left: PICK_TIME });
       this.choices.push(this.choices.shift());

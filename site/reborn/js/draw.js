@@ -839,15 +839,62 @@ function softCircle(cache, key, size, paint) {
   return cache.get(key);
 }
 
-const STAR_INKS = { white: '#ffffff', thyme: '#5edc1f', heart: '#e3333d', snow: '#a6d6ff', glare: '#ff2b2b' };
-const STAR_BANDS = { rainbow: ['#ff2b2b', '#ff8a00', '#ffe100', '#1ee35a', '#00b2ff', '#7b3cff', '#ff2bd2'],
-  gem: ['#00d980', '#7a2dff', '#ff1a3c'] };
+const STAR_INKS = { white: '#ffffff', thyme: '#5edc1f' };
+const STAR_SCALE = 0.68;
+const STAR_STEPS = 48;
+const even = (colors) => colors.map((color, i) => [i / (colors.length - 1), color]);
+const STAR_FLOWS = {
+  rainbow: { cycle: 2400, band: 120, stops: even(['#ff2b2b', '#ff8a00', '#ffe100', '#1ee35a', '#00b2ff', '#7b3cff',
+    '#ff2bd2', '#ff2b2b']) },
+  heart: { cycle: 8000, band: 240, stops: even(['#e3333d', '#ff5560', '#c81e2b', '#f2414b', '#b8162a', '#e3333d']) },
+  gem: { cycle: 6000, band: 360, glint: [0, 1], stops: [[0, '#00d980'], [0.1, '#4dffb8'], [0.22, '#00d980'],
+    [0.26, '#08704f'], [0.29, '#8a0a26'], [0.33, '#ff1a3c'], [0.44, '#ff6680'], [0.55, '#ff1a3c'], [0.66, '#7a2dff'],
+    [0.77, '#b57aff'], [0.88, '#7a2dff'], [1, '#00d980']] },
+  snow: { cycle: 6000, band: 400, glint: [0.7, 1], stops: [[0, '#a6d6ff'], [1, '#a6d6ff']] },
+  glare: { cycle: 3000, hot: [[0, 0.7], [0.09, 0.25], [0.13, 1.2], [0.31, 0.55], [0.35, 1], [0.52, 0.3], [0.56, 0.95],
+    [0.74, 0.6], [0.78, 1.1], [1, 0.7]] },
+};
 
-function starInk(g, star, x, width) {
-  const bands = STAR_BANDS[star];
-  if (!bands) return STAR_INKS[star] || null;
-  const ink = g.createLinearGradient(x, 0, x + Math.max(1, width), 0);
-  bands.forEach((color, i) => ink.addColorStop(i / (bands.length - 1), color));
+const hexRgb = (hex) => [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16));
+
+function mixAt(stops, u) {
+  let k = 1;
+  while (k < stops.length - 1 && stops[k][0] < u) k++;
+  const [p0, c0] = stops[k - 1], [p1, c1] = stops[k], f = p1 > p0 ? Math.max(0, Math.min(1, (u - p0) / (p1 - p0))) : 0;
+  const a = hexRgb(c0), b = hexRgb(c1);
+  return 'rgb(' + a.map((v, n) => Math.round(v + (b[n] - v) * f)).join(', ') + ')';
+}
+
+function lerpAt(points, u) {
+  let k = 1;
+  while (k < points.length - 1 && points[k][0] < u) k++;
+  const [p0, v0] = points[k - 1], [p1, v1] = points[k];
+  return v0 + (v1 - v0) * (p1 > p0 ? (u - p0) / (p1 - p0) : 0);
+}
+
+export function starStep(star, now = Date.now()) {
+  const flow = STAR_FLOWS[star];
+  return flow ? Math.floor((now % flow.cycle) / flow.cycle * STAR_STEPS) : 0;
+}
+
+function starInk(g, star, x, width, step) {
+  const flow = STAR_FLOWS[star];
+  if (!flow) return STAR_INKS[star] || null;
+  const phase = step / STAR_STEPS, w = Math.max(1, width);
+  if (flow.hot) {
+    const size = lerpAt(flow.hot, phase), ink = g.createRadialGradient(x + w / 2, 0, 0, x + w / 2, 0, Math.max(2, w * size / 2));
+    ink.addColorStop(0, '#ffffff');
+    ink.addColorStop(0.45, '#ffc2c2');
+    ink.addColorStop(1, '#ff2b2b');
+    return ink;
+  }
+  const band = flow.band * STAR_SCALE, ink = g.createLinearGradient(x, 0, x + w, 0), count = Math.ceil(w / 3);
+  const glint = flow.glint && phase >= flow.glint[0] ? (phase - flow.glint[0]) / (flow.glint[1] - flow.glint[0]) : -1;
+  for (let n = 0; n <= count; n++) {
+    const px = n / count * w, u = (((px - phase * band) / band) % 1 + 1) % 1;
+    const shine = glint >= 0 && Math.abs(px / w - (glint * 1.4 - 0.2)) < 0.12;
+    ink.addColorStop(n / count, shine ? '#ffffff' : mixAt(flow.stops, u));
+  }
   return ink;
 }
 
@@ -4058,11 +4105,11 @@ export class Scene {
 
   _nameLabel(t, mark) {
     const text = t.player.name.length > 12 ? t.player.name.slice(0, 11) + '…' : t.player.name;
-    const pick = mark === 'pick', star = pick ? '' : t.player.star || '';
+    const pick = mark === 'pick', star = pick ? '' : t.player.star || '', step = starStep(star);
     const coins = String(Math.floor(t.player.coins || 0)), size = pick ? 13 : mark ? 11.5 : 9.5;
     const h = pick ? 18 : mark ? 16 : 13;
     const font = (mark ? '900 ' : '700 ') + size + 'px "Segoe UI", system-ui, sans-serif';
-    const key = 'name:' + mark + ':' + star + ':' + text + ':' + coins;
+    const key = 'name:' + mark + ':' + star + step + ':' + text + ':' + coins;
     if (!this.labels.has(key)) this.ctx.font = font;
     const nameWidth = this.labels.has(key) ? 0 : this.ctx.measureText(text).width;
     const coinWidth = this.labels.has(key) ? 0 : this.ctx.measureText(coins).width;
@@ -4082,7 +4129,7 @@ export class Scene {
         roundRect(g, 0, 0, w, h, h / 2 - 0.5);
         g.fill();
       }
-      g.fillStyle = pick ? '#ff4d63' : starInk(g, star, 4.5, nameWidth) || (mark ? '#ffd2d2' : INK);
+      g.fillStyle = pick ? '#ff4d63' : starInk(g, star, 4.5, nameWidth, step) || (mark ? '#ffd2d2' : INK);
       g.fillText(text, 4.5, h / 2 + 0.5);
       g.drawImage(coinSprite(), Math.round(8 + nameWidth), Math.round((h - coin) / 2), coin, coin);
       g.fillStyle = pick ? '#ffb3bd' : mark ? '#ffe9a8' : '#ffd86b';

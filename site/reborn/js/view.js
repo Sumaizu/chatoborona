@@ -1,5 +1,5 @@
 import { Scene } from './draw.js';
-import { CLASSES, CLASS_BY_ID, describe, mightOf, skillOf, skinOf, styleOf } from './classes.js';
+import { CLASSES, CLASS_BY_ID, describe, mightOf, skillOf, skinOf, stonesAt, styleOf } from './classes.js';
 import { coinUrl, effectUrl, emblemUrl, flagCanvas, flagUrl, heroUrl, markUrl, mightUrl, particleSprite, particleUrl,
   prizeUrl } from './sprites.js';
 import { OUTCOMES, RARITIES, SPIN_TIME, boonOf, gearColor,
@@ -148,13 +148,6 @@ function shortNumber(value) {
 
 const stacked = (skill, count) => skill.name + (skill.max ? ' ' + count + '/' + skill.max : '');
 
-function skillLine(skill, brief) {
-  const line = el('div', 'skill-line');
-  line.append(el('i', '', '◆'), ' ', el('b', '', stacked(skill, skill.count)));
-  if (!brief) line.append(': ' + (skill.about || skill.text));
-  return line;
-}
-
 function weaponLine(weapon) {
   const line = el('div', 'gear-line'), name = el('b', '', weaponTitle(weapon)), boon = boonOf(weapon.boon);
   name.style.color = rarityOf(weapon.rarity).color;
@@ -218,7 +211,7 @@ function pick(list) {
 function statLine(weapon) {
   const line = el('div', 'stats'), boon = boonOf(weapon.boon);
   line.append(mightTag(weapon.power));
-  if (boon) line.append(' · ', el('b', 'boon', boon.name), ': ' + boon.text);
+  if (boon) line.append(' · ' + boon.text);
   return line;
 }
 
@@ -250,8 +243,6 @@ export class View {
     this._cards = new Map();
     this._log = [];
     this._cardTall = 0;
-    this._briefTall = 0;
-    this._squeezed = null;
     $('rules-board-title').textContent = RULES_TITLE;
     renderRules($('rules-text'));
     $('emblem-left').src = emblemUrl();
@@ -716,19 +707,37 @@ export class View {
     const taken = member ? member.skills : [], options = game.optionsOf(choice);
     const styling = options.some((option) => option.skill.kind === 'style');
     const queue = game.choices.slice(1).map((next) => (game.members.get(next.login) || { name: next.login }).name);
+    const showing = choice.kind === 'skills';
     this._once('pick', choice.id + ':' + taken.join() + ':' + queue.join(), () => {
       const style = styleOf(choice.cls, taken), title = el('b', 'cls', cls.name);
       title.style.color = cls.color;
-      $('pick-title').textContent = styling ? 'Выбор стиля' : 'Камень навыка';
+      $('pick').classList.toggle('skills', showing);
+      $('pick-title').textContent = showing ? 'Навыки игрока' : styling ? 'Выбор стиля' : 'Камень навыка';
+      this._pickRoll = this._newRoll();
       const who = $('pick-who');
       who.textContent = '';
       who.append(image(heroUrl(skinOf(choice.cls, taken), 64), 'face'),
         member ? this._starName(member.name, member.star, member.color, 'nick') : el('b', 'nick', choice.login),
         ' · ', title);
-      if (style) who.append(' · ', el('b', 'cls', style.name));
+      if (style) {
+        const sub = el('b', 'cls', style.name);
+        sub.style.color = cls.color;
+        who.append(' · ', sub);
+      }
       const list = $('pick-options');
       list.textContent = '';
-      options.forEach(({ skill, state, count }, i) => {
+      if (showing) {
+        const learned = describe(choice.cls, taken).skills.filter((skill) => skill.kind !== 'style');
+        if (!learned.length) list.append(el('li', 'empty', 'Навыков пока нет — камень навыка выпадает в гаче'));
+        for (const skill of learned) {
+          const item = el('li', 'taken'), text = el('div', 'text');
+          text.append(el('b', 'name', stacked(skill, skill.count)), el('span', 'desc', skill.text[0].toUpperCase()
+            + skill.text.slice(1)));
+          item.append(el('i', 'digit', '◆'), text);
+          list.append(item);
+        }
+      }
+      if (!showing) options.forEach(({ skill, state, count }, i) => {
         const item = el('li', state), text = el('div', 'text');
         text.append(el('b', 'name', stacked(skill, count)), el('span', 'desc', skill.brief[0].toUpperCase()
           + skill.brief.slice(1)));
@@ -741,6 +750,9 @@ export class View {
     });
     $('pick-bar').style.width = (Math.max(0, choice.left) / choice.span * 100).toFixed(1) + '%';
     $('pick-clock').textContent = Math.max(0, Math.ceil(choice.left)) + ' с';
+    const list = $('pick-options');
+    const y = showing ? this._roll(this._pickRoll, list.offsetHeight - $('pick-window').clientHeight) : 0;
+    list.style.transform = y ? 'translateY(' + -y + 'px)' : '';
   }
 
   _starName(name, star, color, className = 'name') {
@@ -942,7 +954,6 @@ export class View {
           : slot.took ? ' надевает' : ' оставляет своё');
       view.who.append(name, verb);
       view.result.textContent = '';
-      view.result.classList.toggle('kept', kind === 'weapon' && !slot.took && Boolean(member && member.weapon));
       view.box.classList.toggle('shown', slot.phase !== 'spin');
       if (slot.phase === 'spin') return;
       view.result.append(prizeCell(prizeOf(slot.outcome)));
@@ -958,12 +969,6 @@ export class View {
       const weapon = slot.outcome.weapon, title = el('b', 'prize', WEAPON);
       title.style.color = rarityOf(weapon.rarity).color;
       view.result.append(title, statLine(weapon));
-      if (!slot.took && member && member.weapon) {
-        const now = el('div', 'now'), old = el('b', '', WEAPON);
-        old.style.color = rarityOf(member.weapon.rarity).color;
-        now.append('у него ', old, ' ', mightTag(member.weapon.power), ' — не хуже');
-        view.result.append(now);
-      }
     });
   }
 
@@ -1087,8 +1092,7 @@ export class View {
     this._paintLog(game, still);
     const notes = game.notes.filter((note) => note.kind === 'card').slice(-ROWS.cards);
     const box = $('cards');
-    const wanted = new Set(), profiles = notes.filter((note) => note.kind === 'card');
-    this._squeezed = profiles.length > 1 ? profiles[0].login : null;
+    const wanted = new Set();
     for (const note of notes) {
       const member = game.members.get(note.login);
       if (!member) continue;
@@ -1125,8 +1129,7 @@ export class View {
   _fitCards(game, box) {
     const notes = Array.from(box.children);
     for (const card of notes.filter((node) => node.classList.contains('profile'))) {
-      if (card.classList.contains('brief')) this._briefTall = Math.max(this._briefTall, card.offsetHeight);
-      else this._cardTall = Math.max(this._cardTall, card.offsetHeight);
+      this._cardTall = Math.max(this._cardTall, card.offsetHeight);
     }
     if (box.id !== 'cards' || !box.clientHeight) {
       game.cardRoom = 1;
@@ -1134,7 +1137,7 @@ export class View {
     }
     const others = notes.filter((node) => !node.classList.contains('profile'))
       .reduce((sum, node) => sum + node.offsetHeight + CARD_GAP, 0);
-    const pair = this._cardTall + (this._briefTall || this._cardTall / 2) + CARD_GAP;
+    const pair = this._cardTall * 2 + CARD_GAP;
     game.cardRoom = box.clientHeight - others >= pair ? 2 : 1;
   }
 
@@ -1162,14 +1165,15 @@ export class View {
     const row = el('div', 'log ' + entry.kind + (entry.fresh ? ' pop' : '')), text = el('div', 'text');
     const nick = this._starName(member.name, member.star, member.color, 'nick'), detail = entry.detail;
     if (entry.kind === 'skill') {
-      const skill = skillOf(member.cls, detail.skill), label = detail.style ? 'стиль' : 'навык';
-      text.append(nick, ' — ' + (detail.auto ? 'случайный ' : '') + label + ' ', el('b', 'what', skill ? skill.name : ''));
+      const skill = skillOf(member.cls, detail.skill);
+      text.append(nick, ' ', el('b', 'what', skill ? skill.name : ''));
+      if (skill && skill.brief) text.append(' ', el('span', 'desc', skill.brief));
     } else if (entry.kind === 'divine') {
-      text.append(nick, ' — ', el('b', 'what', 'божественное оружие!'));
+      text.append(nick, ' ', el('b', 'what', 'божественное оружие'));
     } else {
-      const gear = el('b', 'what', entry.weapon ? weaponTitle(entry.weapon) : WEAPON);
+      const gear = el('b', 'what', 'оружие' + (entry.weapon && entry.weapon.plus ? ' +' + entry.weapon.plus : ''));
       if (entry.weapon) gear.style.color = rarityOf(entry.weapon.rarity).color;
-      text.append(nick, ' — ', gear, detail.times > 1 ? ' ×' + detail.times + ' ' : ' ', mightTag(detail.amount || 0, '+'));
+      text.append(nick, ' ', gear);
     }
     row.append(image(heroUrl(skinOf(member.cls, member.skills), 64)), text);
     return row;
@@ -1202,10 +1206,8 @@ export class View {
       inner,
       pane,
       roll: null,
-      update: (m, game, note) => {
-        const brief = Boolean(note && note.detail && note.detail.brief) || this._squeezed === m.login;
+      update: (m) => {
         const tower = m.tower;
-        node.classList.toggle('brief', brief);
         spot.hidden = dealt.hidden = kills.hidden = helps.hidden = !tower;
         spotText.textContent = tower ? cellName(tower.x, tower.y) : '';
         dealtText.textContent = tower ? shortNumber(tower.run.damage) : '';
@@ -1241,13 +1243,13 @@ export class View {
           gear.textContent = '';
           gear.append(m.weapon ? weaponLine(m.weapon) : el('div', 'gear-line', 'Оружия нет — пиши гача'));
         }
-        const bodyKey = JSON.stringify([m.cls, brief, skills]);
+        const bodyKey = skills.length + '/' + stonesAt(level);
         if (state.body !== bodyKey) {
           state.body = bodyKey;
           body.textContent = '';
-          for (const skill of describe(m.cls, skills).skills) {
-            if (skill.kind !== 'style') body.append(skillLine(skill, brief));
-          }
+          const line = el('div', 'skill-count', 'Навыки ');
+          line.append(el('b', '', bodyKey));
+          body.append(line);
         }
       },
     };

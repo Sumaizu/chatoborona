@@ -310,7 +310,8 @@ body {
   position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; gap: 3px; background: #171427;
   box-shadow: inset 0 0 0 1.5px var(--stone), 0 0 16px rgba(255, 46, 77, .3); animation: fade-in .4s ease-out;
 }
-.list.pick h3 { margin: 0; line-height: 13px; }
+.list.pick h3 { margin: 0; line-height: 13px; white-space: nowrap; }
+#pick-title { flex: none; }
 .pick h3 .next {
   flex: 0 1 auto; min-width: 0; margin-left: auto; padding-left: 8px; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; letter-spacing: 0; text-transform: none; font-size: 12px; font-weight: 600; color: var(--muted);
@@ -325,7 +326,14 @@ body {
 .pick .who .face { flex: none; width: 20px; height: 20px; margin: -2px 0; image-rendering: pixelated; }
 .pick .who .nick { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 800; }
 .pick .who .cls { flex: none; font-weight: 800; }
-.pick .options { display: flex; flex-direction: column; gap: 1px; }
+.pick .window { flex: 1; min-height: 0; overflow: hidden; }
+.pick .options { display: flex; flex-direction: column; gap: 1px; will-change: transform; }
+.pick.skills .options { gap: 3px; }
+.pick.skills .options .text { white-space: normal; }
+.pick.skills .options .desc { font-size: 11.5px; line-height: 14px; }
+.pick.skills .options li { align-items: flex-start; padding: 3px 6px 4px 4px; }
+.pick.skills .options .digit { margin-top: 1px; font-size: 10px; }
+.pick .options li.empty { color: var(--muted); font-size: 12px; background: none; }
 .pick .options li {
   height: auto; display: flex; align-items: center; gap: 7px; padding: 1px 6px 1px 4px; border-radius: 7px; line-height: 14px;
   background: rgba(255, 255, 255, .055);
@@ -479,8 +487,7 @@ body {
   font-size: 13px; font-variant-numeric: tabular-nums; }
 .coins img { width: 13px; height: 13px; image-rendering: pixelated; }
 
-.zone { min-height: 0; display: flex; flex-direction: column; padding: 8px 8px 8px; }
-.zone h3 { flex: none; padding-left: 3px; }
+.zone { min-height: 0; display: flex; flex-direction: column; padding: 6px; }
 .notes, .cards {
   position: relative; z-index: 2; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px;
   overflow: hidden; pointer-events: none;
@@ -493,10 +500,13 @@ body {
   color: var(--muted); border-bottom: 1px solid var(--line);
 }
 .log > img { flex: none; width: 20px; height: 20px; image-rendering: pixelated; }
-.log .text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.log .text {
+  min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+}
+.log .desc { color: var(--muted); }
 .log .nick { font-weight: 800; }
 .log .what { color: var(--ink); font-weight: 800; }
-.log.skill .what { color: var(--learned); }
+.log.skill .what { color: var(--stone); }
 .log.divine .what { color: var(--divine); }
 .log .might { font-size: 11.5px; }
 .log.pop { animation: note-in .3s cubic-bezier(.2, 1.3, .4, 1); }
@@ -552,11 +562,8 @@ body {
 .profile .line b { color: var(--ink); font-weight: 700; }
 .stat-line { font-size: 11.5px; line-height: 14px; color: var(--muted); margin: 1px 0 2px; }
 .stat-line b { color: var(--ink); font-weight: 800; font-variant-numeric: tabular-nums; }
-.skill-line { font-size: 11.5px; line-height: 14px; color: var(--ink); margin-top: 1px; }
-.skill-line i, .skill-line b { font-style: normal; font-weight: 800; color: var(--stone); }
-.skill-line.none { color: var(--muted); }
-.skill-line.style { color: var(--muted); }
-.skill-line.style b { color: var(--own); }
+.skill-count { font-size: 12px; line-height: 15px; color: var(--muted); }
+.skill-count b { color: var(--stone); font-weight: 800; }
 .note.skill {
   display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center; gap: 0 9px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, .5), inset 0 0 0 1.5px var(--stone), 0 0 14px rgba(255, 46, 77, .35);
@@ -634,6 +641,5 @@ body {
 }
 .might { white-space: nowrap; }
 .might b { color: #fca5a5; font-weight: 800; font-variant-numeric: tabular-nums; }
-.stats .boon { color: #fdba74; font-weight: 800; }
 .might-icon, .gear img.might-icon, .cell img.might-icon { display: inline-block; flex: none; width: 14px; height: 14px;
   margin: 0 2px 0 0; vertical-align: -3px; image-rendering: pixelated; }
