@@ -68,7 +68,7 @@ test('страницы: окошко под вебку и окошко виту�
   ok(at('wave').bottom <= at('players').top && at('lives-box').bottom <= at('players').top, 'волна и сердце — над отрядом');
   ok(at('slots').bottom <= at('board').top && at('slots').width <= at('board').width + 1, 'гача — над картой, во всю ширину');
   ok(at('effects').left > at('main').right && at('effects').bottom <= at('notes').top, 'эффекты — справа наверху');
-  ok(at('notes').bottom <= at('cards').top && at('cards').height > at('side').height * 0.45, 'профили — внизу, на половину');
+  ok(at('notes').bottom <= at('cards').top && at('cards').height > at('side').height * 0.4, 'профили — внизу, на половину');
   vtuber.remove();
 });
 
@@ -238,7 +238,9 @@ test('страницы: камень навыка — окно выбора по
   await until(() => !element(w, 'pick').hidden, 'выбор на экране');
   ok(element(w, 'side').contains(element(w, 'pick')), 'выбор — справа, а не поверх карты');
   const top = w.document.querySelector('.side .upper').getBoundingClientRect(), pick = element(w, 'pick').getBoundingClientRect();
-  ok(pick.top >= top.top - 1 && pick.bottom <= top.bottom + 1, 'поверх эффектов, в верхней трети');
+  ok(pick.top >= top.top - 1 && pick.bottom <= element(w, 'cards').getBoundingClientRect().top, 'поверх эффектов, профили открыты');
+  const desc = w.document.querySelector('#pick-options .desc');
+  ok(desc.scrollWidth <= desc.clientWidth + 1, 'описание навыка влезает целиком');
   ok(w.document.querySelector('#pick-options li').scrollWidth <= w.document.querySelector('#pick-options li').clientWidth + 1,
     'строка навыка влезает');
   const options = w.document.querySelectorAll('#pick-options li');

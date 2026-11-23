@@ -307,10 +307,10 @@ body {
 .record-line { margin: 0; font-size: 18px; font-weight: 700; color: var(--gold); }
 .side .upper { position: relative; min-height: 0; display: flex; flex-direction: column; }
 .list.pick {
-  position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; gap: 3px; background: #171427;
+  position: absolute; left: 0; right: 0; top: 0; height: calc((100% - 16px) / 2 + 8px); z-index: 3; display: flex; flex-direction: column; gap: 3px; background: #171427;
   box-shadow: inset 0 0 0 1.5px var(--stone), 0 0 16px rgba(255, 46, 77, .3); animation: fade-in .4s ease-out;
 }
-.pick h3 { margin: 0; line-height: 14px; color: var(--stone); }
+.list.pick h3 { margin: 0; line-height: 13px; color: var(--stone); }
 .pick h3 .next {
   flex: 0 1 auto; min-width: 0; margin-left: auto; padding-left: 8px; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; letter-spacing: 0; text-transform: none; font-size: 12px; font-weight: 600; color: var(--muted);
@@ -319,15 +319,15 @@ body {
 .pick h3 .next:empty { display: none; }
 .pick h3 .next + .price { margin-left: 8px; }
 .pick .who {
-  flex: none; margin: 0; display: flex; align-items: center; gap: 5px; min-width: 0; height: 16px; font-size: 13px;
+  flex: none; margin: -1px 0 0; display: flex; align-items: center; gap: 5px; min-width: 0; height: 16px; font-size: 13px;
   line-height: 16px; color: var(--muted); white-space: nowrap; overflow: hidden;
 }
 .pick .who .face { flex: none; width: 20px; height: 20px; margin: -2px 0; image-rendering: pixelated; }
 .pick .who .nick { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 800; }
 .pick .who .cls { flex: none; font-weight: 800; }
-.pick .options { display: flex; flex-direction: column; gap: 1px; }
+.pick .options { display: flex; flex-direction: column; gap: 2px; }
 .pick .options li {
-  height: auto; display: flex; align-items: center; gap: 6px; padding: 1px 6px 1px 3px; border-radius: 6px; line-height: 17px;
+  height: auto; display: flex; align-items: center; gap: 7px; padding: 2px 6px 2px 4px; border-radius: 7px; line-height: 14px;
   background: rgba(255, 255, 255, .055);
 }
 .pick .options li.taken { background: rgba(250, 204, 21, .07); }
@@ -338,11 +338,9 @@ body {
   flex: none; width: 16px; height: 16px; border-radius: 5px; display: grid; place-items: center; font-style: normal;
   font-size: 12px; font-weight: 900; color: #1d0b22; background: var(--stone); box-shadow: 0 1.5px 0 #a3132b;
 }
-.pick .options .text {
-  flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; white-space: nowrap; overflow: hidden;
-}
-.pick .options .name { flex: none; font-size: 12.5px; line-height: 17px; font-weight: 800; color: var(--ink); }
-.pick .options .desc { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 11px; color: #aaa4c2; }
+.pick .options .text { flex: 1; min-width: 0; display: flex; flex-direction: column; white-space: nowrap; overflow: hidden; }
+.pick .options .name { font-size: 12.5px; line-height: 14px; font-weight: 800; color: var(--ink); }
+.pick .options .desc { overflow: hidden; text-overflow: ellipsis; font-size: 11px; line-height: 13px; color: #aaa4c2; }
 .pick-bar { flex: none; height: 3px; border-radius: 2px; background: var(--empty); overflow: hidden; }
 .pick-bar i { display: block; height: 100%; background: var(--stone); }
 
@@ -481,10 +479,15 @@ body {
   font-size: 13px; font-variant-numeric: tabular-nums; }
 .coins img { width: 13px; height: 13px; image-rendering: pixelated; }
 
+.zone { min-height: 0; display: flex; flex-direction: column; padding: 8px 8px 8px; }
+.zone h3 { flex: none; padding-left: 3px; }
 .notes, .cards {
-  position: relative; z-index: 2; min-height: 0; display: flex; flex-direction: column; gap: 6px; overflow: hidden;
-  pointer-events: none;
+  position: relative; z-index: 2; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px;
+  overflow: hidden; pointer-events: none;
 }
+.notes:empty::after, .cards:empty::after { margin: auto; padding: 0 8px; text-align: center; font-size: 12px; color: var(--muted); }
+.notes:empty::after { content: 'Здесь — новые навыки и оружие игроков'; }
+.cards:empty::after { content: 'Напиши «профиль» — здесь будет твоя карточка'; }
 .note {
   padding: 8px 11px 9px; border-radius: 14px; background: #13111f; font-size: 13px; line-height: 17px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, .5), inset 0 0 0 1.5px rgba(56, 189, 248, .55);
