@@ -196,9 +196,9 @@ test('с 91-й волны мобы крепчают спокойно — на 10
   }
 });
 
-test('классы: десять, у каждого свой склад и набор навыков; у стрелков — по плану Реборна', () => {
-  eq(CLASSES.length, 10);
-  eq(new Set(CLASSES.map((c) => c.id)).size, 10);
+test('классы: девять, у каждого свой склад и набор навыков; у стрелков — по плану Реборна', () => {
+  eq(CLASSES.length, 9);
+  eq(new Set(CLASSES.map((c) => c.id)).size, 9);
   eq(PERKS, [10, 30, 50]);
   const runes = CLASSES.flatMap((cls) => cls.runes.map((rune) => rune.id));
   eq(new Set(runes).size, runes.length, 'руны не повторяются');
@@ -261,7 +261,7 @@ test('классы: описания — простой текст, без ме�
 });
 
 test('классы: мастерство одно на всех и постоянное, шанс способности никогда не 100%', () => {
-  const skill = mastery(), aim = CLASS_BY_ID.get('frost').skills[2];
+  const skill = mastery(), aim = CLASS_BY_ID.get('earth').skills[2];
   ok(skill.power > 1 && skill.haste > 1 && skill.luck > 1);
   ok(scaled(aim, skill).every < aim.v.every, 'перезарядка короче базовой');
   for (const cls of CLASSES) {
@@ -402,9 +402,9 @@ test('маг огня: первый камень — только стиль; д
   eq([skinOf('pyro', []), skinOf('pyro', ['dragon']), skinOf('pyro', ['fireball', 'blue']),
     skinOf('pyro', ['twin', 'fireball', 'blue'])], ['pyro-ragged', 'pyro-dragon', 'pyro-fireball-blue',
     'pyro-fireball-twin-blue'], 'двойной каст — второй шар во второй руке');
-  eq(skinOf('frost', ['perk0']), 'frost');
+  eq(skinOf('earth', ['perk0']), 'earth');
   eq(styleOf('pyro', ['twin', 'fireball']).name, 'Огненный шар');
-  eq(choiceOf('frost', []).length, poolOf('frost').length, 'у классов без стилей — сразу навыки');
+  eq(choiceOf('earth', []).length, poolOf('earth').length, 'у классов без стилей — сразу навыки');
   for (const option of choiceOf('pyro', [])) ok(option.skill.text.length < 140, 'коротко: ' + option.skill.name);
 });
 

@@ -1,6 +1,7 @@
 import { LETTERS, SIZE } from './field.js';
 import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintRoadMask, paintRoof } from './terrain.js';
-import { FIRE, HOLY, MANTRAS, MECH, SPELL, STORM, WOLF, WOOD, flightAt, hammerAt, heavyGun, pullAt, roadCurve } from './battle.js';
+import { FIRE, HOLY, MANTRAS, MECH, SPELL, STORM, WATER, WOLF, WOOD, bubbleAt, bubbleStage, flightAt, hammerAt, heavyGun,
+  pullAt, roadCurve } from './battle.js';
 import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite,
   coinSprite, fireballSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
   meteorSprite, grenadeSprite, droneSprite, birdSprite, hawkSprite, snareSprite, trapSprite, cauldronSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
@@ -63,7 +64,7 @@ const TINTS = { burn: '#ff7a1f', blue: '#4aa3ff', black: '#1c1917',
 const STATE_TINTS = ['steam', 'mud', 'corrosion', 'disease', 'epidemic'];
 const MARK_COLORS = { fire: '#ff7a1f', water: '#38bdf8', earth: '#c08a4a', air: '#ccfbf1', lightning: '#facc15',
   poison: '#84cc16' };
-const ZONE_LOOKS = { pool: ['#38bdf8', '#e0f2fe', '#7dd3fc'], sand: ['#c9a66b', '#e7cf9b', '#8a6a3a'],
+const ZONE_LOOKS = { sand: ['#c9a66b', '#e7cf9b', '#8a6a3a'],
   gas: ['#84cc16', '#d9f99d', '#4d7c0f'],
   lava: ['#ef4444', '#fb923c', '#7f1d1d'] };
 const HIT_FLASH = 0.15;
@@ -83,8 +84,6 @@ const CHARGES = {
   beam: { glow: 'rgba(255, 138, 31, .95)', sparks: ['#ffd84a', '#ff5a1f'] },
 };
 const ELEMENT_TONES = { fire: '#ff8a1f', poison: '#a3e635', ice: '#a5f3fc', storm: '#fde047' };
-const STORM_GUSTS = 14;
-const SNOWFLAKES = 90;
 const INK = '#f4f0e8';
 const MUTED = 'rgba(166, 162, 189, .85)';
 const DARK = '#100e1f';
@@ -97,9 +96,8 @@ const BOLTS = {
   mechanic: { look: 'tracer', color: '#ffe8a3', width: 1.5, bullet: true },
   forester: { look: 'bolt', color: '#c8a26a', width: 2 },
   earth: { look: 'lob', color: '#9a8f80', size: 4 },
-  frost: { look: 'dot', color: '#38bdf8', size: 3 },
+  frost: { look: 'drop', color: '#7dd3fc', size: 1 },
   pyro: { look: 'fireball', color: '#ff7a1f', size: 7 },
-  shaman: { look: 'dot', color: '#5eead4', size: 3 },
   priest: { look: 'light', color: '#fde68a', size: 3 },
   sorceress: { look: 'wisp', color: '#c4b5fd', size: 3 },
   thunder: { look: 'fireball', color: '#fde047', size: 9, tone: 'storm' },
@@ -128,6 +126,12 @@ const CLAW = { cut: 0.12, lag: 0.035, thick: 3.2, side: 0.72, layers: 6 };
 const GLOBE_FX = { size: 10, grow: 0.15, melt: 0.3, lift: 6, bolts: 4, rate: 16 };
 const GOD_FX = { zaps: [0.34, 1, 2, 3, 5], glow: [11, 13, 15, 18, 22], reach: [18, 24, 30, 36, 44], aura: [0, 8, 11, 14, 18] };
 const DASH_FX = { size: 13, inhale: 0.18, tail: 0.12 };
+const WATER_FX = { flick: 0.16, trail: 9, follow: 34, loose: 0.2, cast: 0.26, strike: 0.42, reach: 0.4,
+  ring: 15, spin: 1.7, arm: 17, sway: 1.6, bubble: [5, 6.5, 8, 10, 12.5], rain: 150, flakes: 60 };
+const BOW = { grip: [15.4, 7.4], tips: [[9.6, 10.6], [21.2, 10.6]], pull: [16.6, 14.8], loose: [15.4, 11.6], bend: 3.2 };
+const KRAKEN_INK = { edge: '#122036', skin: '#5b86a8', light: '#a3c6dc', sucker: '#f3e8d5' };
+const SPRAY = ['#ffffff', '#e0f7ff', '#7dd3fc', '#38bdf8'];
+const FROST_SPARKS = ['#ffffff', '#bff0ff', '#7dd3fc'];
 const STAFF_ZAP = { rate: 14, bolts: 3, long: 11, lit: 0.7 };
 const STORM_FX = { strike: 0.25, swipe: 0.25, throw: 0.18, catch: 0.22, spin: 16 };
 const BEAM = { core: 2.6, mid: 6, outer: 12, twist: 0.11, spin: 7, coil: 5.5, flare: 11 };
@@ -1134,7 +1138,6 @@ export class Scene {
     for (const event of fresh) this._effect(event);
     const step = still ? 0 : dt;
     this._onField(ctx, () => {
-      this._storms(ctx, battle);
       this._patches(ctx, battle);
       this._blazes(ctx, battle);
       this._vents(ctx, battle);
@@ -1153,12 +1156,17 @@ export class Scene {
     this._mobs(ctx, battle, dt, still);
     this._layer(ctx, this.roof);
     this._gates(ctx, battle);
-    this._onField(ctx, () => {
-      this._flames(ctx, battle);
-      this._whirls(ctx, battle);
-    });
+    this._onField(ctx, () => this._flames(ctx, battle));
     this._auras(ctx, battle);
+    this._onField(ctx, () => {
+      this._puddles(ctx, battle);
+      this._springs(ctx, battle);
+    });
+    this._arms(ctx, battle);
     this._towers(ctx, battle, dt, highlight, still);
+    this._flows(ctx, battle);
+    this._arrows(ctx, battle, still ? 0 : dt);
+    this._bubbles(ctx, battle);
     this._standards(ctx, battle);
     this._rods(ctx, battle);
     this._hammers(ctx, battle);
@@ -1171,6 +1179,7 @@ export class Scene {
     this._onField(ctx, () => {
       this._effects(ctx, step);
       this._ambient(ctx, battle);
+      this._weather(ctx, battle);
     });
     if (names) this._names(ctx, battle, names, highlight, choosing);
     this._mobTops(ctx, battle);
@@ -1305,7 +1314,7 @@ export class Scene {
   }
 
   _ground(battle) {
-    const key = (battle ? battle.road.map((c) => c.join(',')).join(';') + battle.biome
+    const key = (battle ? battle.road.map((c) => c.join(',')).join(';') + battle.biome + battle.liquid
       + (battle.tiles || []).join() : '') + '@' + this.k;
     if (key === this.groundKey) return;
     this.groundKey = key;
@@ -1404,55 +1413,6 @@ export class Scene {
       const a = Math.PI * (0.75 + i * 0.25), x = (deep + ring / 2) * Math.cos(a), y = (across + ring / 2) * Math.sin(a);
       ctx.globalAlpha = 0.45 + 0.4 * Math.sin(clock * 3 + i * 2);
       orbit(ctx, x, y, 0, 1, 0, '#e9d5ff', 1, true);
-    }
-    ctx.restore();
-  }
-
-  _storms(ctx, battle) {
-    const now = battle.time;
-    for (const t of battle.towers) {
-      if (t.cls.id === 'frost') this._frostStorm(ctx, t);
-      if (t.windUntil > now) this._windOn(ctx, t);
-    }
-  }
-
-  _frostStorm(ctx, t) {
-    const x = at(t.cx), y = at(t.cy), r = t.range * CELL, seed = (t.x * 7 + t.y * 3) % 10;
-    glow(ctx, x, y, r, 'rgba(103, 232, 249, .55)', 0.16 + 0.04 * Math.sin(this.clock * 2 + seed));
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.lineCap = 'round';
-    for (let i = 0; i < STORM_GUSTS; i++) {
-      const lane = 0.3 + 0.68 * noise(i, seed), speed = 1.6 + 1.2 * noise(i + 20, seed);
-      const a = this.clock * speed / (0.4 + lane) + i * 2.39, sweep = 0.5 + 0.35 * noise(i + 40, seed);
-      ctx.globalAlpha = 0.25 + 0.35 * noise(i + 60, seed);
-      ctx.strokeStyle = i % 3 ? '#a5f3fc' : '#f0fdff';
-      ctx.lineWidth = i % 4 ? 1.5 : 2.5;
-      ctx.beginPath();
-      ctx.arc(x, y, r * lane, a, a + sweep);
-      ctx.stroke();
-    }
-    for (let i = 0; i < 16; i++) {
-      const k = (this.clock * 0.35 + noise(i, seed + 3)) % 1, a = this.clock * 2.4 + i * 1.7 + k * 3;
-      const d = r * (1 - k * 0.85);
-      ctx.globalAlpha = Math.sin(k * Math.PI) * 0.9;
-      square(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d, i % 3 ? 2 : 3, '#f0fdff');
-    }
-    ctx.restore();
-  }
-
-  _windOn(ctx, t) {
-    const x = at(t.cx), y = at(t.cy);
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.lineWidth = 1.5;
-    for (let i = 0; i < 6; i++) {
-      const a = -this.clock * 5 + i * Math.PI / 3, lift = (this.clock * 8 + i * 3) % 12;
-      ctx.globalAlpha = 0.75 - lift / 20;
-      ctx.strokeStyle = i % 2 ? '#5eead4' : '#ccfbf1';
-      ctx.beginPath();
-      ctx.ellipse(x, y + 5 - lift, 12 + (i % 2) * 3, 5, 0, a, a + 0.9);
-      ctx.stroke();
     }
     ctx.restore();
   }
@@ -1740,6 +1700,480 @@ export class Scene {
       this._zap(ctx, x + Math.cos(a) * r * 0.3, y + Math.sin(a) * r * 0.3, x + Math.cos(a) * long,
         y + Math.sin(a) * long, 0.6, size, i * 7 + tick);
     }
+    ctx.restore();
+  }
+
+  _drop(ctx, x, y, angle, size) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.scale(size, size);
+    const body = ctx.createLinearGradient(-6, -2, 3, 2);
+    body.addColorStop(0, 'rgba(56, 189, 248, 0.15)');
+    body.addColorStop(0.55, 'rgba(56, 189, 248, 0.9)');
+    body.addColorStop(1, 'rgba(186, 230, 253, 1)');
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.moveTo(-6.5, 0);
+    ctx.quadraticCurveTo(-1, -2.6, 1.4, -2.3);
+    ctx.arc(1.4, 0, 2.3, -Math.PI / 2, Math.PI / 2);
+    ctx.quadraticCurveTo(-1, 2.6, -6.5, 0);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(12, 74, 110, 0.55)';
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.beginPath();
+    ctx.arc(1.9, -0.9, 0.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  _swirl(ctx, e, share) {
+    const x = at(e.x), y = at(e.y), r = e.r * CELL, fade = Math.min(1, share * 5, (1 - share) * 3);
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (let arm = 0; arm < 4; arm++) {
+      ctx.beginPath();
+      for (let k = 0; k <= 40; k++) {
+        const f = k / 40, a = e.seed + arm * Math.PI / 2 - this.clock * 7 + f * 4.5, d = r * (1 - f) * (1 - share * 0.4);
+        const px = x + Math.cos(a) * d, py = y + Math.sin(a) * d * 0.6;
+        if (k) ctx.lineTo(px, py);
+        else ctx.moveTo(px, py);
+      }
+      ctx.strokeStyle = arm % 2 ? 'rgba(186, 230, 253, ' + (0.8 * fade).toFixed(3) + ')'
+        : 'rgba(56, 189, 248, ' + (0.7 * fade).toFixed(3) + ')';
+      ctx.lineWidth = 2.6;
+      ctx.stroke();
+    }
+    glow(ctx, x, y, 18, 'rgba(14, 116, 144, 1)', 0.5 * fade);
+    ctx.restore();
+  }
+
+  _ripples(ctx, x, y, r, seed) {
+    ctx.save();
+    ctx.lineWidth = 1.2;
+    for (let i = 0; i < 2; i++) {
+      const k = (this.clock * 0.45 + i / 2 + seed * 0.13) % 1;
+      ctx.globalAlpha = 0.55 * (1 - k);
+      ctx.strokeStyle = i ? '#e0f7ff' : '#bae6fd';
+      ctx.beginPath();
+      ctx.ellipse(x, y, r * (0.75 + k * 0.6), r * (0.75 + k * 0.6) * 0.5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  _tentacle(ctx, x0, y0, x1, y1, bend, thick) {
+    const points = [], dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len;
+    const cx = (x0 + x1) / 2 + nx * bend, cy = (y0 + y1) / 2 + ny * bend, count = Math.max(10, Math.ceil(len / 1.6));
+    for (let k = 0; k <= count; k++) {
+      const f = k / count, u = 1 - f;
+      points.push([u * u * x0 + 2 * u * f * cx + f * f * x1, u * u * y0 + 2 * u * f * cy + f * f * y1,
+        thick * (1 - 0.78 * f)]);
+    }
+    const disc = (x, y, r, color) => {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    };
+    ctx.save();
+    for (const [x, y, r] of points) disc(x, y, r + 0.9, KRAKEN_INK.edge);
+    for (const [x, y, r] of points) disc(x, y, r, KRAKEN_INK.skin);
+    for (const [x, y, r] of points) disc(x - r * 0.3, y - r * 0.35, r * 0.42, KRAKEN_INK.light);
+    for (let k = 2; k < points.length - 1; k += 2) {
+      const [x, y, r] = points[k], [px, py] = points[k + 1], a = Math.atan2(py - y, px - x) + Math.PI / 2;
+      disc(x + Math.cos(a) * r * 0.55, y + Math.sin(a) * r * 0.55, Math.max(0.6, r * 0.3), KRAKEN_INK.sucker);
+    }
+    ctx.restore();
+  }
+
+  _arms(ctx, battle) {
+    const w = WATER_FX;
+    for (const arm of battle.arms) {
+      if (arm.strikeUntil > this.clock) continue;
+      const x = at(arm.x), y = at(arm.y), phase = this.clock * w.sway + arm.seed * 9;
+      this._ripples(ctx, x, y + 1, 6, arm.seed * 40);
+      const sway = Math.sin(phase) * 3.5, rise = w.arm * (0.85 + 0.15 * Math.sin(phase * 0.7));
+      this._tentacle(ctx, x, y + 1, x + sway, y - rise, Math.sin(phase + 1.3) * 5 + (arm.seed > 0.5 ? 4 : -4), 3.4);
+    }
+  }
+
+  _model(ctx, x, y, facing, t) {
+    const u = MODEL_UNIT * sizeOf(t.look);
+    ctx.translate(x, y);
+    ctx.rotate(facing);
+    ctx.scale(u, u);
+    ctx.translate(-HERO_X, -HERO_Y);
+  }
+
+  _waterBow(ctx, t, x, y, facing, look) {
+    const loose = look.endsWith('-loose'), [gx, gy] = BOW.grip, [[ax, ay], [bx, by]] = BOW.tips;
+    const [sx, sy] = loose ? BOW.loose : BOW.pull, shimmer = 0.75 + 0.25 * Math.sin(this.clock * 6 + t.x);
+    ctx.save();
+    this._model(ctx, x, y, facing, t);
+    ctx.lineCap = 'round';
+    const limb = () => {
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.quadraticCurveTo(gx - 3, gy - BOW.bend, gx, gy);
+      ctx.quadraticCurveTo(gx + 3, gy - BOW.bend, bx, by);
+    };
+    ctx.strokeStyle = 'rgba(14, 116, 144, 0.55)';
+    ctx.lineWidth = 2.2;
+    limb();
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(125, 211, 252, ' + (0.7 * shimmer).toFixed(3) + ')';
+    ctx.lineWidth = 1.4;
+    limb();
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(240, 252, 255, 0.85)';
+    ctx.lineWidth = 0.45;
+    limb();
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(224, 247, 255, 0.8)';
+    ctx.lineWidth = 0.3;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(sx, sy);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+    if (!loose) {
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.9)';
+      ctx.lineWidth = 0.7;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(gx, gy - 2.4);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(224, 247, 255, 0.95)';
+      ctx.beginPath();
+      ctx.moveTo(gx, gy - 3.6);
+      ctx.lineTo(gx - 0.8, gy - 2);
+      ctx.lineTo(gx + 0.8, gy - 2);
+      ctx.fill();
+    }
+    for (let i = 0; i < 4; i++) {
+      const k = (this.clock * 0.7 + i / 4) % 1, f = i % 2 ? k : 1 - k;
+      const px = f < 0.5 ? ax + (gx - ax) * f * 2 : gx + (bx - gx) * (f - 0.5) * 2;
+      const py = (f < 0.5 ? ay + (gy - ay) * f * 2 : gy + (by - gy) * (f - 0.5) * 2) - Math.sin(f * Math.PI) * 1.4 + k * 2;
+      ctx.globalAlpha = 0.8 * Math.sin(k * Math.PI);
+      ctx.fillStyle = '#e0f7ff';
+      ctx.beginPath();
+      ctx.arc(px, py, 0.35, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  _arrows(ctx, battle, dt) {
+    const w = WATER_FX;
+    if (!this.waterArrows) this.waterArrows = new Map();
+    const seen = new Set();
+    for (const arrow of battle.arrows) {
+      seen.add(arrow);
+      let fx = this.waterArrows.get(arrow);
+      if (!fx) {
+        const tip = this._muzzle(arrow.tower);
+        fx = { x: tip.x, y: tip.y, trail: [] };
+        this.waterArrows.set(arrow, fx);
+      }
+      if (dt > 0) {
+        fx.x = ease(fx.x, arrow.x, w.follow, dt);
+        fx.y = ease(fx.y, arrow.y, w.follow, dt);
+        fx.trail.push([at(fx.x), at(fx.y) - 4]);
+        if (fx.trail.length > w.trail) fx.trail.shift();
+      }
+      const trail = fx.trail;
+      if (trail.length < 2) continue;
+      const [hx, hy] = trail[trail.length - 1], [px, py] = trail[trail.length - 2];
+      ctx.save();
+      ctx.lineCap = 'round';
+      for (let i = 1; i < trail.length; i++) {
+        const f = i / (trail.length - 1);
+        ctx.strokeStyle = 'rgba(125, 211, 252, ' + (0.55 * f).toFixed(3) + ')';
+        ctx.lineWidth = 0.6 + 2.2 * f;
+        ctx.beginPath();
+        ctx.moveTo(trail[i - 1][0], trail[i - 1][1]);
+        ctx.lineTo(trail[i][0], trail[i][1]);
+        ctx.stroke();
+      }
+      const angle = Math.atan2(hy - py, hx - px);
+      ctx.translate(hx, hy);
+      ctx.rotate(angle);
+      glow(ctx, 0, 0, 7, 'rgba(125, 211, 252, 1)', 0.45);
+      const body = ctx.createLinearGradient(-9, 0, 4, 0);
+      body.addColorStop(0, 'rgba(56, 189, 248, 0)');
+      body.addColorStop(0.6, 'rgba(56, 189, 248, 0.9)');
+      body.addColorStop(1, '#ffffff');
+      ctx.fillStyle = body;
+      ctx.beginPath();
+      ctx.moveTo(4.5, 0);
+      ctx.lineTo(1, -1.6);
+      ctx.lineTo(-9, -0.6);
+      ctx.lineTo(-9, 0.6);
+      ctx.lineTo(1, 1.6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+    for (const arrow of this.waterArrows.keys()) {
+      if (seen.has(arrow)) continue;
+      const fx = this.waterArrows.get(arrow);
+      this._sparks(fx.x, fx.y, SPRAY, 4, 1.2, 0.25);
+      this.waterArrows.delete(arrow);
+    }
+  }
+
+  _flows(ctx, battle) {
+    for (const t of battle.towers) {
+      if (!t.flow || t.flow.mob.dead) continue;
+      const tip = this._muzzle(t), spot = this.shown.get(t.flow.mob.id) || t.flow.mob;
+      const x1 = at(tip.x), y1 = at(tip.y), x2 = at(spot.x), y2 = at(spot.y) - (spot.lift || 0);
+      const len = Math.hypot(x2 - x1, y2 - y1) || 1, ax = (x2 - x1) / len, ay = (y2 - y1) / len, nx = -ay, ny = ax;
+      ctx.save();
+      ctx.lineCap = 'round';
+      for (const [width, color] of [[11, 'rgba(14, 116, 144, 0.35)'], [8, 'rgba(56, 189, 248, 0.75)'],
+        [3.5, 'rgba(186, 230, 253, 0.9)'], [1.2, 'rgba(255, 255, 255, 0.95)']]) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        for (let d = 0; d <= len; d += 2) {
+          const wave = Math.sin(d * 0.35 - this.clock * 18) * Math.min(1, d / 10) * (width > 5 ? 1.4 : 0.8);
+          const px = x1 + ax * d + nx * wave, py = y1 + ay * d + ny * wave;
+          if (d) ctx.lineTo(px, py);
+          else ctx.moveTo(px, py);
+        }
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#e0f7ff';
+      for (let i = 0; i < 10; i++) {
+        const k = (this.clock * 2.5 + i / 10) % 1, side = noise(i, 7) - 0.5, d = len * (0.15 + 0.85 * noise(i, 3));
+        ctx.globalAlpha = 0.9 * (1 - k);
+        ctx.beginPath();
+        ctx.arc(x1 + ax * d + nx * side * (6 + k * 10), y1 + ay * d + ny * side * (6 + k * 10) + k * 3, 0.8 + noise(i, 5),
+          0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      glow(ctx, x2, y2, 13, 'rgba(125, 211, 252, 1)', 0.6);
+      ctx.restore();
+      if (Math.random() < 0.3) this._sparks(spot.x, spot.y, SPRAY, 2, 1.8, 0.3);
+    }
+  }
+
+  _bubble(ctx, x, y, stage, size = 1) {
+    const r = WATER_FX.bubble[stage] * size, wob = Math.sin(this.clock * 5 + x) * 0.06;
+    ctx.save();
+    const body = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r);
+    body.addColorStop(0, 'rgba(240, 252, 255, 0.55)');
+    body.addColorStop(0.6, 'rgba(125, 211, 252, 0.28)');
+    body.addColorStop(0.92, 'rgba(56, 189, 248, 0.55)');
+    body.addColorStop(1, 'rgba(14, 116, 144, 0.75)');
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.ellipse(x, y, r * (1 + wob), r * (1 - wob), 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(224, 247, 255, 0.8)';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+    const core = ctx.createRadialGradient(x, y + r * 0.2, 0, x, y + r * 0.2, r * 0.85);
+    core.addColorStop(0, 'rgba(56, 189, 248, ' + (0.15 + stage * 0.1).toFixed(2) + ')');
+    core.addColorStop(1, 'rgba(56, 189, 248, 0)');
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineCap = 'round';
+    for (let i = 0; i < Math.min(stage, 3); i++) {
+      const a = this.clock * (2.2 + i * 0.7) + i * 2.1;
+      ctx.strokeStyle = 'rgba(224, 247, 255, 0.5)';
+      ctx.lineWidth = 0.5 + r * 0.05;
+      ctx.beginPath();
+      for (let k = 0; k <= 12; k++) {
+        const f = k / 12, b = a + f * 2.4, d = r * (0.2 + 0.5 * f);
+        if (k) ctx.lineTo(x + Math.cos(b) * d, y + Math.sin(b) * d);
+        else ctx.moveTo(x + Math.cos(b) * d, y + Math.sin(b) * d);
+      }
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(240, 252, 255, 0.85)';
+    for (let i = 0; i < stage * 3; i++) {
+      const a = this.clock * (0.8 + noise(i, 81)) + noise(i, 82) * 6.3, d = r * (0.15 + 0.6 * noise(i, 83));
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, Math.max(0.35, r * 0.05), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.beginPath();
+    ctx.ellipse(x - r * 0.38, y - r * 0.42, r * 0.22, r * 0.12, -0.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  _bubbles(ctx, battle) {
+    for (const t of battle.towers) {
+      if (!t.bubble) continue;
+      const ball = t.bubble, stage = Math.max(0, bubbleStage(ball.charges)), spot = ball.fly || bubbleAt(t, this.clock);
+      const pose = ball.fly ? null : this._pose(t), x = at(pose ? pose.x + spot.x - t.cx : spot.x);
+      const y = at(pose ? pose.y + spot.y - t.cy : spot.y) - 10 - Math.sin(this.clock * 2.4 + t.x) * 2;
+      ctx.fillStyle = 'rgba(0, 0, 0, .18)';
+      ctx.beginPath();
+      ctx.ellipse(x, y + 14, WATER_FX.bubble[stage] * 0.8, WATER_FX.bubble[stage] * 0.35, 0, 0, Math.PI * 2);
+      ctx.fill();
+      this._bubble(ctx, x, y, stage);
+    }
+  }
+
+  _springs(ctx, battle) {
+    for (const spring of battle.springs) {
+      const x = at(spring.cx), y = at(spring.cy), r = WATER.spring.radius * CELL, pulse = 0.5 + 0.5 * Math.sin(this.clock * 2);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(125, 211, 252, ' + (0.18 + 0.12 * pulse).toFixed(3) + ')';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 6]);
+      ctx.lineDashOffset = -this.clock * 6;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      glow(ctx, x, y, 16, 'rgba(125, 211, 252, 1)', 0.35 + 0.15 * pulse);
+      for (let i = 0; i < 9; i++) {
+        const a = i * Math.PI * 2 / 9;
+        ctx.fillStyle = i % 2 ? '#8b8f98' : '#a3a7b0';
+        ctx.beginPath();
+        ctx.ellipse(x + Math.cos(a) * 9, y + Math.sin(a) * 6.5, 3.4, 2.6, a, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      const pool = ctx.createRadialGradient(x - 2, y - 2, 1, x, y, 8);
+      pool.addColorStop(0, '#e0f7ff');
+      pool.addColorStop(0.5, '#38bdf8');
+      pool.addColorStop(1, '#0c4a6e');
+      ctx.fillStyle = pool;
+      ctx.beginPath();
+      ctx.ellipse(x, y, 7.5, 5.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      for (let i = 0; i < 5; i++) {
+        const k = (this.clock * 0.9 + i / 5) % 1, a = i * 1.3;
+        ctx.fillStyle = 'rgba(224, 247, 255, ' + (0.9 * (1 - k)).toFixed(3) + ')';
+        ctx.beginPath();
+        ctx.arc(x + Math.cos(a) * k * 5, y - 2 - Math.sin(k * Math.PI) * 9, 1 - k * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  _puddles(ctx, battle) {
+    for (const zone of battle.zones) {
+      if (zone.kind !== 'puddle') continue;
+      const left = zone.until - battle.time, fade = Math.min(1, left / 0.6, (WATER.rain.time - left) / 0.3);
+      const x = at(zone.x), y = at(zone.y), r = zone.radius * CELL, seed = zone.x * 7 + zone.y * 3;
+      ctx.save();
+      ctx.globalAlpha = 0.75 * fade;
+      const pool = ctx.createRadialGradient(x, y, 1, x, y, r);
+      pool.addColorStop(0, 'rgba(56, 189, 248, 0.75)');
+      pool.addColorStop(0.75, 'rgba(14, 116, 144, 0.55)');
+      pool.addColorStop(1, 'rgba(14, 116, 144, 0)');
+      ctx.fillStyle = pool;
+      ctx.beginPath();
+      ctx.ellipse(x, y, r, r * 0.62, noise(Math.floor(seed), 3), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = fade;
+      this._ripples(ctx, x, y, r * 0.55, seed);
+      ctx.restore();
+    }
+  }
+
+  _weather(ctx, battle) {
+    const w = WATER_FX, c = this.clock;
+    if (battle.rain) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(30, 58, 95, 0.12)';
+      ctx.fillRect(0, 0, BOARD, BOARD);
+      ctx.strokeStyle = 'rgba(191, 219, 254, 0.45)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let i = 0; i < w.rain; i++) {
+        const speed = 260 + noise(i, 51) * 120, y = (noise(i, 52) * BOARD + c * speed) % BOARD;
+        const x = (noise(i, 53) * BOARD + y * 0.18) % BOARD, long = 7 + noise(i, 54) * 6;
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - long * 0.18, y - long);
+      }
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+    if (!battle.snow) return;
+    const level = battle.snow, storm = level >= WATER.snow.max;
+    ctx.save();
+    ctx.fillStyle = 'rgba(224, 242, 254, ' + (0.04 + level * 0.035).toFixed(3) + ')';
+    ctx.fillRect(0, 0, BOARD, BOARD);
+    const wind = storm ? 70 : 8 + level * 6;
+    for (let i = 0; i < w.flakes * level; i++) {
+      const fall = 14 + noise(i, 61) * 16 + level * 4, y = (noise(i, 62) * BOARD + c * fall) % BOARD;
+      const x = (noise(i, 63) * BOARD + c * wind * (0.6 + noise(i, 64)) + Math.sin(c * 1.4 + i) * 4) % BOARD;
+      const r = 0.6 + noise(i, 65) * (storm ? 1.2 : 1.6);
+      ctx.fillStyle = 'rgba(255, 255, 255, ' + (0.55 + 0.4 * noise(i, 66)).toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (storm) {
+      ctx.strokeStyle = 'rgba(240, 249, 255, 0.35)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      for (let i = 0; i < 40; i++) {
+        const x = (noise(i, 71) * BOARD + c * 240) % BOARD, y = noise(i, 72) * BOARD + Math.sin(c * 2 + i) * 6;
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - 26 - noise(i, 73) * 20, y + 3);
+      }
+      ctx.stroke();
+      const haze = 0.12 + 0.05 * Math.sin(c * 1.7);
+      ctx.fillStyle = 'rgba(248, 250, 252, ' + haze.toFixed(3) + ')';
+      ctx.fillRect(0, 0, BOARD, BOARD);
+    }
+    ctx.restore();
+  }
+
+  _iceRing(ctx, t, x, y) {
+    const w = WATER_FX;
+    for (let i = 0; i < (t.icicles || 0); i++) {
+      const a = this.clock * w.spin + i * Math.PI * 2 / WATER.cryo.stock;
+      this._icicle(ctx, x + Math.cos(a) * w.ring, y - 4 + Math.sin(a) * w.ring * 0.55, a + Math.PI / 2, 0.8);
+    }
+  }
+
+  _icicle(ctx, x, y, angle, size) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.scale(size, size);
+    glow(ctx, 0, 0, 7, 'rgba(165, 243, 252, 1)', 0.35);
+    const body = ctx.createLinearGradient(-6, 0, 7, 0);
+    body.addColorStop(0, 'rgba(125, 211, 252, 0.85)');
+    body.addColorStop(0.6, 'rgba(224, 247, 255, 1)');
+    body.addColorStop(1, '#ffffff');
+    ctx.fillStyle = body;
+    ctx.strokeStyle = 'rgba(14, 116, 144, 0.8)';
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(7.5, 0);
+    ctx.lineTo(-2, -2.2);
+    ctx.lineTo(-6, -0.9);
+    ctx.lineTo(-5, 0);
+    ctx.lineTo(-6, 0.9);
+    ctx.lineTo(-2, 2.2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(6, -0.2);
+    ctx.lineTo(-3, -1.1);
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -2205,40 +2639,6 @@ export class Scene {
     const i = Math.max(0, Math.min(last - 1, Math.floor(d))), f = Math.max(0, Math.min(1, d - i));
     const a = route[i], b = route[i + 1];
     return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
-  }
-
-  _whirls(ctx, battle) {
-    for (const whirl of battle.whirls) {
-      const [wx, wy] = this._point(battle, whirl.d, whirl.r), x = at(wx), y = at(wy);
-      const fade = Math.min(1, (whirl.until - battle.time) / 0.2);
-      ctx.save();
-      if (whirl.tornado) this._tornado(ctx, whirl, x, y, fade);
-      else {
-        ctx.globalCompositeOperation = 'lighter';
-        for (let i = 0; i < 14; i++) {
-          const a = this.clock * 9 + i * 0.9, r = 3 + (i % 5) * 2.6;
-          ctx.globalAlpha = fade * (0.9 - (i % 5) * 0.12);
-          square(ctx, x + Math.cos(a) * r, y + Math.sin(a) * r * 0.6 - (i % 5) * 2, 2, i % 3 ? '#99f6e4' : '#f0fdfa');
-        }
-      }
-      ctx.restore();
-    }
-  }
-
-  _tornado(ctx, whirl, x, y, fade) {
-    const tones = ['#99f6e4', '#f0fdfa'].concat(Array.from(whirl.elements, (id) => ELEMENT_TONES[id]));
-    if (whirl.elements.size) {
-      glow(ctx, x, y - 10, 18, 'rgba(255, 255, 255, .6)', 0.25 * fade);
-    }
-    for (let level = 0; level < 7; level++) {
-      const r = 3 + level * 2.8, lift = level * 4, count = 6 + level * 2;
-      for (let i = 0; i < count; i++) {
-        const a = this.clock * (11 - level) + i * Math.PI * 2 / count + level, tone = tones[(i + level) % tones.length];
-        ctx.globalAlpha = fade * (0.95 - level * 0.07);
-        square(ctx, x + Math.cos(a) * r, y + Math.sin(a) * r * 0.45 - lift, tone === tones[0] || tone === tones[1]
-          ? 2 : 3, tone);
-      }
-    }
   }
 
   _rugged(ctx, e, share) {
@@ -3541,7 +3941,7 @@ export class Scene {
       spot.x = nx;
       spot.y = ny;
       const held = mob.holdUntil > now, frozen = held && mob.holdBy === 'frost';
-      const slowed = mob.chill > 0 || mob.slowUntil > now && !(mob.thicketUntil > now) || frozen;
+      const slowed = mob.slowUntil > now && !(mob.thicketUntil > now) || frozen;
       if (slowed && !mob.flying && !still && spot.trail > TRAIL_STEP) {
         spot.trail = 0;
         this.decals.push({ kind: 'ice', t: 0, life: 1.6, x: spot.x + (Math.random() - 0.5) * 0.3,
@@ -3920,12 +4320,15 @@ export class Scene {
         look = t.look + (Math.floor(this.clock * 4 + t.x) % 2 ? '-flap' : '-fly');
       }
       if (t.style === 'monk' && pose.staff && this.clock < pose.staff.until) look = t.look + '-strike';
+      const sea = t.style === 'kraken' && battle.swims(t);
+      if (sea) look = t.look + '-sea';
       const act = pose.act && this.clock < pose.act.until ? pose.act : null;
       if (act) look = t.look + '-' + (act.cast && this.clock >= act.cast ? 'cast' : act.frame);
       else if (pose.song && this.clock < pose.song.until && Math.floor(this.clock * SPELLS.play) % 2) {
         look = t.look + '-strum';
       }
       if (t.beam) look = t.look + '-beam';
+      if (t.flow) look = t.look + '-flow';
       if (t.style === 'raiju' && t.howlAt !== undefined && t.howlAt !== null && !act) {
         look = t.look + (now >= t.cryAt + DASH_FX.inhale && now < t.cryUntil ? '-howl' : '-howl2');
       }
@@ -3958,10 +4361,13 @@ export class Scene {
       }
       const aloft = t.style === 'angel' || t.style === 'dragon' && spot.lift > 0;
       const hover = aloft ? Math.max(HOVER.shadow, 1 - Math.max(0, spot.lift - HOVER.lift) / (HOVER.bob * 6)) : 1;
-      ctx.fillStyle = aloft ? 'rgba(0, 0, 0, .22)' : 'rgba(0, 0, 0, .32)';
-      ctx.beginPath();
-      ctx.ellipse(at(spot.x), at(spot.y) + 7, 12 * hover, 5 * hover, 0, 0, Math.PI * 2);
-      ctx.fill();
+      if (sea) this._ripples(ctx, x, y + 2, 11, t.x * 3 + t.y);
+      else {
+        ctx.fillStyle = aloft ? 'rgba(0, 0, 0, .22)' : 'rgba(0, 0, 0, .32)';
+        ctx.beginPath();
+        ctx.ellipse(at(spot.x), at(spot.y) + 7, 12 * hover, 5 * hover, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
       if (lit) glow(ctx, x, y, 22, 'rgba(255, 255, 255, .9)', 0.5);
       ctx.globalAlpha = t.busy > now && look === t.look ? 0.5 : 1;
       const lift = pose.kick > 0 ? Math.round(pose.kick / KICK * 2) : 0;
@@ -3976,6 +4382,8 @@ export class Scene {
         smooth(ctx, heroSprite(look, -1), mx, my + lift, facing, ZOOM);
         if (t.style === 'angel' && !t.planted) this._sword(ctx, t, x, y + lift, facing);
         if (t.style === 'raiju') this._furSparks(ctx, t, x, y + lift, facing);
+        if (t.style === 'cryo') this._iceRing(ctx, t, x, y + lift);
+        if (t.style === 'hydro' && !t.flow) this._waterBow(ctx, t, x, y + lift, facing, look);
       } else if (heavyGun(t)) smooth(ctx, heroSprite(look, reload), x, y + lift, pose.angle, ZOOM);
       else sprite(ctx, heroSprite(look, reload), x, y, pose.angle, ZOOM, lift, HERO_TURN_STEPS);
       if (t.cls.id === 'priest' && t.style !== 'monk' && t.style !== 'angel') this._holyTip(ctx, t);
@@ -4273,7 +4681,8 @@ export class Scene {
         const tip = away ? { x: event.sx, y: event.sy - (event.high ? DRONE_LIFT / CELL : 0) }
           : this._muzzle(t, event.hand || 0);
         add({ kind: 'shot', life: Math.max(FLIGHT_MIN, flight - late), x1: tip.x, y1: tip.y, x2, y2, bolt,
-          crit: event.crit, heavy: event.heavy, head, track: t.style === 'enchantress' || t.cls.id === 'thunder' ? event.mob : null });
+          crit: event.crit, heavy: event.heavy, head, track: t.style === 'enchantress' || t.cls.id === 'thunder' || t.cls.id === 'frost' ? event.mob : null });
+        if (t.cls.id === 'frost' && !t.style) this._pose(t).act = { frame: 'flick', until: this.clock + WATER_FX.flick };
         if (event.heavy) {
           this._pose(t).flash = FLASH * 3;
           this._sparks(tip.x, tip.y, CHARGES.heavy.sparks, event.heavy === 'mega' ? 14 : 8, 2.4, 0.35);
@@ -4377,6 +4786,46 @@ export class Scene {
           radius: event.radius, shrapnel: event.shrapnel });
         this._sparks(tip.x, tip.y, ['#e5e7eb', '#9ca3af', '#fff3b0'], 5, 1.2, 0.35, 2);
       });
+    } else if (event.kind === 'arrow') {
+      this._fire(t, event.mob.x, event.mob.y, event.mob, () => {
+        this._pose(t).act = { frame: 'loose', until: this.clock + WATER_FX.loose };
+        const tip = this._muzzle(t);
+        this._sparks(tip.x, tip.y, SPRAY, 4, 1.2, 0.25);
+      }, WATER_FX.loose);
+    } else if (event.kind === 'flow') {
+      this._face(t, event.mob.x, event.mob.y, event.mob, 0.5);
+    } else if (event.kind === 'pop') {
+      this._sparks(event.x, event.y, SPRAY, 14 + event.stage * 6, 2 + event.stage * 0.6, 0.6, 3);
+      add({ kind: 'ring', life: 0.5, x: event.x, y: event.y, r: event.radius, color: '#7dd3fc', width: 3 });
+      add({ kind: 'ring', life: 0.35, x: event.x, y: event.y, r: event.radius * 0.6, color: '#e0f7ff', width: 2 });
+    } else if (event.kind === 'vortex') {
+      add({ kind: 'vortex', life: event.time + 0.4, x: event.x, y: event.y, r: event.radius, seed: Math.random() * 6 });
+    } else if (event.kind === 'spring') {
+      this._sparks(event.x, event.y, SPRAY, 12, 1.6, 0.5);
+    } else if (event.kind === 'splash') {
+      this._sparks(event.x, event.y, SPRAY, event.crit ? 9 : 6, 1.8, 0.35);
+      add({ kind: 'ring', life: 0.3, x: event.x, y: event.y, r: 0.35, color: '#bae6fd', width: 1.5 });
+    } else if (event.kind === 'tentacle') {
+      const strike = () => {
+        const life = WATER_FX.strike;
+        if (event.arm) event.arm.strikeUntil = this.clock + life;
+        add({ kind: 'tentacle', life, x1: event.x, y1: event.y, x2: event.mob.x, y2: event.mob.y, mob: event.mob,
+          sea: Boolean(event.arm), seed: Math.random(), crit: event.crit });
+      };
+      if (event.arm) strike();
+      else this._fire(t, event.mob.x, event.mob.y, event.mob, strike, WATER_FX.strike);
+    } else if (event.kind === 'icicle') {
+      const launch = (x2, y2, late = 0) => {
+        let from = this._muzzle(t);
+        if (event.big) {
+          const pose = this._pose(t), a = this.clock * WATER_FX.spin + event.slot * Math.PI * 2 / WATER.cryo.stock;
+          from = { x: pose.x + Math.cos(a) * WATER_FX.ring / CELL, y: pose.y + (Math.sin(a) * WATER_FX.ring * 0.55 - 4) / CELL };
+        } else this._pose(t).act = { frame: 'cast', until: this.clock + WATER_FX.cast };
+        add({ kind: 'icicle', life: Math.max(FLIGHT_MIN, event.time - late), x1: from.x, y1: from.y, x2, y2,
+          mob: event.mob, big: event.big, crit: event.crit });
+      };
+      if (event.big) launch(event.x, event.y);
+      else this._fire(t, event.x, event.y, event.mob, launch, WATER_FX.cast);
     } else if (event.kind === 'chain') {
       this._fire(t, event.mob.x, event.mob.y, event.mob, () => {
         this._pose(t).act = { frame: 'strike', until: this.clock + STORM_FX.strike };
@@ -4477,16 +4926,6 @@ export class Scene {
     } else if (event.kind === 'hold') {
       const ice = event.by === 'frost';
       this._sparks(event.mob.x, event.mob.y, ice ? ['#e0fbff', '#67e8f9'] : ['#ffe14d', '#ffffff'], 6, 1.8, 0.35);
-    } else if (event.kind === 'shatter') {
-      const spot = this.shown.get(event.mob.id) || event.mob;
-      this._sparks(spot.x, spot.y, ['#ffffff', '#e0fbff', '#67e8f9', '#0ea5e9'], 18, 2.6, 0.5, 3);
-    } else if (event.kind === 'snow') {
-      add({ kind: 'snow', life: event.time });
-    } else if (event.kind === 'gust') {
-      add({ kind: 'ring', life: 0.4, x: event.x, y: event.y, r: event.radius, color: '#5eead4', width: 2 });
-      this._sparks(event.x, event.y, ['#ccfbf1', '#5eead4'], 8, 2.4, 0.35);
-    } else if (event.kind === 'wind') {
-      add({ kind: 'pulse', life: 0.7, x: t.cx, y: t.cy, r: event.radius, color: '#5eead4', width: 3 });
     } else if (event.kind === 'meteor') {
       add({ kind: 'meteor', life: event.time, x: event.x, y: event.y, r: event.radius });
     } else if (event.kind === 'thorns') {
@@ -4611,23 +5050,12 @@ export class Scene {
       const zone = event.zone, look = ZONE_LOOKS[zone.kind];
       add({ kind: 'ring', life: 0.5, x: zone.x, y: zone.y, r: zone.radius, color: look[0], width: 2 });
       this._sparks(zone.x, zone.y, look, 7, zone.radius * 2.4, 0.5, 2);
-    } else if (event.kind === 'wave' || event.kind === 'quake') {
-      const color = event.kind === 'wave' ? '#38bdf8' : '#a8794a';
-      add({ kind: 'ring', life: 0.6, x: t.cx, y: t.cy, r: event.radius, color, width: 3 });
-      this._sparks(t.cx, t.cy, event.kind === 'wave' ? ['#e0f2fe', '#7dd3fc'] : ['#c9a66b', '#6b5032'], 12,
-        event.radius * 3, 0.5, 2);
-    } else if (event.kind === 'lift') {
-      const spot = this.shown.get(event.mob.id) || event.mob;
-      this._sparks(spot.x, spot.y, ['#ccfbf1', '#5eead4', '#ffffff'], 6, 1.6, 0.5, 2);
-    } else if (event.kind === 'nova') {
-      this._pose(t).flash = FLASH;
-      add({ kind: 'ring', life: 0.45, x: t.cx, y: t.cy, r: event.radius, color: '#a5f3fc', width: 3 });
-      this._sparks(t.cx, t.cy, ['#f0fdff', '#a5f3fc'], 10, event.radius * 3, 0.45, 2);
+    } else if (event.kind === 'quake') {
+      add({ kind: 'ring', life: 0.6, x: t.cx, y: t.cy, r: event.radius, color: '#a8794a', width: 3 });
+      this._sparks(t.cx, t.cy, ['#c9a66b', '#6b5032'], 12, event.radius * 3, 0.5, 2);
     } else if (event.kind === 'spikes') {
       this._face(t, event.x, event.y);
       add({ kind: 'spikes', life: 0.4, points: event.points });
-    } else if (event.kind === 'whirl') {
-      this._face(t, event.mob.x, event.mob.y, event.mob);
     } else if (event.kind === 'rise') {
       const mob = event.mob;
       add({ kind: 'ring', life: 0.6, x: mob.x, y: mob.y, r: 0.9, color: '#a3e635', width: 2 });
@@ -4804,14 +5232,44 @@ export class Scene {
         }
         if (e.kind === 'shot') {
           this.impacts += 1;
-          this._sparks(e.x2, e.y2, [e.crit ? '#ffffff' : e.bolt.color], e.crit ? 5 : 2, 1.2, 0.18);
+          if (e.bolt.look === 'drop') this._sparks(e.x2, e.y2, SPRAY, e.crit ? 6 : 3, 1.3, 0.22);
+          else this._sparks(e.x2, e.y2, [e.crit ? '#ffffff' : e.bolt.color], e.crit ? 5 : 2, 1.2, 0.18);
         }
+        if (e.kind === 'icicle') this._sparks(e.x2, e.y2, FROST_SPARKS, e.big ? 10 : 5, e.big ? 2 : 1.5, 0.3);
         continue;
       }
       next.push(e);
       const share = e.t / e.life, fade = 1 - share;
       if (e.kind === 'laser') {
         this._laser(ctx, e, share);
+        continue;
+      }
+      if (e.kind === 'vortex') {
+        this._swirl(ctx, e, share);
+        continue;
+      }
+      if (e.kind === 'icicle' || e.kind === 'tentacle') {
+        const spot = e.mob && !e.mob.dead ? this.shown.get(e.mob.id) : null;
+        if (spot) {
+          e.x2 = spot.x;
+          e.y2 = spot.y;
+        }
+      }
+      if (e.kind === 'icicle') {
+        const x = at(e.x1 + (e.x2 - e.x1) * share), y = at(e.y1 + (e.y2 - e.y1) * share);
+        this._icicle(ctx, x, y, Math.atan2(e.y2 - e.y1, e.x2 - e.x1), e.big ? 1.25 : 0.85);
+        continue;
+      }
+      if (e.kind === 'tentacle') {
+        const reach = WATER_FX.reach, k = share < reach ? Math.sin(share / reach * Math.PI / 2)
+          : 1 - Math.pow((share - reach) / (1 - reach), 2);
+        if (share >= reach && !e.hit) {
+          e.hit = true;
+          this._sparks(e.x2, e.y2, SPRAY, e.crit ? 8 : 5, 1.6, 0.3);
+        }
+        const x0 = at(e.x1), y0 = at(e.y1) + (e.sea ? 1 : 0), x1 = x0 + (at(e.x2) - x0) * k, y1 = y0 + (at(e.y2) - y0) * k;
+        if (e.sea) this._ripples(ctx, x0, y0, 7, e.seed * 40);
+        this._tentacle(ctx, x0, y0, x1, y1, (e.seed - 0.5) * 14 * (1 - k * 0.5), 3.8);
         continue;
       }
       if (e.kind === 'hail') {
@@ -4922,6 +5380,8 @@ export class Scene {
           const arc = Math.sin(share * Math.PI) * 10;
           square(ctx, x, y - arc, b.size + 2, '#15111d');
           square(ctx, x, y - arc, b.size, b.color);
+        } else if (b.look === 'drop') {
+          this._drop(ctx, x, y, Math.atan2(e.y2 - e.y1, e.x2 - e.x1), e.crit ? 1.35 : 1);
         } else if (b.look === 'shard') {
           ctx.save();
           ctx.translate(Math.round(x), Math.round(y));
@@ -5021,17 +5481,6 @@ export class Scene {
         }
         glow(ctx, mx, my, 26, 'rgba(255, 120, 30, .95)', 0.9);
         sprite(ctx, meteorSprite(), mx, my, this.clock * 3, 2.6, 0, 64);
-      } else if (e.kind === 'snow') {
-        const alpha = Math.min(1, e.t * 2, (e.life - e.t) * 1.5), width = CELL * SIZE;
-        ctx.fillStyle = 'rgba(224, 242, 254, ' + (0.12 * alpha).toFixed(3) + ')';
-        ctx.fillRect(EDGE, EDGE, width, width);
-        for (let i = 0; i < SNOWFLAKES; i++) {
-          const fall = (e.t * (0.12 + 0.1 * noise(i, 1)) + noise(i, 2)) % 1;
-          const x = EDGE + (noise(i, 3) * width + Math.sin(e.t * 2 + i) * 6 + width) % width;
-          ctx.globalAlpha = alpha * (0.6 + 0.4 * noise(i, 4));
-          square(ctx, x, EDGE + fall * width, i % 4 ? 2 : 3, '#f0f9ff');
-        }
-        ctx.globalAlpha = 1;
       } else if (e.kind === 'spikes') {
         const rise = Math.sin(Math.min(1, share * 2.5) * Math.PI / 2) * (1 - Math.max(0, share - 0.6) / 0.4);
         e.points.forEach(([px, py], k) => {

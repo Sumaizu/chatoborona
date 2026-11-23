@@ -363,10 +363,6 @@ const RECIPES = {
     s.swish(at, 200, 1600, 0.3, 0.2);
     s.thump(at, 140, 60, 0.25, 0.25);
   },
-  snow(s, at) {
-    [A6, FS6, D6, A5].forEach((note, i) => s.chime(at + i * 0.12, note, 0.9, 0.04, spread()));
-    s.hiss(at, 1.2, 0.03, 6000, 9000);
-  },
   paragon(s, at) {
     s.thump(at, 150, 45, 0.6, 0.24);
     [D4, FS4, A4].forEach((note, i) => s.horn(at, note, 1.8, 0.06, -0.3 + i * 0.3));
@@ -385,7 +381,7 @@ export const SFX_GAPS = {
   storm: 0.3, howl: 1.9, rally: 0.5, heal: 0.5, block: 0.3, roar: 1, growl: 0.8, summon: 0.4, build: 0.4,
   crumble: 0.4, leap: 0.3, chomp: 0.25, nuke: 2, fall: 1, join: 0.4, card: 0.3, holy: 0.12, splash: 0.15,
   snap: 0.15, execute: 0.3, clink: 0.2, treasure: 1, rattle: 1, rise: 0.4, hex: 0.4, burrow: 0.5, chain: 1, yank: 1,
-  charge: 0.5, reload: 0.3, ricochet: 0.1, ignite: 0.2, snow: 2, flash: 0.15, quake: 0.5,
+  charge: 0.5, reload: 0.3, ricochet: 0.1, ignite: 0.2, flash: 0.15, quake: 0.5,
 };
 
 export const SOUNDS = Object.keys(RECIPES);

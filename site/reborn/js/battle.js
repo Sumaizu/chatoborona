@@ -7,9 +7,7 @@ import { ASSIST_COINS, KILL_COINS } from './gacha.js';
 
 export const MOVE_PAUSE = 1;
 export const BITE_TIME = 1;
-export const HEADWIND = 0.2;
 export const ROT = { share: 0.01, boss: 0.003, time: 5 };
-export const BRITTLE = 0.005;
 
 const SHOTS_PER_TICK = 6;
 const BOSS_HOLD = 0.3;
@@ -28,14 +26,13 @@ const HEART_GAP = 1.6;
 const WALL_GAP = 0.5;
 const WALL_BITE = 0.125;
 const WALL_MARGIN = 2;
-const WHIRL_REACH = 0.5;
 const PIERCE_WIDTH = 0.4;
 const FAR_REACH = SIZE * 1.5;
-const COOLDOWNS = ['nextActive', 'nextBlaze', 'nextEye',
-  'nextFar', 'nextGale', 'nextInferno', 'nextLight', 'nextPhoenix', 'nextPool',
+const COOLDOWNS = ['nextActive', 'nextBlaze',
+  'nextFar', 'nextInferno', 'nextLight', 'nextPhoenix', 'nextPool',
   'nextEmp', 'nextNuke', 'nextQuake', 'nextRift', 'nextSand', 'nextStorm', 'nextTsunami',
   'nextWall', 'nextWave', 'nextHail', 'nextHoly', 'nextBeam', 'nextRain', 'nextSiren', 'nextDirge',
-  'nextGlobe', 'nextTempest'];
+  'nextGlobe', 'nextTempest', 'nextBubble', 'nextVortex'];
 const WARD_AURA = 0.25;
 const FIREBALL_FLIGHT = 0.3;
 const ZONE_PULSE = 0.5;
@@ -47,21 +44,15 @@ export const REACTIONS = {
   blast: { name: 'Взрыв', color: '#fb923c', fire: 3, radius: 1 },
   corrosion: { name: 'Коррозия', color: '#a3e635', dot: 0.5, time: 4, weak: 0.25 },
   mud: { name: 'Грязь', color: '#a16207', slow: 0.3, time: 4 },
-  frost: { name: 'Мороз', color: '#a5f3fc', slow: 0.3, time: 4, ice: 0.3 },
   discharge: { name: 'Разряд', color: '#facc15', stun: 1 },
   disease: { name: 'Болезнь', color: '#a78bfa', dot: 0.4, time: 4, armor: 0.3 },
-  charge: { name: 'Заряд', color: '#fde047', bonus: 0.3, time: 4 },
   gas: { name: 'Газ', color: '#84cc16', radius: 2, time: 4, dot: 0.6 },
-  ice: { name: 'Лёд', color: '#e0f2fe', time: 2, keep: 0.5 },
-  thaw: { name: 'Пар', color: '#e2e8f0' },
   nuke: { name: 'Ядерный взрыв', color: '#f97316', radius: 2, mul: 15 },
   epidemic: { name: 'Эпидемия', color: '#7c3aed', dot: 0.8, time: 10, weak: 0.5 },
-  overload: { name: 'Перегрузка', color: '#fef08a', mul: 6, stun: 5 },
   lava: { name: 'Лава', color: '#ef4444', radius: 1, time: 4, dot: 0.6, slow: 0.4 },
 };
 const PAIRS = [['fire', 'water', 'steam'], ['fire', 'lightning', 'blast'], ['fire', 'poison', 'corrosion'],
-  ['water', 'earth', 'mud'], ['water', 'air', 'frost'], ['water', 'lightning', 'discharge'],
-  ['earth', 'poison', 'disease'], ['air', 'lightning', 'charge']];
+  ['water', 'earth', 'mud'], ['water', 'lightning', 'discharge'], ['earth', 'poison', 'disease']];
 const BLUE_REACT = 1.5;
 export const FIRE = { styled: 1.5, giant: 1.5, splash: 1, wide: 1.5, breath: 0.6, cone: 0.35, coneWide: 1.6,
   ignite: 0.06, igniteMul: 1.2, smolder: 0.3, burn: 3, blue: 1.3, blueBurn: 1.5, crit: 0.15, twin: 1,
@@ -116,7 +107,7 @@ const MARKED = new Set(['fire', 'poison', 'earth', 'lightning']);
 export const STORM = { orb: 5, caller: { reach: 3.5, interval: 1, mul: 1.2 }, raiju: { reach: 2, interval: 1.2, mul: 1.1, arc: 1.3 },
   thor: { reach: 4, interval: 1.6, mul: 1.8, out: 0.55, back: 0.55, bend: 0.35, touch: 0.6, steps: 10 },
   quake: { every: 10, cells: 4, step: 0.1, touch: 0.75, stun: 1 }, god: { damage: 0.01, per: 10, haste: 0.02, stage: 12.5 },
-  son: { damage: 0.05, haste: 0.05, kin: ['thunder', 'shaman'] },
+  son: { damage: 0.05, haste: 0.05, kin: ['thunder'] },
   frenzy: { time: 3, haste: 2 }, spark: { mul: 4, reach: 2 },
   chain: { reach: 2, sure: 2, chance: 0.5, gap: 0.08 }, fork: { chance: 0.5, reach: 3, mul: 0.5 },
   globe: { every: 6, speed: 1.2, mul: 4, touch: 0.7, zap: 1, reach: 1, bolts: 3 }, tempest: { every: 8, radius: 2, mul: 3, stun: 3 },
@@ -124,6 +115,17 @@ export const STORM = { orb: 5, caller: { reach: 3.5, interval: 1, mul: 1.2 }, ra
 export const WOLF = { dash: { idle: 2, speed: 10, touch: 0.8, mul: 1 },
   howl: { idle: 3, self: 0.2, team: 0.1, share: 0.5, time: [2, 5], rest: [5, 10] },
   rage: { steps: [[10, 0.03], [10, 0.02]], rest: 0.01, max: 3 }, pack: { boost: 0.3, per: 0.01 } };
+export const WATER = { drop: 9,
+  hydro: { reach: 3, interval: 1.1, mul: 3, speed: 11, touch: 0.25 },
+  kraken: { reach: 2, interval: 1.3, mul: 4, sea: 3, arm: 1.5 },
+  cryo: { reach: 3.5, interval: 1.1, mul: 3.6, speed: 9, big: 2, stock: 3, refill: 2 },
+  flow: { tick: 0.5, mul: 2, elite: 0.5, boss: 0.2 },
+  bubble: { every: 30, per: 0.5, max: 200, speed: 1.5, touch: 0.5, radius: 3, orbit: 0.8, spin: 1.3,
+    stages: [0, 20, 50, 100, 150] },
+  vortex: { chance: 0.08, gap: 4, radius: 3, time: 1 }, spring: { radius: 3, heal: 0.05, undead: 3, clarity: 0.1 },
+  home: 0.25, tide: 0.1, rain: { chance: 0.01, radius: 0.45, time: 3, slow: 0.3, rods: 2 },
+  snow: { slow: [0.1, 0.15, 0.2, 0.25, 0.4], from: 3, freeze: 0.01, hold: 2, max: 5 } };
+export const ARM_SPOTS = [[0.5, 0.5], [0.22, 0.22], [0.78, 0.22], [0.22, 0.78], [0.78, 0.78]];
 export const SONG = { every: 15, time: 3, back: 1, dirge: 0.5, anthem: 0.3, ultrasound: 0.2 };
 export const TOTEMS = { totemSlow: 'slow', totemPurge: 'purge', totemPower: 'power' };
 export const HELP = { assist: 1, control: 1, react: 2, heart: 10, heal: 10, save: 50 };
@@ -131,8 +133,11 @@ const LEFT_ITEMS = ['vents', 'cauldrons', 'banners', 'rods', 'traps', 'walls', '
 const DEMONS = new Set(['imp', 'hellhound', 'demon', 'devilkin', 'gatekeeper', 'archdemon', 'diablo']);
 export const MANTRAS = ['mantraSpeed', 'mantraPower', 'mantraRange'];
 export const FLIERS = new Set(['angel', 'dragon']);
-export const flier = (runes) => Array.from(runes || []).some((id) => FLIERS.has(id));
-const STYLE_ELEMENTS = { witch: 'poison' };
+export const flier = (runes) => {
+  const list = Array.from(runes || []);
+  return list.some((id) => FLIERS.has(id)) ? true : list.includes('kraken') ? 'sea' : false;
+};
+const STYLE_ELEMENTS = { witch: 'poison', cryo: 'ice' };
 const STYLE_BALL = 11;
 const ROAD_ROUND = 0.9;
 const DRONE_SHOTS = { attack: MECH.droneAttack, laser: MECH.droneLaser, air: MECH.droneAir, bird: WOOD.bird,
@@ -145,7 +150,6 @@ export const GRENADE = { flight: 0.5, pace: 0.05 };
 const SPIKE_TOUCH = 0.55;
 const ROLL_EVERY = 1;
 const MUTE_HOLD = 0.25;
-const TORNADO_SHARE = 0.5;
 const PULL_TIME = 0.6;
 const POTION_SPLASH = 0.8;
 const STONE_SPIKES = 5;
@@ -157,6 +161,7 @@ const REVIVE_TIME = 1.5;
 const CLINK_GAP = 0.25;
 const RATTLE = { min: 3, spread: 3 };
 const CHILL_MAX = 0.85;
+const SEAS = new Set(['lake', 'river']);
 
 function bendsOf(route) {
   const turns = [], bends = new Map();
@@ -249,6 +254,16 @@ export class Battle {
     });
     this.blocked = pathCells(this.road);
     this.rough = new Set();
+    this.seaOf = new Int16Array(SIZE * SIZE).fill(-1);
+    this.seaCells = [];
+    this.arms = [];
+    this.armKey = '';
+    this.frozen = false;
+    this.cooled = false;
+    this.liquid = null;
+    this.rain = null;
+    this.snow = 0;
+    this.weather = 0;
     this.solid = null;
     this.tall = null;
     this.sight = null;
@@ -261,8 +276,8 @@ export class Battle {
       this.tiles.forEach((tile, at) => {
         if (SOLID.has(tile)) this.solid[at] = 1;
         if (TALL.has(tile)) this.tall[at] = 1;
-        if (UNSAFE.has(tile) && !(this.rules.ice && FROZEN.has(tile))) this.rough.add(at);
       });
+      this._terrain();
     }
     this.starts = this.routes.map((route) => {
       let i = 1;
@@ -293,11 +308,10 @@ export class Battle {
     this.drones = [];
     this.steel = 0;
     this.pulseAt = 0;
-    this.whirls = [];
     this.births = [];
     this.delayed = [];
-    this.headwind = false;
-    this.brittle = false;
+    this.arrows = [];
+    this.springs = [];
     this.treasures = 0;
     this.ward = null;
     this.banners = [];
@@ -323,10 +337,76 @@ export class Battle {
     this._scores = new Map();
   }
 
-  free(x, y, flying = false) {
+  _terrain() {
+    const firm = this.rules.ice || this.frozen || this.cooled;
+    this.rough = new Set();
+    this.tiles.forEach((tile, at) => {
+      if (UNSAFE.has(tile) && !(firm && FROZEN.has(tile))) this.rough.add(at);
+    });
+    this.seaOf.fill(-1);
+    this.seaCells = [];
+    this.armKey = '';
+    this.arms = [];
+    if (!this.rules.ice && !this.rules.dry && !this.frozen) this._seas();
+    this.liquid = this.cooled ? 'basalt' : this.frozen ? 'ice' : null;
+  }
+
+  _seas() {
+    const tile = (at) => this.tiles[at];
+    for (let start = 0; start < SIZE * SIZE; start++) {
+      if (!SEAS.has(tile(start)) || this.seaOf[start] >= 0) continue;
+      const id = this.seaCells.length, cells = [], queue = [start], seen = new Set([start]);
+      while (queue.length) {
+        const at = queue.pop(), x = at % SIZE, y = (at - x) / SIZE;
+        if (SEAS.has(tile(at))) {
+          this.seaOf[at] = id;
+          cells.push(at);
+        }
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = x + dx, ny = y + dy, next = ny * SIZE + nx;
+          if (!inside(nx, ny) || seen.has(next) || !SEAS.has(tile(next)) && tile(next) !== 'bridge') continue;
+          seen.add(next);
+          queue.push(next);
+        }
+      }
+      this.seaCells.push(cells);
+    }
+  }
+
+  sea(x, y) {
+    return inside(x, y) ? this.seaOf[y * SIZE + x] : -1;
+  }
+
+  swims(t) {
+    return t.style === 'kraken' && this.sea(t.x, t.y) >= 0;
+  }
+
+  _seaArms() {
+    const wet = this.towers.filter((t) => this.sea(t.x, t.y) >= 0);
+    const key = wet.map((t) => t.x + ',' + t.y + (t.style === 'kraken' ? 'k' : '')).join(';');
+    if (key === this.armKey) return;
+    this.armKey = key;
+    this.arms = [];
+    const used = new Map();
+    for (const t of wet) {
+      if (t.style !== 'kraken') continue;
+      for (const at of this.seaCells[this.sea(t.x, t.y)]) {
+        if (this.byCell.has(at)) continue;
+        const taken = used.get(at) || [], open = ARM_SPOTS.map((spot, i) => i).filter((i) => !taken.includes(i));
+        if (!open.length) continue;
+        const pick = open[Math.floor(this.random() * open.length)], x = at % SIZE, y = (at - x) / SIZE;
+        used.set(at, taken.concat(pick));
+        this.arms.push({ tower: t, x: x + ARM_SPOTS[pick][0], y: y + ARM_SPOTS[pick][1], seed: this.random() });
+      }
+    }
+  }
+
+  free(x, y, over = false) {
     const at = y * SIZE + x;
-    return inside(x, y) && !this.blocked.has(at) && (flying || !this.rough.has(at)) && !this.byCell.has(at)
+    return inside(x, y) && !this.blocked.has(at) && (over === true || !this.rough.has(at)
+      || over === 'sea' && this.seaOf[at] >= 0) && !this.byCell.has(at)
       && !this.vents.some((vent) => vent.x === x && vent.y === y)
+      && !this.springs.some((spring) => spring.x === x && spring.y === y)
       && !this.cauldrons.some((pot) => pot.x === x && pot.y === y);
   }
 
@@ -385,7 +465,7 @@ export class Battle {
       might: MIGHT.base, damage: 0, skill: 0, interval: 1, range: 0, baseRange: 0, critChance: 0,
       critMul: STAT.critBase, reach: 0, cone: 0, power: 1, luck: 1, haste: 1, cooldown: 0, busy: 0, napUntil: 0,
       stunUntil: 0, webUntil: 0,
-      web: 1, windUntil: 0, wind: 0, windBy: null,
+      web: 1,
       reloadUntil: 0, angle: this._homeAngle(x, y), aimMob: null, aimHold: 0,
       charge: null,
       nextActive: 0, nextWall: 0, pull: null,
@@ -499,7 +579,12 @@ export class Battle {
   setMods(tower, mods) {
     tower.mods = mods;
     this._stats(tower);
-    if (this.aloft(tower) && !flier(tower.runes)) this._land(tower);
+    this._ground(tower);
+  }
+
+  _ground(tower) {
+    const over = flier(tower.runes);
+    if (this.aloft(tower) && over !== true && !(over === 'sea' && this.sea(tower.x, tower.y) >= 0)) this._land(tower);
   }
 
   _land(tower) {
@@ -516,7 +601,7 @@ export class Battle {
     if (at < 0) return;
     this.towers.splice(at, 1);
     this.byCell.delete(tower.y * SIZE + tower.x);
-    for (const list of ['walls', 'whirls', 'patches', 'banners', 'rods',
+    for (const list of ['walls', 'patches', 'banners', 'rods', 'arrows', 'springs',
       'zones', 'phoenixes', 'drones', 'globes', 'traps', 'clouds', 'puddles']) {
       this[list] = this[list].filter((item) => item.tower !== tower);
     }
@@ -554,7 +639,8 @@ export class Battle {
     }
     if (now < this.rodAt) return;
     this.rodAt = now + PULSE;
-    for (const rod of this.rods) if (this.random() < s.chance) this._strikeRod(rod, now);
+    const chance = s.chance * (this.rain ? WATER.rain.rods : 1);
+    for (const rod of this.rods) if (this.random() < chance) this._strikeRod(rod, now);
   }
 
   _strikeRod(rod, now) {
@@ -633,7 +719,7 @@ export class Battle {
   leave(tower) {
     this.towers.splice(this.towers.indexOf(tower), 1);
     this.byCell.delete(tower.y * SIZE + tower.x);
-    for (const list of ['whirls', 'zones', 'phoenixes', 'drones', 'globes']) {
+    for (const list of ['zones', 'phoenixes', 'drones', 'globes', 'arrows', 'springs']) {
       this[list] = this[list].filter((item) => item.tower !== tower);
     }
     if (LEFT_ITEMS.some((list) => this[list].some((item) => item.tower === tower))) this.left.push(tower);
@@ -865,7 +951,6 @@ export class Battle {
       y: 0, speed: WAVE.speed * info.speed * Math.max(FLOOR, 1 + this.foe.speed) * ((shape && shape.flying
         ? this.rules.air : this.rules.ground) || 1) * (1 + (silver && silver.speed || 0)) * (kind && kind.pace || 1),
       slow: 0, slowUntil: 0,
-      chill: 0,
       mark: 0, markUntil: 0, vuln: 0, vulnUntil: 0, rush: 0, rushUntil: 0,
       charge: null, rot: null,
       muteUntil: 0, purgeUntil: 0, exposed: false, netUntil: 0, rootAt: 0, rootUntil: 0, rootFree: 0, stuck: null, thicketUntil: 0,
@@ -1196,10 +1281,11 @@ export class Battle {
     const boost = Math.max(FLOOR, 1 + (mods.damage || 0)) * tower.might / MIGHT.base;
     tower.damage = base.damage * boost;
     tower.skill = base.skill * boost;
-    tower.element = cls.element || STYLE_ELEMENTS[tower.style] || null;
+    tower.element = STYLE_ELEMENTS[tower.style] || cls.element || null;
     const shot = cls.id === 'sniper' && SHOT[tower.style] || cls.id === 'mechanic' && MECH[tower.style]
       || cls.id === 'forester' && WOOD[tower.style] || cls.id === 'priest' && HOLY[tower.style]
-      || cls.id === 'sorceress' && SPELL[tower.style] || cls.id === 'thunder' && STORM[tower.style] || null;
+      || cls.id === 'sorceress' && SPELL[tower.style] || cls.id === 'thunder' && STORM[tower.style]
+      || cls.id === 'frost' && WATER[tower.style] || null;
     if (shot) tower.damage *= shot.mul;
     if (tower.style === 'shamaness' && tower.runes.has('resonance')) tower.damage *= SPELL.resonance.mul;
     tower.interval = (shot && shot.interval || base.interval) / Math.max(FLOOR, 1 + (mods.rate || 0));
@@ -1221,6 +1307,12 @@ export class Battle {
     tower.ownRange = tower.baseRange + tower.reach;
     if (tower.style === 'angel') tower.baseRange = tower.ownRange = HOLY.angel.reach;
     if (tower.style === 'raiju') tower.baseRange = tower.ownRange = STORM.raiju.reach;
+    if (tower.style === 'kraken') tower.baseRange = tower.ownRange = WATER.kraken.reach;
+    if (tower.style === 'hydro' && tower.runes.has('bubble') && !tower.bubble) {
+      tower.bubble = { charges: 0, fly: null };
+      tower.nextBubble = this.time + WATER.bubble.every;
+    }
+    if (tower.style === 'cryo' && tower.icicles === undefined) Object.assign(tower, { icicles: WATER.cryo.stock, refillAt: 0 });
     tower.range = fixedRange(tower) ? tower.ownRange : tower.ownRange * (1 + tower.boost.range);
     tower.lift = 1 + (tower.might / MIGHT.base - 1) * MIGHT.lift;
     this._steelOf(tower);
@@ -1240,13 +1332,12 @@ export class Battle {
     if (tower.style === 'shamaness' && tower.runes.has('resonance')) return SPELL.resonance.reach;
     if (tower.cls.id === 'sorceress' && SPELL[tower.style]) return SPELL[tower.style].reach;
     if (tower.cls.id === 'thunder' && STORM[tower.style]) return STORM[tower.style].reach;
+    if (tower.cls.id === 'frost' && WATER[tower.style]) return WATER[tower.style].reach;
     return b.range || 0;
   }
 
   _flags() {
     const rune = (cls, id) => this.towers.some((t) => t.cls.id === cls && t.runes.has(id));
-    this.headwind = rune('shaman', 'headwind');
-    this.brittle = rune('frost', 'brittle');
     this.packLead = rune('thunder', 'pack');
   }
 
@@ -1292,17 +1383,6 @@ export class Battle {
   }
 
   _effects(dt, now) {
-    for (const mob of this.mobs) mob.chill = 0;
-    for (const t of this.towers) {
-      if (t.cls.id !== 'frost' || !open(t, 0)) continue;
-      const s = t.s[0], slow = Math.min(CHILL_MAX, s.slow) * this._weak('ice');
-      for (const mob of this.mobs) {
-        if (mob.dead || immune(mob, 'ice') || steady(mob, now) || !near(mob, t.cx, t.cy, t.range)) continue;
-        if (slow * (1 - this._resistOf(mob)) > mob.chill) mob.chill = slow * (1 - this._resistOf(mob));
-        this._slow(mob, Math.min(CHILL_MAX, s.slow), s.time * (t.runes.has('permafrost') ? 2 : 1), 'ice');
-        mob.helpers.add(t);
-      }
-    }
     this.patches = this.patches.filter((patch) => patch.until > now);
     for (const patch of this.patches) {
       for (const mob of this.mobs) {
@@ -1316,7 +1396,9 @@ export class Battle {
     if (this.globes.length) this._globes(now);
     this._dashes(now);
     if (this.zones.length) this._zones(dt, now);
-    if (this.whirls.length) this._whirls(dt, now);
+    if (this.seaCells.length) this._seaArms();
+    if (this.arrows.length) this._arrows(dt);
+    this._drags(now);
     this._venom(dt, now);
     if (this.ward) this._judge(now);
     for (const mob of this.mobs) {
@@ -1327,7 +1409,6 @@ export class Battle {
         const rot = Math.min(mob.max * share, mob.rot.by.skill * RUNE_CAPS.rot);
         this._hurt(mob, rot * dt, mob.rot.by, null, true, SHIELDS);
       }
-      if (mob.charge && !mob.dead && mob.charge.until <= now) mob.charge = null;
     }
   }
 
@@ -1344,11 +1425,128 @@ export class Battle {
   }
 
   _pulse(now) {
+    this._weather();
+    if (this.springs.length) this._springs();
     for (const mob of this.mobs) {
       if (mob.dead) continue;
       if (mob.burn) this._burning(mob, now);
       if (!mob.dead && (mob.marks || mob.states)) this._reactions(mob, now);
       if (!mob.dead && mob.states) this._afflict(mob, now);
+    }
+  }
+
+  _weather() {
+    const rainers = this.towers.filter((t) => t.runes.has('rain')), snowers = this.towers.filter((t) => t.runes.has('snow'));
+    const s = WATER.snow, stacks = snowers.length ? Math.min(s.max, snowers.length + rainers.length) : 0;
+    this.snow = stacks;
+    this.rain = !stacks && rainers.length ? rainers : null;
+    this.weather = stacks || Math.min(s.max, rainers.length);
+    const cooled = this.cooled || Boolean(this.rules.lava && (stacks || this.rain));
+    const frozen = stacks > 0 && !this.rules.ice && !this.rules.dry;
+    if (this.tiles && (cooled !== this.cooled || frozen !== this.frozen)) {
+      this.cooled = cooled;
+      this.frozen = frozen;
+      this._terrain();
+      for (const t of this.towers.slice()) this._ground(t);
+    }
+    if (this.rain) {
+      const r = WATER.rain, by = this.rain.find((t) => t.react === 'water') || this.rain[0];
+      for (const mob of this.mobs) {
+        if (mob.dead || !grounded(mob, this.time) || this.random() >= r.chance) continue;
+        this._zone('puddle', by, mob.x, mob.y, r.radius, r.time, { slow: r.slow, mark: by.react === 'water' });
+      }
+    }
+    if (!stacks) return;
+    for (const mob of this.mobs) {
+      if (mob.dead || immune(mob, 'ice')) continue;
+      this._slow(mob, s.slow[stacks - 1], PULSE * 2, 'ice');
+      if (stacks >= s.from && this.random() < s.freeze) this._hold(mob, s.hold, snowers[0]);
+    }
+  }
+
+  nearWater(t) {
+    for (let y = t.y - 1; y <= t.y + 1; y++) for (let x = t.x - 1; x <= t.x + 1; x++) if (this.sea(x, y) >= 0) return true;
+    return false;
+  }
+
+  _arrows(dt) {
+    const s = WATER.hydro;
+    this.arrows = this.arrows.filter((arrow) => {
+      const t = arrow.tower;
+      if (!arrow.mob || !this._targetable(t, arrow.mob)) arrow.mob = nextPrey(this, t, arrow);
+      if (!arrow.mob) return false;
+      const mob = arrow.mob, gap = Math.hypot(mob.x - arrow.x, mob.y - arrow.y), step = s.speed * dt;
+      if (gap > step + s.touch) {
+        arrow.x += (mob.x - arrow.x) / gap * step;
+        arrow.y += (mob.y - arrow.y) / gap * step;
+        return true;
+      }
+      arrow.x = mob.x;
+      arrow.y = mob.y;
+      arrow.hit.add(mob);
+      const crit = rollCrit(this, t);
+      this._event({ kind: 'splash', tower: t, x: mob.x, y: mob.y, crit });
+      this._hurt(mob, t.damage * (crit ? t.critMul : 1), t);
+      if (t.bubble) t.bubble.charges = Math.min(WATER.bubble.max, t.bubble.charges + 1);
+      if (t.runes.has('vortex') && this.time >= (t.nextVortex || 0) && this.random() < WATER.vortex.chance) {
+        t.nextVortex = this.time + WATER.vortex.gap;
+        this._vortex(t, mob.x, mob.y);
+      }
+      arrow.mob = nextPrey(this, t, arrow);
+      return Boolean(arrow.mob);
+    });
+  }
+
+  _vortex(t, x, y) {
+    const s = WATER.vortex, now = this.time;
+    this._event({ kind: 'vortex', tower: t, x, y, radius: s.radius, time: s.time });
+    for (const mob of this._around(x, y, s.radius)) {
+      if (hidden(mob, now) || this.covered(mob.x, mob.y)) continue;
+      const to = Math.max(this.gates[mob.r], this._closestD(mob.r, x, y));
+      mob.drag = { from: mob.d, to, start: now, end: now + s.time };
+      mob.biting = 0;
+    }
+  }
+
+  _closestD(r, x, y) {
+    let best = 0, gap = Infinity;
+    for (let d = 0; d <= this.routes[r].length - 1; d += 0.1) {
+      const at = this._roadPoint(r, d), far = (at.x - x) ** 2 + (at.y - y) ** 2;
+      if (far < gap) [best, gap] = [d, far];
+    }
+    return best;
+  }
+
+  _drags(now) {
+    for (const mob of this.mobs) {
+      if (!mob.drag || mob.dead) continue;
+      const k = Math.min(1, (now - mob.drag.start) / (mob.drag.end - mob.drag.start)), ease = 1 - (1 - k) * (1 - k);
+      mob.d = mob.drag.from + (mob.drag.to - mob.drag.from) * ease;
+      this._locate(mob);
+      if (k >= 1) mob.drag = null;
+    }
+  }
+
+  _plantSpring(t) {
+    const cells = [];
+    for (let y = t.y - 1; y <= t.y + 1; y++) {
+      for (let x = t.x - 1; x <= t.x + 1; x++) if ((x !== t.x || y !== t.y) && this.free(x, y)) cells.push({ x, y });
+    }
+    if (!cells.length) return;
+    const cell = cells[Math.floor(this.random() * cells.length)];
+    this.springs.push({ tower: t, x: cell.x, y: cell.y, cx: cell.x + 0.5, cy: cell.y + 0.5 });
+    this._event({ kind: 'spring', tower: t, x: cell.x + 0.5, y: cell.y + 0.5 });
+  }
+
+  _springs() {
+    const s = WATER.spring;
+    for (const spring of this.springs) {
+      for (const wall of this.walls) {
+        if (near(wall, spring.cx, spring.cy, s.radius)) wall.hp = Math.min(wall.max, wall.hp + wall.max * s.heal);
+      }
+      for (const mob of this._around(spring.cx, spring.cy, s.radius)) {
+        if (mob.undead) this._hurt(mob, spring.tower.damage * s.undead, spring.tower, 'water', true);
+      }
     }
   }
 
@@ -1391,7 +1589,6 @@ export class Battle {
     if (has('mud') && count('fire')) {
       this._react(mob, 'lava', ['fire'], ['mud']);
       if (count('water')) this._react(mob, 'steam', ['water'], []);
-      if (has('frost') || has('ice')) this._react(mob, 'thaw', [], [has('ice') ? 'ice' : 'frost']);
     }
     const options = [];
     for (const [a, b, name] of PAIRS) {
@@ -1402,12 +1599,6 @@ export class Battle {
     if (has('steam') && count('poison')) strong('gas', ['poison'], ['steam']);
     if (has('corrosion') && count('poison')) strong('corrosion', ['poison'], []);
     for (const element of ['water', 'earth']) if (has('mud') && count(element)) strong('mud', [element], []);
-    for (const element of ['water', 'air']) {
-      if (has('frost') && count(element)) strong('frost', [element], []);
-      if (has('ice') && count(element)) strong('ice', [element], []);
-    }
-    const cold = ['ice', 'frost'].filter(has);
-    if (cold.length && count('fire')) strong('thaw', ['fire'], cold);
     while (options.length) {
       let roll = this.random() * options.reduce((sum, option) => sum + option.weight, 0), pick = options[0];
       for (const option of options) {
@@ -1445,7 +1636,7 @@ export class Battle {
     for (const key of states) if (mob.states) mob.states.delete(key);
     const r = REACTIONS[name], x = mob.x, y = mob.y;
     this._event({ kind: 'react', mob, name: r.name, color: blue && fiery ? '#7cc4ff' : r.color });
-    if (marks.includes('lightning') || states.includes('charge')) this._arc(mob, towers);
+    if (marks.includes('lightning')) this._arc(mob, towers);
     const hit = (target, amount, element) => {
       target.party = towers;
       this._hurt(target, amount, lead, element, true, ARMOR);
@@ -1454,11 +1645,6 @@ export class Battle {
     if (name === 'steam') {
       hit(mob, power * r.fire, 'fire');
       this._setState(mob, 'steam', r.time, towers);
-    } else if (name === 'thaw') {
-      const degree = states.includes('ice') ? 3 : 2;
-      if (degree === 3) mob.holdUntil = Math.min(mob.holdUntil, this.time);
-      hit(mob, power * REACTIONS.steam.fire * degree, 'fire');
-      this._setState(mob, 'steam', degree, towers);
     } else if (name === 'blast') {
       const cloud = this.zones.find((zone) => zone.kind === 'gas' && near(mob, zone.x, zone.y, zone.radius));
       if (cloud) {
@@ -1478,28 +1664,10 @@ export class Battle {
       if (!this.state(mob, 'epidemic')) this._setState(mob, 'corrosion', r.time, towers, { dot: power * r.dot });
     } else if (name === 'mud') {
       if (!(mob.lavaUntil > this.time)) this._setState(mob, 'mud', r.time, towers);
-    } else if (name === 'frost') {
-      this._setState(mob, 'frost', r.time, towers);
-      if (states.length === 0 && marks.length === 1 && this.random() < r.ice) this._freeze(mob, towers);
-    } else if (name === 'ice') {
-      if (this.random() < r.keep) this._freeze(mob, towers);
     } else if (name === 'discharge') {
-      const charge = this.state(mob, 'charge');
-      if (charge) {
-        mob.states.delete('charge');
-        mob.charge = null;
-        const overload = REACTIONS.overload;
-        this._event({ kind: 'react', mob, name: overload.name, color: overload.color });
-        hit(mob, power * overload.mul, 'storm');
-        if (!mob.dead) this._hold(mob, overload.stun, lead);
-        return;
-      }
       this._hold(mob, r.stun, lead);
     } else if (name === 'disease') {
       if (!this.state(mob, 'epidemic')) this._setState(mob, 'disease', r.time, towers, { dot: power * r.dot });
-    } else if (name === 'charge') {
-      this._setState(mob, 'charge', r.time, towers);
-      mob.charge = { by: lead, bonus: r.bonus, until: this.time + r.time };
     } else if (name === 'gas') {
       this._zone('gas', lead, x, y, r.radius, r.time, { dot: power * r.dot, party: towers });
     } else if (name === 'epidemic') {
@@ -1509,18 +1677,9 @@ export class Battle {
     }
   }
 
-  _freeze(mob, towers) {
-    const ice = REACTIONS.ice;
-    this._setState(mob, 'ice', ice.time, towers);
-    mob.holdUntil = Math.max(mob.holdUntil, this.time + ice.time * (mob.info.boss ? BOSS_HOLD : 1));
-    mob.holdBy = 'frost';
-    this._event({ kind: 'react', mob, name: ice.name, color: ice.color });
-  }
-
   _afflict(mob, now) {
     let slow = 0;
     if (this.state(mob, 'mud')) slow += REACTIONS.mud.slow;
-    if (this.state(mob, 'frost')) slow += REACTIONS.frost.slow;
     if (slow) this._slow(mob, Math.min(CHILL_MAX, slow), PULSE * 2);
     for (const name of ['corrosion', 'disease', 'epidemic']) {
       const item = this.state(mob, name);
@@ -1540,10 +1699,14 @@ export class Battle {
       const pulse = now >= zone.pulse;
       if (pulse) {
         zone.pulse = now + ZONE_PULSE;
-        this._event({ kind: 'zone', zone });
+        if (zone.kind !== 'puddle') this._event({ kind: 'zone', zone });
       }
       for (const mob of this._around(zone.x, zone.y, zone.radius)) {
-        if (zone.kind === 'sand') {
+        if (zone.kind === 'puddle') {
+          if (!grounded(mob, now)) continue;
+          this._slow(mob, zone.slow, ZONE_PULSE);
+          if (zone.mark && pulse) this._mark(mob, 'water', zone.tower);
+        } else if (zone.kind === 'sand') {
           if (grounded(mob, now)) this._slow(mob, zone.slow, ZONE_PULSE);
         } else if (zone.kind === 'gas' || zone.kind === 'lava') {
           if (!pulse) continue;
@@ -1554,9 +1717,6 @@ export class Battle {
             mob.lavaUntil = now + ZONE_PULSE * 2;
             this._slow(mob, REACTIONS.lava.slow, ZONE_PULSE * 2);
           }
-        } else if (zone.kind === 'pool') {
-          if (!mob.info.boss) mob.holdUntil = Math.max(mob.holdUntil, now + dt * 2);
-          this._hurt(mob, zone.dps * dt, zone.tower, 'water', true);
         }
       }
     }
@@ -1566,52 +1726,13 @@ export class Battle {
     this.zones.push(Object.assign({ kind, tower: t, x, y, radius, until: this.time + time, pulse: this.time }, extra));
   }
 
-  _sweep(push) {
-    for (const mob of this.mobs) {
-      if (mob.dead || mob.info.boss) continue;
-      mob.d = Math.max(Math.min(mob.d, this.gates[mob.r]), mob.d - push);
-      mob.biting = 0;
-      this._locate(mob);
-    }
-  }
-
   _execute(mob, t, cap) {
     if (mob.hp <= cap) this._slay(mob, t);
     else this._hurt(mob, cap, t, null, true, ARMOR);
   }
 
-  _whirls(dt, now) {
-    this.whirls = this.whirls.filter((whirl) => whirl.until > now);
-    for (const whirl of this.whirls) {
-      whirl.d = Math.max(0, whirl.d - whirl.speed * dt);
-      const t = whirl.tower, at = this._roadPoint(whirl.r, whirl.d);
-      if (whirl.tornado) this._absorb(whirl, at, now);
-      for (const mob of this.mobs) {
-        if (mob.dead || mob.r !== whirl.r || Math.abs(mob.d - whirl.d) > WHIRL_REACH || whirl.hit.has(mob)) continue;
-        whirl.hit.add(mob);
-        this._hurt(mob, whirl.damage, t, null, false, ARMOR);
-        for (const element of whirl.elements) {
-          if (!mob.dead) this._hurt(mob, whirl.damage * TORNADO_SHARE, t, element, false, ARMOR);
-        }
-        if (!mob.dead && open(t, 1) && this.random() < t.s[1].chance) this._push(mob, t.s[1].push, t);
-      }
-    }
-  }
-
-  _absorb(whirl, at, now) {
-    const touch = (item, radius) => near(item, at.x, at.y, radius + WHIRL_REACH);
-    const met = this.mobs.filter((mob) => !mob.dead && touch(mob, 0));
-    if (this.patches.some((patch) => touch(patch, patch.radius)) || met.some((mob) => mob.burn)) {
-      whirl.elements.add('fire');
-    }
-    if (this.towers.some((t) => t.cls.id === 'frost' && open(t, 0) && near(at, t.cx, t.cy, t.range))) {
-      whirl.elements.add('ice');
-    }
-    if (met.some((mob) => mob.charge && mob.charge.until > now)) whirl.elements.add('storm');
-  }
-
   _walk(dt, now) {
-    const stop = this.length - HEART_GAP, wind = this.headwind ? 1 - HEADWIND : 1;
+    const stop = this.length - HEART_GAP;
     for (const mob of this.mobs) {
       if (mob.dead) continue;
       if (mob.aweUntil > now) continue;
@@ -1648,13 +1769,13 @@ export class Battle {
         continue;
       }
       mob.wall = null;
-      if (mob.holdUntil > now && !steady(mob, now)) continue;
+      if (mob.drag || mob.holdUntil > now && !steady(mob, now)) continue;
       if (mob.rootUntil > now && !steady(mob, now)) continue;
       if (mob.stuck && mob.stuck.until > now && (!steady(mob, now) || mob.stuck.kind === 'net')) continue;
-      let slow = steady(mob, now) ? 0 : Math.max(mob.slowUntil > now ? mob.slow : 0, mob.chill);
+      let slow = steady(mob, now) || !(mob.slowUntil > now) ? 0 : mob.slow;
       if (this.banners.length && !steady(mob, now)) slow = 1 - (1 - slow) * (1 - this._totems(mob, 'slow'));
       if (mob.info.boss) slow *= BOSS_SLOW;
-      let speed = mob.speed * (1 + mob.fury) * (mob.wild ? 1 + OVERTIME_SPEED : 1) * wind
+      let speed = mob.speed * (1 + mob.fury) * (mob.wild ? 1 + OVERTIME_SPEED : 1)
         * (mob.rushUntil > now ? 1 + mob.rush : 1);
       const power = mob.muteUntil > now ? null : mob.power;
       if (power && power.boost && power.time && mob.powerUntil > now) speed *= 1 + power.boost;
@@ -1851,8 +1972,7 @@ export class Battle {
   }
 
   _intervalOf(t, now) {
-    return t.interval * (t.webUntil > now ? t.web : 1) / ((1 + (t.windUntil > now ? t.wind : 0))
-      * (1 + t.boost.rate) * (t.frenzyUntil > now ? STORM.frenzy.haste : 1) * (t.style === 'raiju' ? this._wolfRate(t) : 1)
+    return t.interval * (t.webUntil > now ? t.web : 1) / ((1 + t.boost.rate) * (t.frenzyUntil > now ? STORM.frenzy.haste : 1) * (t.style === 'raiju' ? this._wolfRate(t) : 1)
       * (1 + godHaste(t)));
   }
 
@@ -1865,11 +1985,12 @@ export class Battle {
   }
 
   _buffs(now) {
-    const shamans = [], pyros = [], mechanics = [], teams = [], tuners = [], graces = [], monks = [], bards = [];
+    const pyros = [], mechanics = [], teams = [], tuners = [], graces = [], monks = [], bards = [];
     const priests = this.towers.filter((t) => t.cls.id === 'priest');
     const graced = (id) => priests.filter((t) => t.runes.has(id)).length;
     const bless = 1 + HOLY.blessing * graced('blessing'), sanctity = graced('sanctity') > 0;
     const insight = fade(priests.filter((t) => t.runes.has('insight')).map(() => HOLY.insight));
+    const springs = this.springs;
     this.blessed = bless;
     this.catalyst = this._sorcery('catalyst', SPELL.catalyst);
     const circles = this.towers.filter((t) => t.cls.id === 'sorceress' && t.runes.has('circle'));
@@ -1884,8 +2005,7 @@ export class Battle {
       if (t.cls.id === 'forester' && t.runes.has('grace')) graces.push(t);
       if (t.style === 'monk' && MANTRAS.some((id) => t.runes.has(id))) monks.push(t);
       if (t.style === 'minstrel' && t.runes.has('anthem')) bards.push(t);
-      if (t.cls.id === 'shaman' && open(t, 3)) shamans.push(t);
-      else if (t.cls.id === 'pyro' && t.runes.has('torch')) pyros.push(t);
+      if (t.cls.id === 'pyro' && t.runes.has('torch')) pyros.push(t);
     }
     const close = (a, b, radius) => (a.cx - b.cx) * (a.cx - b.cx) + (a.cy - b.cy) * (a.cy - b.cy) <= radius * radius;
     const heard = new Map();
@@ -1897,14 +2017,9 @@ export class Battle {
     }
     for (const t of this.towers) {
       const boost = t.boost, by = t.boostBy;
-      const winds = [], team = [], grace = [], tuning = [], mantras = { mantraSpeed: [], mantraPower: [], mantraRange: [] };
+      const team = [], grace = [], tuning = [], mantras = { mantraSpeed: [], mantraPower: [], mantraRange: [] };
       const might = [];
       by.clear();
-      for (const shaman of shamans) {
-        if (shaman === t || !close(shaman, t, shaman.s[3].radius + shaman.reach)) continue;
-        winds.push(shaman.s[3].haste);
-        by.add(shaman);
-      }
       for (const g of graces) {
         if (!close(g, t, WOOD.grace.radius)) continue;
         grace.push(WOOD.grace.haste);
@@ -1941,10 +2056,12 @@ export class Battle {
           if (wolf !== t) by.add(wolf);
         }
       }
-      boost.rate = bless * (fade(winds) + fade(team) + fade(grace) + fade(tuning) + chant('mantraSpeed', HOLY.mantra.haste)
-        + fade(howls) + son.haste * (kinship + sons.length));
+      const home = t.runes.has('home') && this.nearWater(t) ? WATER.home : 0;
+      const tide = t.runes.has('tide') ? WATER.tide * this.weather : 0;
+      boost.rate = bless * (fade(team) + fade(grace) + fade(tuning) + chant('mantraSpeed', HOLY.mantra.haste)
+        + fade(howls) + son.haste * (kinship + sons.length)) + home;
       boost.damage = bless * (chant('mantraPower', HOLY.mantra.damage) + fade(howls) + son.damage * kinship
-        + this._totems({ x: t.cx, y: t.cy }, 'power'));
+        + this._totems({ x: t.cx, y: t.cy }, 'power')) + home + tide;
       boost.range = bless * chant('mantraRange', HOLY.mantra.range);
       boost.might = bless * fade(might);
       for (const bard of heard.get(t) || []) {
@@ -1952,7 +2069,8 @@ export class Battle {
         by.add(bard);
       }
       if (sanctity) t.wardUntil = Math.max(t.wardUntil, now + WARD_AURA);
-      boost.clarity = insight;
+      boost.clarity = insight + fade(springs.filter((spring) => close(spring, t, WATER.spring.radius))
+        .map(() => WATER.spring.clarity));
       t.torches = TORCH_USERS.has(t.cls.id) ? pyros.filter((pyro) => close(pyro, t, FIRE.torch.radius + pyro.reach))
         .sort((x, y) => torchPower(y) - torchPower(x)) : [];
       t.torch = t.torches[0] || null;
@@ -2353,8 +2471,7 @@ export class Battle {
       this._event({ kind: 'reflect', mob, tower: t });
       return;
     }
-    const vulnerable = ((mob.markUntil > now ? mob.mark : 0) + (mob.charge && mob.charge.until > now
-      ? mob.charge.bonus : 0) + (mob.vulnUntil > now ? mob.vuln : 0))
+    const vulnerable = ((mob.markUntil > now ? mob.mark : 0) + (mob.vulnUntil > now ? mob.vuln : 0))
       * (1 - this._resistOf(mob));
     let dealt = amount * (1 + vulnerable) * (1 + t.boost.damage) * (1 + t.boost.might) * this._frailty(mob, element)
       * (1 + FIRE.black.damage * stacksOf(mob, t));
@@ -2386,7 +2503,6 @@ export class Battle {
     mob.helpers.add(t);
     if (mob.party) for (const ally of mob.party) mob.helpers.add(ally);
     if (!dot && t.react && mob.hp > 0 && (!t.cls.react.strict || element === t.react)) this._mark(mob, t.react, t);
-    if (t.windBy && t.windUntil > now && t.windBy !== t) mob.helpers.add(t.windBy);
     for (const by of t.boostBy) mob.helpers.add(by);
     mob.last = t;
     if (element === 'poison' && t.runes.has('infection')) mob.rot = { by: t, until: now + ROT.time };
@@ -2401,10 +2517,6 @@ export class Battle {
     if (mob.hp <= 0) {
       this._kill(mob);
       return;
-    }
-    if (!dot && this.brittle && mob.holdUntil > now && mob.holdBy === 'frost' && this.random() < BRITTLE) {
-      this._event({ kind: 'shatter', mob });
-      this._execute(mob, t, t.skill * RUNE_CAPS.shatter);
     }
   }
 
@@ -2904,6 +3016,147 @@ function fork(b, t, x, y, from, hit) {
   }
 }
 
+function nextPrey(b, t, from) {
+  let best = null, gap = Infinity;
+  for (const mob of b.mobs) {
+    if (from.hit.has(mob) || !b._targetable(t, mob)) continue;
+    const d = (mob.x - from.x) ** 2 + (mob.y - from.y) ** 2;
+    if (d < gap) [best, gap] = [mob, d];
+  }
+  return best;
+}
+
+function loose(b, t) {
+  if (t.flow) return false;
+  const first = b._target(t);
+  if (!first) return false;
+  b.arrows.push({ tower: t, x: t.cx, y: t.cy, mob: first, hit: new Set() });
+  b._event({ kind: 'arrow', tower: t, mob: first });
+  return true;
+}
+
+function against(b, mob, t) {
+  const ahead = b._roadPoint(mob.r, mob.d + 0.2);
+  return (ahead.x - mob.x) * (t.cx - mob.x) + (ahead.y - mob.y) * (t.cy - mob.y) > 0;
+}
+
+function flood(b, t, now, alive) {
+  const s = WATER.flow, old = t.flow;
+  const kept = old && b._targetable(t, old.mob) ? old.mob : null;
+  const mob = alive ? kept || b.mobs.filter((other) => big(other) && b._targetable(t, other))
+    .sort((x, y) => (x.x - t.cx) ** 2 + (x.y - t.cy) ** 2 - (y.x - t.cx) ** 2 - (y.y - t.cy) ** 2)[0] || null : null;
+  if (!mob) {
+    t.flow = null;
+    return;
+  }
+  if (!old || old.mob !== mob) {
+    t.flow = { mob, next: now };
+    b._event({ kind: 'flow', tower: t, mob });
+  }
+  if (now < t.flow.next) return;
+  t.flow.next = now + s.tick;
+  b._hurt(mob, t.damage * s.mul, t);
+  if (!mob.dead && against(b, mob, t)) b._slow(mob, mob.info.boss ? s.boss : s.elite, s.tick * 1.5, 'water');
+}
+
+export function bubbleAt(t, now) {
+  const s = WATER.bubble, a = now * s.spin + t.x * 1.7 + t.y;
+  return { x: t.cx + Math.cos(a) * s.orbit, y: t.cy + Math.sin(a) * s.orbit };
+}
+
+export const bubbleStage = (charges) => WATER.bubble.stages.filter((at) => charges >= at).length - 1;
+
+function bigPrey(b, t, now) {
+  let best = null, gap = Infinity;
+  for (const mob of b.mobs) {
+    if (mob.dead || !big(mob) || hidden(mob, now) || immune(mob, t.element) || b.covered(mob.x, mob.y)) continue;
+    const d = (mob.x - t.cx) ** 2 + (mob.y - t.cy) ** 2;
+    if (d < gap) [best, gap] = [mob, d];
+  }
+  return best;
+}
+
+function bubble(b, t, now) {
+  const s = WATER.bubble, ball = t.bubble;
+  if (!ball.fly) {
+    if (now < t.nextBubble) return;
+    const prey = bigPrey(b, t, now);
+    if (!prey) return;
+    ball.fly = Object.assign({ mob: prey, at: now }, bubbleAt(t, now));
+    b._event({ kind: 'bubble', tower: t, mob: prey });
+    return;
+  }
+  const fly = ball.fly, step = s.speed * (now - fly.at);
+  fly.at = now;
+  if (fly.mob.dead || hidden(fly.mob, now)) fly.mob = bigPrey(b, t, now);
+  if (!fly.mob) {
+    ball.fly = null;
+    return;
+  }
+  const gap = Math.hypot(fly.mob.x - fly.x, fly.mob.y - fly.y);
+  if (gap > step + s.touch) {
+    fly.x += (fly.mob.x - fly.x) / gap * step;
+    fly.y += (fly.mob.y - fly.y) / gap * step;
+    return;
+  }
+  const x = fly.mob.x, y = fly.mob.y, hit = t.damage * s.per * ball.charges;
+  b._event({ kind: 'pop', tower: t, x, y, radius: s.radius, stage: bubbleStage(ball.charges) });
+  for (const mob of b._around(x, y, s.radius)) b._hurt(mob, hit, t);
+  Object.assign(ball, { charges: 0, fly: null });
+  t.nextBubble = now + s.every;
+}
+
+function grab(b, t) {
+  const crit = rollCrit(b, t), hit = t.damage * (crit ? t.critMul : 1);
+  if (!b.swims(t)) {
+    const target = b._target(t);
+    if (!target) return false;
+    b._event({ kind: 'tentacle', tower: t, mob: target, x: t.cx, y: t.cy, crit });
+    b._hurt(target, hit, t);
+    return true;
+  }
+  const s = WATER.kraken, now = b.time;
+  let struck = false;
+  for (const arm of b.arms) {
+    if (arm.tower !== t) continue;
+    let mob = null, gap = s.sea * s.sea;
+    for (const other of b.mobs) {
+      if (other.dead || hidden(other, now) || immune(other, t.element) || b.covered(other.x, other.y)) continue;
+      const d = (other.x - arm.x) ** 2 + (other.y - arm.y) ** 2;
+      if (d <= gap) [mob, gap] = [other, d];
+    }
+    if (!mob) continue;
+    struck = true;
+    b._event({ kind: 'tentacle', tower: t, mob, x: arm.x, y: arm.y, arm, crit });
+    b._hurt(mob, hit * s.arm / s.mul, t);
+  }
+  return struck;
+}
+
+function icicles(b, t, target, hit, crit, now) {
+  const s = WATER.cryo, flight = Math.hypot(target.x - t.cx, target.y - t.cy) / s.speed;
+  b._event({ kind: 'icicle', tower: t, mob: target, x: target.x, y: target.y, time: flight, crit });
+  b._later(flight, () => {
+    if (!target.dead) b._hurt(target, hit, t);
+  }, t);
+  if (t.icicles <= 0) return true;
+  t.icicles -= 1;
+  if (!t.refillAt) t.refillAt = now + s.refill;
+  b._event({ kind: 'icicle', tower: t, mob: target, x: target.x, y: target.y, time: flight, crit, big: true,
+    slot: t.icicles });
+  b._later(flight, () => {
+    if (!target.dead) b._hurt(target, hit * s.big, t);
+  }, t);
+  return true;
+}
+
+function regrow(t, now) {
+  const s = WATER.cryo;
+  if (!t.refillAt || now < t.refillAt) return;
+  t.icicles = Math.min(s.stock, t.icicles + 1);
+  t.refillAt = t.icicles < s.stock ? now + s.refill : 0;
+}
+
 function globe(b, t, now) {
   const target = farthestPrey(b, t);
   if (!target) return;
@@ -2944,7 +3197,7 @@ function fade(values) {
 
 const torchPower = (pyro) => (pyro.runes.has('blue') ? FIRE.blue : 1);
 
-const fixedRange = (t) => t.style === 'angel' || t.style === 'raiju';
+const fixedRange = (t) => t.style === 'angel' || t.style === 'raiju' || t.style === 'kraken';
 const reaches = (t, mob, range) => near(mob, t.cx, t.cy, t.style === 'angel' ? range + 0.5 : range);
 
 function rollCrit(b, t) {
@@ -3797,109 +4050,26 @@ const SKILLS = {
     },
   },
   frost: {
-    fire(b, t) {
-      const base = t.cls.base, crit = rollCrit(b, t), long = t.runes.has('permafrost') ? 2 : 1;
-      const freeze = (mob) => {
-        if (open(t, 1) && !mob.dead && !immune(mob, 'ice') && b.random() < t.s[1].chance) {
-          b._hold(mob, t.s[1].time * long, t);
-        }
-      };
-      if (open(t, 0)) {
-        const caught = b.mobs.filter((mob) => b._targetable(t, mob));
-        if (!caught.length) return false;
-        const damage = t.damage * base.storm / base.damage * (crit ? t.critMul : 1);
-        b._event({ kind: 'nova', tower: t, radius: t.range });
-        for (const mob of caught) {
-          b._hurt(mob, damage, t, 'ice');
-          freeze(mob);
-        }
-        return true;
-      }
-      const target = b._target(t);
-      if (!target) return false;
-      b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target });
-      b._hurt(target, t.damage * (crit ? t.critMul : 1), t);
-      freeze(target);
-      return true;
-    },
-    every(b, t, now, alive) {
-      if (open(t, 3) && alive && now >= (t.nextWave || 0)) {
-        const caught = b.mobs.filter((mob) => b._targetable(t, mob));
-        if (caught.length) {
-          t.nextWave = now + t.s[3].every;
-          b._event({ kind: 'wave', tower: t, radius: t.range });
-          for (const mob of caught) b._push(mob, t.s[3].push, t);
-        }
-      }
-      if (open(t, 4) && alive && now >= (t.nextPool || 0)) {
-        const lead = b._target(t), s = t.s[4];
-        if (lead) {
-          t.nextPool = now + s.every;
-          b._zone('pool', t, lead.x, lead.y, s.radius, s.time, { dps: t.skill * s.dps });
-        }
-      }
-      if (open(t, 5) && alive && now >= (t.nextTsunami || 0)) {
-        t.nextTsunami = now + t.s[5].every;
-        b._event({ kind: 'tsunami', tower: t });
-        b._sweep(t.s[5].push);
-      }
-      if (!open(t, 2) || !alive || now < t.nextActive) return;
-      const s = t.s[2], long = t.runes.has('permafrost') ? 2 : 1;
-      t.nextActive = now + s.every;
-      b._event({ kind: 'snow', tower: t, time: s.time * long });
-      for (const mob of b.mobs) {
-        if (mob.dead || immune(mob, 'ice')) continue;
-        b._slow(mob, s.slow, s.time * long, 'ice');
-        mob.helpers.add(t);
-        if (b.random() < s.chance) b._hold(mob, s.time * long, t);
-      }
-    },
-  },
-  shaman: {
     fire(b, t, now) {
+      if (t.style === 'hydro') return loose(b, t);
+      if (t.style === 'kraken') return grab(b, t);
       const target = b._target(t);
       if (!target) return false;
-      const base = t.cls.base, crit = rollCrit(b, t), tornado = t.runes.has('tornado');
-      b.whirls.push({ tower: t, d: target.d, r: target.r, speed: base.whirlSpeed, until: now + base.whirlTime,
-        damage: t.damage * (crit ? t.critMul : 1), hit: new Set(), tornado, elements: new Set(), born: now });
-      b._event({ kind: 'whirl', tower: t, mob: target, tornado });
-      if (open(t, 0) && b.random() < t.s[0].chance) {
-        const s = t.s[0];
-        b._event({ kind: 'gust', tower: t, x: target.x, y: target.y, radius: s.radius });
-        for (const mob of b._around(target.x, target.y, s.radius)) if (!big(mob)) b._push(mob, s.push, t);
-      }
+      const crit = rollCrit(b, t), hit = t.damage * (crit ? t.critMul : 1);
+      if (t.style === 'cryo') return icicles(b, t, target, hit, crit, now);
+      const flight = Math.hypot(target.x - t.cx, target.y - t.cy) / WATER.drop;
+      b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target, time: flight });
+      b._later(flight, () => {
+        if (!target.dead) b._hurt(target, hit, t);
+      }, t);
       return true;
     },
     every(b, t, now, alive) {
-      if (open(t, 4) && alive && now >= (t.nextGale || 0)) {
-        const light = b.mobs.filter((mob) => !big(mob) && b._targetable(t, mob)), s = t.s[4];
-        if (light.length) {
-          t.nextGale = now + s.every;
-          for (const mob of light) {
-            b._hold(mob, s.time, t, true);
-            b._vulnerable(mob, s.vuln, s.time);
-            b._event({ kind: 'lift', tower: t, mob });
-          }
-        }
-      }
-      if (open(t, 5) && alive && now >= (t.nextEye || 0)) {
-        t.nextEye = now + t.s[5].every;
-        b._event({ kind: 'eye', tower: t });
-        b._sweep(t.s[5].push);
-      }
-      if (!open(t, 2) || !alive || now < t.nextActive) return;
-      const s = t.s[2], radius = s.radius + t.reach;
-      t.nextActive = now + s.every;
-      b._event({ kind: 'wind', tower: t, radius });
-      for (const ally of b.towers) {
-        if (ally !== t && ((ally.cx - t.cx) ** 2 + (ally.cy - t.cy) ** 2 > radius * radius)) continue;
-        const haste = ally === t ? s.haste * 2 : s.haste;
-        if (ally.windUntil <= now || haste >= ally.wind) {
-          ally.wind = haste;
-          ally.windBy = t;
-        }
-        ally.windUntil = now + s.time;
-      }
+      if (t.style === 'cryo') regrow(t, now);
+      if (t.style !== 'hydro') return;
+      if (t.runes.has('spring') && !b.springs.some((spring) => spring.tower === t)) b._plantSpring(t);
+      if (t.runes.has('flow')) flood(b, t, now, alive);
+      if (t.bubble) bubble(b, t, now);
     },
   },
   priest: {

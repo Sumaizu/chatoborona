@@ -274,15 +274,6 @@ function mage(m, o) {
 }
 
 const MAGES = {
-  frost: (m) => mage(m, {
-    robe: '#1d4ed8', dark: '#1e3a8a', sleeve: '#2557e0', hat: '#1e40af', trim: '#7dd3fc',
-    glow: '#e0f2fe', staff: '#94a3b8',
-    tip: (q, x, y) => {
-      q.ball(x, y, 12.6, 2.6, '#38bdf8', 1);
-      q.ball(x - 0.7, y - 0.7, 14.2, 1, '#e0f2fe', 1);
-      for (const [dx, dy] of [[-2.5, 2.5], [2.6, 1.4], [0.4, -3]]) q.dot(x + dx, y + dy, '#7dd3fc', 50);
-    },
-  }),
   earth: (m) => mage(m, {
     robe: '#7c5a3a', dark: '#4a3524', sleeve: '#86613f', hat: '#5c4128', trim: '#65a30d',
     glow: '#bef264', staff: '#5c3d22',
@@ -291,18 +282,6 @@ const MAGES = {
       q.egg(x - 1.3, y + 0.8, 12.4, 1.1, 0.9, 2.2, '#d97706', 1);
       q.egg(x + 1.3, y + 0.6, 12.4, 1, 0.9, 2, '#92400e', 1);
       q.dot(x - 0.4, y - 1, '#fde68a', 60);
-    },
-  }),
-  shaman: (m) => mage(m, {
-    robe: '#0d9488', dark: '#115e59', sleeve: '#14a39a', hat: '#0f766e', trim: '#ccfbf1',
-    glow: '#ecfeff',
-    tip: (q, x, y) => {
-      q.ball(x, y, 12.6, 1.4, '#a7f3d0', 1);
-      for (let k = 0; k < 7; k++) {
-        const a = k * 0.95, b = a + 0.8, r = 2 + k * 0.3, s = r + 0.3;
-        q.limb(x + Math.cos(a) * r, y + Math.sin(a) * r, 12 + k * 0.4, x + Math.cos(b) * s, y + Math.sin(b) * s,
-          12.3 + k * 0.4, 0.45, k % 2 ? '#ffffff' : '#99f6e4');
-      }
     },
   }),
 };
@@ -318,17 +297,105 @@ function stormTip(q, x, y) {
   for (const [dx, dy] of [[-3, -3], [3, 0], [-1, 3.5]]) q.dot(x + dx, y + dy, '#ffffff', 60);
 }
 
-function stormMage(m) {
+const DRAB = { robe: '#5d6573', dark: '#3d444f', sleeve: '#666e7c', hood: '#4a515d', hair: '#8a7356', tuft: '#a48c68',
+  rope: '#9c8558', patch: ['#7a5f42', '#8d9299', '#5b4a3a'] };
+
+function stormRagged(m) {
+  const c = DRAB;
   robed(m, {
-    robe: STORM_ROBE.robe, dark: STORM_ROBE.dark, sleeve: STORM_ROBE.sleeve, trim: STORM_ROBE.trim,
-    hands: [12.5, 14.5, 20.5, 12],
+    robe: c.robe, dark: c.dark, sleeve: c.sleeve, trim: c.dark, hands: [12.5, 14.5, 20.5, 12],
     weapon: (q) => {
       q.ball(20.5, 11, 12, 2.4, '#fde047', 1);
       q.ball(20.2, 10.5, 13.6, 1.2, '#ffffff', 1);
       for (const [dx, dy] of [[-2.2, -1.4], [2.1, -0.6], [0.4, 2.2]]) q.dot(20.5 + dx, 11 + dy, '#fef9c3', 60);
     },
-    head: (q) => hat(q, STORM_ROBE.hat, STORM_ROBE.trim, STORM_ROBE.glow),
+    head: (q) => {
+      q.egg(16, 20.6, 9.4, 3.9, 2.4, 1.2, c.hood);
+      q.limb(12.6, 20, 9.6, 19.4, 20, 9.6, 0.7, c.dark);
+      q.ball(16, 17, 11.2, 4.1, SKIN);
+      q.ball(16, 18.2, 12.6, 3.5, c.hair);
+      for (let i = 0; i < 9; i++) {
+        const a = Math.PI * (0.95 + 1.1 * i / 8) + Math.sin(i * 2.3) * 0.15, long = 1.6 + (i * 5 % 3) * 0.5;
+        q.limb(16 + Math.cos(a) * 2.4, 18 + Math.sin(a) * 2.2, 13.6, 16 + Math.cos(a) * (2.4 + long),
+          18 + Math.sin(a) * (2.2 + long), 13.2, 0.65, i % 2 ? c.hair : c.tuft, 0.2, 0.15);
+      }
+      for (const [x, y] of [[15, 16.4], [17.4, 17.6]]) q.dot(x, y, c.tuft, 60);
+    },
   });
+  for (const [x, y, w, h, tilt, color] of [[10.6, 24.6, 1.8, 1.5, 0.3, c.patch[0]], [20.8, 26.2, 1.6, 1.4, -0.4, c.patch[1]],
+    [16.4, 28, 1.4, 1.2, 0.1, c.patch[2]]]) {
+    const cs = Math.cos(tilt), sn = Math.sin(tilt), corner = (dx, dy) => [x + dx * cs - dy * sn, y + dx * sn + dy * cs];
+    m.sheet([corner(-w, -h), corner(w, -h), corner(w, h), corner(-w, h)], 2.8, color);
+    for (const [dx, dy] of [[-w, -h], [w, -h], [w, h], [-w, h]]) {
+      const [sx, sy] = corner(dx * 0.75, dy * 0.75);
+      m.dot(sx, sy, '#2a2620', 70);
+    }
+  }
+  m.limb(11, 20.6, 4.8, 21, 20.6, 4.8, 0.55, c.rope);
+  m.limb(18.6, 20.8, 4.8, 19.6, 23.8, 3.8, 0.4, c.rope, 0, 0.25);
+  for (let i = 0; i < 9; i++) {
+    const a = Math.PI * (0.1 + 0.8 * i / 8), x = 16 + Math.cos(a) * 9, y = 22.4 + Math.sin(a) * 7.8;
+    const long = 1.4 + (i * 3 % 4) * 0.5;
+    m.limb(x - 0.6, y, 1.9, x + (x < 16 ? -0.4 : 0.4), y + long, 1.5, 0.75, i % 2 ? c.dark : c.robe, 0, 0.1);
+  }
+  for (const [x, y] of [[12.5, 16.9], [20.5, 14.4]]) {
+    for (const dx of [-1.1, 0.2, 1.2]) m.limb(x + dx, y, 8, x + dx * 1.3, y + 1.7, 7.4, 0.4, c.dark, 0, 0.12);
+  }
+}
+
+const TIDE = { sack: '#8cbfd4', dark: '#5a8aa1', sleeve: '#97c8db', net: '#2f4a55', rope: '#b9a06a', hair: '#c9ccd2',
+  shade: '#9aa1ab', twig: '#6d4c2e', bark: '#4e3520', leaf: '#5fa31d', vein: '#bef264' };
+const TWIG = { rest: [20.4, 12.6, 21.4, 6.4], flick: [21, 10.8, 23.2, 5.4] };
+
+function tideRagged(m, flick = false) {
+  const c = TIDE, [hx, hy, tx, ty] = flick ? TWIG.flick : TWIG.rest;
+  robed(m, {
+    robe: c.sack, dark: c.dark, sleeve: c.sleeve, trim: c.dark, hands: [11.8, 15.2, hx, hy],
+    weapon: (q) => {
+      const kx = hx + (tx - hx) * 0.45 - 0.5, ky = hy + (ty - hy) * 0.45;
+      q.limb(hx, hy + 0.4, 10.4, kx, ky, 11, 0.5, c.twig, 0, 0.42);
+      q.limb(kx, ky, 11, tx, ty, 11.4, 0.42, c.twig, 0, 0.26);
+      q.limb(kx, ky, 11, kx - 1.2, ky - 0.9, 11.1, 0.22, c.bark, 0, 0.1);
+      q.ball(kx, ky, 11.1, 0.5, c.bark);
+      const lx = tx - 0.9, ly = ty + 0.9;
+      q.egg(lx - 0.6, ly - 0.2, 11.6, 1.1, 0.6, 0.3, c.leaf, 0.4);
+      q.limb(lx + 0.3, ly + 0.1, 11.9, lx - 1.4, ly - 0.4, 11.9, 0.1, c.vein);
+      q.limb(lx + 0.3, ly + 0.1, 11.6, tx - 0.2, ty + 0.3, 11.4, 0.12, c.twig);
+    },
+    head: (q) => {
+      q.ball(16, 17, 11.2, 4.1, SKIN);
+      q.ball(16, 18, 12.6, 3.6, c.hair);
+      for (let k = -4; k <= 4; k++) {
+        const sway = Math.sin(k * 1.9) * 0.9, long = 6.4 + (k * 7 % 3) * 0.8 - Math.abs(k) * 0.35;
+        q.limb(16 + k * 0.7, 17.6 + Math.abs(k) * 0.25, 13 - Math.abs(k) * 0.3, 16 + k * 1.15 + sway, 17.6 + long,
+          8.6, 0.6, k % 2 ? c.hair : c.shade, 0.2, 0.3);
+      }
+      for (const [x0, y0, x1, y1] of [[13.2, 15.4, 11, 14], [18.6, 15.2, 21.2, 14.4], [12.4, 18.6, 9.8, 19.8],
+        [19.8, 18.8, 22.4, 20.4], [15.2, 15, 14.2, 13.4]]) {
+        q.limb(x0, y0, 13, x1, y1, 12.2, 0.4, c.hair, 0.2, 0.12);
+      }
+      q.limb(15.6, 15.2, 14.6, 16.4, 19.6, 14.8, 0.3, c.shade);
+    },
+  });
+  for (let i = 0; i < 7; i++) {
+    const a = Math.PI * (1.08 + 0.84 * i / 6), x = 16 + Math.cos(a) * 6.2, y = 18 + Math.sin(a) * 3.6;
+    m.limb(16, 18.4, 6.2, x, y + 4.4, 5.6, 0.18, c.net, 0, 0.18);
+  }
+  for (const r of [4.4, 6]) {
+    for (let i = 0; i < 8; i++) {
+      const a = Math.PI * (0.15 + 0.7 * i / 7), b = Math.PI * (0.15 + 0.7 * (i + 1) / 7);
+      m.limb(16 + Math.cos(a) * r, 17.4 + Math.sin(a) * r * 0.75, 6.3, 16 + Math.cos(b) * r, 17.4 + Math.sin(b) * r * 0.75,
+        6.3, 0.17, c.net);
+    }
+  }
+  m.limb(10.4, 21.4, 4.6, 21.6, 21.4, 4.6, 0.6, c.rope);
+  m.ball(13.2, 21.6, 5, 0.8, c.rope);
+  for (let i = 0; i < 11; i++) {
+    const a = Math.PI * (0.08 + 0.84 * i / 10), x = 16 + Math.cos(a) * 9.1, y = 22.4 + Math.sin(a) * 7.9;
+    const long = 0.8 + (i * 5 % 4) * 0.55;
+    m.limb(x, y, 1.9, x + (x < 16 ? -0.5 : 0.5), y + long, 1.4, 0.6, i % 3 ? c.sack : c.dark, 0, 0.12);
+  }
+  for (const [x, y] of [[23.6, 25], [9.4, 26.6], [18.2, 29.2]]) m.egg(x, y, 2.6, 0.9, 0.7, 0.3, c.dark);
 }
 
 function stormCaller(m, strike = false) {
@@ -1654,6 +1721,154 @@ function shamaness(m, beat = false) {
   }
 }
 
+const HYDRO = { dress: '#3fa9d6', fold: '#2382b0', top: '#6cc6ea', sleeve: '#a9e2f5', veil: '#b6e7f7', mist: '#86d2ee',
+  hem: '#e6f8fd',
+  hair: '#7a4a28', shade: '#54301a', trim: '#ffffff', drop: '#7dd3fc', quiver: '#1b6f96', strap: '#d6eef7' };
+const DRAW = { pull: [16.6, 15.4, 11.4], loose: [17.6, 12.8, 11.8], grip: [15.4, 8.8, 12.2], left: [13.8, 10, 11.4],
+  right: [18.2, 10, 11.4] };
+
+function hydromancer(m, pose = '') {
+  const c = HYDRO, flow = pose === 'flow', [rx, ry, rz] = flow ? DRAW.right : pose === 'loose' ? DRAW.loose : DRAW.pull;
+  const [lx, ly, lz] = flow ? DRAW.left : DRAW.grip;
+  m.limb(19.4, 15.8, 8.8, 13, 23.4, 9.6, 0.32, c.strap);
+  m.egg(13.4, 23.2, 9.4, 1.5, 3.4, 1.2, c.quiver, 0.4);
+  for (const [x, y] of [[12.8, 20.4], [13.9, 20.2], [13.3, 19.6]]) {
+    m.ball(x, y, 10.8, 0.62, c.drop, 1);
+    m.ball(x - 0.2, y - 0.2, 11.3, 0.24, '#ffffff', 1);
+  }
+  lady(m, {
+    dress: c.dress, fold: c.fold, top: c.top, sleeve: c.sleeve, wide: 1.3, bent: true, hair: c.hair, shade: c.shade,
+    trim: c.trim, belt: c.hem, spread: 6.2, hands: [lx, ly, lz, rx, ry, rz],
+    head: (q) => {
+      for (let k = -3; k <= 3; k++) {
+        const sway = Math.sin(k * 1.7) * 0.6;
+        q.limb(16 + k * 0.85, 18.6 + Math.abs(k) * 0.15, 14.6 - Math.abs(k) * 0.3, 16 + k * 1.7 + sway,
+          26.4 + Math.abs(k) * 0.3, 7.2, 0.8, k % 2 ? c.veil : c.mist, 0.5, 0.35);
+      }
+      for (let i = 0; i < 9; i++) {
+        const a = Math.PI * (1.12 + 0.76 * i / 8);
+        q.ball(16 + Math.cos(a) * 3.3, 17.4 + Math.sin(a) * 3.2, 14.2, 0.32, i % 2 ? c.drop : '#ffffff', 1);
+      }
+      q.ball(16, 14, 14.6, 0.55, c.drop, 1);
+      q.ball(15.8, 13.8, 15.1, 0.22, '#ffffff', 1);
+    },
+  });
+  for (const [x, y, z, r] of [[9.6, 17.6, 9.6, 0.42], [22.6, 19.2, 8.8, 0.36], [11.2, 24.6, 4.6, 0.4],
+    [21.2, 25.4, 4.2, 0.46], [8.8, 21.8, 5.4, 0.3], [23.4, 15.4, 9.4, 0.3]]) {
+    m.ball(x, y, z, r, c.drop, 1);
+    m.ball(x - r * 0.3, y - r * 0.3, z + r * 0.7, r * 0.35, '#ffffff', 1);
+  }
+}
+
+const KRAKEN = { skin: '#4b7493', light: '#86afcb', deep: '#2b4a63', web: '#3a6180', sucker: '#f1e2d2', ring: '#c9a08f',
+  spot: '#33566f', eye: '#f2c94c', pupil: '#120d08', glint: '#ffffff' };
+const ARMS = [
+  { a: -2.0, long: 11.5, bend: -0.6, wave: 1.6, phase: 0, curl: 1.5, thick: 1.9 },
+  { a: -2.75, long: 12.5, bend: 0.5, wave: 1.8, phase: 1.4, curl: -1.5, thick: 2 },
+  { a: 2.75, long: 12, bend: -0.4, wave: 1.6, phase: 2.6, curl: 1.6, thick: 2 },
+  { a: 2.15, long: 11, bend: 0.4, wave: 1.5, phase: 4, curl: -1.4, thick: 1.9 },
+];
+
+function octoArm(m, o, side, from, z) {
+  const c = KRAKEN, steps = 30, points = [];
+  let heading = side > 0 ? o.a : Math.PI - o.a, x = from[0], y = from[1];
+  for (let k = 0; k <= steps; k++) {
+    const f = k / steps, tip = Math.max(0, (f - 0.6) / 0.4), step = o.long / steps * (1.3 - 0.75 * f);
+    points.push([x, y, z - f * 2.6, o.thick * Math.pow(1 - f, 0.85) + 0.18]);
+    heading += side * (o.bend + o.wave * Math.sin(f * Math.PI * 2 + o.phase) + o.curl * 22 * tip * tip) / steps;
+    x += Math.cos(heading) * step;
+    y += Math.sin(heading) * step;
+  }
+  for (let k = 0; k < points.length - 1; k++) {
+    const [x0, y0, z0, r0] = points[k], [x1, y1, z1, r1] = points[k + 1];
+    m.limb(x0, y0, z0, x1, y1, z1, r0, c.skin, 0.45, r1);
+  }
+  for (let k = 2; k < points.length - 2; k += 2) {
+    const [x0, y0, z0, r0] = points[k];
+    m.ball(x0, y0, z0 + r0 * 0.8, r0 * 0.42, k % 4 ? c.light : c.skin, 0.6);
+  }
+  for (let k = 4; k < points.length - 1; k += 2) {
+    const [x0, y0, z0, r0] = points[k], [x1, y1] = points[k + 1], out = Math.atan2(y1 - y0, x1 - x0) + side * Math.PI / 2;
+    const sx = x0 + Math.cos(out) * r0 * 0.68, sy = y0 + Math.sin(out) * r0 * 0.68, size = Math.max(0.2, r0 * 0.36);
+    m.ball(sx, sy, z0 + r0 * 0.45, size, c.sucker, 0.6);
+    m.ball(sx, sy, z0 + r0 * 0.45 + size * 0.55, size * 0.45, c.ring, 0.2);
+  }
+}
+
+function krakenEyes(m, y, z) {
+  const c = KRAKEN;
+  for (const side of [-1, 1]) {
+    const x = 16 + side * 3.1;
+    m.egg(x, y, z, 1.6, 1.3, 1.2, c.light, 0.3);
+    m.egg(x, y - 0.1, z + 0.8, 1.15, 0.95, 0.7, c.eye, 0.9);
+    m.limb(x - 0.6, y - 0.1, z + 1.55, x + 0.6, y - 0.1, z + 1.55, 0.24, c.pupil);
+    m.ball(x - side * 0.35, y - 0.45, z + 1.75, 0.22, c.glint, 1);
+  }
+}
+
+function mantle(m, y, z, ry) {
+  const c = KRAKEN;
+  m.egg(16, y, z, 4.3, ry, 4.2, c.skin, 0.45);
+  m.egg(16, y + 0.8, z + 2.2, 2.6, ry * 0.62, 2.6, c.light, 0.55);
+  for (const [dx, dy, r] of [[-2.2, 0.6, 0.55], [1.9, -0.8, 0.5], [0.4, 2.6, 0.6], [-1.2, -2.2, 0.42], [2.4, 2.2, 0.45],
+    [-2.6, 2.8, 0.4]]) {
+    m.egg(16 + dx, y + dy, z + 3.6, r, r * 1.2, 0.4, c.spot);
+  }
+}
+
+function kraken(m) {
+  const c = KRAKEN;
+  m.egg(16, 15.8, 3.4, 5.4, 4.2, 1.4, c.web, 0.2);
+  for (const side of [-1, 1]) {
+    ARMS.forEach((o, i) => octoArm(m, o, -side, [16 + side * (1.4 + i * 0.4), 15.6 + i * 1.1], 5.4));
+  }
+  mantle(m, 20.6, 7.8, 5.2);
+  m.egg(16, 14.6, 7.6, 3.9, 2.8, 2.4, c.skin, 0.4);
+  krakenEyes(m, 14.4, 8.6);
+}
+
+function krakenSea(m) {
+  const c = KRAKEN;
+  for (const side of [-1, 1]) {
+    octoArm(m, { a: -2.2, long: 6, bend: 0.4, wave: 0.6, phase: 1, curl: 1, thick: 1.2 }, -side, [16 + side * 3.4, 15], 2.6);
+  }
+  mantle(m, 19.6, 3.4, 5.2);
+  m.egg(16, 14.6, 3.6, 3.8, 2.6, 2, c.skin, 0.4);
+  krakenEyes(m, 14.2, 4.4);
+}
+
+const FROST_LADY = { dress: '#bfe2f4', fold: '#8fc6e4', top: '#6f9ee6', sleeve: '#d4ecf8', hair: '#3a3466', shade: '#25204a',
+  trim: '#ffffff', fur: '#f6f8fb', furShade: '#d5dde8', ice: '#bff0ff', core: '#ffffff', gem: '#7cc8ff' };
+
+function icicle(q, x, y, z, long, r, angle = -Math.PI / 2) {
+  const tx = x + Math.cos(angle) * long, ty = y + Math.sin(angle) * long;
+  q.limb(x, y, z, tx, ty, z + 0.4, r, FROST_LADY.ice, 1, 0.08);
+  q.limb(x - 0.15, y, z + r * 0.5, x + (tx - x) * 0.6, y + (ty - y) * 0.6, z + 0.5, r * 0.35, FROST_LADY.core, 1, 0.05);
+}
+
+function cryomancer(m, cast = false) {
+  const c = FROST_LADY;
+  lady(m, {
+    dress: c.dress, fold: c.fold, top: c.top, sleeve: c.sleeve, wide: 1.9, bent: true, hair: c.hair, shade: c.shade,
+    trim: c.trim, hands: cast ? [10.6, 15.6, 8.6, 20.2, 7.8, 12.2] : [10.6, 15.6, 8.6, 21.6, 12.6, 11.2],
+    weapon: (q) => {
+      for (const [x, y] of [[14.6, 18.6], [17.4, 18.6], [16, 20]]) q.ball(x, y, 8.4, 0.5, c.gem, 1);
+      if (!cast) icicle(q, 21.6, 10.4, 14.2, 3.8, 0.75);
+    },
+    head: (q) => {
+      for (let i = 0; i < 5; i++) {
+        const a = Math.PI * (1.25 + 0.5 * i / 4), tall = i === 2 ? 1.9 : i % 2 ? 1.1 : 1.4;
+        const x = 16 + Math.cos(a) * 2.6, y = 16.8 + Math.sin(a) * 2.3;
+        q.limb(x, y, 14.4, x + Math.cos(a) * tall, y + Math.sin(a) * tall, 15.2, 0.38, c.ice, 1, 0.06);
+      }
+    },
+  });
+  for (let i = 0; i < 12; i++) {
+    const a = Math.PI * (0.98 + 1.04 * i / 11), x = 16 + Math.cos(a) * 4.6, y = 17.6 + Math.sin(a) * 2.6 + 0.6;
+    m.ball(x, y, 9.4 + (i % 2) * 0.3, 1.25 + (i % 3) * 0.12, i % 2 ? c.fur : c.furShade, 0.1);
+  }
+}
+
 const SKINS = {
   pyro: ragged,
   forester,
@@ -1686,8 +1901,8 @@ const SKINS = {
   'pyro-dragon-blue-flap': (m) => dragonFly(m, DRAGONS.blue, 0.72),
   'pyro-ignite': (m) => igniteMage(m, '#f97316', '#fde047'),
   'pyro-ignite-blue': (m) => igniteMage(m, '#3b82f6', '#e0f2ff'),
-  thunder: stormMage,
-  'thunder-ragged': stormMage,
+  thunder: stormRagged,
+  'thunder-ragged': stormRagged,
   'thunder-caller': (m) => stormCaller(m),
   'thunder-caller-strike': (m) => stormCaller(m, true),
   'thunder-raiju': (m) => raiju(m),
@@ -1698,6 +1913,16 @@ const SKINS = {
   'thunder-thor-throw': (m) => thor(m, 'throw'),
   'thunder-thor-empty': (m) => thor(m, 'empty'),
   'thunder-thor-catch': (m) => thor(m, 'catch'),
+  frost: (m) => tideRagged(m),
+  'frost-ragged': (m) => tideRagged(m),
+  'frost-ragged-flick': (m) => tideRagged(m, true),
+  'frost-hydro': (m) => hydromancer(m),
+  'frost-hydro-loose': (m) => hydromancer(m, 'loose'),
+  'frost-hydro-flow': (m) => hydromancer(m, 'flow'),
+  'frost-kraken': kraken,
+  'frost-kraken-sea': krakenSea,
+  'frost-cryo': (m) => cryomancer(m),
+  'frost-cryo-cast': (m) => cryomancer(m, true),
   priest: pilgrim,
   'priest-ragged': pilgrim,
   'priest-angel': (m) => angel(m, { armed: true }),
@@ -1747,20 +1972,22 @@ export const MUZZLES = {
   'priest-angel': [[21, -1]], 'priest-monk': [[21, 3.4]], 'priest-inquisitor': [[20.6, 3]],
   sorceress: [[20.6, 8.6]], 'sorceress-ragged': [[20.6, 8.6]], 'sorceress-minstrel': [[19.4, 14]],
   'sorceress-enchantress': [[20.4, 8.6]], 'sorceress-enchantress-beam': [[16, 8.4]], 'sorceress-shamaness': [[10.8, 13.2]],
-  frost: STAFF, earth: STAFF, shaman: STAFF, thunder: PALM, 'thunder-ragged': PALM, 'thunder-caller': STAFF,
+  frost: [[21.4, 6.4]], 'frost-ragged': [[21.4, 6.4]], 'frost-ragged-flick': [[23.2, 5.4]],
+  'frost-hydro': [[15.8, 6.2]], 'frost-hydro-loose': [[15.8, 6.2]], 'frost-hydro-flow': [[16, 8.6]], 'frost-kraken': [[16, 9]], 'frost-kraken-sea': [[16, 13]], 'frost-cryo': [[21.6, 6.6]],
+  'frost-cryo-cast': [[20.2, 6.4]], earth: STAFF, thunder: PALM, 'thunder-ragged': PALM, 'thunder-caller': STAFF,
   'thunder-caller-strike': [[12.5, 0.4]], 'thunder-raiju': [[16, 3.6]], 'thunder-thor': [[19.4, 11]], 'thunder-thor-throw': [[19.4, 11]], 'thunder-thor-empty': [[19.4, 11]],
   'thunder-thor-catch': [[19.4, 11]],
 };
 
 export const RELOAD_FRAMES = RELOAD.frames;
 
-export const FINE_HEROES = /^(priest|sorceress|thunder-(raiju|thor))/;
+export const FINE_HEROES = /^(priest|sorceress|thunder-(raiju|thor)|frost-(hydro|kraken|cryo))/;
 export const ANGEL_BODY = 1.15;
 export const HERO = { scale: 1.3, center: [16, 18] };
 const BODIES = [[/^priest-angel/, ANGEL_BODY], [/^priest-(monk|inquisitor)/, 1.25], [/^priest/, 1.08],
   [/^sorceress-shamaness/, 1.2], [/^sorceress/, 1.35], [/^forester(-ragged)?$|^forester-hunter/, 1.2],
   [/^mechanic-(turret|mortar)$/, 1.3], [/^mechanic-demo/, 1.2], [/^mechanic-turret-giant/, 1.1], [/^sniper-marksman/, 1.2],
-  [/^thunder-raiju/, 1.05], [/^thunder-thor/, 1.2]];
+  [/^thunder-raiju/, 1.05], [/^thunder-thor/, 1.2], [/^frost-(hydro|cryo)/, 1.35], [/^frost-kraken/, 1.25]];
 export const sizeOf = (id) => {
   const body = BODIES.find(([kind]) => kind.test(id));
   return body ? body[1] : 1;

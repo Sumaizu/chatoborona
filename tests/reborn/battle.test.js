@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { AIM, ARCANE, BITE_TIME, Battle, WOLF, godStage, hammerAt, HELP, HOLY, SONG, SPELL, STORM, WOOD, GRENADE, HEADWIND, MECH, MOVE_PAUSE, OVERTIME, FIRE,
+import { AIM, ARCANE, BITE_TIME, Battle, WOLF, godStage, hammerAt, HELP, HOLY, SONG, SPELL, STORM, WATER, WOOD, GRENADE, MECH, MOVE_PAUSE, OVERTIME, FIRE,
   PULSE, REACTIONS, ROT, SHOT, SPLIT_TIME }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
@@ -14,6 +14,7 @@ const leakOf = (wave) => waveSpawns(wave).reduce((sum, s) => sum + MOBS[s.type].
 const near = (actual, expected, note = '') => ok(Math.abs(actual - expected) < 1e-6 * Math.max(1, Math.abs(expected)),
   (note ? note + ': ' : '') + actual + ' вместо ' + expected);
 const hit = (mob) => mob.max - mob.hp;
+const near2 = (zone, mob) => Math.hypot(zone.x - mob.x, zone.y - mob.y) < 0.01;
 const still = (...mobs) => mobs.forEach((mob) => {
   mob.speed = 0;
 });
@@ -99,7 +100,7 @@ test('мощь: от уровня не растёт; урон и способн�
 });
 
 test('мощь: баффы саппортов растут от мощи мягче, чем урон', () => {
-  const battle = makeBattle(), flag = battle.place(player(), 'shaman', 4, 4);
+  const battle = makeBattle(), flag = battle.place(player(), 'earth', 4, 4);
   eq(flag.lift, 1);
   battle.setMods(flag, { power: 100 });
   near(flag.lift, 1 + MIGHT.lift);
@@ -130,8 +131,8 @@ test('закалка: каждые 10 волн контроль и уязвим�
   near(hard.hold / fresh.hold, 1 - resistOf(50));
 });
 
-test('бой: шаман не отбросит моба дальше предела, оглушение не чаще, чем позволяет передышка', () => {
-  const battle = makeBattle(), shaman = battle.place(level(100), 'shaman', 10, 4);
+test('бой: моба не отбросить дальше предела, оглушение не чаще, чем позволяет передышка', () => {
+  const battle = makeBattle(), shaman = battle.place(level(100), 'earth', 10, 4);
   battle.startWave(1, 1);
   runFor(battle, 0.1);
   const mob = battle.mobs[0];
@@ -2041,14 +2042,13 @@ test('ярость бога: каждый бросок за волну +1% ур�
   eq(godStage(t), 1);
 });
 
-test('сын бури: маги молнии и ветра дают Тору по +5% урона и скорости, а он каждому — +5% скорости', () => {
+test('сын бури: другие маги молнии дают Тору по +5% урона и скорости, а он каждому — +5% скорости', () => {
   const battle = makeBattle(), thor = storm(battle, 10, 4, ['thor', 'stormSon']), mage = storm(battle, 2, 1, ['caller']);
-  const wind = battle.place(player(), 'shaman', 4, 1), fire = battle.place(player(), 'pyro', 6, 1);
+  const fire = battle.place(player(), 'pyro', 6, 1);
   battle.step(TICK);
-  near(thor.boost.rate, 2 * STORM.son.haste);
-  near(thor.boost.damage, 2 * STORM.son.damage);
+  near(thor.boost.rate, STORM.son.haste);
+  near(thor.boost.damage, STORM.son.damage);
   near(mage.boost.rate, STORM.son.haste);
-  near(wind.boost.rate, STORM.son.haste);
   near(fire.boost.rate, 0, 'маг огня — нет');
 });
 
@@ -2063,8 +2063,10 @@ test('отброс не загоняет мобов за портал: даль�
   const deep = walker(battle, 2, 1e9);
   battle._push(deep, 1, t);
   eq(deep.d, 2, 'кто ещё в тоннеле — назад не толкается');
-  battle._sweep(10);
-  eq([mob.d, deep.d], [3.5, 2], 'волна до сердца — тоже');
+  still(mob, deep);
+  battle._vortex(t, 2.5, 5.5);
+  runFor(battle, WATER.vortex.time + 0.1);
+  eq([mob.d, deep.d], [3.5, 2], 'водоворот — тоже');
 });
 
 test('шаманка: удар в барабан — волна на 2 клетки вокруг ранит всех', () => {
@@ -2580,96 +2582,6 @@ test('Диабло у сердца разбивает его одним удар
   ok(devil.dead);
 });
 
-test('ледяной маг: буря вокруг бьёт льдом всех в радиусе', () => {
-  const battle = makeBattle(), frost = battle.place(player(), 'frost', 10, 4);
-  battle.setMods(frost, { perks: [0] });
-  battle.random = () => 0.99;
-  const mobs = [walker(battle, 9, 1e6), walker(battle, 11, 1e6), walker(battle, 12, 1e6)];
-  battle._fire(frost);
-  for (const mob of mobs) ok(mob.hp < mob.max);
-  ok(battle.events.some((e) => e.kind === 'nova'));
-});
-
-test('ледяной маг: с 10-го в буре мобы медленнее, а вышедшие ещё несколько секунд идут подмороженными', () => {
-  const battle = makeBattle(), frost = battle.place(level(10), 'frost', 10, 4);
-  frost.busy = 1e9;
-  const mob = walker(battle, 10, 1e6);
-  battle.step(TICK);
-  ok(mob.chill > 0);
-  mob.d = 17;
-  battle._locate(mob);
-  runFor(battle, 1);
-  ok(mob.slowUntil > battle.time && mob.slow > 0, 'след холода держится');
-  runFor(battle, frost.s[0].time);
-  ok(mob.slowUntil <= battle.time);
-});
-
-test('ледяной маг: с 30-го удар льдом иногда замораживает, руна «Вечная мерзлота» — вдвое дольше', () => {
-  const freeze = (runes) => {
-    const battle = makeBattle(), frost = battle.place(level(30), 'frost', 10, 4);
-    battle.setMods(frost, { runes });
-    battle.random = () => 0;
-    const mob = walker(battle, 11, 1e9);
-    battle._fire(frost);
-    ok(mob.holdBy === 'frost');
-    return { time: mob.holdUntil - battle.time, s: frost.s[1] };
-  };
-  const plain = freeze([]), long = freeze(['permafrost']);
-  near(plain.time, plain.s.time);
-  near(long.time, plain.s.time * 2);
-});
-
-test('ледяной маг: с 50-го снег по всему полю подмораживает всех мобов, некоторых замораживает', () => {
-  const battle = makeBattle(), frost = battle.place(level(50), 'frost', 2, 4), far = walker(battle, 18, 1e9);
-  still(far);
-  battle.random = () => 0;
-  battle.step(TICK);
-  ok(battle.events.some((e) => e.kind === 'snow'));
-  ok(far.slowUntil > battle.time && far.slow > 0, 'подморожен');
-  ok(far.holdUntil > battle.time, 'заморожен');
-});
-
-test('ледяной маг: руна «Хрупкость» — замороженный иногда гибнет от любого удара любого игрока', () => {
-  const battle = makeBattle(), frost = battle.place(level(30), 'frost', 10, 4), gun = battle.place(player(), 'mechanic',
-    2, 4);
-  battle.setMods(frost, { runes: ['brittle'] });
-  const cap = gun.skill * RUNE_CAPS.shatter, mob = walker(battle, 6, cap * 0.8), big = walker(battle, 7, 1e9);
-  battle._hold(mob, 3, frost);
-  battle._hold(big, 3, frost);
-  battle.random = () => 0;
-  battle._hurt(mob, 1, gun);
-  ok(mob.dead, 'рассыпался');
-  ok(battle.events.some((e) => e.kind === 'shatter'));
-  battle._hurt(big, 1, gun);
-  ok(!big.dead && hit(big) >= cap, 'слишком крепкий — получает урон, но жив');
-});
-
-test('шаман: вихрь катится назад по дороге и бьёт всех на пути сквозь броню', () => {
-  const battle = makeBattle(), shaman = battle.place(player(), 'shaman', 10, 4);
-  shaman.critChance = 0;
-  battle.random = () => 0.99;
-  const knight = put(battle, special(battle, 'elite', 'knight', 1e6), 11), mob = walker(battle, 10.4, 1e6);
-  still(knight, mob);
-  battle._fire(shaman);
-  shaman.busy = 1e9;
-  runFor(battle, shaman.cls.base.whirlTime + 0.1);
-  near(hit(knight), shaman.damage, 'броня не режет');
-  near(hit(mob), shaman.damage, 'задет и тот, кто позади');
-});
-
-test('шаман: с 10-го порыв отбрасывает обычных рядом с целью, с 30-го отбрасывает задетых, но не боссов', () => {
-  const battle = makeBattle(), shaman = battle.place(level(30), 'shaman', 10, 4);
-  battle.random = () => 0;
-  const mob = walker(battle, 11, 1e6), boss = put(battle, special(battle, 'boss', 'crusher', 1e6), 11.3);
-  still(mob, boss);
-  battle._fire(shaman);
-  shaman.busy = 1e9;
-  runFor(battle, shaman.cls.base.whirlTime + 0.1);
-  ok(battle.events.some((e) => e.kind === 'gust'));
-  ok(mob.pushed > 0 && mob.d < 11, 'отброшен');
-  eq(boss.pushed, 0, 'босса не отбрасывает');
-});
-
 test('серебряные элитные: обычный моб с шансом становится серебряным — крепче, со свойством, дороже; объявляется раз', () => {
   eq(silverChance(1), 0, 'в первых волнах их нет');
   ok(silverChance(30) > silverChance(5) && silverChance(500) === SILVER.max, 'чем дальше, тем чаще, но не больше предела');
@@ -2911,33 +2823,241 @@ test('маг огня: тление, огненная реакция, факел
   ok(blue.events.some((e) => e.kind === 'shot' && e.blue), 'и синее');
 });
 
-test('маг воды: струя; заморозка, волна, водоворот, цунами', () => {
-  const battle = makeBattle(), t = battle.place(player(), 'frost', 10, 4);
-  battle.random = () => 0.99;
+function water(battle, x, y, runes) {
+  const t = battle.place(player(), 'frost', x, y);
+  battle.setMods(t, { runes });
   t.critChance = 0;
-  const mob = walker(battle, 10, 1e6);
+  t.cooldown = 1e9;
+  return t;
+}
+
+test('маг воды: частые капли из палочки летят и бьют по прилёту; стихию воды кладёт только с реакцией', () => {
+  const battle = makeBattle(), t = water(battle, 10, 4, []);
+  const mob = walker(battle, 11, 1e6);
+  still(mob);
+  ok(t.interval < 0.5, 'часто');
+  battle._fire(t);
+  eq(mob.hp, mob.max, 'капля ещё летит');
+  ok(battle.events.some((e) => e.kind === 'shot' && e.time > 0));
+  runFor(battle, 0.3);
+  near(hit(mob), t.damage);
+  no(mob.marks, 'без реакции стихию не кладёт');
+  battle.setMods(t, { runes: ['waterReact'] });
+  t.critChance = 0;
+  battle._fire(t);
+  runFor(battle, 0.3);
+  ok(mob.marks && mob.marks.has('water'));
+});
+
+test('маг воды: навыки — свои у каждого стиля; дождь у гидроманта и кракена, снег у криоманта', () => {
+  const ids = (taken) => choiceOf('frost', taken).map((option) => option.skill.id);
+  eq(ids([]), ['hydro', 'kraken', 'cryo']);
+  eq(ids(['hydro']), ['flow', 'bubble', 'vortex', 'spring', 'waterReact', 'home', 'rain', 'tide']);
+  eq(ids(['kraken']), ['waterReact', 'home', 'rain', 'tide']);
+  eq(ids(['cryo']), ['waterReact', 'home', 'snow', 'tide']);
+});
+
+test('гидромант: водяная стрела слетает с тетивы и цепочкой пролетает всех врагов в радиусе по разу, потом пропадает', () => {
+  const battle = makeBattle(), t = water(battle, 10, 4, ['hydro']);
+  const mobs = [walker(battle, 9, 1e6), walker(battle, 11, 1e6), walker(battle, 12.5, 1e6)], far = walker(battle, 18, 1e6);
+  still(...mobs, far);
+  ok(battle._fire(t), 'выстрел');
+  eq(battle.arrows.length, 1);
+  ok(battle.events.some((e) => e.kind === 'arrow'));
+  runFor(battle, 2);
+  for (const mob of mobs) near(hit(mob), t.damage, 'каждого — по разу');
+  eq(far.hp, far.max, 'за радиусом — нет');
+  eq(battle.arrows.length, 0, 'пропала');
+  eq(battle.events.filter((e) => e.kind === 'splash').length, 3);
+});
+
+test('гидромант, поток: по элитному или боссу в радиусе вместо стрел; замедляет, только если враг идёт навстречу', () => {
+  const battle = makeBattle(), t = water(battle, 10, 4, ['hydro', 'flow']);
+  const elite = put(battle, special(battle, 'elite', 'leader', 1e6), 9), plain = walker(battle, 11, 1e6);
+  still(elite, plain);
+  battle.step(TICK);
+  ok(t.flow && t.flow.mob === elite, 'поток — в элитного');
+  no(battle._fire(t), 'пока льёт поток — стрел нет');
+  runFor(battle, 1.1);
+  ok(hit(elite) > 0 && plain.hp === plain.max);
+  ok(elite.slowUntil > battle.time, 'идёт навстречу — замедлен');
+  near(elite.slow, WATER.flow.elite);
+  const away = makeBattle(), w = water(away, 10, 4, ['hydro', 'flow']);
+  const boss = put(away, special(away, 'boss', 'crusher', 1e9), 12.5);
+  still(boss);
+  runFor(away, 1.1);
+  ok(w.flow && w.flow.mob === boss && hit(boss) > 0, 'и в босса');
+  no(boss.slowUntil > away.time, 'уходит от потока — не замедлен');
+  for (const mob of away.mobs) mob.dead = true;
+  away.step(TICK);
+  eq(w.flow, null, 'врагов нет — поток кончился');
+});
+
+test('гидромант, пузырь: копит заряд за каждое попадание; раз в 30 секунд летит к элитному или боссу и лопается на 3 клетки', () => {
+  const battle = makeBattle(), t = water(battle, 10, 4, ['hydro', 'bubble']);
+  eq(t.bubble.charges, 0);
+  const mobs = [walker(battle, 9, 1e9), walker(battle, 11, 1e9), walker(battle, 12, 1e9)];
+  still(...mobs);
+  battle._fire(t);
+  runFor(battle, 1.5);
+  eq(t.bubble.charges, 3, 'каждое попадание — заряд');
+  t.bubble.charges = 100;
+  runFor(battle, WATER.bubble.every);
+  no(t.bubble.fly, 'нет элитных — ждёт');
+  const boss = put(battle, special(battle, 'boss', 'crusher', 1e9), 14), side = walker(battle, 15, 1e9);
+  still(boss, side);
+  battle.step(TICK);
+  ok(t.bubble.fly && t.bubble.fly.mob === boss, 'полетел к боссу');
+  runFor(battle, 6);
+  ok(battle.events.some((e) => e.kind === 'pop'), 'лопнул');
+  eq(t.bubble.charges, 0, 'заряды кончились');
+  near(hit(side), t.damage * WATER.bubble.per * 100, 'урон за каждый заряд — и соседям');
+});
+
+test('гидромант, водоворот: от попадания стрелы стягивает за секунду всех на 3 клетки, даже боссов', () => {
+  const shot = makeBattle(), h = water(shot, 10, 4, ['hydro', 'vortex']);
+  shot.random = () => 0;
+  still(walker(shot, 11, 1e9), walker(shot, 12, 1e9));
+  shot._fire(h);
+  runFor(shot, 0.5);
+  eq(shot.events.filter((e) => e.kind === 'vortex').length, 1, 'от попадания — водоворот, не чаще раза в 4 секунды');
+  const battle = makeBattle(), t = water(battle, 10, 4, ['hydro', 'vortex']);
+  const lead = walker(battle, 11, 1e9), back = walker(battle, 9, 1e9), far = walker(battle, 17, 1e9);
+  const boss = put(battle, special(battle, 'boss', 'crusher', 1e9), 13.5);
+  still(lead, back, far, boss);
+  battle._vortex(t, lead.x, lead.y);
+  runFor(battle, WATER.vortex.time + 0.1);
+  for (const mob of [back, boss]) ok(Math.abs(mob.d - 11) < 0.2, 'стянут к точке: ' + mob.d);
+  eq(far.d, 17, 'дальний — нет');
+});
+
+test('гидромант, родник: в соседней клетке; на 3 клетки чинит стены, жжёт нежить, союзники перезаряжаются быстрее', () => {
+  const battle = makeBattle(), t = water(battle, 10, 3, ['hydro', 'spring']);
+  battle.step(TICK);
+  eq(battle.springs.length, 1);
+  const spring = battle.springs[0];
+  eq(Math.max(Math.abs(spring.x - 10), Math.abs(spring.y - 3)), 1, 'в соседней клетке');
+  no(battle.free(spring.x, spring.y), 'клетка занята');
+  const ally = battle.place(player(), 'sniper', spring.x === 11 ? 12 : 11, 2);
+  const ghost = walker(battle, spring.cx + 0.5, 1e9), living = walker(battle, spring.cx + 0.6, 1e9);
+  ghost.undead = true;
+  still(ghost, living);
+  const wall = { tower: t, i: 0, r: 0, d: 0.5, x: spring.cx, y: 5.5, hp: 10, max: 100, hitAt: -1e9 };
+  battle.walls.push(wall);
+  runFor(battle, PULSE * 2 + 0.05);
+  ok(wall.hp > 10, 'стена чинится');
+  ok(hit(ghost) >= t.damage * WATER.spring.undead, 'нежить — сильно');
+  eq(living.hp, living.max, 'живых — нет');
+  near(ally.boost.clarity, WATER.spring.clarity);
+});
+
+test('родная стихия: у озера или реки урон и скорость атаки +25%; замёрзшая — не вода', () => {
+  const battle = mapWith({ lake: [[6, 3]] }), t = water(battle, 6, 2, ['home']), far = water(battle, 2, 2, ['home']);
+  battle.step(TICK);
+  near(t.boost.rate, WATER.home);
+  near(t.boost.damage, WATER.home);
+  eq(far.boost.rate, 0, 'далеко от воды — нет');
+  water(battle, 14, 2, ['cryo', 'snow']);
+  runFor(battle, PULSE + 0.1);
+  eq(t.boost.rate, 0, 'снег заморозил озеро');
+});
+
+test('дождь: лужи под ходячими врагами — медленнее, с водной реакцией мокрые; громоотводы вдвое чаще', () => {
+  const battle = makeBattle(), t = water(battle, 10, 2, ['hydro', 'rain', 'waterReact']);
+  battle.random = () => 0;
+  const mob = walker(battle, 12, 1e9), flyer = walker(battle, 13, 1e9, bat());
+  still(mob, flyer);
+  runFor(battle, PULSE + 0.1);
+  ok(battle.rain, 'идёт дождь');
+  const puddles = battle.zones.filter((zone) => zone.kind === 'puddle');
+  ok(puddles.some((zone) => near2(zone, mob)) && !puddles.some((zone) => near2(zone, flyer)), 'лужа — только под ходячим');
+  runFor(battle, 0.6);
+  ok(mob.slowUntil > battle.time && mob.marks && mob.marks.has('water'), 'медленнее и мокрый');
+  no(flyer.marks, 'летучему лужа не страшна');
+  const strikes = (rain) => {
+    const b = makeBattle(), mage = storm(b, 4, 2, ['caller', 'rod']);
+    if (rain) water(b, 10, 2, ['hydro', 'rain']);
+    b.step(TICK);
+    b.random = () => STORM.rod.chance * 1.5;
+    runFor(b, PULSE * 2);
+    return b.events.filter((e) => e.kind === 'surge').length;
+  };
+  eq(strikes(false), 0);
+  ok(strikes(true) > 0, 'в дождь громоотвод срабатывает и с шансом выше обычного');
+});
+
+test('сила стихии: в дождь или снег урон +10% за каждый стак погоды', () => {
+  const battle = makeBattle(), t = water(battle, 10, 2, ['hydro', 'tide']);
+  battle.step(TICK);
+  eq(t.boost.damage, 0, 'без погоды — нет');
+  water(battle, 12, 2, ['kraken', 'rain']);
+  water(battle, 14, 2, ['hydro', 'rain']);
+  runFor(battle, PULSE + 0.05);
+  eq(battle.weather, 2, 'два дождя — два стака');
+  near(t.boost.damage, WATER.tide * 2);
+  water(battle, 4, 2, ['cryo', 'snow']);
+  runFor(battle, PULSE);
+  eq(battle.snow, 3);
+  near(t.boost.damage, WATER.tide * 3, 'дожди стали снегом — его сложения');
+});
+
+test('снег: все медленнее; дождь других магов становится снегом; до 5 сложений, с 3 — враги замерзают', () => {
+  const battle = makeBattle();
+  water(battle, 4, 2, ['cryo', 'snow']);
+  const mob = walker(battle, 12, 1e9);
+  still(mob);
+  runFor(battle, PULSE + 0.05);
+  eq(battle.snow, 1);
+  near(mob.slow, WATER.snow.slow[0]);
+  water(battle, 6, 2, ['hydro', 'rain']);
+  water(battle, 8, 2, ['kraken', 'rain']);
+  runFor(battle, PULSE);
+  eq(battle.snow, 3, 'дожди стали снегом');
+  eq(battle.rain, null);
+  near(mob.slow, WATER.snow.slow[2]);
+  battle.random = () => 0;
+  runFor(battle, PULSE);
+  ok(mob.holdUntil > battle.time && mob.holdBy === 'frost', 'замерзает');
+  for (const x of [12, 14, 16]) water(battle, x, 2, ['cryo', 'snow']);
+  runFor(battle, PULSE);
+  eq(battle.snow, WATER.snow.max, 'больше пяти не бывает');
+});
+
+test('кракен: на суше бьёт одним щупальцем одного врага на 2 клетки вокруг; радиус ничем не увеличить', () => {
+  const battle = makeBattle(), t = water(battle, 10, 4, ['kraken']);
+  eq(t.range, WATER.kraken.reach);
+  battle.setMods(t, { runes: ['kraken'], range: 2 });
+  eq(t.range, WATER.kraken.reach, 'прибавка радиуса не действует');
+  t.critChance = 0;
+  const a = walker(battle, 11, 1e6), b = walker(battle, 10, 1e6), far = walker(battle, 14, 1e6);
+  still(a, b, far);
+  ok(battle._fire(t));
+  eq([a, b].filter((mob) => mob.hp < mob.max).length, 1, 'одно щупальце — один враг');
+  near(hit(a) + hit(b), t.damage);
+  eq(far.hp, far.max);
+  ok(battle.events.some((e) => e.kind === 'tentacle' && !e.arm));
+});
+
+test('криомант: сосулька из руки и одна из трёх кружащих — вдвое сильнее; потраченные отрастают по одной за 2 секунды', () => {
+  const battle = makeBattle(), t = water(battle, 10, 4, ['cryo']);
+  eq(t.icicles, WATER.cryo.stock);
+  eq(t.element, 'ice', 'бьёт льдом');
+  const mob = walker(battle, 11, 1e9);
   still(mob);
   battle._fire(t);
-  near(hit(mob), t.damage, 'струя бьёт одного');
-  no(mob.marks, 'стихию сама не накладывает');
-  battle.setMods(t, { perks: [1] });
-  battle.random = () => 0.01;
-  battle._fire(t);
-  ok(mob.holdUntil > battle.time, 'заморозка');
-
-  const waves = makeBattle(), w = waves.place(player(), 'frost', 10, 4), boss = put(waves,
-    special(waves, 'boss', 'crusher', 1e9), 12);
-  waves.setMods(w, { perks: [3, 4, 5] });
-  w.cooldown = 1e9;
-  const a = walker(waves, 10, 1e6), b = walker(waves, 3, 1e6);
-  still(a, b, boss);
-  const da = a.d, db = b.d, dboss = boss.d;
-  waves.step(TICK);
-  ok(waves.events.some((e) => e.kind === 'wave') && waves.events.some((e) => e.kind === 'tsunami'));
-  ok(a.d <= da - 3.9, 'волна и цунами отбросили');
-  ok(b.d <= db - 2.9, 'цунами — по всему полю');
-  near(boss.d, dboss, 'босса не сдвинуть');
-  ok(waves.zones.some((zone) => zone.kind === 'pool' && zone.tower === w), 'водоворот');
+  eq(t.icicles, WATER.cryo.stock - 1);
+  eq(battle.events.filter((e) => e.kind === 'icicle').map((e) => Boolean(e.big)), [false, true]);
+  runFor(battle, 0.3);
+  near(hit(mob), t.damage * (1 + WATER.cryo.big));
+  for (let i = 0; i < 3; i++) battle._fire(t);
+  eq(t.icicles, 0);
+  eq(battle.events.filter((e) => e.kind === 'icicle' && e.big).length, WATER.cryo.stock, 'запаса нет — только из руки');
+  runFor(battle, WATER.cryo.refill + 0.1);
+  eq(t.icicles, 1, 'отросла одна');
+  runFor(battle, WATER.cryo.refill * 2);
+  eq(t.icicles, WATER.cryo.stock, 'и остальные, по одной');
+  runFor(battle, WATER.cryo.refill * 2);
+  eq(t.icicles, WATER.cryo.stock, 'больше трёх не бывает');
 });
 
 function lab() {
@@ -2949,7 +3069,7 @@ function lab() {
   const towers = {
     fire: at('pyro', 1, { runes: ['fireReact'] }), fire2: at('pyro', 3, { runes: ['fireReact'] }),
     fire3: at('pyro', 17, { runes: ['fireReact'] }),
-    water: at('frost', 5, { perks: [6] }), earth: at('earth', 7, { perks: [6] }), air: at('shaman', 9, { perks: [6] }),
+    water: at('frost', 5, { runes: ['waterReact'] }), earth: at('earth', 7, { perks: [6] }),
     lightning: at('thunder', 11, { runes: ['stormReact'] }), poison: at('forester', 13, { runes: ['witch'] }),
   };
   return { battle, towers };
@@ -2957,7 +3077,7 @@ function lab() {
 
 test('реакции: стихию накладывают только «… реакция»; две стихии — реакция в тик, урон от суммы мощи', () => {
   const { battle, towers } = lab(), plain = battle.place(player(), 'thunder', 15, 3);
-  eq([towers.fire.react, towers.water.react, towers.air.react], ['fire', 'water', 'air']);
+  eq([towers.fire.react, towers.water.react, towers.earth.react], ['fire', 'water', 'earth']);
   eq(plain.react, null, 'без способности стихия не накладывается');
   const mob = walker(battle, 2, 1e6);
   still(mob);
@@ -2985,47 +3105,25 @@ test('реакции: стихию накладывают только «… р�
 test('реакции: шанс выше у стихии, наложенной чаще; несколько реакций сразу, если не мешают', () => {
   const { battle, towers } = lab();
   battle.random = seeded(5);
-  let steam = 0, frost = 0;
+  let steam = 0, mud = 0;
   for (let i = 0; i < 300; i++) {
     const mob = walker(battle, 2, 1e9);
     still(mob);
-    for (const key of ['fire', 'fire2', 'fire3', 'water', 'air']) battle._mark(mob, towers[key].react, towers[key]);
+    for (const key of ['fire', 'fire2', 'fire3', 'water', 'earth']) battle._mark(mob, towers[key].react, towers[key]);
     battle._pulse(battle.time);
     if (battle.state(mob, 'steam')) steam += 1;
-    if (battle.state(mob, 'frost')) frost += 1;
+    if (battle.state(mob, 'mud')) mud += 1;
     mob.dead = true;
   }
-  ok(steam > frost * 1.3, 'огня больше — пар чаще: ' + steam + ' против ' + frost);
+  ok(steam > mud * 1.3, 'огня больше — пар чаще: ' + steam + ' против ' + mud);
   const both = walker(battle, 6, 1e9);
   still(both);
-  for (const key of ['fire', 'water', 'air', 'lightning']) battle._mark(both, towers[key].react, towers[key]);
+  for (const key of ['fire', 'water', 'earth', 'poison']) battle._mark(both, key, towers[key]);
   battle._pulse(battle.time);
   ok(!both.marks, 'две реакции сразу');
 });
 
-test('реакции: мороз продлевается и может заморозить; огонь по льду — пар втрое сильнее', () => {
-  const { battle, towers } = lab();
-  const mob = walker(battle, 2, 1e9);
-  still(mob);
-  battle._mark(mob, 'water', towers.water);
-  battle._mark(mob, 'air', towers.air);
-  battle._pulse(battle.time);
-  ok(battle.state(mob, 'frost'), 'мороз');
-  ok(mob.slowUntil > battle.time, 'замедляет');
-  battle.random = () => 0.01;
-  battle._mark(mob, 'water', towers.water);
-  battle._pulse(battle.time);
-  ok(battle.state(mob, 'ice') && mob.holdUntil > battle.time, 'лёд');
-  const was = hit(mob);
-  battle._mark(mob, 'fire', towers.fire);
-  battle._pulse(battle.time);
-  no(battle.state(mob, 'ice'), 'лёд растаял');
-  const power = towers.fire.skill + towers.water.skill + towers.air.skill;
-  near(hit(mob) - was, power * REACTIONS.steam.fire * 3, 'пар третьей степени — от мощи всех участников');
-  ok(battle.state(mob, 'steam').until >= battle.time + 2.9);
-});
-
-test('реакции: гарантированные — лава, перегрузка, эпидемия, ядерный взрыв; газ из пара и яда', () => {
+test('реакции: гарантированные — лава, эпидемия, ядерный взрыв; газ из пара и яда', () => {
   const { battle, towers } = lab();
   const mud = walker(battle, 2, 1e9);
   still(mud);
@@ -3034,21 +3132,8 @@ test('реакции: гарантированные — лава, перегр�
   battle._pulse(battle.time);
   ok(battle.state(mud, 'mud'), 'грязь');
   battle._mark(mud, 'fire', towers.fire);
-  battle._mark(mud, 'air', towers.air);
   battle._pulse(battle.time);
   ok(battle.zones.some((zone) => zone.kind === 'lava') && !battle.state(mud, 'mud'), 'лава');
-
-  const charged = walker(battle, 5, 1e9);
-  still(charged);
-  battle._mark(charged, 'air', towers.air);
-  battle._mark(charged, 'lightning', towers.lightning);
-  battle._pulse(battle.time);
-  ok(battle.state(charged, 'charge'), 'заряд');
-  battle._mark(charged, 'water', towers.water);
-  battle._mark(charged, 'lightning', towers.lightning);
-  battle._pulse(battle.time);
-  ok(battle.events.some((e) => e.kind === 'react' && e.name === 'Перегрузка'), 'перегрузка');
-  ok(charged.holdUntil >= battle.time + 2, 'надолго оглушён');
 
   const sick = walker(battle, 8, 1e9);
   still(sick);
@@ -3069,27 +3154,6 @@ test('реакции: гарантированные — лава, перегр�
   battle._pulse(battle.time);
   ok(battle.events.some((e) => e.kind === 'react' && e.name === 'Ядерный взрыв'), 'взрыв в газе — ядерный');
   ok(!battle.zones.includes(cloud), 'облако сгорело');
-});
-
-test('маг ветра: попутный ветер, ураган, око бури', () => {
-  const battle = makeBattle(), t = battle.place(player(), 'shaman', 10, 4), ally = battle.place(player(), 'sniper', 11, 4);
-  still(walker(battle, 0, 1e6));
-  battle.step(TICK);
-  const plain = ally.boost.rate;
-  battle.setMods(t, { perks: [3] });
-  battle.step(TICK);
-  near(ally.boost.rate - plain, t.s[3].haste, 'попутный ветер всегда');
-
-  const gale = makeBattle(), g = gale.place(player(), 'shaman', 10, 4);
-  gale.setMods(g, { perks: [4, 5] });
-  g.cooldown = 1e9;
-  const light = walker(gale, 10, 1e6), elite = put(gale, special(gale, 'elite', 'leader', 1e6), 9), far = walker(gale, 6, 1e6);
-  still(light, elite, far);
-  const dfar = far.d;
-  gale.step(TICK);
-  ok(light.holdUntil > gale.time && light.vuln >= g.s[4].vuln, 'ураган поднял лёгкого');
-  ok(!(elite.vulnUntil > gale.time), 'элитного — нет');
-  ok(far.d <= dfar - g.s[5].push + 0.01, 'око бури отбросило всех');
 });
 
 test('маг земли: землетрясение, разлом, зыбучий песок, стальная крепость', () => {
@@ -3113,43 +3177,6 @@ test('маг земли: землетрясение, разлом, зыбучи�
   fort._batter(wall, mob, TICK, fort.time);
   ok(fort.events.some((e) => e.kind === 'boom' && e.tower === f), 'рухнув, взрывается');
   ok(mob.holdUntil > fort.time, 'и оглушает');
-});
-
-test('шаман: с 50-го ветер ускоряет союзников рядом, самого шамана — вдвое', () => {
-  const battle = makeBattle(), shaman = battle.place(level(50), 'shaman', 10, 4);
-  const ally = battle.place(player(), 'mechanic', 11, 4), far = battle.place(player(), 'mechanic', 2, 4);
-  const mob = walker(battle, 18, 1e9);
-  still(mob);
-  const plain = battle._intervalOf(ally, battle.time);
-  battle.step(TICK);
-  ok(battle.events.some((e) => e.kind === 'wind'));
-  near(ally.wind, shaman.s[2].haste);
-  near(shaman.wind, shaman.s[2].haste * 2);
-  eq(far.windUntil, 0, 'дальний — нет');
-  near(battle._intervalOf(ally, battle.time), plain / (1 + shaman.s[2].haste));
-});
-
-test('шаман: руна «Встречный ветер» — все мобы на 20% медленнее, «Торнадо» впитывает стихии и бьёт ими', () => {
-  const pace = (runes) => {
-    const battle = makeBattle(), shaman = battle.place(player(), 'shaman', 2, 0);
-    battle.setMods(shaman, { runes });
-    shaman.busy = 1e9;
-    const mob = walker(battle, 1, 1e9);
-    runFor(battle, 2);
-    return mob.d - 1;
-  };
-  near(pace(['headwind']), pace([]) * (1 - HEADWIND));
-  const battle = makeBattle(), shaman = battle.place(player(), 'shaman', 10, 4);
-  battle.setMods(shaman, { runes: ['tornado'] });
-  battle.random = () => 0.99;
-  const mob = walker(battle, 11, 1e6);
-  still(mob);
-  battle.patches.push({ tower: shaman, x: mob.x, y: mob.y, radius: 0.5, dps: 0, until: 1e9 });
-  battle._fire(shaman);
-  shaman.busy = 1e9;
-  battle.step(TICK);
-  ok(battle.whirls[0].elements.has('fire'), 'впитал огонь');
-  ok(hit(mob) > shaman.damage * 1.2, 'бьёт и огнём');
 });
 
 test('маг земли: шипы бьют сразу две клетки дороги, руна «Каменные шипы» — пять; летучих не задевают', () => {
@@ -3245,7 +3272,7 @@ test('маг земли: с 50-го метеорит — урон землёй �
 test('элементали: своя стихия их не берёт, остальное — как обычно', () => {
   const battle = makeBattle();
   const pyro = battle.place(level(10), 'pyro', 3, 4), gunner = battle.place(player(), 'mechanic', 3, 6);
-  const frost = battle.place(level(10), 'frost', 5, 4), witch = forester(battle, 5, 6, ['witch']);
+  const cryo = water(battle, 5, 4, ['cryo']), witch = forester(battle, 5, 6, ['witch']);
   const thunder = battle.place(player(), 'thunder', 7, 4);
   const ember = creature(battle, 'ember'), ice = creature(battle, 'frostling'), sludge = creature(battle, 'sludge');
   const storm = creature(battle, 'stormling');
@@ -3259,10 +3286,9 @@ test('элементали: своя стихия их не берёт, оста
   eq(sludge.hp, sludge.max, 'яд не берёт');
   battle._hurt(storm, 50, thunder);
   eq(storm.hp, storm.max, 'молния не берёт');
-  ice.x = frost.cx;
-  ice.y = frost.cy;
-  battle._effects(TICK, battle.time);
-  eq(ice.chill, 0, 'лёд не замедляет');
+  battle._hurt(ice, 50, cryo);
+  eq(ice.hp, ice.max, 'лёд не берёт');
+  no(battle._targetable(cryo, ice), 'криомант в него не целится');
   battle._slow(ice, 0.5, 2, 'ice');
   eq(ice.slow, 0);
   ok(battle.events.some((e) => e.kind === 'immune'));
@@ -3662,6 +3688,71 @@ test('полёт: ангел и дракон встают над горами, �
   ok(Math.abs(dragon.x - 7) + Math.abs(dragon.y - 3) <= 2 && battle.towerAt(dragon.x, dragon.y) === dragon);
 });
 
+test('кракен: встаёт в озеро или реку; щупальце — в каждой свободной клетке водоёма, и за мостом; бьют на 3 клетки', () => {
+  const lake = [[3, 2], [4, 2], [5, 2], [3, 1], [4, 1]], river = [[6, 2], [7, 2], [8, 2], [8, 3], [8, 4], [8, 6], [8, 7]];
+  const battle = mapWith({ lake: lake.concat([[15, 1], [16, 1]]), river, bridge: [[8, 5]] });
+  no(battle.free(4, 2), 'в воду — только кракену');
+  ok(battle.free(4, 2, 'sea'));
+  const t = battle.place(player(), 'frost', 4, 2, { runes: ['kraken'] });
+  ok(t && battle.swims(t), 'кракен в озере');
+  t.critChance = 0;
+  battle.step(TICK);
+  const cells = (list) => list.map((arm) => Math.floor(arm.x) + ',' + Math.floor(arm.y)).sort();
+  eq(battle.arms.length, lake.length + river.length - 1, 'в каждой клетке водоёма, кроме головы');
+  no(cells(battle.arms).includes('4,2'), 'где голова — щупальца нет');
+  ok(cells(battle.arms).includes('8,7'), 'река за мостом — тот же водоём');
+  no(cells(battle.arms).includes('15,1'), 'другое озеро — нет');
+  const other = battle.place(player(), 'frost', 3, 1, { runes: ['kraken'] });
+  battle.step(TICK);
+  eq(battle.arms.length, 2 * (lake.length + river.length - 2), 'второй кракен — тоже во все клетки, кроме голов');
+  const spots = battle.arms.map((arm) => arm.x + ',' + arm.y);
+  eq(new Set(spots).size, spots.length, 'в одной клетке щупальца разных кракенов — в разных местах');
+  const mob = walker(battle, 9, 1e6), far = walker(battle, 19, 1e6);
+  still(mob, far);
+  t.cooldown = 1e9;
+  other.cooldown = 1e9;
+  ok(battle._fire(t));
+  const strikes = battle.events.filter((e) => e.kind === 'tentacle' && e.tower === t);
+  ok(strikes.length >= 2 && strikes.every((e) => e.arm && Math.hypot(e.mob.x - e.arm.x, e.mob.y - e.arm.y) <= WATER.kraken.sea),
+    'бьёт сразу много щупалец, каждое — на 3 клетки');
+  near(hit(mob), strikes.length * t.damage * WATER.kraken.arm / WATER.kraken.mul);
+  eq(far.hp, far.max);
+  ok(battle.move(t, 4, 3), 'вышел на сушу');
+  battle.step(TICK);
+  no(battle.swims(t));
+  no(battle.arms.some((arm) => arm.tower === t), 'на суше щупалец в воде нет');
+});
+
+test('снег замораживает озёра и реки — по льду ходят, кракен там как на суше; дождь и снег остужают лаву в камень', () => {
+  const battle = mapWith({ lake: [[6, 2], [7, 2], [8, 2]] }), k = battle.place(player(), 'frost', 6, 2, { runes: ['kraken'] });
+  ok(battle.swims(k));
+  no(battle.free(7, 2));
+  const cryo = water(battle, 3, 2, ['cryo', 'snow']);
+  runFor(battle, PULSE + 0.05);
+  ok(battle.frozen && battle.liquid === 'ice', 'замёрзло');
+  no(battle.swims(k), 'кракен на льду — как на суше');
+  eq(battle.arms.length, 0);
+  ok(battle.free(7, 2), 'по льду можно ходить');
+  const gun = battle.place(player(), 'sniper', 8, 2);
+  battle.remove(cryo);
+  runFor(battle, PULSE + 0.05);
+  no(battle.frozen, 'растаяло');
+  ok(battle.swims(k), 'кракен снова в воде');
+  ok(gun.x !== 8 || gun.y !== 2, 'стрелок со льда сошёл на берег');
+
+  const hot = mapWith({ lake: [[6, 2], [7, 2]] }, 'volcano');
+  eq(hot.place(player(), 'frost', 6, 2, { runes: ['kraken'] }), null, 'лава — не вода, кракену туда нельзя');
+  const rainer = water(hot, 3, 2, ['hydro', 'rain']);
+  runFor(hot, PULSE + 0.05);
+  ok(hot.cooled && hot.liquid === 'basalt', 'лава остыла');
+  ok(hot.free(6, 2), 'на камне можно стоять');
+  hot.remove(rainer);
+  runFor(hot, PULSE + 0.05);
+  ok(hot.cooled, 'камень остаётся');
+  const ice = mapWith({ lake: [[6, 2]] }, 'snow');
+  no(ice.place(player(), 'frost', 6, 2, { runes: ['kraken'] }) && ice.swims(ice.towerAt(6, 2)), 'лёд — не вода');
+});
+
 test('полёт: дракон с перелётом перелетает и на клетку над водой или горой', () => {
   const water = [11, 12, 13].flatMap((x) => [[x, 4], [x, 6]]);
   const battle = mapWith({ lake: water }), dragon = battle.place(player(), 'pyro', 2, 2, { runes: ['dragon', 'flight'] });
@@ -3681,7 +3772,7 @@ test('карта: с вышки бьют на 2,5 клетки дальше и �
   const frost = battle.place(player(), 'frost', 8, 3), radius = frost.range;
   battle.move(high, 7, 3);
   battle.move(frost, 6, 3);
-  near(frost.range, radius + TERRAIN.watch, 'и буря шире');
+  near(frost.range, radius + TERRAIN.watch, 'и капли дальше');
   battle.move(frost, 8, 3);
   near(frost.range, radius, 'сошёл — как было');
 });
@@ -3774,22 +3865,6 @@ test('карта: руины, круг камней и склеп закрыва
   const mob = walker(battle, 4, 1e6);
   still(mob);
   ok(battle._target(tower) === mob, 'с вышки видно и поверх руин');
-});
-
-test('карта: буря ледяного мага бьёт сквозь горы и мобов в тоннеле, обычный выстрел — нет', () => {
-  const battle = mapWith({ mountain: [[14, 4]], tunnel: [[13, 5]] }), frost = battle.place(player(), 'frost', 14, 3);
-  battle.setMods(frost, { perks: [0] });
-  const gun = battle.place(player(), 'mechanic', 15, 3);
-  gun.range = 4;
-  battle.random = () => 0.99;
-  const hidden = walker(battle, 14, 1e6), behind = walker(battle, 15, 1e6);
-  still(hidden, behind);
-  eq([Math.floor(hidden.x), Math.floor(behind.x)], [13, 14]);
-  ok(battle.covered(hidden.x, hidden.y), 'один в тоннеле');
-  no(battle.sees(gun, hidden), 'обычный выстрел в тоннель не достаёт');
-  battle._fire(frost);
-  ok(hidden.hp < hidden.max, 'в тоннеле задет');
-  ok(behind.hp < behind.max, 'за горой задет');
 });
 
 test('карта: с холма бьют поверх руин, круга камней и склепа, но не поверх гор', () => {

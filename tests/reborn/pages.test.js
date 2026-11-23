@@ -239,7 +239,7 @@ test('страницы: камень навыка — окно выбора по
   await until(() => game.state === 'placing', 'расстановка');
   const anya = game.members.get('аня');
   anya.xp = xpForLevel(30);
-  anya.cls = 'frost';
+  anya.cls = 'earth';
   const slot = { id: 97, login: 'аня', outcome: { kind: 'stone' }, phase: 'spin', left: 0 };
   game.slots[0] = slot;
   game._apply(slot);

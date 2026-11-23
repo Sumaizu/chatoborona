@@ -40,10 +40,11 @@ const SOUND_PRIORITY = ['over', 'divine', 'relic', 'win', 'boss', 'wave', 'jackp
   'buff', 'debuff', 'spin', 'leak', 'card', 'tick'];
 const SFX_PER_FRAME = 4;
 const SHOTS = { sniper: 'crack', mechanic: 'gun', forester: 'bolt',
-  priest: 'holy', sorceress: 'cast', thunder: 'zap' };
+  priest: 'holy', sorceress: 'cast', thunder: 'zap', frost: 'splash' };
 const BATTLE_SOUNDS = { dash: 'zap', chord: 'lute', drum: 'drum', totem: 'build', claw: 'hit', hammer: 'leap', rod: 'build', conjure: 'cast', strike: 'hit', wall: 'build', crumble: 'crumble',
-  bite: 'chomp', nova: 'ice',
-  spikes: 'rock', whirl: 'wind', clink: 'clink', treasure: 'treasure', rattle: 'rattle', rise: 'rise',
+  bite: 'chomp', icicle: 'ice', tentacle: 'splash', splash: 'splash', arrow: 'bolt', flow: 'splash', pop: 'boom',
+  vortex: 'wind', spring: 'build', bubble: 'splash',
+  spikes: 'rock', clink: 'clink', treasure: 'treasure', rattle: 'rattle', rise: 'rise',
   hex: 'hex', blink: 'leap', burrow: 'burrow', leech: 'summon', steal: 'clink', loot: 'treasure', reflect: 'block',
   swallow: 'burrow', breath: 'flame', web: 'hex', ward: 'block', mirage: 'summon', dig: 'burrow', drop: 'summon',
   hook: 'chain', yank: 'yank', charge: 'charge', reload: 'reload', ricochet: 'ricochet', burst: 'mine',
@@ -51,8 +52,6 @@ const BATTLE_SOUNDS = { dash: 'zap', chord: 'lute', drum: 'drum', totem: 'build'
   ignite: 'ignite', oil: 'splash',
   oilfire: 'flame', net: 'snap', snare: 'snap', trap: 'snap', hail: 'wind', blob: 'splash', absorb: 'summon',
   trophy: 'clink', cauldron: 'splash',
-  shatter: 'freeze', snow: 'snow', gust: 'wind',
-  wind: 'wind',
   heal: 'heal', lastStand: 'rise', judgement: 'divine', holyRing: 'holy', warded: 'block', aegis: 'block',
   thorns: 'rock' };
 const GOOD_EVENTS = new Set(['buff', 'blessing']);

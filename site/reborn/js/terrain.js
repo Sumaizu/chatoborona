@@ -87,6 +87,7 @@ const LIQUIDS = {
   ice: { shore: '#9fb0c6', deep: '#7fb2d8', shallow: '#c4e3f6', shine: '#ffffff', mark: '#eaf6ff', wet: '#8597ae' },
   oasis: { shore: '#d2b27a', deep: '#17606e', shallow: '#3fb6b0', shine: '#d6fff6', wet: '#8a6a40' },
   tar: { shore: '#3a3542', deep: '#050408', shallow: '#17131e', shine: '#8b5cf6', wet: '#15131a' },
+  basalt: { shore: '#2b2426', deep: '#3a3234', shallow: '#5a4f52', shine: '#8d8186', mark: '#5c2a20', wet: '#1a1416' },
 };
 
 const lookOf = (biome) => LOOKS[biome] || LOOKS.grass;
@@ -944,7 +945,7 @@ function paintHills(data, battle, look) {
 }
 
 function paintLakes(data, battle, look) {
-  const style = LIQUIDS[look.water], cells = cellsOf(battle, ['lake']);
+  const style = LIQUIDS[battle.liquid || look.water], cells = cellsOf(battle, ['lake']);
   if (!cells.length && !(battle.rivers || []).length) return;
   const { h, box } = heights(cells, 0.6, 700);
   for (const river of battle.rivers || []) flow(h, box, river);
@@ -1245,8 +1246,11 @@ function bridge(g, battle, cell, look) {
 const reliefs = new WeakMap();
 
 function reliefOf(battle) {
-  if (!reliefs.has(battle)) reliefs.set(battle, relief(battle, lookOf(battle.biome)));
-  return reliefs.get(battle);
+  const kept = reliefs.get(battle);
+  if (kept && kept.liquid === battle.liquid) return kept;
+  const fresh = Object.assign(relief(battle, lookOf(battle.biome)), { liquid: battle.liquid });
+  reliefs.set(battle, fresh);
+  return fresh;
 }
 
 export function paintRoadMask(g, battle) {
