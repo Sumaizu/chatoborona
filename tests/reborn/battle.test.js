@@ -1228,19 +1228,46 @@ test('одноразовые навыки — за игроком: заново 
   ok(mech && saint.assists >= HELP.save, 'спасение — очки помощи игроку');
 });
 
-test('ангел, кара: бьёт раз в 5 секунд, но убивает любого моба одним ударом; боссу — огромный урон', () => {
+test('ангел, кара: раз в 5 секунд добивает врага с 30% здоровья и меньше, а если таких нет — огромный урон', () => {
   const battle = makeBattle(), t = priest(battle, 10, 4, ['angel', 'smite']);
   eq(t.interval, HOLY.smite.every);
   const brute = walker(battle, 11, 1e12);
   still(brute);
   ok(battle._fire(t));
-  ok(brute.dead, 'любой моб — с одного удара');
+  no(brute.dead, 'здоровый — не добивает');
+  near(hit(brute), t.damage * HOLY.smite.mul, 'огромный урон');
   ok(battle.events.some((e) => e.kind === 'strike' && e.smite), 'меч горит');
+  const weak = walker(battle, 10.5, 1e12);
+  still(weak);
+  weak.hp = weak.max * 0.25;
+  const was = hit(brute);
+  ok(battle._fire(t));
+  ok(weak.dead, 'раненого добивает в первую очередь');
+  eq(hit(brute), was, 'остальных не трогает');
   const boss = put(battle, special(battle, 'boss', BOSSES[0].id, 1e12), 11);
   still(boss);
+  boss.hp = boss.max * 0.2;
   ok(battle._fire(t));
-  no(boss.dead, 'босса не убивает');
-  ok(hit(boss) >= t.damage * HOLY.smite.boss * 0.5, 'но бьёт очень сильно');
+  ok(boss.dead, 'и босса, если у него 30% и меньше');
+});
+
+test('баланс: урон снайперов, штурмовиков, марксманов, инквизиторов, турельщиков, ведьм, магов огня и молнии, волшебниц выше', () => {
+  const battle = makeBattle(), damage = (cls, runes) => {
+    const t = battle.place(player(), cls, 2 + battle.towers.length * 2, 2);
+    battle.setMods(t, { runes });
+    return t.damage / baseOf(t.cls).damage;
+  };
+  eq([SHOT.scope.mul, SHOT.assault.mul, SHOT.marksman.mul, HOLY.inquisitor.mul, MECH.turret.mul, WOOD.witch.mul],
+    [9, 0.47, 2.15, 3, 0.39, 1.75]);
+  eq([MECH.droneAttack.mul, MECH.droneLaser.mul, MECH.droneAir.mul], [0.6, 1.7, 0.35]);
+  near(damage('pyro', []), 1.25);
+  near(damage('thunder', []), 1.25);
+  near(damage('sorceress', []), 1.25);
+  near(damage('sniper', []), 1);
+  near(damage('pyro', ['dragon']), 1.25, 'и все подклассы класса');
+  near(damage('pyro', ['fireball']), 1.25);
+  near(damage('thunder', ['caller']) / (STORM.caller ? STORM.caller.mul || 1 : 1), 1.25);
+  near(damage('sorceress', ['shamaness']) / (SPELL.shamaness ? SPELL.shamaness.mul || 1 : 1), 1.25);
 });
 
 test('ангел, божественная помощь: в клетке от сердца после волны +1 жизнь, у двух ангелов — +2', () => {

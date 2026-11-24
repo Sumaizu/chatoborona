@@ -63,12 +63,12 @@ export const FIRE = { styled: 1.5, giant: 1.5, splash: 1, wide: 1.5, breath: 0.6
   phoenix: { every: 15, speed: 8, mul: 10, reach: 0.9, step: 0.25 } };
 const TORCH_USERS = new Set(['sniper', 'mechanic', 'forester']);
 const LOFTY = new Set(['scope', 'mortar']);
-export const SHOT = { scope: { mul: 5, aim: 2, reload: 3 }, assault: { range: -1, interval: 0.55, mul: 0.35,
-  crit: 0.25, mag: 30, reload: 3 }, marksman: { range: 1.5, interval: 2.2, mul: 1.6, crit: 0.25, mag: 5, reload: 3 },
+export const SHOT = { scope: { mul: 9, aim: 2, reload: 3 }, assault: { range: -1, interval: 0.55, mul: 0.47,
+  crit: 0.25, mag: 30, reload: 3 }, marksman: { range: 1.5, interval: 2.2, mul: 2.15, crit: 0.25, mag: 5, reload: 3 },
   gold: 2, mark: { bonus: 0.25, time: 4 }, ricochet: { share: 0.5, arc: 75, reach: 3 },
   burst: { count: 3, radius: 1, gap: 0.08 },
   flash: { every: 30, radius: 1, stun: 1.5 }, double: { arc: 30 }, air: 3 };
-export const MECH = { turret: { range: -1.5, interval: 1, mul: 0.3, count: 3, gap: 0.08, radius: 1, mag: 15,
+export const MECH = { turret: { range: -1.5, interval: 1, mul: 0.39, count: 3, gap: 0.08, radius: 1, mag: 15,
   reload: 3 }, demo: { range: 0, interval: 3, mul: 1.6, radius: 1, flight: 0.25, pace: 0.12 },
   mortar: { interval: 2.4, mul: 1.1, radius: 0.8, flight: 0.7, pace: 0.06 },
   team: { radius: 1.5, per: 0.1 }, tuning: { radius: 1.5, haste: 0.3 },
@@ -78,11 +78,12 @@ export const MECH = { turret: { range: -1.5, interval: 1, mul: 0.3, count: 3, ga
   shrapnel: { count: 8, spread: 2, side: 0.3, mul: 0.35, hit: 0.45, fall: 0.3, fire: 0.35 },
   nuke: { every: 20, radius: 3, mul: 12, stun: 2, poison: 5, flight: 1.8 },
   giant: { gap: 0.07 }, drone: { speed: 4, hover: 0.6, reach: 1.6, spin: 1.3 },
-  droneAttack: { every: 1.2, count: 3, gap: 0.08, mul: 0.35 }, droneLaser: { every: 1.5, mul: 1 },
-  droneAir: { every: 1.5, mul: 0.2, slow: 0.6, time: 2 } };
+  droneAttack: { every: 1.2, count: 3, gap: 0.08, mul: 0.6 }, droneLaser: { every: 1.5, mul: 1.7 },
+  droneAir: { every: 1.5, mul: 0.35, slow: 0.6, time: 2 } };
+const DAMAGE_UP = { pyro: 1.25, thunder: 1.25, sorceress: 1.25 };
 const DRONE_KINDS = [['droneAttack', 'attack'], ['droneLaser', 'laser'], ['droneAir', 'air']];
 export const WOOD = { bow: { reload: 0.8 }, grace: { radius: 2.5, haste: 0.15 }, hunter: { range: 2, interval: 0.4, mul: 3.4, reload: 2.4 },
-  witch: { range: 0, interval: 1.8, mul: 1.3, flight: FIREBALL_FLIGHT }, bird: { every: 0.9, mul: 0.45, speed: 5, orbit: 0.7 },
+  witch: { range: 0, interval: 1.8, mul: 1.75, flight: FIREBALL_FLIGHT }, bird: { every: 0.9, mul: 0.45, speed: 5, orbit: 0.7 },
   hawk: { every: 1.4, mul: 1.6, speed: 5.5, poison: 0.5, orbit: 0.95 }, flock: { birds: [1, 2, 4], poison: 0.5 },
   roots: { cells: 5, reach: 0.7, slow: 0.4, mul: 0.15 }, snare: { chance: 0.15, time: 2.5, gap: 3 },
   catcher: { chance: 0.3, time: 2.5, dps: 0.25 }, trophy: { radius: 4.5, bonus: 0.25 },
@@ -90,7 +91,7 @@ export const WOOD = { bow: { reload: 0.8 }, grace: { radius: 2.5, haste: 0.15 },
   venomBurst: { radius: 1, time: 4, dps: 0.4 }, plague: 0.1, absorb: { time: 0.35, size: 1.5 },
   cauldron: { every: 2.5, reach: 5, flight: 0.7, mul: 0.8, radius: 0.8, time: 8, dps: 0.3 } };
 export const HOLY = { angel: { reach: 1, interval: 1, mul: 2.6 }, monk: { reach: 1.5, interval: 0.4, mul: 0.8 },
-  inquisitor: { reach: 4, interval: 1.45, mul: 2.2, flight: FIREBALL_FLIGHT }, smite: { every: 5, boss: 11 },
+  inquisitor: { reach: 4, interval: 1.45, mul: 3, flight: FIREBALL_FLIGHT }, smite: { every: 5, mul: 11, below: 0.3 },
   mercy: { reach: 1, lives: 1 }, second: { charge: 1, awe: 10, lives: 10 },
   holyGround: { every: 6, radius: 4, mul: 2, flight: 0.8 }, heavy: { chance: 0.15, stun: 1 },
   mantra: { radius: 3, haste: 0.15, damage: 0.15, range: 0.15, might: 0.2 }, burst: { radius: 2, share: 0.5 },
@@ -1287,7 +1288,7 @@ export class Battle {
     tower.style = cls.styles ? (cls.styles.find((item) => tower.runes.has(item.id)) || {}).id || null : null;
     tower.react = cls.react && (cls.react.skill.startsWith('perk') ? open(tower, Number(cls.react.skill.slice(4)))
       : tower.runes.has(cls.react.skill)) ? cls.react.element : null;
-    const boost = Math.max(FLOOR, 1 + (mods.damage || 0)) * tower.might / MIGHT.base;
+    const boost = Math.max(FLOOR, 1 + (mods.damage || 0)) * tower.might / MIGHT.base * (DAMAGE_UP[cls.id] || 1);
     tower.damage = base.damage * boost;
     tower.skill = base.skill * boost;
     tower.element = STYLE_ELEMENTS[tower.style] || cls.element || null;
@@ -3481,9 +3482,10 @@ function witchThrow(b, t, target) {
 }
 
 function smite(b, t, target) {
-  b._event({ kind: 'strike', tower: t, x: target.x, y: target.y, crit: true, mob: target, smite: true });
-  const boss = target.info.boss;
-  b._hurt(target, boss ? t.damage * HOLY.smite.boss : target.hp * 1e3 + 1e6, t, 'holy', false, SHIELDS, true);
+  const s = HOLY.smite, weak = b.mobs.filter((mob) => mob.hp <= mob.max * s.below && b._targetable(t, mob))
+    .sort((p, q) => q.max - p.max)[0], prey = weak || target;
+  b._event({ kind: 'strike', tower: t, x: prey.x, y: prey.y, crit: true, mob: prey, smite: true });
+  b._hurt(prey, weak ? prey.hp * 1e3 + 1e6 : t.damage * s.mul, t, 'holy', false, SHIELDS, true);
   return true;
 }
 
