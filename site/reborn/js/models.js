@@ -1310,16 +1310,7 @@ function giantTurret(m) {
 }
 
 
-const TEMPLE = { robe: '#ece3cc', dark: '#bfae86', sleeve: '#f3ecda', gold: '#d9a521', light: '#fffbe6', glow: '#fde68a' };
-
-function lightTip(q, x, y, z) {
-  for (const [dx, dy, long] of [[0, -1, 3.4], [1, 0, 2.6], [-1, 0, 2.6], [0.7, -0.7, 2.2], [-0.7, -0.7, 2.2]]) {
-    q.limb(x + dx * 1.2, y + dy * 1.2, z, x + dx * long, y + dy * long, z + 0.2, 0.42, TEMPLE.gold, 1, 0.12);
-  }
-  q.limb(x, y + 2.6, z - 0.4, x, y + 0.8, z, 0.6, TEMPLE.gold, 1, 0.45);
-  q.ball(x, y, z + 0.4, 1.35, TEMPLE.glow, 1);
-  q.ball(x - 0.3, y - 0.3, z + 1.4, 0.75, TEMPLE.light, 1);
-}
+const TEMPLE = { gold: '#d9a521' };
 
 function vTorso(m, cloth, shade, top = 17, waist = 23) {
   m.limb(10.4, top, 7.4, 21.6, top, 7.4, 2.2, cloth, 0.2);
@@ -1327,25 +1318,48 @@ function vTorso(m, cloth, shade, top = 17, waist = 23) {
   m.limb(16, top + 1.6, 9.6, 16, waist - 0.6, 7.8, 0.5, shade, 0, 0.3);
 }
 
+const CLERIC = { robe: '#5d6673', robeDark: '#454d58', tabard: '#b0262b', tabardDark: '#7e1a1f', fur: '#6b4a33',
+  furLight: '#8a6447', furDark: '#4a3122', leather: '#5a3b24', buckle: '#c9a245', chain: '#9aa3ad', bronze: '#b8863b',
+  scalp: '#cf9a74', wood: '#7a5230', iron: '#8a929c', light: '#fff1c2' };
+const CROSIER = [20.6, 3.4];
+
 function pilgrim(m) {
-  robed(m, {
-    robe: TEMPLE.robe, dark: TEMPLE.dark, sleeve: TEMPLE.sleeve, trim: TEMPLE.gold, hands: [12, 14.6, 20.5, 12.4],
-    weapon: (q) => {
-      q.limb(20.5, 16.4, 9.6, 20.5, 6.6, 10.8, 0.62, '#8a5a2e', 0.2, 0.55);
-      q.limb(20.5, 13.6, 10.2, 20.5, 11.2, 10.4, 0.7, '#5c3d22');
-      lightTip(q, 20.5, 4.4, 11.2);
-    },
-    head: (q) => {
-      q.egg(16, 18, 11, 4.4, 5, 3.6, TEMPLE.robe);
-      q.limb(16, 20, 12.4, 16, 23.6, 10.4, 1.5, TEMPLE.dark, 0, 0.6);
-      q.egg(16, 14.4, 11.8, 2.6, 1.7, 1.6, '#5a4630');
-      q.egg(16, 14, 12.1, 1.7, 1.1, 1.1, SKIN);
-      q.limb(13, 16, 13.6, 13.6, 21, 12.6, 0.4, TEMPLE.gold, 0.6);
-      q.limb(19, 16, 13.6, 18.4, 21, 12.6, 0.4, TEMPLE.gold, 0.6);
-    },
-  });
-  m.limb(11.6, 21.6, 6.4, 20.4, 21.6, 6.4, 0.55, '#a07a42');
-  for (const x of [12.4, 13.2]) m.limb(x, 21.8, 6.2, x - 0.3, 25.4, 4.8, 0.35, '#a07a42', 0, 0.25);
+  const c = CLERIC, [sx, sy] = CROSIER, sleeve = { sleeve: c.tabard, wide: 1.25 };
+  m.egg(16, 21.6, 2.2, 6, 6.2, 2, c.robe, 0.15);
+  for (const [x, y] of [[11.8, 25.4], [14, 27], [16, 27.4], [18, 27], [20.2, 25.4]]) {
+    m.limb(16, 20, 3.6, x, y, 2.4, 0.5, c.robeDark, 0, 0.75);
+  }
+  m.egg(16, 19, 6.6, 5.2, 5.6, 3, c.tabard, 0.2);
+  for (const side of [-1, 1]) {
+    m.limb(16 + side * 4.8, 16.6, 7.4, 16 + side * 4.2, 23.8, 6, 0.45, c.tabardDark, 0.2, 0.35);
+  }
+  m.limb(10.6, 21.6, 8.4, 21.4, 21.6, 8.4, 0.8, c.leather, 0.3);
+  for (const x of [12.6, 19.4]) m.egg(x, 21.6, 9.1, 0.7, 0.5, 0.4, c.buckle, 0.9);
+  for (const side of [-1, 1]) {
+    for (let k = 0; k < 7; k++) {
+      const f = k / 6;
+      m.ball(16 + side * (5 + f * 0.8), 22 + f * 3.4, 8.2 - f * 2, 0.32, c.chain, 0.8);
+    }
+  }
+  m.limb(10.8, 25.2, 6.2, 10.8, 27.2, 6, 0.35, c.bronze, 0.7);
+  m.limb(10, 25.9, 6.2, 11.6, 25.9, 6.2, 0.35, c.bronze, 0.7);
+  arm(m, 11.4, 12.8, 14.6, 9.6, sleeve);
+  arm(m, 20.6, 20.6, 12.6, 10.6, sleeve);
+  for (const [x, y, z] of [[12.8, 15.4, 9.4], [20.6, 13.4, 10.4]]) m.egg(x, y, z, 1.15, 0.8, 0.7, c.leather, 0.3);
+  for (let i = 0; i < 18; i++) {
+    const a = Math.PI * (0.8 + 1.4 * i / 17), x = 16 + Math.cos(a) * 4.9, y = 17.8 + Math.sin(a) * 3.4 + 0.3;
+    m.ball(x, y, 10.2 + (i % 2) * 0.3, 1.2 + (i % 3) * 0.14, i % 3 === 0 ? c.furLight : i % 3 === 1 ? c.fur : c.furDark, 0.1);
+  }
+  m.limb(sx, 18.4, 9.6, sx, sy + 1.2, 11.2, 0.62, c.wood, 0.25, 0.55);
+  for (const y of [12.8, 6.2]) m.limb(sx, y, 11, sx, y - 0.8, 11, 0.72, c.iron, 0.8);
+  m.egg(sx, sy + 0.6, 11.4, 0.9, 1.1, 0.8, c.iron, 0.8);
+  m.ball(sx, sy - 0.2, 12.2, 0.7, c.light, 1);
+  m.ball(12.8, 14.6, 10, 1.1, SKIN);
+  m.ball(20.6, 12.6, 10.8, 1.1, SKIN);
+  for (const side of [-1, 1]) m.egg(16 + side * 3.1, 17.2, 11.6, 0.55, 0.75, 0.5, SKIN);
+  m.ball(16, 17.2, 11.8, 3.2, SKIN);
+  m.egg(16, 18.4, 12.6, 2.7, 1.9, 1.3, c.scalp, 0.1);
+  m.ball(15.3, 16.3, 14.6, 0.75, '#f3cfae', 0.6);
 }
 
 const WING = { white: '#fffaf0', cream: '#f2e3bd', gold: '#e8c25a', bone: '#f8f0dc' };
@@ -1816,11 +1830,41 @@ function mantle(m, y, z, ry) {
   }
 }
 
-function kraken(m) {
+export const KRAKEN_REACH = { lengths: [9, 15, 21, 27], unit: 1.08 * 1.3 * 1.25 };
+
+function lash(m, side, long) {
+  const c = KRAKEN, from = [16 + side * 1.4, 15.6], to = [16 + side * 0.6, 15.6 - long], points = [], steps = 34;
+  const bow = side * Math.min(2.4, long * 0.12);
+  for (let k = 0; k <= steps; k++) {
+    const f = k / steps, sway = Math.sin(f * Math.PI) * bow, hook = Math.max(0, (f - 0.82) / 0.18);
+    const x = from[0] + (to[0] - from[0]) * f + sway - side * hook * hook * 1.6;
+    const y = from[1] + (to[1] - from[1]) * f + hook * hook * 1.2;
+    points.push([x, y, 6.2 - f * 1.6, 1.9 * Math.pow(1 - f, 0.8) + 0.2]);
+  }
+  for (let k = 0; k < points.length - 1; k++) {
+    const [x0, y0, z0, r0] = points[k], [x1, y1, z1, r1] = points[k + 1];
+    m.limb(x0, y0, z0, x1, y1, z1, r0, c.skin, 0.45, r1);
+  }
+  for (let k = 2; k < points.length - 2; k += 2) {
+    const [x0, y0, z0, r0] = points[k];
+    m.ball(x0, y0, z0 + r0 * 0.8, r0 * 0.42, k % 4 ? c.light : c.skin, 0.6);
+  }
+  for (let k = 4; k < points.length - 1; k += 2) {
+    const [x0, y0, z0, r0] = points[k], [x1, y1] = points[k + 1], out = Math.atan2(y1 - y0, x1 - x0) - side * Math.PI / 2;
+    const sx = x0 + Math.cos(out) * r0 * 0.68, sy = y0 + Math.sin(out) * r0 * 0.68, size = Math.max(0.2, r0 * 0.36);
+    m.ball(sx, sy, z0 + r0 * 0.45, size, c.sucker, 0.6);
+    m.ball(sx, sy, z0 + r0 * 0.45 + size * 0.55, size * 0.45, c.ring, 0.2);
+  }
+}
+
+function kraken(m, reach = '', long = 0) {
   const c = KRAKEN;
   m.egg(16, 15.8, 3.4, 5.4, 4.2, 1.4, c.web, 0.2);
   for (const side of [-1, 1]) {
-    ARMS.forEach((o, i) => octoArm(m, o, -side, [16 + side * (1.4 + i * 0.4), 15.6 + i * 1.1], 5.4));
+    ARMS.forEach((o, i) => {
+      if (i === 0 && reach === (side > 0 ? 'R' : 'L')) lash(m, side, long);
+      else octoArm(m, o, -side, [16 + side * (1.4 + i * 0.4), 15.6 + i * 1.1], 5.4);
+    });
   }
   mantle(m, 20.6, 7.8, 5.2);
   m.egg(16, 14.6, 7.6, 3.9, 2.8, 2.4, c.skin, 0.4);
@@ -1919,8 +1963,17 @@ const SKINS = {
   'frost-hydro': (m) => hydromancer(m),
   'frost-hydro-loose': (m) => hydromancer(m, 'loose'),
   'frost-hydro-flow': (m) => hydromancer(m, 'flow'),
-  'frost-kraken': kraken,
+  'frost-kraken': (m) => kraken(m),
+
   'frost-kraken-sea': krakenSea,
+  'frost-kraken-hitR1': (m) => kraken(m, 'R', KRAKEN_REACH.lengths[0]),
+  'frost-kraken-hitR2': (m) => kraken(m, 'R', KRAKEN_REACH.lengths[1]),
+  'frost-kraken-hitR3': (m) => kraken(m, 'R', KRAKEN_REACH.lengths[2]),
+  'frost-kraken-hitR4': (m) => kraken(m, 'R', KRAKEN_REACH.lengths[3]),
+  'frost-kraken-hitL1': (m) => kraken(m, 'L', KRAKEN_REACH.lengths[0]),
+  'frost-kraken-hitL2': (m) => kraken(m, 'L', KRAKEN_REACH.lengths[1]),
+  'frost-kraken-hitL3': (m) => kraken(m, 'L', KRAKEN_REACH.lengths[2]),
+  'frost-kraken-hitL4': (m) => kraken(m, 'L', KRAKEN_REACH.lengths[3]),
   'frost-cryo': (m) => cryomancer(m),
   'frost-cryo-cast': (m) => cryomancer(m, true),
   priest: pilgrim,
@@ -1968,7 +2021,7 @@ export const MUZZLES = {
   mechanic: [[19.2, 6.8]], 'mechanic-ragged': [[19.2, 6.8]], 'mechanic-turret': [[19.6, 6.4]],
   'mechanic-demo': [[21.2, 1]], 'mechanic-mortar': [[16, 8.6]],
   'mechanic-turret-giant': [[16, -6.6]],
-  priest: [[20.5, 4.4]], 'priest-ragged': [[20.5, 4.4]],
+  priest: [[20.6, 3.2]], 'priest-ragged': [[20.6, 3.2]],
   'priest-angel': [[21, -1]], 'priest-monk': [[21, 3.4]], 'priest-inquisitor': [[20.6, 3]],
   sorceress: [[20.6, 8.6]], 'sorceress-ragged': [[20.6, 8.6]], 'sorceress-minstrel': [[19.4, 14]],
   'sorceress-enchantress': [[20.4, 8.6]], 'sorceress-enchantress-beam': [[16, 8.4]], 'sorceress-shamaness': [[10.8, 13.2]],
@@ -1984,7 +2037,7 @@ export const RELOAD_FRAMES = RELOAD.frames;
 export const FINE_HEROES = /^(priest|sorceress|thunder-(raiju|thor)|frost-(hydro|kraken|cryo))/;
 export const ANGEL_BODY = 1.15;
 export const HERO = { scale: 1.3, center: [16, 18] };
-const BODIES = [[/^priest-angel/, ANGEL_BODY], [/^priest-(monk|inquisitor)/, 1.25], [/^priest/, 1.08],
+const BODIES = [[/^priest-angel/, ANGEL_BODY], [/^priest-(monk|inquisitor)/, 1.25], [/^priest(-ragged)?$/, 1.22], [/^priest/, 1.08],
   [/^sorceress-shamaness/, 1.2], [/^sorceress/, 1.35], [/^forester(-ragged)?$|^forester-hunter/, 1.2],
   [/^mechanic-(turret|mortar)$/, 1.3], [/^mechanic-demo/, 1.2], [/^mechanic-turret-giant/, 1.1], [/^sniper-marksman/, 1.2],
   [/^thunder-raiju/, 1.05], [/^thunder-thor/, 1.2], [/^frost-(hydro|cryo)/, 1.35], [/^frost-kraken/, 1.25]];
@@ -1994,13 +2047,56 @@ export const sizeOf = (id) => {
 };
 
 export function drawHero(id, reload = -1) {
-  const fine = FINE_HEROES.test(id) ? 2 : 1, size = sizeOf(id), side = Math.ceil(28 * size) * 2;
+  const fine = FINE_HEROES.test(id) ? 2 : 1, size = sizeOf(id), room = /-hit[LR]\d$/.test(id) ? 1.7 : 1;
+  const side = Math.ceil(28 * size * room) * 2;
   const m = new Model(side * fine, 1.08 * fine * HERO.scale * size, HERO.center[0], HERO.center[1]);
   m.reload = reload;
   HEROES[id](m);
   const canvas = m.paint();
   canvas.fine *= fine;
   canvas.span = 32 * fine * HERO.scale;
+  return canvas;
+}
+
+const SEA_ARMS = [{ bend: 1, wave: 0.5, curl: 1.5 }, { bend: -1, wave: 0.5, curl: -1.5 },
+  { bend: 0.4, wave: 1.6, curl: -2 }, { bend: -0.3, wave: 1.1, curl: 2.4 }];
+export const SEA_ARM = { k: 3.5, size: 150, base: [16, 40], rise: [11, 13, 10, 12], lengths: [11, 18, 25, 32] };
+
+function seaArm(m, o, long, strike) {
+  const c = KRAKEN, steps = 30, points = [];
+  let heading = -Math.PI / 2, [x, y] = SEA_ARM.base;
+  for (let k = 0; k <= steps; k++) {
+    const f = k / steps, tip = Math.max(0, (f - 0.7) / 0.3);
+    points.push([x, y, 2 + f * (strike ? 3 : 7), 2 * Math.pow(1 - f, 0.8) + 0.22]);
+    const turn = strike ? o.bend * 0.25 + o.curl * 10 * tip * tip
+      : o.bend + o.wave * Math.sin(f * Math.PI * 2) + o.curl * 16 * tip * tip;
+    heading += turn / steps;
+    const step = long / steps * (1.2 - 0.5 * f);
+    x += Math.cos(heading) * step;
+    y += Math.sin(heading) * step;
+  }
+  for (let k = 0; k < points.length - 1; k++) {
+    const [x0, y0, z0, r0] = points[k], [x1, y1, z1, r1] = points[k + 1];
+    m.limb(x0, y0, z0, x1, y1, z1, r0, c.skin, 0.45, r1);
+  }
+  for (let k = 2; k < points.length - 2; k += 2) {
+    const [x0, y0, z0, r0] = points[k];
+    m.ball(x0, y0, z0 + r0 * 0.8, r0 * 0.42, k % 4 ? c.light : c.skin, 0.6);
+  }
+  const side = o.curl > 0 ? 1 : -1;
+  for (let k = 4; k < points.length - 1; k += 2) {
+    const [x0, y0, z0, r0] = points[k], [x1, y1] = points[k + 1], out = Math.atan2(y1 - y0, x1 - x0) + side * Math.PI / 2;
+    const sx = x0 + Math.cos(out) * r0 * 0.68, sy = y0 + Math.sin(out) * r0 * 0.68, size = Math.max(0.2, r0 * 0.36);
+    m.ball(sx, sy, z0 + r0 * 0.45, size, c.sucker, 0.6);
+    m.ball(sx, sy, z0 + r0 * 0.45 + size * 0.55, size * 0.45, c.ring, 0.2);
+  }
+}
+
+export function drawSeaArm(look, stage) {
+  const s = SEA_ARM, m = new Model(s.size, s.k, 16, 22), o = SEA_ARMS[look % SEA_ARMS.length];
+  seaArm(m, o, stage < 0 ? s.rise[look % s.rise.length] : s.lengths[stage], stage >= 0);
+  const canvas = m.paint(), [ax, ay] = m.place(s.base[0], s.base[1]);
+  canvas.anchor = [ax, ay];
   return canvas;
 }
 

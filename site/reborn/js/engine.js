@@ -52,9 +52,9 @@ export const DIVINE_TIME = 5;
 export const QUICK_WAVE = 10;
 export const QUICK_PAUSE = 5;
 export const ASCEND_TIME = 16;
-export const PICK_TIME = 45;
+export const PICK_TIME = 30;
 export const SKILL_TIME = 5;
-export const SKILLS_TIME = 20;
+export const SKILLS_TIME = 10;
 export const HOLD_SHOW = 5;
 
 const STEP_MAX = 1;
@@ -407,7 +407,7 @@ export class Game {
     }
     this._refresh(member);
     if (ascended) this._note('divine', member, DIVINE_TIME, { weapon: Object.assign({}, member.weapon) });
-    else this._note('upgrade', member, NOTE_TIME, { amount, times: done });
+    else this._note('upgrade', member, NOTE_TIME, { amount, times: done, plus: member.weapon.plus });
     this._emit('upgraded', { login: member.login, amount });
     if (ascended) this._emit('divine', { login: member.login });
     return ascended ? 'divine' : 'upgraded';

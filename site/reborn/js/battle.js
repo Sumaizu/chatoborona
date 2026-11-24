@@ -122,7 +122,7 @@ export const WATER = { drop: 9,
   flow: { tick: 0.5, mul: 2, elite: 0.5, boss: 0.2 },
   bubble: { every: 30, per: 0.5, max: 200, speed: 1.5, touch: 0.5, radius: 3, orbit: 0.8, spin: 1.3,
     stages: [0, 20, 50, 100, 150] },
-  vortex: { chance: 0.08, gap: 4, radius: 3, time: 1 }, spring: { radius: 3, heal: 0.05, undead: 3, clarity: 0.1 },
+  vortex: { chance: 0.08, gap: 4, radius: 3, time: 1 }, spring: { radius: 3, heal: 0.01, undead: 3, clarity: 0.1 },
   home: 0.25, tide: 0.1, rain: { chance: 0.01, radius: 0.45, time: 3, slow: 0.3, rods: 2 },
   snow: { slow: [0.1, 0.15, 0.2, 0.25, 0.4], from: 3, freeze: 0.01, hold: 2, max: 5 } };
 export const ARM_SPOTS = [[0.5, 0.5], [0.22, 0.22], [0.78, 0.22], [0.22, 0.78], [0.78, 0.78]];

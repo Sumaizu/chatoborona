@@ -94,8 +94,8 @@ function run(view) {
     }
     const dt = Math.max(0, Math.min(FRAME_MAX, (now - drawn) / 1000));
     drawn = now;
-    view.frame(live ? game : demo, dt, !live);
     requestAnimationFrame(frame);
+    view.frame(live ? game : demo, dt, !live);
   };
   requestAnimationFrame(frame);
 

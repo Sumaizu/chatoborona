@@ -200,13 +200,7 @@ body {
 }
 .rules-commands dd { margin: 0; color: var(--muted); }
 .rules-text .note-line { color: var(--muted); }
-.blackout {
-  position: absolute; inset: 0; z-index: 5; border-radius: 14px; pointer-events: none; opacity: 0;
-  background: rgba(4, 3, 10, .72);
-}
-.blackout.on { animation: blackout 3.4s ease-out; }
 .board.shake { animation: shake .7s ease-out; }
-@keyframes blackout { 0% { opacity: 0; } 5% { opacity: 1; } 45% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes shake {
   0%, 100% { transform: none; }
   10% { transform: translate(-6px, 3px); }

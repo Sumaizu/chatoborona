@@ -422,7 +422,7 @@ test('страницы: божественное оружие — плашка �
   anya.particle = true;
   game.feed('Аня', 'улучшить', { login: 'аня' });
   await until(() => w.document.querySelector('#notes .log.upgrade'), 'прокачка оружия — в истории');
-  ok(w.document.querySelector('#notes .log.upgrade').textContent.endsWith('оружие +1'), 'на сколько улучшено, а не итог');
+  ok(w.document.querySelector('#notes .log.upgrade').textContent.endsWith('оружие +1 (+29)'), 'на сколько улучшено и в скобках — сколько стало');
   game.feed('Аня', 'улучшить', { login: 'аня' });
   await until(() => w.document.querySelector('#notes .log.divine'), 'строка в «Событиях», между эффектами и профилями');
   const note = w.document.querySelector('#notes .log.divine');
@@ -516,6 +516,32 @@ test('страницы: игроков больше, чем помещается
     for (const name of page()) seen.add(name);
   }
   eq(seen.size, 70, 'по кругу видно всех');
+  const cycle = 5.6, shown = view._roster.page;
+  view.clock = (Math.floor(view.clock / cycle) + 1) * cycle + 0.01;
+  view._slidePlayers();
+  eq(view._roster.page, shown, 'список ещё не пересобран');
+  const offset = parseFloat(w.document.querySelector('#players .pages').style.transform.replace('translateY(', ''));
+  ok(Math.abs(offset + view._roster.height) < 0.1, 'пока не пересобран — видна уже новая страница, а не прошлая: ' + offset);
+  frame.remove();
+});
+
+test('страницы: подкласс выпал во время замаха — оверлей рисует дальше, без ошибок', async () => {
+  fresh();
+  const frame = await overlay('lobby=10&first_wave=5');
+  const w = frame.contentWindow, game = w.chatoborona.game, view = w.chatoborona.view;
+  await until(() => game.state === 'lobby', 'набор');
+  join(game, 'Аня');
+  game.members.get('аня').cls = 'frost';
+  game.next();
+  await until(() => game.state === 'placing', 'расстановка');
+  const anya = game.members.get('аня');
+  view.scene._pose(anya.tower).act = { frame: 'flick', until: view.scene.clock + 60 };
+  anya.skills = ['kraken'];
+  game._refresh(anya);
+  view.frame(game, 0.016);
+  const drawn = view.scene.clock;
+  await until(() => view.scene.clock > drawn + 0.2, 'кадры идут');
+  eq(view.scene._pose(anya.tower).look, 'frost-kraken', 'кадра замаха у кракена нет — обычный вид');
   frame.remove();
 });
 
@@ -547,13 +573,14 @@ test('страницы: ник того, кто выбирает навык, н�
   frame.remove();
 });
 
-test('страницы: затемнение карты — только внутри карты', async () => {
+test('страницы: ядерный взрыв трясёт карту, но не затемняет её', async () => {
   fresh();
   const frame = await overlay('embed=1');
   const w = frame.contentWindow;
   await until(() => !element(w, 'stage').hidden, 'пример');
-  const shade = w.getComputedStyle(element(w, 'blackout'));
-  eq(shade.boxShadow, 'none', 'тень за края не выходит');
+  w.chatoborona.view._battleEvent({ kind: 'nuke' });
+  ok(element(w, 'board').classList.contains('shake'), 'тряска');
+  no(w.document.getElementById('blackout'), 'затемнения нет');
   frame.remove();
 });
 

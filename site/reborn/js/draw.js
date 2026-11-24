@@ -2,12 +2,12 @@ import { LETTERS, SIZE } from './field.js';
 import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintRoadMask, paintRoof } from './terrain.js';
 import { FIRE, HOLY, MANTRAS, MECH, SPELL, STORM, WATER, WOLF, WOOD, bubbleAt, bubbleStage, flightAt, hammerAt, heavyGun,
   pullAt, roadCurve } from './battle.js';
-import { FIREBALL_FRAMES, PHOENIX_FRAMES, bubbleSprite, bulletSprite, clodSprite,
+import { FIREBALL_FRAMES, PHOENIX_FRAMES, ORB_FRAMES, bubbleSprite, orbSprite, seaArmSprite, bulletSprite, clodSprite,
   coinSprite, fireballSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
   meteorSprite, grenadeSprite, droneSprite, birdSprite, hawkSprite, snareSprite, trapSprite, cauldronSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
   rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, ventSprite, wallSprite } from './sprites.js';
 import { BREWS, SOILS, drawRootWall } from './props.js';
-import { ANGEL_BODY, FINE_HEROES, HERO, MUZZLES, RELOAD_FRAMES, sizeOf } from './models.js';
+import { ANGEL_BODY, FINE_HEROES, HERO, HERO_IDS, KRAKEN_REACH, MUZZLES, RELOAD_FRAMES, SEA_ARM, sizeOf } from './models.js';
 import { gearColor } from './gacha.js';
 
 export const BOARD = EDGE * 2 + CELL * SIZE;
@@ -68,6 +68,7 @@ const ZONE_LOOKS = { sand: ['#c9a66b', '#e7cf9b', '#8a6a3a'],
   gas: ['#84cc16', '#d9f99d', '#4d7c0f'],
   lava: ['#ef4444', '#fb923c', '#7f1d1d'] };
 const HIT_FLASH = 0.15;
+const HERO_LOOKS = new Set(HERO_IDS);
 const ELEMENT_BITS = {
   fire: ['#ffd84a', '#ff7a1f', '#ff4d1f'], ice: ['#f0fdff', '#a5f3fc', '#67e8f9'],
   storm: ['#fef9c3', '#facc15', '#ffffff'],
@@ -128,8 +129,7 @@ const GOD_FX = { zaps: [0.34, 1, 2, 3, 5], glow: [11, 13, 15, 18, 22], reach: [1
 const DASH_FX = { size: 13, inhale: 0.18, tail: 0.12 };
 const WATER_FX = { flick: 0.16, trail: 9, follow: 34, loose: 0.2, cast: 0.26, strike: 0.42, reach: 0.4,
   ring: 15, spin: 1.7, arm: 17, sway: 1.6, bubble: [5, 6.5, 8, 10, 12.5], rain: 150, flakes: 60 };
-const BOW = { grip: [15.4, 7.4], tips: [[9.6, 10.6], [21.2, 10.6]], pull: [16.6, 14.8], loose: [15.4, 11.6], bend: 3.2 };
-const KRAKEN_INK = { edge: '#122036', skin: '#5b86a8', light: '#a3c6dc', sucker: '#f3e8d5' };
+const BOW = { grip: [15.4, 7.4], tips: [[8.8, 11.2], [22, 11.2]], pull: [16.2, 14.8], loose: [15.4, 11.2] };
 const SPRAY = ['#ffffff', '#e0f7ff', '#7dd3fc', '#38bdf8'];
 const FROST_SPARKS = ['#ffffff', '#bff0ff', '#7dd3fc'];
 const STAFF_ZAP = { rate: 14, bolts: 3, long: 11, lit: 0.7 };
@@ -1764,39 +1764,24 @@ export class Scene {
     ctx.restore();
   }
 
-  _tentacle(ctx, x0, y0, x1, y1, bend, thick) {
-    const points = [], dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len;
-    const cx = (x0 + x1) / 2 + nx * bend, cy = (y0 + y1) / 2 + ny * bend, count = Math.max(10, Math.ceil(len / 1.6));
-    for (let k = 0; k <= count; k++) {
-      const f = k / count, u = 1 - f;
-      points.push([u * u * x0 + 2 * u * f * cx + f * f * x1, u * u * y0 + 2 * u * f * cy + f * f * y1,
-        thick * (1 - 0.78 * f)]);
-    }
-    const disc = (x, y, r, color) => {
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fill();
-    };
-    ctx.save();
-    for (const [x, y, r] of points) disc(x, y, r + 0.9, KRAKEN_INK.edge);
-    for (const [x, y, r] of points) disc(x, y, r, KRAKEN_INK.skin);
-    for (const [x, y, r] of points) disc(x - r * 0.3, y - r * 0.35, r * 0.42, KRAKEN_INK.light);
-    for (let k = 2; k < points.length - 1; k += 2) {
-      const [x, y, r] = points[k], [px, py] = points[k + 1], a = Math.atan2(py - y, px - x) + Math.PI / 2;
-      disc(x + Math.cos(a) * r * 0.55, y + Math.sin(a) * r * 0.55, Math.max(0.6, r * 0.3), KRAKEN_INK.sucker);
-    }
-    ctx.restore();
-  }
-
   _arms(ctx, battle) {
-    const w = WATER_FX;
+    const w = WATER_FX, scale = KRAKEN_REACH.unit / SEA_ARM.k;
     for (const arm of battle.arms) {
-      if (arm.strikeUntil > this.clock) continue;
-      const x = at(arm.x), y = at(arm.y), phase = this.clock * w.sway + arm.seed * 9;
-      this._ripples(ctx, x, y + 1, 6, arm.seed * 40);
-      const sway = Math.sin(phase) * 3.5, rise = w.arm * (0.85 + 0.15 * Math.sin(phase * 0.7));
-      this._tentacle(ctx, x, y + 1, x + sway, y - rise, Math.sin(phase + 1.3) * 5 + (arm.seed > 0.5 ? 4 : -4), 3.4);
+      const x = at(arm.x), y = at(arm.y) + 1, look = Math.floor(arm.seed * 4), lash = arm.lash;
+      let stage = -1, turn = Math.sin(this.clock * w.sway + arm.seed * 9) * 0.14;
+      if (lash && this.clock < lash.until) {
+        const k = Math.floor((this.clock - lash.start) / lash.step);
+        stage = lash.frames[Math.min(lash.frames.length - 1, k)];
+        turn = lash.angle;
+      }
+      this._ripples(ctx, x, y, stage >= 0 ? 8 : 6, arm.seed * 40);
+      const image = seaArmSprite(look, stage), [ax, ay] = image.anchor;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(turn);
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(image, -ax * scale, -ay * scale, image.width * scale, image.height * scale);
+      ctx.restore();
     }
   }
 
@@ -1809,59 +1794,138 @@ export class Scene {
   }
 
   _waterBow(ctx, t, x, y, facing, look) {
-    const loose = look.endsWith('-loose'), [gx, gy] = BOW.grip, [[ax, ay], [bx, by]] = BOW.tips;
-    const [sx, sy] = loose ? BOW.loose : BOW.pull, shimmer = 0.75 + 0.25 * Math.sin(this.clock * 6 + t.x);
+    const pose = this._pose(t), loose = look.endsWith('-loose'), [gx, gy] = BOW.grip, c = this.clock;
+    const [sx, sy] = loose ? BOW.loose : BOW.pull;
+    const hum = pose.act && pose.act.frame === 'loose' ? Math.max(0, pose.act.until - c) / WATER_FX.loose : 0;
+    const limb = (side) => {
+      const [tx, ty] = BOW.tips[side > 0 ? 1 : 0], p = [[gx, gy], [gx + side * 2.8, gy - 2.4], [tx - side * 0.6, ty - 3.4],
+        [tx, ty]], out = [];
+      for (let k = 0; k <= 16; k++) {
+        const f = k / 16, u = 1 - f, a = u * u * u, b = 3 * u * u * f, d = 3 * u * f * f, e = f * f * f;
+        out.push([a * p[0][0] + b * p[1][0] + d * p[2][0] + e * p[3][0], a * p[0][1] + b * p[1][1] + d * p[2][1] + e * p[3][1], f]);
+      }
+      return out;
+    };
+    const shape = (line) => {
+      const left = [], right = [];
+      line.forEach(([px, py, f], k) => {
+        const [ax, ay] = line[Math.max(0, k - 1)], [bx, by] = line[Math.min(line.length - 1, k + 1)];
+        const len = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / len, ny = (bx - ax) / len, w = 0.95 - 0.62 * f;
+        left.push([px + nx * w, py + ny * w]);
+        right.push([px - nx * w, py - ny * w]);
+      });
+      ctx.beginPath();
+      left.forEach(([px, py], k) => (k ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+      for (let k = right.length - 1; k >= 0; k--) ctx.lineTo(right[k][0], right[k][1]);
+      ctx.closePath();
+    };
+    const path = (line) => {
+      ctx.beginPath();
+      line.forEach(([px, py], k) => (k ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+    };
     ctx.save();
     this._model(ctx, x, y, facing, t);
     ctx.lineCap = 'round';
-    const limb = () => {
-      ctx.beginPath();
-      ctx.moveTo(ax, ay);
-      ctx.quadraticCurveTo(gx - 3, gy - BOW.bend, gx, gy);
-      ctx.quadraticCurveTo(gx + 3, gy - BOW.bend, bx, by);
-    };
-    ctx.strokeStyle = 'rgba(14, 116, 144, 0.55)';
-    ctx.lineWidth = 2.2;
-    limb();
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(125, 211, 252, ' + (0.7 * shimmer).toFixed(3) + ')';
-    ctx.lineWidth = 1.4;
-    limb();
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(240, 252, 255, 0.85)';
-    ctx.lineWidth = 0.45;
-    limb();
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(224, 247, 255, 0.8)';
-    ctx.lineWidth = 0.3;
+    ctx.lineJoin = 'round';
+    glow(ctx, gx, gy + 1, 9, 'rgba(56, 189, 248, 1)', 0.22);
+    const limbs = [limb(-1), limb(1)], ends = limbs.map((line) => line[line.length - 1]);
+    const [nx0, ny0] = ends[0], [nx1, ny1] = ends[1], mx = sx + Math.sin(c * 70) * 0.6 * hum;
+    ctx.strokeStyle = 'rgba(186, 230, 253, 0.35)';
+    ctx.lineWidth = 0.6;
     ctx.beginPath();
-    ctx.moveTo(ax, ay);
-    ctx.lineTo(sx, sy);
-    ctx.lineTo(bx, by);
+    ctx.moveTo(nx0, ny0);
+    ctx.lineTo(mx, sy);
+    ctx.lineTo(nx1, ny1);
     ctx.stroke();
-    if (!loose) {
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.9)';
-      ctx.lineWidth = 0.7;
-      ctx.beginPath();
-      ctx.moveTo(sx, sy);
-      ctx.lineTo(gx, gy - 2.4);
+    ctx.strokeStyle = 'rgba(240, 252, 255, 0.95)';
+    ctx.lineWidth = 0.16;
+    ctx.stroke();
+    for (const line of limbs) {
+      const body = ctx.createLinearGradient(0, gy - 3, 0, gy + 4);
+      body.addColorStop(0, 'rgba(224, 247, 255, 0.95)');
+      body.addColorStop(0.45, 'rgba(56, 189, 248, 0.88)');
+      body.addColorStop(1, 'rgba(3, 105, 161, 0.9)');
+      shape(line);
+      ctx.fillStyle = body;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(8, 47, 73, 0.75)';
+      ctx.lineWidth = 0.22;
       ctx.stroke();
-      ctx.fillStyle = 'rgba(224, 247, 255, 0.95)';
+      ctx.save();
+      shape(line);
+      ctx.clip();
+      path(line.map(([px, py]) => [px, py - 0.35]));
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+      ctx.lineWidth = 0.3;
+      ctx.stroke();
+      path(line);
+      ctx.setLineDash([0.9, 2.2]);
+      ctx.lineDashOffset = -c * 7;
+      ctx.strokeStyle = 'rgba(240, 252, 255, 0.9)';
+      ctx.lineWidth = 0.42;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      for (let i = 0; i < 4; i++) {
+        const k = Math.floor(((c * 0.45 + i / 4) % 1) * (line.length - 1)), [px, py] = line[k];
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.beginPath();
+        ctx.arc(px + Math.sin(c * 3 + i) * 0.2, py, 0.16 + 0.08 * (i % 2), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+    for (const [ex, ey] of ends) {
+      const side = ex < gx ? -1 : 1;
+      ctx.strokeStyle = 'rgba(186, 230, 253, 0.9)';
+      ctx.lineWidth = 0.32;
       ctx.beginPath();
-      ctx.moveTo(gx, gy - 3.6);
-      ctx.lineTo(gx - 0.8, gy - 2);
-      ctx.lineTo(gx + 0.8, gy - 2);
+      for (let k = 0; k <= 10; k++) {
+        const a = -Math.PI / 2 - side * k * 0.55, r = 0.15 + k * 0.08;
+        const px = ex + side * 0.4 + Math.cos(a) * r * side, py = ey - 0.5 + Math.sin(a) * r;
+        if (k) ctx.lineTo(px, py);
+        else ctx.moveTo(px, py);
+      }
+      ctx.stroke();
+      const drip = (c * 0.8 + side * 0.3 + 2) % 1;
+      ctx.fillStyle = 'rgba(186, 230, 253, ' + (0.9 * (1 - drip)).toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(ex, ey + 0.4 + drip * 3.5, 0.28 * (1 - drip * 0.5), 0, Math.PI * 2);
       ctx.fill();
     }
-    for (let i = 0; i < 4; i++) {
-      const k = (this.clock * 0.7 + i / 4) % 1, f = i % 2 ? k : 1 - k;
-      const px = f < 0.5 ? ax + (gx - ax) * f * 2 : gx + (bx - gx) * (f - 0.5) * 2;
-      const py = (f < 0.5 ? ay + (gy - ay) * f * 2 : gy + (by - gy) * (f - 0.5) * 2) - Math.sin(f * Math.PI) * 1.4 + k * 2;
-      ctx.globalAlpha = 0.8 * Math.sin(k * Math.PI);
-      ctx.fillStyle = '#e0f7ff';
+    ctx.fillStyle = '#e0b43a';
+    ctx.fillRect(gx - 1.05, gy - 0.25, 2.1, 0.5);
+    ctx.fillStyle = '#9a7418';
+    ctx.fillRect(gx - 1.05, gy + 0.18, 2.1, 0.12);
+    const gem = ctx.createRadialGradient(gx - 0.2, gy - 0.25, 0.05, gx, gy, 0.7);
+    gem.addColorStop(0, '#ffffff');
+    gem.addColorStop(0.45, '#38bdf8');
+    gem.addColorStop(1, '#075985');
+    ctx.fillStyle = gem;
+    ctx.beginPath();
+    ctx.arc(gx, gy, 0.62, 0, Math.PI * 2);
+    ctx.fill();
+    if (!loose) {
+      const head = [gx, gy - 4], shaft = ctx.createLinearGradient(sx, sy, head[0], head[1]);
+      shaft.addColorStop(0, 'rgba(56, 189, 248, 0.2)');
+      shaft.addColorStop(1, 'rgba(186, 230, 253, 0.95)');
+      ctx.strokeStyle = shaft;
+      ctx.lineWidth = 0.55;
       ctx.beginPath();
-      ctx.arc(px, py, 0.35, 0, Math.PI * 2);
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(head[0], head[1] + 1.2);
+      ctx.stroke();
+      glow(ctx, head[0], head[1] + 0.6, 2.4, 'rgba(125, 211, 252, 1)', 0.55);
+      ctx.fillStyle = 'rgba(240, 252, 255, 0.98)';
+      ctx.strokeStyle = 'rgba(14, 116, 144, 0.8)';
+      ctx.lineWidth = 0.15;
+      ctx.beginPath();
+      ctx.moveTo(head[0], head[1]);
+      ctx.lineTo(head[0] - 0.75, head[1] + 1.4);
+      ctx.lineTo(head[0], head[1] + 1.05);
+      ctx.lineTo(head[0] + 0.75, head[1] + 1.4);
+      ctx.closePath();
       ctx.fill();
+      ctx.stroke();
     }
     ctx.restore();
   }
@@ -1963,53 +2027,11 @@ export class Scene {
     }
   }
 
-  _bubble(ctx, x, y, stage, size = 1) {
-    const r = WATER_FX.bubble[stage] * size, wob = Math.sin(this.clock * 5 + x) * 0.06;
-    ctx.save();
-    const body = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r);
-    body.addColorStop(0, 'rgba(240, 252, 255, 0.55)');
-    body.addColorStop(0.6, 'rgba(125, 211, 252, 0.28)');
-    body.addColorStop(0.92, 'rgba(56, 189, 248, 0.55)');
-    body.addColorStop(1, 'rgba(14, 116, 144, 0.75)');
-    ctx.fillStyle = body;
-    ctx.beginPath();
-    ctx.ellipse(x, y, r * (1 + wob), r * (1 - wob), 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(224, 247, 255, 0.8)';
-    ctx.lineWidth = 0.8;
-    ctx.stroke();
-    const core = ctx.createRadialGradient(x, y + r * 0.2, 0, x, y + r * 0.2, r * 0.85);
-    core.addColorStop(0, 'rgba(56, 189, 248, ' + (0.15 + stage * 0.1).toFixed(2) + ')');
-    core.addColorStop(1, 'rgba(56, 189, 248, 0)');
-    ctx.fillStyle = core;
-    ctx.beginPath();
-    ctx.arc(x, y, r * 0.9, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.lineCap = 'round';
-    for (let i = 0; i < Math.min(stage, 3); i++) {
-      const a = this.clock * (2.2 + i * 0.7) + i * 2.1;
-      ctx.strokeStyle = 'rgba(224, 247, 255, 0.5)';
-      ctx.lineWidth = 0.5 + r * 0.05;
-      ctx.beginPath();
-      for (let k = 0; k <= 12; k++) {
-        const f = k / 12, b = a + f * 2.4, d = r * (0.2 + 0.5 * f);
-        if (k) ctx.lineTo(x + Math.cos(b) * d, y + Math.sin(b) * d);
-        else ctx.moveTo(x + Math.cos(b) * d, y + Math.sin(b) * d);
-      }
-      ctx.stroke();
-    }
-    ctx.fillStyle = 'rgba(240, 252, 255, 0.85)';
-    for (let i = 0; i < stage * 3; i++) {
-      const a = this.clock * (0.8 + noise(i, 81)) + noise(i, 82) * 6.3, d = r * (0.15 + 0.6 * noise(i, 83));
-      ctx.beginPath();
-      ctx.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, Math.max(0.35, r * 0.05), 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-    ctx.beginPath();
-    ctx.ellipse(x - r * 0.38, y - r * 0.42, r * 0.22, r * 0.12, -0.6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+  _bubble(ctx, x, y, stage) {
+    const r = WATER_FX.bubble[stage], pulse = 0.9 + 0.1 * Math.sin(this.clock * 3.1 + x);
+    glow(ctx, x, y, r * 2.2 * pulse, 'rgba(56, 189, 248, 1)', 0.3 + stage * 0.06);
+    const image = orbSprite(r, stage, Math.floor(this.clock * 8 + x) % ORB_FRAMES);
+    ctx.drawImage(image, Math.round(x - image.width / 2), Math.round(y - image.height / 2));
   }
 
   _bubbles(ctx, battle) {
@@ -2023,6 +2045,9 @@ export class Scene {
       ctx.ellipse(x, y + 14, WATER_FX.bubble[stage] * 0.8, WATER_FX.bubble[stage] * 0.35, 0, 0, Math.PI * 2);
       ctx.fill();
       this._bubble(ctx, x, y, stage);
+      if (Math.random() < 0.12 + stage * 0.05) {
+        this._sparks((x - EDGE) / CELL, (y - EDGE) / CELL, SPRAY, 1, 0.5 + stage * 0.15, 0.5, 2);
+      }
     }
   }
 
@@ -2090,7 +2115,7 @@ export class Scene {
     const w = WATER_FX, c = this.clock;
     if (battle.rain) {
       ctx.save();
-      ctx.fillStyle = 'rgba(30, 58, 95, 0.12)';
+      ctx.fillStyle = 'rgba(30, 58, 95, 0.1)';
       ctx.fillRect(0, 0, BOARD, BOARD);
       ctx.strokeStyle = 'rgba(191, 219, 254, 0.45)';
       ctx.lineWidth = 1;
@@ -2669,9 +2694,6 @@ export class Scene {
 
   _nukeBlast(ctx, e, share) {
     const x = at(e.x), y = at(e.y), r = e.radius * CELL, time = share * NUKE_LIFE;
-    const dark = time < 0.15 ? time / 0.15 : time < 1.2 ? 1 : Math.max(0, 1 - (time - 1.2) / (NUKE_LIFE - 1.2));
-    ctx.fillStyle = 'rgba(4, 3, 10, ' + (0.62 * dark).toFixed(3) + ')';
-    ctx.fillRect(EDGE, EDGE, CELL * SIZE, CELL * SIZE);
     if (time < 0.25) glow(ctx, x, y, r * 1.6, 'rgba(255, 255, 255, 1)', 1 - time / 0.25);
     for (const [delay, width, color] of [[0, 9, [255, 236, 200]], [0.18, 5, [255, 150, 60]]]) {
       const wave = Math.max(0, Math.min(1, (time - delay) / 0.75));
@@ -4323,7 +4345,9 @@ export class Scene {
       const sea = t.style === 'kraken' && battle.swims(t);
       if (sea) look = t.look + '-sea';
       const act = pose.act && this.clock < pose.act.until ? pose.act : null;
-      if (act) look = t.look + '-' + (act.cast && this.clock >= act.cast ? 'cast' : act.frame);
+      if (act && act.frames) {
+        look = t.look + '-' + act.frames[Math.min(act.frames.length - 1, Math.floor((this.clock - act.start) / act.step))];
+      } else if (act) look = t.look + '-' + (act.cast && this.clock >= act.cast ? 'cast' : act.frame);
       else if (pose.song && this.clock < pose.song.until && Math.floor(this.clock * SPELLS.play) % 2) {
         look = t.look + '-strum';
       }
@@ -4340,6 +4364,7 @@ export class Scene {
         else if (ages.some(([k, flight]) => k >= flight)) look = t.look + '-catch';
         else if (flying >= (t.runes.has('twin') ? 2 : 1)) look = t.look + '-empty';
       }
+      if (!HERO_LOOKS.has(look)) look = t.look;
       pose.x = spot.x;
       pose.y = spot.y;
       pose.lift = spot.lift;
@@ -4806,14 +4831,31 @@ export class Scene {
       this._sparks(event.x, event.y, SPRAY, event.crit ? 9 : 6, 1.8, 0.35);
       add({ kind: 'ring', life: 0.3, x: event.x, y: event.y, r: 0.35, color: '#bae6fd', width: 1.5 });
     } else if (event.kind === 'tentacle') {
-      const strike = () => {
-        const life = WATER_FX.strike;
-        if (event.arm) event.arm.strikeUntil = this.clock + life;
-        add({ kind: 'tentacle', life, x1: event.x, y1: event.y, x2: event.mob.x, y2: event.mob.y, mob: event.mob,
-          sea: Boolean(event.arm), seed: Math.random(), crit: event.crit });
-      };
-      if (event.arm) strike();
-      else this._fire(t, event.mob.x, event.mob.y, event.mob, strike, WATER_FX.strike);
+      const life = WATER_FX.strike;
+      if (event.arm) {
+        const arm = event.arm, lengths = SEA_ARM.lengths, gap = Math.hypot(event.mob.x - arm.x, event.mob.y - arm.y);
+        const top = Math.max(1, lengths.filter((long) => long < gap * CELL / KRAKEN_REACH.unit + 3).length), frames = [];
+        for (let k = 0; k < top; k++) frames.push(k);
+        frames.push(top - 1);
+        for (let k = top - 2; k >= 0; k--) frames.push(k);
+        const step = life / frames.length;
+        arm.lash = { frames, start: this.clock, step, until: this.clock + life,
+          angle: Math.atan2(event.mob.y - arm.y, event.mob.x - arm.x) + Math.PI / 2 };
+        add({ kind: 'lash', life: step * (top + 0.5), x: event.mob.x, y: event.mob.y, mob: event.mob, crit: event.crit });
+      } else {
+        this._fire(t, event.mob.x, event.mob.y, event.mob, (x2, y2) => {
+          const pose = this._pose(t), lengths = KRAKEN_REACH.lengths;
+          const want = Math.hypot(x2 - t.cx, y2 - t.cy) * CELL / (KRAKEN_REACH.unit * sizeOf(t.look));
+          const top = Math.max(1, lengths.filter((long) => long < want + 3).length), frames = [];
+          pose.reach = pose.reach === 'R' ? 'L' : 'R';
+          for (let k = 1; k <= top; k++) frames.push('hit' + pose.reach + k);
+          frames.push(frames[frames.length - 1]);
+          for (let k = top - 1; k >= 1; k--) frames.push('hit' + pose.reach + k);
+          const step = life / frames.length;
+          pose.act = { frames, start: this.clock, step, until: this.clock + life };
+          add({ kind: 'lash', life: step * (top + 0.5), x: x2, y: y2, mob: event.mob, crit: event.crit });
+        }, life);
+      }
     } else if (event.kind === 'icicle') {
       const launch = (x2, y2, late = 0) => {
         let from = this._muzzle(t);
@@ -4876,7 +4918,6 @@ export class Scene {
       add({ kind: 'zap', life: 0.35, x1: event.x + (Math.random() - 0.5) * 1.5, y1: -0.6, x2: event.x,
         y2: event.y - (event.ground ? 0 : ROD.tall / CELL), width: event.ground ? 3.5 : 5, mob: event.mob });
       if (event.ground) this._sparks(event.x, event.y, ['#bfdbfe', '#ffffff', '#fde047'], 10, 2.2, 0.35);
-      add({ kind: 'glare', life: 0.25 });
     } else if (event.kind === 'surge') {
       const turn = Math.random() * Math.PI * 2, top = event.y - (ROD.tall - 2) / CELL;
       for (let i = 0; i < ROD.bolts; i++) {
@@ -5236,6 +5277,10 @@ export class Scene {
           else this._sparks(e.x2, e.y2, [e.crit ? '#ffffff' : e.bolt.color], e.crit ? 5 : 2, 1.2, 0.18);
         }
         if (e.kind === 'icicle') this._sparks(e.x2, e.y2, FROST_SPARKS, e.big ? 10 : 5, e.big ? 2 : 1.5, 0.3);
+        if (e.kind === 'lash') {
+          const spot = e.mob && !e.mob.dead ? this.shown.get(e.mob.id) || e.mob : e;
+          this._sparks(spot.x, spot.y, SPRAY, e.crit ? 8 : 5, 1.6, 0.3);
+        }
         continue;
       }
       next.push(e);
@@ -5248,7 +5293,7 @@ export class Scene {
         this._swirl(ctx, e, share);
         continue;
       }
-      if (e.kind === 'icicle' || e.kind === 'tentacle') {
+      if (e.kind === 'icicle') {
         const spot = e.mob && !e.mob.dead ? this.shown.get(e.mob.id) : null;
         if (spot) {
           e.x2 = spot.x;
@@ -5258,18 +5303,6 @@ export class Scene {
       if (e.kind === 'icicle') {
         const x = at(e.x1 + (e.x2 - e.x1) * share), y = at(e.y1 + (e.y2 - e.y1) * share);
         this._icicle(ctx, x, y, Math.atan2(e.y2 - e.y1, e.x2 - e.x1), e.big ? 1.25 : 0.85);
-        continue;
-      }
-      if (e.kind === 'tentacle') {
-        const reach = WATER_FX.reach, k = share < reach ? Math.sin(share / reach * Math.PI / 2)
-          : 1 - Math.pow((share - reach) / (1 - reach), 2);
-        if (share >= reach && !e.hit) {
-          e.hit = true;
-          this._sparks(e.x2, e.y2, SPRAY, e.crit ? 8 : 5, 1.6, 0.3);
-        }
-        const x0 = at(e.x1), y0 = at(e.y1) + (e.sea ? 1 : 0), x1 = x0 + (at(e.x2) - x0) * k, y1 = y0 + (at(e.y2) - y0) * k;
-        if (e.sea) this._ripples(ctx, x0, y0, 7, e.seed * 40);
-        this._tentacle(ctx, x0, y0, x1, y1, (e.seed - 0.5) * 14 * (1 - k * 0.5), 3.8);
         continue;
       }
       if (e.kind === 'hail') {
@@ -5521,9 +5554,6 @@ export class Scene {
             this._zap(ctx, at(x1), at(y1), at(x2), at(y2), 2.4, lit, i * 3 + cells.length);
           }
         }
-      } else if (e.kind === 'glare') {
-        ctx.fillStyle = 'rgba(219, 234, 254, ' + 0.18 * fade + ')';
-        ctx.fillRect(EDGE, EDGE, CELL * SIZE, CELL * SIZE);
       } else if (e.kind === 'boom') {
         const r = e.r * CELL * (0.5 + 0.6 * share);
         glow(ctx, at(e.x), at(e.y), r * 1.2, e.heat || BOOM.heat, fade * 0.8);

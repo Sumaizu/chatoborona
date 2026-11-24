@@ -167,6 +167,42 @@ export function drawFireball(tone, frame) {
   return canvas;
 }
 
+const ORB = { tones: ['#f0fbff', '#c7f0ff', '#7dd3fc', '#38bdf8', '#0284c7', '#075985', '#0c4a6e'], light: [-0.5, -0.6, 0.62],
+  drops: [0, 2, 3, 4, 6], frames: 4 };
+
+export function drawWaterOrb(radius, stage, frame) {
+  const side = Math.ceil(radius * 2 + 10), canvas = document.createElement('canvas'), mid = side / 2;
+  canvas.width = canvas.height = side;
+  const g = canvas.getContext('2d'), [lx, ly, lz] = ORB.light, t = frame / ORB.frames * Math.PI * 2;
+  for (let y = 0; y < side; y++) {
+    for (let x = 0; x < side; x++) {
+      const dx = x + 0.5 - mid, dy = y + 0.5 - mid, a = Math.atan2(dy, dx);
+      const edge = radius * (1 + 0.045 * Math.sin(a * 5 + t) + 0.03 * Math.sin(a * 3 - t * 2));
+      const d = Math.hypot(dx, dy) / edge;
+      if (d > 1) continue;
+      const nz = Math.sqrt(1 - d * d), nx = dx / edge, ny = dy / edge, lit = nx * lx + ny * ly + nz * lz;
+      const deep = 0.5 + 0.5 * Math.sin(dx * 0.55 + t) * Math.sin(dy * 0.5 - t * 1.3);
+      let v = 0.42 + lit * 0.5 - d * 0.18 + (deep - 0.5) * 0.22 + (grain(x, y, frame) - 0.5) * 0.12;
+      if (d > 0.86 && nx + ny > 0.3) v += 0.25;
+      const tone = lit > 0.9 && d < 0.6 ? 0 : v > 0.82 ? 1 : v > 0.66 ? 2 : v > 0.5 ? 3 : v > 0.36 ? 4 : v > 0.22 ? 5 : 6;
+      g.fillStyle = ORB.tones[tone];
+      g.fillRect(x, y, 1, 1);
+    }
+  }
+  for (let i = 0; i < ORB.drops[stage]; i++) {
+    const a = i * Math.PI * 2 / ORB.drops[stage] + t * 0.5 + (i % 2) * 0.4, d = radius + 2.5 + (i % 2) * 1.5;
+    const x = Math.round(mid + Math.cos(a) * d), y = Math.round(mid + Math.sin(a) * d);
+    g.fillStyle = ORB.tones[3];
+    g.fillRect(x - 1, y, 2, 1);
+    g.fillRect(x, y - 1, 1, 2);
+    g.fillStyle = ORB.tones[1];
+    g.fillRect(x, y, 1, 1);
+  }
+  return canvas;
+}
+
+export const ORB_FRAMES = ORB.frames;
+
 const ROOTS = { bark: ['#5b3a22', '#6b4a2c', '#4e3220', '#7a5636', '#644024'], soil: '#3a2a1b', hole: '#1c130b',
   thorn: '#e3d4b0', leaf: ['#4d7c0f', '#65a30d'], drop: 3 };
 

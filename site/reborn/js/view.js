@@ -489,12 +489,10 @@ export class View {
       this.scene.say(MAGE_SAYS[kind][0], MAGE_SAYS[kind][1]);
     } else if (kind === 'nuke') {
       this._sound('nuke');
-      const box = $('blackout'), board = $('board');
-      for (const [node, name] of [[box, 'on'], [board, 'shake']]) {
-        node.classList.remove(name);
-        void node.offsetWidth;
-        node.classList.add(name);
-      }
+      const board = $('board');
+      board.classList.remove('shake');
+      void board.offsetWidth;
+      board.classList.add('shake');
     } else if (kind === 'power') {
       const id = event.mob.power.id;
       this._sound(id === 'shield' ? 'block' : id === 'dash' ? 'wind' : 'summon');
@@ -1047,7 +1045,7 @@ export class View {
     const awake = members.filter((m) => !m.asleep).length, two = members.length > rows, fit = two ? rows * 2 : rows;
     const pages = Math.max(1, Math.ceil(awake / fit));
     const cycle = PLAYERS_HOLD + PLAYERS_SLIDE, page = pages > 1 ? Math.floor(this.clock / cycle) % pages : 0;
-    this._roster = { pages, height: rows * ROWS.player };
+    this._roster = { pages, height: rows * ROWS.player, page };
     const chunk = (k) => members.slice((k % pages) * fit, (k % pages) * fit + fit);
     const visible = pages > 1 ? [chunk(page), chunk(page + 1)] : [chunk(0)];
     const key = JSON.stringify([fit, pages, page, visible.map((group) => group.map((m) => [m.login, m.cls,
@@ -1095,7 +1093,8 @@ export class View {
     const track = $('players').querySelector('.pages'), roster = this._roster;
     if (!track || !roster) return;
     const cycle = PLAYERS_HOLD + PLAYERS_SLIDE, phase = this.clock % cycle;
-    const slide = roster.pages > 1 && phase > PLAYERS_HOLD ? (phase - PLAYERS_HOLD) / PLAYERS_SLIDE : 0;
+    const behind = roster.pages > 1 && Math.floor(this.clock / cycle) % roster.pages !== roster.page;
+    const slide = behind ? 1 : roster.pages > 1 && phase > PLAYERS_HOLD ? (phase - PLAYERS_HOLD) / PLAYERS_SLIDE : 0;
     track.style.transform = 'translateY(' + (-easeInOut(slide) * roster.height).toFixed(1) + 'px)';
   }
 
@@ -1187,7 +1186,7 @@ export class View {
       text.append(nick, ' ', gear);
       if (boon) text.append(' ', el('span', 'desc', boon.text));
     } else {
-      const gear = el('b', 'what', 'оружие +' + (detail.times || 1));
+      const gear = el('b', 'what', 'оружие +' + (detail.times || 1) + (detail.plus ? ' (+' + detail.plus + ')' : ''));
       if (entry.weapon) gear.style.color = rarityOf(entry.weapon.rarity).color;
       text.append(nick, ' ', gear);
     }

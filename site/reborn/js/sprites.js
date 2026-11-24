@@ -1,6 +1,6 @@
-import { HERO, HERO_IDS, drawHero, drawPhoenix } from './models.js';
+import { HERO, HERO_IDS, drawHero, drawPhoenix, drawSeaArm } from './models.js';
 import { MOB_IDS, drawMelt, drawMob, drawSplit, gooColor } from './monsters.js';
-import { drawCauldron, drawClod, drawBird, drawHawk, drawSnare, drawTrap, drawCoinIcon, drawDrone, drawEmblem, drawFireball, drawGrenade, drawHeart,
+import { ORB_FRAMES, drawWaterOrb, drawCauldron, drawClod, drawBird, drawHawk, drawSnare, drawTrap, drawCoinIcon, drawDrone, drawEmblem, drawFireball, drawGrenade, drawHeart,
   drawMeteor, drawMound, drawNuke, drawVent, drawRocket, drawWall } from './props.js';
 
 const OUTLINE = '#15111d';
@@ -130,6 +130,7 @@ function own(image, key, make) {
 }
 
 export const heroSprite = (id, reload = -1) => remember('hero:' + id + ':' + reload, () => drawHero(id, reload));
+export const seaArmSprite = (look, stage) => remember('arm:' + look + ':' + stage, () => drawSeaArm(look, stage));
 
 export const emblemUrl = (size = 96) => remember('emblemUrl:' + size, () => fitted(drawEmblem(), size).toDataURL());
 export const coinIconUrl = (size = 80) => remember('coinIconUrl:' + size,
@@ -321,6 +322,9 @@ export const FIREBALL_FRAMES = 3;
 export const fireballSprite = (tone, frame = 0) => remember('fireball:' + tone + ':' + frame,
   () => drawFireball(tone, frame % FIREBALL_FRAMES));
 export const rocketSprite = () => remember('rocket', () => drawRocket());
+export { ORB_FRAMES };
+export const orbSprite = (radius, stage, frame) => remember('orb:' + radius + ':' + stage + ':' + frame,
+  () => drawWaterOrb(radius, stage, frame % ORB_FRAMES));
 export const meteorSprite = () => remember('meteor', () => drawMeteor());
 
 export const bulletSprite = () => remember('bullet', () => mapSprite([
