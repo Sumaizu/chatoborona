@@ -3229,13 +3229,13 @@ test('криомант, стужа: ледяное кольцо в 2 клетк�
   near(damage(2).hit / plain.hit, 1 + WATER.frostRing.snow * 2);
 });
 
-test('криомант, стужа: радиус растёт на клетку за каждые 100 мощи сверх 100, до 4', () => {
+test('криомант, стужа: радиус растёт на клетку за каждые 100 мощи сверх 100, без предела', () => {
   const battle = makeBattle(), t = water(battle, 10, 4, ['cryo', 'frostRing']);
   near(t.frost, WATER.frostRing.radius);
   battle.setMods(t, { runes: ['cryo', 'frostRing'], power: 100 });
   near(t.frost, WATER.frostRing.radius + WATER.frostRing.grow, 'радиус растёт с мощью');
-  battle.setMods(t, { runes: ['cryo', 'frostRing'], power: 5000 });
-  near(t.frost, WATER.frostRing.max, 'но не больше предела');
+  battle.setMods(t, { runes: ['cryo', 'frostRing'], power: 500 });
+  near(t.frost, WATER.frostRing.radius + WATER.frostRing.grow * 5, 'без предела');
 });
 
 test('криомант, заморозка: большая сосулька взрывается на клетку вокруг и морозит — 3 секунды, элитных 2, боссов 1', () => {
@@ -4281,9 +4281,9 @@ test('маг огня, возгорание: кольцо пламени жжё�
   ok(hit(close) > 0, 'внутри кольца');
   eq(hit(far), 0, 'снаружи — нет');
   battle.setMods(t, { runes: ['ignite', 'flameRing'], power: 100 });
-  near(t.ring, Math.min(FIRE.ring.max, FIRE.ring.radius + FIRE.ring.grow), 'радиус растёт с мощью');
-  battle.setMods(t, { runes: ['ignite', 'flameRing'], power: 5000 });
-  near(t.ring, FIRE.ring.max, 'но не больше предела');
+  near(t.ring, FIRE.ring.radius + FIRE.ring.grow, 'радиус растёт с мощью');
+  battle.setMods(t, { runes: ['ignite', 'flameRing'], power: 500 });
+  near(t.ring, FIRE.ring.radius + FIRE.ring.grow * 5, 'без предела');
   battle.setMods(t, { runes: ['fireball', 'flameRing'] });
   eq(t.ring, 0, 'только у стиля «Возгорание»');
 });

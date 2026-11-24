@@ -58,7 +58,7 @@ export const FIRE = { styled: 1.5, giant: 1.5, splash: 1, wide: 1.5, breath: 0.6
   ignite: 0.06, igniteMul: 1.2, smolder: 0.3, burn: 3, blue: 1.3, blueBurn: 1.5, crit: 0.15, twin: 1,
   rain: { every: 8, count: 6, radius: 3, gap: 0.15 }, vent: { every: 3, reach: 5 }, idle: 3, soar: 7,
   beam: { every: 10, charge: 1, mul: 8 }, torch: { radius: 1, share: 0.25 },
-  ring: { radius: 2, mul: 0.5, grow: 1, max: 4 },
+  ring: { radius: 2, mul: 0.5, grow: 1 },
   wall: { mul: 1.5, reach: 0.7 }, black: { chance: 1, damage: 0.2, max: 5 },
   phoenix: { every: 15, speed: 8, mul: 10, reach: 0.9, step: 0.25 } };
 const TORCH_USERS = new Set(['sniper', 'mechanic', 'forester']);
@@ -122,7 +122,7 @@ export const WATER = { drop: 9,
   slap: { chance: 0.1, hold: 2, elite: 1, boss: 0.5 }, drown: 0.1,
   ink: { every: 15, reach: 5, time: 10, slow: 0.5, boss: 0.25, mul: 2, speed: 6 },
   roar: { every: 12, reach: 3, time: 10, per: 0.3 },
-  frostRing: { radius: 2, grow: 1, max: 4, tick: 0.5, mul: 0.5, slow: 0.2, snow: 0.1 },
+  frostRing: { radius: 2, grow: 1, tick: 0.5, mul: 0.5, slow: 0.2, snow: 0.1 },
   iceBurst: { radius: 1, hold: 3, elite: 2, boss: 1 },
   iceWall: { time: 5, hits: 10, rest: 5, bite: 1 },
   iceGod: { stock: 5, refill: 1, count: 3, spread: 0.7 },
@@ -1309,10 +1309,10 @@ export class Battle {
     tower.deep = tower.style === 'marksman' && tower.runes.has('sixth');
     tower.reach = base.reach;
     tower.cone = tower.style === 'dragon' ? FIRE.cone * (tower.runes.has('wide') ? FIRE.coneWide : 1) : 0;
-    tower.ring = tower.style === 'ignite' && tower.runes.has('flameRing') ? Math.min(FIRE.ring.max,
-      FIRE.ring.radius + FIRE.ring.grow * Math.max(0, tower.might / MIGHT.base - 1)) : 0;
-    tower.frost = tower.style === 'cryo' && tower.runes.has('frostRing') ? Math.min(WATER.frostRing.max,
-      WATER.frostRing.radius + WATER.frostRing.grow * Math.max(0, tower.might / MIGHT.base - 1)) : 0;
+    tower.ring = tower.style === 'ignite' && tower.runes.has('flameRing')
+      ? FIRE.ring.radius + FIRE.ring.grow * Math.max(0, tower.might / MIGHT.base - 1) : 0;
+    tower.frost = tower.style === 'cryo' && tower.runes.has('frostRing')
+      ? WATER.frostRing.radius + WATER.frostRing.grow * Math.max(0, tower.might / MIGHT.base - 1) : 0;
     tower.baseRange = Math.max(RANGE_MIN, this._reachOf(tower, b) + (mods.range || 0))
       + (this.onHill(tower) ? TERRAIN.hill : 0) + (this.onWatch(tower) ? TERRAIN.watch : 0);
     tower.ownRange = tower.baseRange + tower.reach;
