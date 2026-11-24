@@ -203,69 +203,94 @@ export function drawWaterOrb(radius, stage, frame) {
 
 export const ORB_FRAMES = ORB.frames;
 
-const SPRING = { stones: ['#e2dfd8', '#bdb8ad', '#98928a', '#757067', '#524e47'], moss: ['#6f9a3a', '#4f7a2a'],
-  water: ['#f0fbff', '#bae6fd', '#7dd3fc', '#38bdf8', '#0284c7', '#075985'], frames: 6 };
+const SPRING = { frames: 6, stamps: [[0, 0, 9, 1], [-6, 3, 8, 0.8], [7, -2, 7, 0.7], [2, 5, 6, 0.55], [-3, -4, 5, 0.45]],
+  stones: [[-13, -3, 4, 3], [-10, 6, 3, 2], [12, 5, 4, 3], [9, -8, 3, 2], [-3, -10, 3, 2]] };
 
-export function drawSpring(frame) {
-  const w = 44, h = 38, cx = w / 2, cy = h / 2 + 3, canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  const g = canvas.getContext('2d'), t = frame / SPRING.frames, put = (x, y, color) => {
-    g.fillStyle = color;
-    g.fillRect(x, y, 1, 1);
-  };
+const hexRgb = (hex) => [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16));
+
+function shade(a, b, k) {
+  const [x, y] = [hexRgb(a), hexRgb(b)];
+  return 'rgb(' + x.map((v, n) => Math.round(v + (y[n] - v) * k)).join(', ') + ')';
+}
+
+function pond(g, w, h, stamps, style, seed, ripple, shallow = false) {
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      const dx = (x + 0.5 - cx) / 18, dy = (y + 0.5 - cy) / 13, d = Math.hypot(dx, dy);
-      if (d > 1) continue;
-      const a = Math.atan2(dy, dx), inner = Math.hypot(dx / 0.68, dy / 0.64);
-      if (inner > 1) {
-        const sector = (a / (Math.PI * 2) + 1) * 11, edge = Math.abs(sector - Math.round(sector)) < 0.09;
-        const rim = (d - 0.68) / 0.32, lit = -dx * 0.6 - dy * 0.8 + (0.5 - Math.abs(rim - 0.5)) * 0.8;
-        let tone = lit > 0.45 ? 0 : lit > 0.1 ? 1 : lit > -0.25 ? 2 : 3;
-        if (edge || rim > 0.92) tone = 4;
-        else if (grain(x, y, 3) > 0.9) tone = Math.min(4, tone + 1);
-        put(x, y, Math.floor(sector) % 4 === 1 && dy < 0 && grain(x, y, 5) > 0.55 ? SPRING.moss[tone % 2] : SPRING.stones[tone]);
+      let v = 0;
+      for (const [sx, sy, r, lift] of stamps) {
+        const dx = x + 0.5 - w / 2 - sx, dy = (y + 0.5 - h / 2 - sy) * 1.15;
+        v += lift * Math.exp(-(dx * dx + dy * dy) / (r * r));
+      }
+      const noise = grain(x, y, seed);
+      v *= 0.92 + 0.16 * noise;
+      if (v < 0.2) continue;
+      if (v < 0.36) {
+        const fade = (v - 0.2) / 0.16;
+        if (noise > fade) continue;
+        g.globalAlpha = (60 + 90 * fade) / 255;
+        g.fillStyle = style.wet;
+        g.fillRect(x, y, 1, 1);
+        g.globalAlpha = 1;
         continue;
       }
-      const ring = Math.abs(((inner + t) % 0.5) - 0.25) < 0.05, deep = inner;
-      let tone = deep < 0.25 ? 1 : deep < 0.55 ? 3 : deep < 0.85 ? 4 : 5;
-      if (ring && deep > 0.2) tone = Math.max(1, tone - 2);
-      if (-dx - dy > 0.9 && grain(x, y, frame) > 0.6) tone = 1;
-      put(x, y, SPRING.water[tone]);
+      if (v < 0.48 && !shallow) {
+        g.fillStyle = shade(style.shore, style.wet, noise * 0.3);
+        g.fillRect(x, y, 1, 1);
+        continue;
+      }
+      const depth = Math.min(1, (v - 0.48) / 0.5), top = shallow ? 1 : 3;
+      const step = Math.max(0, Math.min(top, Math.floor(depth * 4 + (noise - 0.5) * 0.9)));
+      let color = shade(style.shallow, style.deep, step / 3);
+      const wave = ripple(x - w / 2, y - h / 2);
+      if (wave > 0) color = shade(style.shallow, style.shine, wave * 0.7);
+      g.fillStyle = color;
+      g.fillRect(x, y, 1, 1);
     }
   }
-  for (let k = 0; k < 6; k++) {
-    const phase = (t + k / 6) % 1, side = k % 2 ? 1 : -1, arc = phase * 5;
-    const x = Math.round(cx + side * arc * 0.9), y = Math.round(cy - 4 - Math.sin(phase * Math.PI) * 9 + phase * 2);
-    put(x, y, SPRING.water[phase < 0.5 ? 0 : 1]);
-    put(x, y + 1, SPRING.water[2]);
+}
+
+export function drawSpring(frame, style) {
+  const w = 40, h = 34, canvas = document.createElement('canvas'), t = frame / SPRING.frames;
+  canvas.width = w;
+  canvas.height = h;
+  const g = canvas.getContext('2d');
+  pond(g, w, h, SPRING.stamps, style, 3, (dx, dy) => {
+    if (Math.hypot(dx, dy) < 2.6 && grain(dx + 40, dy + 40, frame) > 0.55) return 0.55;
+    return grain(dx + 80, dy + 80, frame) > 0.985 ? 0.6 : 0;
+  });
+  for (const [sx, sy, sw, sh] of SPRING.stones) {
+    const x = Math.round(w / 2 + sx), y = Math.round(h / 2 + sy);
+    g.fillStyle = shade(style.shore, '#000000', 0.35);
+    g.fillRect(x, y + 1, sw, sh);
+    g.fillStyle = shade(style.shore, '#ffffff', 0.12);
+    g.fillRect(x, y, sw, sh);
+    g.fillStyle = shade(style.shore, '#ffffff', 0.32);
+    g.fillRect(x + 1, y, sw - 2, 1);
   }
-  for (let y = 0; y < 6; y++) put(Math.round(cx + Math.sin(t * 6.28 + y) * 0.6), Math.round(cy - 1 - y), SPRING.water[y < 2 ? 0 : 1]);
+  for (let k = 0; k < 3; k++) {
+    const phase = (t + k / 3) % 1, x = Math.round(w / 2 + (k - 1) * 2), y = Math.round(h / 2 - 1 - phase * 4);
+    g.globalAlpha = 1 - phase;
+    g.fillStyle = style.shine;
+    g.fillRect(x, y, 1, 1);
+  }
+  g.globalAlpha = 1;
   return canvas;
 }
 
 export const SPRING_FRAMES = SPRING.frames;
 
-const PUDDLE = { tones: ['#bae6fd', '#38bdf8', '#0ea5e9', '#0369a1', '#0c4a6e'], frames: 4 };
+const PUDDLE = { frames: 4 };
 
-export function drawPuddle(seed, frame) {
-  const w = 40, h = 26, cx = w / 2, cy = h / 2, canvas = document.createElement('canvas');
+export function drawPuddle(seed, frame, style) {
+  const w = 40, h = 26, canvas = document.createElement('canvas'), t = frame / PUDDLE.frames;
   canvas.width = w;
   canvas.height = h;
-  const g = canvas.getContext('2d'), t = frame / PUDDLE.frames;
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const dx = (x + 0.5 - cx) / 18, dy = (y + 0.5 - cy) / 11, a = Math.atan2(dy, dx);
-      const edge = 1 + 0.12 * Math.sin(a * 3 + seed * 7) + 0.08 * Math.sin(a * 5 + seed * 13), d = Math.hypot(dx, dy) / edge;
-      if (d > 1) continue;
-      let tone = d > 0.86 ? 4 : d > 0.62 ? 3 : 2;
-      if (Math.abs(((d + t) % 0.5) - 0.25) < 0.04 && d < 0.8) tone = 1;
-      if (-dx * 0.8 - dy > 0.5 && d < 0.75 && grain(x, y, seed) > 0.55) tone = 0;
-      g.fillStyle = PUDDLE.tones[tone];
-      g.fillRect(x, y, 1, 1);
-    }
-  }
+  const g = canvas.getContext('2d'), turn = seed * 1.7;
+  const stamps = [[0, 0, 12, 1], [Math.cos(turn) * 7, Math.sin(turn) * 3, 8, 0.7], [-Math.cos(turn) * 6, 2, 7, 0.55]];
+  pond(g, w, h, stamps, style, seed + 11, (dx, dy) => {
+    const ring = Math.abs(Math.hypot(dx, dy * 1.6) - (2 + t * 8));
+    return ring < 0.5 && grain(Math.round(dx), Math.round(dy), seed) > 0.4 ? 0.6 * (1 - t) : 0;
+  }, true);
   return canvas;
 }
 
@@ -574,26 +599,68 @@ const WALL_TOP = '#b2a794';
 const WALL_FACE = '#83796b';
 const WALL_EDGE = '#bdb3a0';
 
-const ICE_WALL = ['#f0fbff', '#c7f0ff', '#93dcff', '#5bb8e8'];
+const ICE = { base: '#6fa7c9', crystal: ['#d4f2ff', '#9ad6f5', '#e8f9ff', '#7cc0ea'], cap: '#f4fcff', crack: '#24557a',
+  clusters: [[8.5, 20, 8, 6, 0.3, 9], [18, 15.5, 10, 7, 1.1, 13], [27.5, 20, 8, 6, 2.2, 9], [12.5, 26.5, 6.5, 5, 0.8, 7],
+    [23.5, 27, 6.5, 5, 1.7, 7]],
+  cracks: [[[15, 15], [17, 18], [16, 20]], [[24, 18], [26, 21]], [[8, 21], [10, 24]], [[20, 24], [22, 27]]] };
 
 export function drawIceWall(stage) {
-  const m = new Model(36, 1);
-  m.egg(18, 27, 0, 15, 5, 1.6, '#7fb7d6', 0.4);
-  const shards = [[6, 22, 3.2, 7], [10.5, 19, 3.6, 10], [15, 21, 3.4, 8], [19.5, 18, 3.8, 11], [24, 21, 3.4, 8.5],
-    [28.5, 20, 3.2, 9], [8.5, 26, 2.8, 5], [17, 26, 3, 5.5], [26, 26, 2.8, 5]];
-  shards.forEach(([x, y, r, tall], k) => {
-    if (stage >= 2 && k % 3 === 1) return;
-    m.egg(x, y, tall * 0.5, r, r * 1.35, tall, ICE_WALL[k % 3 + 1], 1);
-    m.egg(x - r * 0.3, y - r * 0.45, tall * 0.9, r * 0.45, r * 0.6, tall * 0.25, ICE_WALL[0], 1);
+  const m = new Model(36, 1, 18, 21);
+  m.egg(18, 23, 0, 12.5, 6, 1.8, ICE.base, 0.4);
+  ICE.clusters.forEach(([cx, cy, r, spikes, turn, tall], n) => {
+    for (let k = 0; k < spikes; k++) {
+      if (stage >= 1 && (k + n) % 3 === 0 || stage >= 2 && (k + n) % 3 === 1) continue;
+      const a = turn + k * Math.PI * 2 / spikes, len = r * (0.8 + 0.45 * grain(k, n, 5)), half = Math.PI / spikes * 0.75;
+      const tip = [cx + Math.cos(a) * len, cy + Math.sin(a) * len * 0.9];
+      const left = [cx + Math.cos(a - half) * len * 0.4, cy + Math.sin(a - half) * len * 0.36];
+      const right = [cx + Math.cos(a + half) * len * 0.4, cy + Math.sin(a + half) * len * 0.36];
+      const out = [Math.cos(a), Math.sin(a)], side = [-Math.sin(a), Math.cos(a)], color = ICE.crystal[(k + n) % 4];
+      m.sheet([[cx, cy], left, tip], tall, color, [out[0] * 0.6 - side[0] * 0.6, out[1] * 0.6 - side[1] * 0.6, 0.55]);
+      m.sheet([[cx, cy], tip, right], tall, color, [out[0] * 0.6 + side[0] * 0.6, out[1] * 0.6 + side[1] * 0.6, 0.55]);
+    }
+    const cap = [];
+    for (let k = 0; k < 6; k++) cap.push([cx + Math.cos(turn + k * Math.PI / 3) * r * 0.28, cy + Math.sin(turn + k * Math.PI / 3) * r * 0.25]);
+    m.sheet(cap, tall + 1, ICE.cap, [-0.2, -0.25, 0.95]);
   });
-  const cracks = [[[11, 16], [12, 19], [10, 21]], [[20, 15], [19, 18], [21, 20]], [[27, 18], [28, 21]], [[6, 20], [7, 23]]];
-  for (const line of cracks.slice(0, stage * 2)) {
+  for (const line of ICE.cracks.slice(0, stage * 2)) {
     for (let k = 0; k + 1 < line.length; k++) {
       const [x0, y0] = line[k], [x1, y1] = line[k + 1];
-      for (let s = 0; s <= 4; s++) m.dot(x0 + (x1 - x0) * s / 4, y0 + (y1 - y0) * s / 4, '#3f7fa8', 20);
+      for (let s = 0; s <= 4; s++) m.dot(x0 + (x1 - x0) * s / 4, y0 + (y1 - y0) * s / 4, ICE.crack, 30);
     }
   }
   return m.paint();
+}
+
+const ICICLE = { outline: '#1e5f8c', top: ['#ffffff', '#e4f8ff', '#bfeaff'], low: ['#8fd3f5', '#5fb2e3', '#3f8cc4'] };
+
+export function drawIcicle(length) {
+  const w = length, h = 13, mid = h / 2, canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  canvas.fine = 2;
+  const g = canvas.getContext('2d'), widest = Math.round(length * 0.24), put = (x, y, color) => {
+    g.fillStyle = color;
+    g.fillRect(x, y, 1, 1);
+  };
+  const halfAt = (x) => (x < widest ? 2.2 + 3.6 * Math.sqrt(x / widest) + (x < 3 ? grain(x, 1, 3) * 1.4 : 0)
+    : 5.8 * Math.pow(1 - (x - widest) / (w - widest), 0.85));
+  for (let x = 0; x < w; x++) {
+    const half = halfAt(x + 0.5);
+    for (let y = 0; y < h; y++) {
+      const dy = y + 0.5 - mid;
+      if (Math.abs(dy) > half) continue;
+      const edge = Math.abs(dy) > half - 1.05;
+      let color;
+      if (edge) color = ICICLE.outline;
+      else if (dy < -0.2) color = ICICLE.top[Math.min(2, Math.floor((1 + dy / half) * 3))];
+      else color = ICICLE.low[Math.min(2, Math.floor(dy / half * 3))];
+      if (!edge && Math.abs(dy + 0.6) < 0.6 && x > 3 && x < w - 4) color = '#ffffff';
+      if (!edge && x > 2 && grain(x, y, 7) > 0.93) color = ICICLE.top[0];
+      put(x, y, color);
+    }
+  }
+  put(w - 1, Math.floor(mid), '#ffffff');
+  return canvas;
 }
 
 export function drawWall(stage) {

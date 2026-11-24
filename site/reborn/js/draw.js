@@ -1,9 +1,9 @@
 import { LETTERS, SIZE } from './field.js';
-import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintRoadMask, paintRoof } from './terrain.js';
-import { FIRE, HOLY, MANTRAS, MECH, SPELL, STORM, WATER, WOLF, WOOD, bubbleAt, bubbleStage, flightAt, hammerAt, heavyGun, iceStock,
+import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintRoadMask, paintRoof, waterOf } from './terrain.js';
+import { FIRE, HOLY, MANTRAS, MECH, SPELL, STORM, WATER, WOLF, WOOD, bubbleAt, bubbleStage, flightAt, hammerAt, heavyGun,
   pullAt, roadCurve } from './battle.js';
 import { FIREBALL_FRAMES, PHOENIX_FRAMES, ORB_FRAMES, PUDDLE_FRAMES, SPRING_FRAMES, bubbleSprite, orbSprite, puddleSprite, seaArmSprite, springSprite, bulletSprite, clodSprite,
-  coinSprite, fireballSprite, heartSprite, gooColor, heroSprite, hookSprite, iceWallSprite, linkSprite, meltSprite,
+  coinSprite, fireballSprite, heartSprite, gooColor, heroSprite, hookSprite, iceWallSprite, icicleSprite, linkSprite, meltSprite,
   meteorSprite, grenadeSprite, droneSprite, birdSprite, hawkSprite, snareSprite, trapSprite, cauldronSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
   rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, ventSprite, wallSprite } from './sprites.js';
 import { BREWS, SOILS, drawRootWall } from './props.js';
@@ -64,7 +64,7 @@ const TRAIL_STEP = 0.2;
 const CORPSE = { fall: 0.45, lie: 1, fade: 1.1, max: 60 };
 const DECALS_MAX = 300;
 const TINTS = { burn: '#ff7a1f', blue: '#4aa3ff', black: '#1c1917',
-  chill: '#8ee6ff',
+  chill: '#8ee6ff', ink: '#120d1f',
   fury: '#ff4d1f', steam: '#f1f5f9', mud: '#8a5a2b', corrosion: '#a3e635', disease: '#7c3aed',
   epidemic: '#4c1d95' };
 const STATE_TINTS = ['steam', 'mud', 'corrosion', 'disease', 'epidemic'];
@@ -1435,10 +1435,12 @@ export class Scene {
       bit(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8 - rise * 10, rise < 0.35 ? 4 : 3,
         tones[Math.min(tones.length - 1, Math.floor(rise * tones.length))], i + c * 9);
     }
-    for (let i = 0; i < 40; i++) {
-      const k = (c * 0.5 + noise(i, seed + 20)) % 1, a = noise(i, seed + 21) * 6.28 + c * 0.8, d = r * Math.sqrt(noise(i, seed + 22));
-      ctx.globalAlpha = 0.8 * Math.sin(k * Math.PI);
-      bit(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8 - k * 6, 2, i % 3 ? '#e0f7ff' : '#ffffff', i + Math.floor(c * 8));
+    for (let i = 0; i < 110; i++) {
+      const k = (c * 0.35 + noise(i, seed + 20)) % 1, a = noise(i, seed + 21) * 6.28 + c * 0.5 + k * 1.2;
+      const d = r * (0.18 + 0.72 * k);
+      ctx.globalAlpha = 0.85 * Math.sin(k * Math.PI);
+      bit(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8, noise(i, seed + 23) > 0.7 ? 3 : 2,
+        tones[Math.min(tones.length - 1, 1 + Math.floor(noise(i, seed + 24) * 3))], i + Math.floor(c * 8));
     }
     ctx.globalAlpha = 1;
   }
@@ -1701,30 +1703,22 @@ export class Scene {
 
   _swirl(ctx, e, share) {
     const x = at(e.x), y = at(e.y), r = e.r * CELL, fade = Math.min(1, share * 5, (1 - share) * 3), c = this.clock;
-    const tick = Math.floor(c * 12), colors = ['#e0f7ff', '#7dd3fc', '#38bdf8', '#0ea5e9', '#0369a1'];
+    const tick = Math.floor(c * 12), tones = ['#cfeaff', '#8cc4e8', '#5a9fd0', '#3b82b6', '#25608f', '#173f66'];
+    const edge = (a) => r * (0.6 + 0.15 * Math.sin(a * 3 + e.seed * 5 + c * 0.7) + 0.08 * Math.sin(a * 5 - e.seed * 3 - c * 1.1));
     ctx.save();
-    const pool = ctx.createRadialGradient(x, y, 0, x, y, r);
-    pool.addColorStop(0, 'rgba(8, 47, 73, ' + (0.6 * fade).toFixed(3) + ')');
-    pool.addColorStop(0.45, 'rgba(3, 105, 161, ' + (0.35 * fade).toFixed(3) + ')');
-    pool.addColorStop(1, 'rgba(14, 165, 233, 0)');
-    ctx.fillStyle = pool;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-    for (let i = 0; i < 110; i++) {
-      const k = (c * 0.75 + noise(i, 111)) % 1, d = r * Math.pow(1 - k, 0.85), a = e.seed + noise(i, 112) * 6.28 + k * 7 - c * 2.4;
-      const size = 1 + Math.round(3 * (1 - k) * (0.6 + 0.4 * noise(i, 113)));
-      ctx.globalAlpha = fade * Math.min(1, (1 - k) * 4) * Math.min(1, k * 6 + 0.2);
-      bit(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d, size, colors[Math.min(4, Math.floor(k * 3 + noise(i, 114) * 2))],
-        i + tick);
+    for (let i = 0; i < 280; i++) {
+      const k = (c * 0.45 + noise(i, 111)) % 1, u = Math.pow(1 - k, 1.7), arm = i % 3;
+      const a = e.seed + arm * Math.PI * 2 / 3 + (noise(i, 112) - 0.5) * 0.9 + (1 - u) * 5 - c * 2.2, d = edge(a) * u;
+      ctx.globalAlpha = fade * (0.15 + 0.75 * (1 - u)) * Math.min(1, k * 5);
+      const tone = Math.min(tones.length - 1, Math.floor((1 - u) * 4 + noise(i, 114) * 2.5));
+      bit(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.85, u < 0.35 || noise(i, 113) > 0.75 ? 2 : 1, tones[tone], i + tick);
     }
-    for (let i = 0; i < 36; i++) {
-      const a = e.seed - c * 3 + i * Math.PI * 2 / 36, d = r * (0.95 + 0.06 * Math.sin(c * 5 + i * 1.7));
-      ctx.globalAlpha = fade * (0.5 + 0.4 * noise(i, tick));
-      bit(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d, 2 + (i % 3 === 0 ? 1 : 0), '#f0fbff', i * 3 + tick);
+    for (let i = 0; i < 18; i++) {
+      const a = noise(i, 115) * 6.28 - c * 3.2, d = r * 0.09 * noise(i, 116);
+      ctx.globalAlpha = fade * 0.8;
+      bit(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.85, 2, tones[4 + (i % 2)], i + tick);
     }
     ctx.globalAlpha = 1;
-    glow(ctx, x, y, r * 0.45, 'rgba(125, 211, 252, 1)', 0.45 * fade);
     ctx.restore();
   }
 
@@ -2030,9 +2024,8 @@ export class Scene {
         bit(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8, 2, i % 2 ? '#bae6fd' : '#e0f7ff', i + Math.floor(c * 5));
       }
       ctx.globalAlpha = 1;
-      glow(ctx, x, y, 22, 'rgba(125, 211, 252, 1)', 0.35 + 0.1 * Math.sin(c * 2));
-      const image = springSprite(Math.floor(c * 8 + spring.x) % SPRING_FRAMES);
-      ctx.drawImage(image, Math.round(x - image.width / 2), Math.round(y - image.height / 2 - 3));
+      const image = springSprite(Math.floor(c * 8 + spring.x) % SPRING_FRAMES, waterOf(battle.biome));
+      ctx.drawImage(image, Math.round(x - image.width / 2), Math.round(y - image.height / 2));
     }
   }
 
@@ -2040,11 +2033,9 @@ export class Scene {
     for (const zone of battle.zones) {
       if (zone.kind !== 'puddle') continue;
       const left = zone.until - battle.time, fade = Math.min(1, left / 0.6, (WATER.rain.time - left) / 0.3);
-      const seed = Math.floor(zone.x * 7 + zone.y * 3) % 9, image = puddleSprite(seed, Math.floor(this.clock * 5 + seed) % PUDDLE_FRAMES);
-      const scale = zone.radius * CELL * 2 / image.width;
-      ctx.globalAlpha = 0.8 * fade;
-      ctx.drawImage(image, Math.round(at(zone.x) - image.width * scale / 2), Math.round(at(zone.y) + 3 - image.height * scale / 2),
-        image.width * scale, image.height * scale);
+      const seed = Math.floor(zone.x * 7 + zone.y * 3) % 9, image = puddleSprite(seed, Math.floor(this.clock * 5 + seed) % PUDDLE_FRAMES, waterOf(battle.biome));
+      ctx.globalAlpha = fade;
+      ctx.drawImage(image, Math.round(at(zone.x) - image.width / 2), Math.round(at(zone.y) + 3 - image.height / 2));
       ctx.globalAlpha = 1;
     }
   }
@@ -2100,44 +2091,26 @@ export class Scene {
     ctx.restore();
   }
 
+  _orbit(t, i) {
+    const w = WATER_FX, c = this.clock, s = t.x * 7 + t.y * 13;
+    const a = c * w.spin * (0.55 + 0.9 * noise(i, s)) + noise(i, s + 1) * Math.PI * 2
+      + 0.7 * Math.sin(c * (0.9 + noise(i, s + 2)) + i * 2.3);
+    const r = w.ring * (0.7 + 0.5 * noise(i, s + 3)) + 3 * Math.sin(c * (1.4 + noise(i, s + 4)) + i * 1.9);
+    const lift = 4 + 3 * Math.sin(c * (1.8 + noise(i, s + 5)) + i * 1.3);
+    return { x: Math.cos(a) * r, y: Math.sin(a) * r * 0.55 - lift, angle: a + Math.PI / 2 + 0.6 * Math.sin(c * 2.2 + i * 1.7) };
+  }
+
   _iceRing(ctx, t, x, y) {
-    const w = WATER_FX;
     for (let i = 0; i < (t.icicles || 0); i++) {
-      const a = this.clock * w.spin + i * Math.PI * 2 / iceStock(t);
-      this._icicle(ctx, x + Math.cos(a) * w.ring, y - 4 + Math.sin(a) * w.ring * 0.55, a + Math.PI / 2, 0.8);
+      const spot = this._orbit(t, i);
+      this._icicle(ctx, x + spot.x, y + spot.y, spot.angle, true);
     }
   }
 
-  _icicle(ctx, x, y, angle, size) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(angle);
-    ctx.scale(size, size);
-    glow(ctx, 0, 0, 7, 'rgba(165, 243, 252, 1)', 0.35);
-    const body = ctx.createLinearGradient(-6, 0, 7, 0);
-    body.addColorStop(0, 'rgba(125, 211, 252, 0.85)');
-    body.addColorStop(0.6, 'rgba(224, 247, 255, 1)');
-    body.addColorStop(1, '#ffffff');
-    ctx.fillStyle = body;
-    ctx.strokeStyle = 'rgba(14, 116, 144, 0.8)';
-    ctx.lineWidth = 0.7;
-    ctx.beginPath();
-    ctx.moveTo(7.5, 0);
-    ctx.lineTo(-2, -2.2);
-    ctx.lineTo(-6, -0.9);
-    ctx.lineTo(-5, 0);
-    ctx.lineTo(-6, 0.9);
-    ctx.lineTo(-2, 2.2);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
-    ctx.lineWidth = 0.6;
-    ctx.beginPath();
-    ctx.moveTo(6, -0.2);
-    ctx.lineTo(-3, -1.1);
-    ctx.stroke();
-    ctx.restore();
+  _icicle(ctx, x, y, angle, big) {
+    const image = icicleSprite(big ? 34 : 26);
+    glow(ctx, x, y, big ? 11 : 8, 'rgba(165, 243, 252, 1)', 0.4);
+    sprite(ctx, image, x, y, angle, ZOOM, 0, HERO_TURN_STEPS);
   }
 
   _staffZap(ctx, t) {
@@ -4222,7 +4195,9 @@ export class Scene {
     if (mob.states) {
       for (const name of STATE_TINTS) if (this.battle.state(mob, name)) layers.push([name, 0.3]);
     }
-    if (slowed) layers.push(['chill', frozen ? 0.5 : 0.26]);
+    const inked = Boolean(mob.ink && mob.ink.until > this.battle.time);
+    if (inked) layers.push(['ink', 0.6]);
+    else if (slowed) layers.push(['chill', frozen ? 0.5 : 0.26]);
     if (mob.fury && !mob.kind) layers.push(['fury', 0.22]);
     for (const [kind, strength] of layers) {
       ctx.globalAlpha = strength;
@@ -4815,8 +4790,8 @@ export class Scene {
       const launch = (x2, y2, late = 0) => {
         let from = this._muzzle(t);
         if (event.big) {
-          const pose = this._pose(t), a = this.clock * WATER_FX.spin + event.slot * Math.PI * 2 / iceStock(t);
-          from = { x: pose.x + Math.cos(a) * WATER_FX.ring / CELL, y: pose.y + (Math.sin(a) * WATER_FX.ring * 0.55 - 4) / CELL };
+          const pose = this._pose(t), spot = this._orbit(t, event.slot);
+          from = { x: pose.x + spot.x / CELL, y: pose.y + spot.y / CELL };
         } else this._pose(t).act = { frame: 'cast', until: this.clock + WATER_FX.cast };
         add({ kind: 'icicle', life: Math.max(FLIGHT_MIN, event.time - late), x1: from.x, y1: from.y, x2, y2,
           mob: event.mob, big: event.big, crit: event.crit, bend: event.bend || 0 });
@@ -5284,7 +5259,7 @@ export class Scene {
         const cx = e.x1 + dx / 2 - dy / len * side, cy = e.y1 + dy / 2 + dx / len * side, u = share, v = 1 - share;
         const px = v * v * e.x1 + 2 * v * u * cx + u * u * e.x2, py = v * v * e.y1 + 2 * v * u * cy + u * u * e.y2;
         const tx = 2 * v * (cx - e.x1) + 2 * u * (e.x2 - cx), ty = 2 * v * (cy - e.y1) + 2 * u * (e.y2 - cy);
-        this._icicle(ctx, at(px), at(py), Math.atan2(ty, tx), e.big ? 1.25 : 0.85);
+        this._icicle(ctx, at(px), at(py), Math.atan2(ty, tx), e.big);
         continue;
       }
       if (e.kind === 'ink') {

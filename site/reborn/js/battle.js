@@ -121,12 +121,12 @@ export const WATER = { drop: 9,
   cryo: { reach: 3.5, interval: 1.1, mul: 3.6, speed: 9, big: 2, stock: 3, refill: 2 },
   slap: { chance: 0.1, hold: 2, elite: 1, boss: 0.5 }, drown: 0.1,
   ink: { every: 15, reach: 5, time: 10, slow: 0.5, boss: 0.25, mul: 2, speed: 6 },
-  roar: { every: 12, reach: 2, time: 10, per: 0.3 },
+  roar: { every: 12, reach: 3, time: 10, per: 0.3 },
   frostRing: { radius: 2, tick: 0.5, mul: 0.5, slow: 0.2, snow: 0.1 },
   iceBurst: { radius: 1, hold: 3, elite: 2, boss: 1 },
   iceWall: { time: 5, hits: 10, rest: 5, bite: 1 },
   iceGod: { stock: 5, refill: 1, count: 3, spread: 0.7 },
-  bubble: { every: 30, per: 0.5, max: 200, speed: 1.5, touch: 0.5, radius: 3, orbit: 0.8, spin: 1.3,
+  bubble: { every: 30, per: 0.5, max: 200, speed: 2.25, chase: 1.5, touch: 0.5, radius: 3, orbit: 0.8, spin: 1.3,
     stages: [0, 20, 50, 100, 150] },
   vortex: { chance: 0.08, gap: 4, radius: 3, time: 1 }, spring: { radius: 3, heal: 0.01, undead: 3, clarity: 0.1 },
   home: 0.25, tide: 0.1, rain: { chance: 0.01, radius: 0.6, time: 3, slow: 0.3, rods: 2 },
@@ -1486,7 +1486,8 @@ export class Battle {
     const s = WATER.hydro;
     this.arrows = this.arrows.filter((arrow) => {
       const t = arrow.tower;
-      if (!arrow.mob || !this._targetable(t, arrow.mob)) arrow.mob = nextPrey(this, t, arrow);
+      const lost = (mob) => !mob || mob.dead || hidden(mob, this.time) || this.covered(mob.x, mob.y);
+      if (lost(arrow.mob)) arrow.mob = nextPrey(this, t, arrow);
       if (!arrow.mob) return false;
       const mob = arrow.mob, gap = Math.hypot(mob.x - arrow.x, mob.y - arrow.y), step = s.speed * dt;
       if (gap > step + s.touch) {
@@ -2011,10 +2012,10 @@ export class Battle {
     if (!lead) return;
     const d = Math.ceil(lead.d + 0.6), i = d - 1;
     if (i < 0 || i >= this.path.length || d > this.length - HEART_GAP - 1 || this.walls.some((w) => w.i === i)) return;
-    const [x, y] = this.road[i];
-    this.walls.push({ tower: t, i, r: 0, d, x: x + 0.5, y: y + 0.5, hp: WATER.iceWall.hits, max: WATER.iceWall.hits,
+    const { x, y } = this._roadPoint(0, d);
+    this.walls.push({ tower: t, i, r: 0, d, x, y, hp: WATER.iceWall.hits, max: WATER.iceWall.hits,
       hitAt: -1e9, ice: true, until: now + WATER.iceWall.time });
-    this._event({ kind: 'wall', tower: t, x: x + 0.5, y: y + 0.5, ice: true });
+    this._event({ kind: 'wall', tower: t, x, y, ice: true });
   }
 
   _intervalOf(t, now) {
@@ -3118,14 +3119,14 @@ function bubble(b, t, now) {
     b._event({ kind: 'bubble', tower: t, mob: prey });
     return;
   }
-  const fly = ball.fly, step = s.speed * (now - fly.at);
+  const fly = ball.fly, dt = now - fly.at;
   fly.at = now;
   if (fly.mob.dead || hidden(fly.mob, now)) fly.mob = bigPrey(b, t, now);
   if (!fly.mob) {
     ball.fly = null;
     return;
   }
-  const gap = Math.hypot(fly.mob.x - fly.x, fly.mob.y - fly.y);
+  const step = Math.max(s.speed, (fly.mob.speed || 0) * s.chase) * dt, gap = Math.hypot(fly.mob.x - fly.x, fly.mob.y - fly.y);
   if (gap > step + s.touch) {
     fly.x += (fly.mob.x - fly.x) / gap * step;
     fly.y += (fly.mob.y - fly.y) / gap * step;
@@ -3147,6 +3148,11 @@ function slap(b, t, mob) {
   b._event({ kind: 'slap', tower: t, mob });
 }
 
+function lashHurt(b, t, mob, amount) {
+  b._hurt(mob, amount / 2, t, null);
+  b._hurt(mob, amount / 2, t, 'water');
+}
+
 function lashOf(b, t, mob, hit) {
   return hit * (inked(b, mob) ? WATER.ink.mul : 1) * b.roaring();
 }
@@ -3158,7 +3164,7 @@ function grab(b, t) {
     const target = marked || b._target(t);
     if (!target) return false;
     b._event({ kind: 'tentacle', tower: t, mob: target, x: t.cx, y: t.cy, crit });
-    b._hurt(target, lashOf(b, t, target, hit), t);
+    lashHurt(b, t, target, lashOf(b, t, target, hit));
     slap(b, t, target);
     return true;
   }
@@ -3181,7 +3187,7 @@ function grab(b, t) {
       continue;
     }
     b._event({ kind: 'tentacle', tower: t, mob, x: arm.x, y: arm.y, arm, crit });
-    b._hurt(mob, lashOf(b, t, mob, hit * s.arm / s.mul), t);
+    lashHurt(b, t, mob, lashOf(b, t, mob, hit * s.arm / s.mul));
     slap(b, t, mob);
   }
   return struck;
@@ -3254,7 +3260,8 @@ function spit(b, t, now) {
   const s = WATER.ink;
   let prey = null;
   for (const mob of b.mobs) {
-    if (mob.dead || hidden(mob, now) || immune(mob, t.element) || b.covered(mob.x, mob.y) || !near(mob, t.cx, t.cy, s.reach)) {
+    if (mob.dead || !big(mob) || hidden(mob, now) || immune(mob, t.element) || b.covered(mob.x, mob.y)
+      || !near(mob, t.cx, t.cy, s.reach)) {
       continue;
     }
     if (!prey || mob.hp > prey.hp) prey = mob;

@@ -92,6 +92,13 @@ const LIQUIDS = {
 
 const lookOf = (biome) => LOOKS[biome] || LOOKS.grass;
 
+const CLEAR = ['water', 'oasis', 'bog'];
+
+export function waterOf(biome) {
+  const own = lookOf(biome).water, key = CLEAR.includes(own) ? own : 'water';
+  return { key, style: LIQUIDS[key] };
+}
+
 function hash(x, y, i) {
   const v = Math.sin(x * 127.1 + y * 311.7 + i * 74.7) * 43758.5453;
   return v - Math.floor(v);

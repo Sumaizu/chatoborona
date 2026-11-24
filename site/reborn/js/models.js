@@ -1892,10 +1892,10 @@ function cryomancer(m, cast = false) {
   const c = FROST_LADY;
   lady(m, {
     dress: c.dress, fold: c.fold, top: c.top, sleeve: c.sleeve, wide: 1.9, bent: true, hair: c.hair, shade: c.shade,
-    trim: c.trim, hands: cast ? [10.6, 15.6, 8.6, 20.2, 7.8, 12.2] : [10.6, 15.6, 8.6, 21.6, 12.6, 11.2],
+    trim: c.trim, hands: cast ? [10.6, 15.6, 8.6, 19.6, 10.2, 12] : [10.6, 15.6, 8.6, 20.2, 13.6, 11],
     weapon: (q) => {
       for (const [x, y] of [[14.6, 18.6], [17.4, 18.6], [16, 20]]) q.ball(x, y, 8.4, 0.5, c.gem, 1);
-      if (!cast) icicle(q, 21.6, 10.4, 14.2, 3.8, 0.75);
+      if (!cast) icicle(q, 20.4, 11.6, 14, 3.8, 0.75);
     },
     head: (q) => {
       for (let i = 0; i < 5; i++) {
@@ -2023,7 +2023,7 @@ export const MUZZLES = {
   sorceress: [[20.6, 8.6]], 'sorceress-ragged': [[20.6, 8.6]], 'sorceress-minstrel': [[19.4, 14]],
   'sorceress-enchantress': [[20.4, 8.6]], 'sorceress-enchantress-beam': [[16, 8.4]], 'sorceress-shamaness': [[10.8, 13.2]],
   frost: [[21.4, 6.4]], 'frost-ragged': [[21.4, 6.4]], 'frost-ragged-flick': [[23.2, 5.4]],
-  'frost-hydro': [[15.8, 6.2]], 'frost-hydro-loose': [[15.8, 6.2]], 'frost-kraken': [[16, 9]], 'frost-kraken-sea': [[16, 13]], 'frost-cryo': [[21.6, 6.6]],
+  'frost-hydro': [[15.8, 6.2]], 'frost-hydro-loose': [[15.8, 6.2]], 'frost-kraken': [[16, 9]], 'frost-kraken-sea': [[16, 13]], 'frost-cryo': [[19.8, 8.8]],
   'frost-cryo-cast': [[20.2, 6.4]], earth: STAFF, thunder: PALM, 'thunder-ragged': PALM, 'thunder-caller': STAFF,
   'thunder-caller-strike': [[12.5, 0.4]], 'thunder-raiju': [[16, 3.6]], 'thunder-thor': [[19.4, 11]], 'thunder-thor-throw': [[19.4, 11]], 'thunder-thor-empty': [[19.4, 11]],
   'thunder-thor-catch': [[19.4, 11]],

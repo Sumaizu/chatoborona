@@ -2915,6 +2915,19 @@ test('гидромант, пузырь: копит заряд за каждое 
   near(hit(side), t.damage * WATER.bubble.per * 100, 'урон за каждый заряд — и соседям');
 });
 
+test('гидромант, пузырь: летит в полтора раза быстрее прежнего и догоняет даже самого быстрого врага', () => {
+  eq(WATER.bubble.speed, 2.25);
+  const battle = makeBattle(), t = water(battle, 4, 4, ['hydro', 'bubble']);
+  t.bubble.charges = 50;
+  t.nextBubble = 0;
+  const runner = put(battle, special(battle, 'elite', 'leader', 1e9), 8);
+  runner.speed = 4;
+  battle.step(TICK);
+  ok(t.bubble.fly, 'полетел');
+  runFor(battle, 4);
+  ok(battle.events.some((e) => e.kind === 'pop'), 'догнал и лопнул');
+});
+
 test('гидромант, водоворот: от попадания стрелы стягивает за секунду всех на 3 клетки, даже боссов', () => {
   const shot = makeBattle(), h = water(shot, 10, 4, ['hydro', 'vortex']);
   shot.random = () => 0;
@@ -2932,6 +2945,18 @@ test('гидромант, водоворот: от попадания стрел
   runFor(battle, 0.15);
   for (const mob of [back, boss]) ok(Math.abs(mob.d - 11) < 0.2, 'стянут к точке: ' + mob.d);
   eq(far.d, 17, 'дальний — нет');
+});
+
+test('гидромант: стрела догоняет цель, даже если та вышла из радиуса', () => {
+  const battle = makeBattle(), t = water(battle, 10, 4, ['hydro']), mob = walker(battle, 12, 1e6);
+  still(mob);
+  ok(battle._fire(t));
+  battle.step(TICK);
+  mob.d = 16;
+  battle._locate(mob);
+  no(battle._targetable(t, mob), 'ушла из радиуса');
+  runFor(battle, 1.5);
+  ok(hit(mob) > 0, 'попала');
 });
 
 test('гидромант, родник: в соседней клетке; на 3 клетки чинит стены, жжёт нежить, союзники перезаряжаются быстрее', () => {
@@ -3002,6 +3027,28 @@ test('сила стихии: в дождь или снег урон +10% за к
   runFor(battle, PULSE);
   eq(battle.snow, 3);
   near(t.boost.damage, WATER.tide * 3, 'дожди стали снегом — его сложения');
+});
+
+test('кракен: удар щупальца — наполовину обычный урон, наполовину вода', () => {
+  const battle = makeBattle(), t = water(battle, 10, 4, ['kraken']), mob = walker(battle, 11, 1e9);
+  still(mob);
+  const hits = [], hurt = battle._hurt.bind(battle);
+  battle._hurt = (target, amount, tower, element = tower.element || null, ...rest) => {
+    hits.push([amount, element]);
+    return hurt(target, amount, tower, element, ...rest);
+  };
+  ok(battle._fire(t));
+  eq(hits.map(([, element]) => element), [null, 'water']);
+  near(hits[0][0], t.damage / 2);
+  near(hits[1][0], t.damage / 2);
+});
+
+test('водная реакция: и лёд криоманта делает врагов мокрыми', () => {
+  const battle = makeBattle(), t = water(battle, 10, 4, ['cryo', 'waterReact']), mob = walker(battle, 11, 1e9);
+  still(mob);
+  battle._fire(t);
+  runFor(battle, 0.4);
+  ok(mob.marks && mob.marks.has('water'));
 });
 
 test('кракен, оглушающий шлепок: с шансом 10% удар оглушает на 2 секунды, элитного на 1, босса на полсекунды', () => {
@@ -3101,14 +3148,16 @@ test('криомант: сосулька из руки и одна из трёх
   eq(t.icicles, WATER.cryo.stock, 'больше трёх не бывает');
 });
 
-test('кракен, плевок чернил: раз в 15 секунд в самого живучего врага на 5 клеток — медленнее вдвое, щупальца бьют его вдвое сильнее', () => {
+test('кракен, плевок чернил: раз в 15 секунд в самого живучего элитного на 5 клеток — медленнее вдвое, щупальца бьют его вдвое сильнее', () => {
   const battle = makeBattle(), t = water(battle, 10, 4, ['kraken', 'ink']);
-  const small = walker(battle, 11, 1e6), tough = walker(battle, 10, 2e6), far = walker(battle, 17, 9e6);
-  still(small, tough, far);
+  const small = walker(battle, 11, 1e6), tough = put(battle, special(battle, 'elite', 'leader', 2e6), 10);
+  const far = put(battle, special(battle, 'elite', 'leader', 9e6), 17), plain = walker(battle, 10.5, 9e6);
+  still(small, tough, far, plain);
   runFor(battle, 1);
   ok(battle.events.some((e) => e.kind === 'ink' && e.mob === tough), 'плюнул в самого живучего рядом');
   ok(tough.ink && tough.ink.until > battle.time + WATER.ink.time - 1.5, 'в чернилах');
   no(far.ink, 'дальше 5 клеток — нет');
+  no(plain.ink, 'обычных — нет, хоть он и живучее');
   near(tough.slow, WATER.ink.slow);
   runFor(battle, 2);
   eq(battle.events.filter((e) => e.kind === 'ink').length, 1, 'раз в 15 секунд');

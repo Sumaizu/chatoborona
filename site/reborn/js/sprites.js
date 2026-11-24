@@ -1,6 +1,6 @@
 import { HERO, HERO_IDS, drawHero, drawPhoenix, drawSeaArm } from './models.js';
 import { MOB_IDS, drawMelt, drawMob, drawSplit, gooColor } from './monsters.js';
-import { ORB_FRAMES, PUDDLE_FRAMES, SPRING_FRAMES, drawIceWall, drawPuddle, drawSpring, drawWaterOrb, drawCauldron, drawClod, drawBird, drawHawk, drawSnare, drawTrap, drawCoinIcon, drawDrone, drawEmblem, drawFireball, drawGrenade, drawHeart,
+import { ORB_FRAMES, PUDDLE_FRAMES, SPRING_FRAMES, drawIceWall, drawIcicle, drawPuddle, drawSpring, drawWaterOrb, drawCauldron, drawClod, drawBird, drawHawk, drawSnare, drawTrap, drawCoinIcon, drawDrone, drawEmblem, drawFireball, drawGrenade, drawHeart,
   drawMeteor, drawMound, drawNuke, drawVent, drawRocket, drawWall } from './props.js';
 
 const OUTLINE = '#15111d';
@@ -268,6 +268,7 @@ export function pixelsOf(image) {
 
 export const wallSprite = (stage) => remember('wall:' + stage, () => drawWall(stage));
 export const iceWallSprite = (stage) => remember('icewall:' + stage, () => drawIceWall(stage));
+export const icicleSprite = (length) => remember('icicle:' + length, () => drawIcicle(length));
 
 export const hookSprite = () => remember('hook', () => mapSprite([
   '...........',
@@ -324,9 +325,10 @@ export const fireballSprite = (tone, frame = 0) => remember('fireball:' + tone +
   () => drawFireball(tone, frame % FIREBALL_FRAMES));
 export const rocketSprite = () => remember('rocket', () => drawRocket());
 export { ORB_FRAMES, PUDDLE_FRAMES, SPRING_FRAMES };
-export const springSprite = (frame) => remember('spring:' + frame, () => drawSpring(frame % SPRING_FRAMES));
-export const puddleSprite = (seed, frame) => remember('puddle:' + seed + ':' + frame,
-  () => drawPuddle(seed, frame % PUDDLE_FRAMES));
+export const springSprite = (frame, water) => remember('spring:' + water.key + ':' + frame,
+  () => drawSpring(frame % SPRING_FRAMES, water.style));
+export const puddleSprite = (seed, frame, water) => remember('puddle:' + water.key + ':' + seed + ':' + frame,
+  () => drawPuddle(seed, frame % PUDDLE_FRAMES, water.style));
 export const orbSprite = (radius, stage, frame) => remember('orb:' + radius + ':' + stage + ':' + frame,
   () => drawWaterOrb(radius, stage, frame % ORB_FRAMES));
 export const meteorSprite = () => remember('meteor', () => drawMeteor());
