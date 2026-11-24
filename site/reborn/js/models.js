@@ -1738,12 +1738,10 @@ function shamaness(m, beat = false) {
 const HYDRO = { dress: '#3fa9d6', fold: '#2382b0', top: '#6cc6ea', sleeve: '#a9e2f5', veil: '#b6e7f7', mist: '#86d2ee',
   hem: '#e6f8fd',
   hair: '#7a4a28', shade: '#54301a', trim: '#ffffff', drop: '#7dd3fc', quiver: '#1b6f96', strap: '#d6eef7' };
-const DRAW = { pull: [16.6, 15.4, 11.4], loose: [17.6, 12.8, 11.8], grip: [15.4, 8.8, 12.2], left: [13.8, 10, 11.4],
-  right: [18.2, 10, 11.4] };
+const DRAW = { pull: [16.6, 15.4, 11.4], loose: [17.6, 12.8, 11.8], grip: [15.4, 8.8, 12.2] };
 
 function hydromancer(m, pose = '') {
-  const c = HYDRO, flow = pose === 'flow', [rx, ry, rz] = flow ? DRAW.right : pose === 'loose' ? DRAW.loose : DRAW.pull;
-  const [lx, ly, lz] = flow ? DRAW.left : DRAW.grip;
+  const c = HYDRO, [rx, ry, rz] = pose === 'loose' ? DRAW.loose : DRAW.pull, [lx, ly, lz] = DRAW.grip;
   m.limb(19.4, 15.8, 8.8, 13, 23.4, 9.6, 0.32, c.strap);
   m.egg(13.4, 23.2, 9.4, 1.5, 3.4, 1.2, c.quiver, 0.4);
   for (const [x, y] of [[12.8, 20.4], [13.9, 20.2], [13.3, 19.6]]) {
@@ -1962,7 +1960,6 @@ const SKINS = {
   'frost-ragged-flick': (m) => tideRagged(m, true),
   'frost-hydro': (m) => hydromancer(m),
   'frost-hydro-loose': (m) => hydromancer(m, 'loose'),
-  'frost-hydro-flow': (m) => hydromancer(m, 'flow'),
   'frost-kraken': (m) => kraken(m),
 
   'frost-kraken-sea': krakenSea,
@@ -2026,7 +2023,7 @@ export const MUZZLES = {
   sorceress: [[20.6, 8.6]], 'sorceress-ragged': [[20.6, 8.6]], 'sorceress-minstrel': [[19.4, 14]],
   'sorceress-enchantress': [[20.4, 8.6]], 'sorceress-enchantress-beam': [[16, 8.4]], 'sorceress-shamaness': [[10.8, 13.2]],
   frost: [[21.4, 6.4]], 'frost-ragged': [[21.4, 6.4]], 'frost-ragged-flick': [[23.2, 5.4]],
-  'frost-hydro': [[15.8, 6.2]], 'frost-hydro-loose': [[15.8, 6.2]], 'frost-hydro-flow': [[16, 8.6]], 'frost-kraken': [[16, 9]], 'frost-kraken-sea': [[16, 13]], 'frost-cryo': [[21.6, 6.6]],
+  'frost-hydro': [[15.8, 6.2]], 'frost-hydro-loose': [[15.8, 6.2]], 'frost-kraken': [[16, 9]], 'frost-kraken-sea': [[16, 13]], 'frost-cryo': [[21.6, 6.6]],
   'frost-cryo-cast': [[20.2, 6.4]], earth: STAFF, thunder: PALM, 'thunder-ragged': PALM, 'thunder-caller': STAFF,
   'thunder-caller-strike': [[12.5, 0.4]], 'thunder-raiju': [[16, 3.6]], 'thunder-thor': [[19.4, 11]], 'thunder-thor-throw': [[19.4, 11]], 'thunder-thor-empty': [[19.4, 11]],
   'thunder-thor-catch': [[19.4, 11]],
@@ -2047,7 +2044,7 @@ export const sizeOf = (id) => {
 };
 
 export function drawHero(id, reload = -1) {
-  const fine = FINE_HEROES.test(id) ? 2 : 1, size = sizeOf(id), room = /-hit[LR]\d$/.test(id) ? 1.7 : 1;
+  const fine = FINE_HEROES.test(id) ? 2 : 1, size = sizeOf(id), room = /-hit[LR]\d$/.test(id) ? 2 : 1;
   const side = Math.ceil(28 * size * room) * 2;
   const m = new Model(side * fine, 1.08 * fine * HERO.scale * size, HERO.center[0], HERO.center[1]);
   m.reload = reload;
@@ -2075,6 +2072,7 @@ function seaArm(m, o, long, strike) {
     x += Math.cos(heading) * step;
     y += Math.sin(heading) * step;
   }
+  const side = o.curl > 0 ? 1 : -1;
   for (let k = 0; k < points.length - 1; k++) {
     const [x0, y0, z0, r0] = points[k], [x1, y1, z1, r1] = points[k + 1];
     m.limb(x0, y0, z0, x1, y1, z1, r0, c.skin, 0.45, r1);
@@ -2083,7 +2081,6 @@ function seaArm(m, o, long, strike) {
     const [x0, y0, z0, r0] = points[k];
     m.ball(x0, y0, z0 + r0 * 0.8, r0 * 0.42, k % 4 ? c.light : c.skin, 0.6);
   }
-  const side = o.curl > 0 ? 1 : -1;
   for (let k = 4; k < points.length - 1; k += 2) {
     const [x0, y0, z0, r0] = points[k], [x1, y1] = points[k + 1], out = Math.atan2(y1 - y0, x1 - x0) + side * Math.PI / 2;
     const sx = x0 + Math.cos(out) * r0 * 0.68, sy = y0 + Math.sin(out) * r0 * 0.68, size = Math.max(0.2, r0 * 0.36);

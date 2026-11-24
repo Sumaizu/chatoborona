@@ -496,7 +496,7 @@ test('страницы: «навыки» — панель «Навыки игр�
   await until(() => /translateY\(-[1-9]/.test(list.style.transform), 'листается', 20000);
   game.feed('Аня', 'профиль', { login: 'аня' });
   await until(() => w.document.querySelector('#cards .profile .skill-count'), 'в профиле — только счёт');
-  ok(/^9\/\d+$/.test(w.document.querySelector('#cards .profile .skill-count').textContent), '9/N');
+  ok(/^8\/\d+$/.test(w.document.querySelector('#cards .profile .skill-count').textContent), 'камень подкласса не считается: 8/N');
   frame.remove();
 });
 test('страницы: игроков больше, чем помещается в «Отряде», — список листается страницами по кругу', async () => {
@@ -545,7 +545,7 @@ test('страницы: подкласс выпал во время замаха
   frame.remove();
 });
 
-test('страницы: ник того, кто выбирает навык, на карте красный и крупнее; особые ники — своими цветами', async () => {
+test('страницы: ник того, кто выбирает навык, на карте красный и крупнее; особые ники на карте — как у всех', async () => {
   fresh();
   const frame = await overlay('lobby=10&first_wave=5');
   const w = frame.contentWindow, game = w.chatoborona.game, scene = w.chatoborona.view.scene;
@@ -569,7 +569,7 @@ test('страницы: ник того, кто выбирает навык, н�
     for (let i = 0; i < data.length; i += 4) if (data[i + 3] > 200) seen.add((data[i] >> 5) + ',' + (data[i + 1] >> 5) + ',' + (data[i + 2] >> 5));
     return seen.size;
   };
-  ok(colors(scene._nameLabel(star, '')) > colors(plain) + 5, 'радужный ник автора на карте — радугой');
+  ok(Math.abs(colors(scene._nameLabel(star, '')) - colors(plain)) <= 3, 'ник автора на карте — обычным цветом');
   frame.remove();
 });
 

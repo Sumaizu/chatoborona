@@ -203,6 +203,74 @@ export function drawWaterOrb(radius, stage, frame) {
 
 export const ORB_FRAMES = ORB.frames;
 
+const SPRING = { stones: ['#e2dfd8', '#bdb8ad', '#98928a', '#757067', '#524e47'], moss: ['#6f9a3a', '#4f7a2a'],
+  water: ['#f0fbff', '#bae6fd', '#7dd3fc', '#38bdf8', '#0284c7', '#075985'], frames: 6 };
+
+export function drawSpring(frame) {
+  const w = 44, h = 38, cx = w / 2, cy = h / 2 + 3, canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const g = canvas.getContext('2d'), t = frame / SPRING.frames, put = (x, y, color) => {
+    g.fillStyle = color;
+    g.fillRect(x, y, 1, 1);
+  };
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const dx = (x + 0.5 - cx) / 18, dy = (y + 0.5 - cy) / 13, d = Math.hypot(dx, dy);
+      if (d > 1) continue;
+      const a = Math.atan2(dy, dx), inner = Math.hypot(dx / 0.68, dy / 0.64);
+      if (inner > 1) {
+        const sector = (a / (Math.PI * 2) + 1) * 11, edge = Math.abs(sector - Math.round(sector)) < 0.09;
+        const rim = (d - 0.68) / 0.32, lit = -dx * 0.6 - dy * 0.8 + (0.5 - Math.abs(rim - 0.5)) * 0.8;
+        let tone = lit > 0.45 ? 0 : lit > 0.1 ? 1 : lit > -0.25 ? 2 : 3;
+        if (edge || rim > 0.92) tone = 4;
+        else if (grain(x, y, 3) > 0.9) tone = Math.min(4, tone + 1);
+        put(x, y, Math.floor(sector) % 4 === 1 && dy < 0 && grain(x, y, 5) > 0.55 ? SPRING.moss[tone % 2] : SPRING.stones[tone]);
+        continue;
+      }
+      const ring = Math.abs(((inner + t) % 0.5) - 0.25) < 0.05, deep = inner;
+      let tone = deep < 0.25 ? 1 : deep < 0.55 ? 3 : deep < 0.85 ? 4 : 5;
+      if (ring && deep > 0.2) tone = Math.max(1, tone - 2);
+      if (-dx - dy > 0.9 && grain(x, y, frame) > 0.6) tone = 1;
+      put(x, y, SPRING.water[tone]);
+    }
+  }
+  for (let k = 0; k < 6; k++) {
+    const phase = (t + k / 6) % 1, side = k % 2 ? 1 : -1, arc = phase * 5;
+    const x = Math.round(cx + side * arc * 0.9), y = Math.round(cy - 4 - Math.sin(phase * Math.PI) * 9 + phase * 2);
+    put(x, y, SPRING.water[phase < 0.5 ? 0 : 1]);
+    put(x, y + 1, SPRING.water[2]);
+  }
+  for (let y = 0; y < 6; y++) put(Math.round(cx + Math.sin(t * 6.28 + y) * 0.6), Math.round(cy - 1 - y), SPRING.water[y < 2 ? 0 : 1]);
+  return canvas;
+}
+
+export const SPRING_FRAMES = SPRING.frames;
+
+const PUDDLE = { tones: ['#bae6fd', '#38bdf8', '#0ea5e9', '#0369a1', '#0c4a6e'], frames: 4 };
+
+export function drawPuddle(seed, frame) {
+  const w = 40, h = 26, cx = w / 2, cy = h / 2, canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const g = canvas.getContext('2d'), t = frame / PUDDLE.frames;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const dx = (x + 0.5 - cx) / 18, dy = (y + 0.5 - cy) / 11, a = Math.atan2(dy, dx);
+      const edge = 1 + 0.12 * Math.sin(a * 3 + seed * 7) + 0.08 * Math.sin(a * 5 + seed * 13), d = Math.hypot(dx, dy) / edge;
+      if (d > 1) continue;
+      let tone = d > 0.86 ? 4 : d > 0.62 ? 3 : 2;
+      if (Math.abs(((d + t) % 0.5) - 0.25) < 0.04 && d < 0.8) tone = 1;
+      if (-dx * 0.8 - dy > 0.5 && d < 0.75 && grain(x, y, seed) > 0.55) tone = 0;
+      g.fillStyle = PUDDLE.tones[tone];
+      g.fillRect(x, y, 1, 1);
+    }
+  }
+  return canvas;
+}
+
+export const PUDDLE_FRAMES = PUDDLE.frames;
+
 const ROOTS = { bark: ['#5b3a22', '#6b4a2c', '#4e3220', '#7a5636', '#644024'], soil: '#3a2a1b', hole: '#1c130b',
   thorn: '#e3d4b0', leaf: ['#4d7c0f', '#65a30d'], drop: 3 };
 
@@ -505,6 +573,28 @@ export function drawClod(biome, seed) {
 const WALL_TOP = '#b2a794';
 const WALL_FACE = '#83796b';
 const WALL_EDGE = '#bdb3a0';
+
+const ICE_WALL = ['#f0fbff', '#c7f0ff', '#93dcff', '#5bb8e8'];
+
+export function drawIceWall(stage) {
+  const m = new Model(36, 1);
+  m.egg(18, 27, 0, 15, 5, 1.6, '#7fb7d6', 0.4);
+  const shards = [[6, 22, 3.2, 7], [10.5, 19, 3.6, 10], [15, 21, 3.4, 8], [19.5, 18, 3.8, 11], [24, 21, 3.4, 8.5],
+    [28.5, 20, 3.2, 9], [8.5, 26, 2.8, 5], [17, 26, 3, 5.5], [26, 26, 2.8, 5]];
+  shards.forEach(([x, y, r, tall], k) => {
+    if (stage >= 2 && k % 3 === 1) return;
+    m.egg(x, y, tall * 0.5, r, r * 1.35, tall, ICE_WALL[k % 3 + 1], 1);
+    m.egg(x - r * 0.3, y - r * 0.45, tall * 0.9, r * 0.45, r * 0.6, tall * 0.25, ICE_WALL[0], 1);
+  });
+  const cracks = [[[11, 16], [12, 19], [10, 21]], [[20, 15], [19, 18], [21, 20]], [[27, 18], [28, 21]], [[6, 20], [7, 23]]];
+  for (const line of cracks.slice(0, stage * 2)) {
+    for (let k = 0; k + 1 < line.length; k++) {
+      const [x0, y0] = line[k], [x1, y1] = line[k + 1];
+      for (let s = 0; s <= 4; s++) m.dot(x0 + (x1 - x0) * s / 4, y0 + (y1 - y0) * s / 4, '#3f7fa8', 20);
+    }
+  }
+  return m.paint();
+}
 
 export function drawWall(stage) {
   const m = new Model(36, 1), broken = stage >= 2;

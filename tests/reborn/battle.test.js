@@ -2852,9 +2852,9 @@ test('маг воды: частые капли из палочки летят и
 test('маг воды: навыки — свои у каждого стиля; дождь у гидроманта и кракена, снег у криоманта', () => {
   const ids = (taken) => choiceOf('frost', taken).map((option) => option.skill.id);
   eq(ids([]), ['hydro', 'kraken', 'cryo']);
-  eq(ids(['hydro']), ['flow', 'bubble', 'vortex', 'spring', 'waterReact', 'home', 'rain', 'tide']);
-  eq(ids(['kraken']), ['waterReact', 'home', 'rain', 'tide']);
-  eq(ids(['cryo']), ['waterReact', 'home', 'snow', 'tide']);
+  eq(ids(['hydro']), ['triple', 'bubble', 'vortex', 'spring', 'waterReact', 'home', 'rain', 'tide']);
+  eq(ids(['kraken']), ['slap', 'ink', 'roar', 'drown', 'waterReact', 'home', 'rain', 'tide']);
+  eq(ids(['cryo']), ['frostRing', 'iceBurst', 'iceWall', 'iceGod', 'waterReact', 'home', 'snow', 'tide']);
 });
 
 test('гидромант: водяная стрела слетает с тетивы и цепочкой пролетает всех врагов в радиусе по разу, потом пропадает', () => {
@@ -2871,26 +2871,27 @@ test('гидромант: водяная стрела слетает с тети
   eq(battle.events.filter((e) => e.kind === 'splash').length, 3);
 });
 
-test('гидромант, поток: по элитному или боссу в радиусе вместо стрел; замедляет, только если враг идёт навстречу', () => {
-  const battle = makeBattle(), t = water(battle, 10, 4, ['hydro', 'flow']);
-  const elite = put(battle, special(battle, 'elite', 'leader', 1e6), 9), plain = walker(battle, 11, 1e6);
-  still(elite, plain);
-  battle.step(TICK);
-  ok(t.flow && t.flow.mob === elite, 'поток — в элитного');
-  no(battle._fire(t), 'пока льёт поток — стрел нет');
-  runFor(battle, 1.1);
-  ok(hit(elite) > 0 && plain.hp === plain.max);
-  ok(elite.slowUntil > battle.time, 'идёт навстречу — замедлен');
-  near(elite.slow, WATER.flow.elite);
-  const away = makeBattle(), w = water(away, 10, 4, ['hydro', 'flow']);
-  const boss = put(away, special(away, 'boss', 'crusher', 1e9), 12.5);
-  still(boss);
-  runFor(away, 1.1);
-  ok(w.flow && w.flow.mob === boss && hit(boss) > 0, 'и в босса');
-  no(boss.slowUntil > away.time, 'уходит от потока — не замедлен');
-  for (const mob of away.mobs) mob.dead = true;
-  away.step(TICK);
-  eq(w.flow, null, 'врагов нет — поток кончился');
+test('гидромант, тройной выстрел: три стрелы веером — в цель и в других врагов, у каждой своя цепочка; углы плавные', () => {
+  const battle = makeBattle(), t = water(battle, 10, 4, ['hydro', 'triple']);
+  const mobs = [walker(battle, 9, 1e6), walker(battle, 11, 1e6), walker(battle, 12.5, 1e6)];
+  still(...mobs);
+  ok(battle._fire(t));
+  eq(battle.arrows.length, WATER.triple.count, 'три стрелы');
+  const heads = battle.arrows.map((arrow) => arrow.heading), spread = Math.max(...heads) - Math.min(...heads);
+  ok(spread > WATER.triple.spread, 'веером');
+  ok(new Set(battle.arrows.map((arrow) => arrow.mob)).size > 1, 'в разных врагов');
+  let sharp = 0;
+  const before = new Map(battle.arrows.map((arrow) => [arrow, arrow.heading]));
+  for (let k = 0; k < 60 && battle.arrows.length; k++) {
+    battle.step(TICK);
+    for (const arrow of battle.arrows) {
+      const turn = Math.abs(Math.atan2(Math.sin(arrow.heading - before.get(arrow)), Math.cos(arrow.heading - before.get(arrow))));
+      if (turn > 1.6) sharp += 1;
+      before.set(arrow, arrow.heading);
+    }
+  }
+  eq(sharp, 0, 'стрела не ломается под углом — поворачивает дугой');
+  for (const mob of mobs) near(hit(mob), t.damage * WATER.triple.count, 'каждая стрела — по разу каждого');
 });
 
 test('гидромант, пузырь: копит заряд за каждое попадание; раз в 30 секунд летит к элитному или боссу и лопается на 3 клетки', () => {
@@ -2926,7 +2927,9 @@ test('гидромант, водоворот: от попадания стрел
   const boss = put(battle, special(battle, 'boss', 'crusher', 1e9), 13.5);
   still(lead, back, far, boss);
   battle._vortex(t, lead.x, lead.y);
-  runFor(battle, WATER.vortex.time + 0.1);
+  runFor(battle, WATER.vortex.time - 0.05);
+  for (const mob of [back, boss]) ok(Math.hypot(mob.x - lead.x, mob.y - lead.y) < 0.1, 'стянут в одну точку');
+  runFor(battle, 0.15);
   for (const mob of [back, boss]) ok(Math.abs(mob.d - 11) < 0.2, 'стянут к точке: ' + mob.d);
   eq(far.d, 17, 'дальний — нет');
 });
@@ -3001,6 +3004,44 @@ test('сила стихии: в дождь или снег урон +10% за к
   near(t.boost.damage, WATER.tide * 3, 'дожди стали снегом — его сложения');
 });
 
+test('кракен, оглушающий шлепок: с шансом 10% удар оглушает на 2 секунды, элитного на 1, босса на полсекунды', () => {
+  const stun = (make, roll) => {
+    const battle = makeBattle(), t = water(battle, 10, 4, ['kraken', 'slap']), mob = make(battle);
+    still(mob);
+    battle.random = () => roll;
+    ok(battle._fire(t));
+    if (mob.holdUntil > battle.time) eq(mob.holdBy, 'kraken', 'оглушён, а не заморожен');
+    return mob.holdUntil - battle.time;
+  };
+  near(stun((b) => walker(b, 11, 1e9), 0.05), WATER.slap.hold);
+  near(stun((b) => put(b, special(b, 'elite', 'leader', 1e9), 11), 0.05), WATER.slap.elite);
+  near(stun((b) => put(b, special(b, 'boss', BOSSES[0].id, 1e9), 11), 0.05), WATER.slap.boss);
+  ok(stun((b) => walker(b, 11, 1e9), 0.5) <= 0, 'в остальных 90% — нет');
+});
+
+test('кракен, утопление: щупальце из воды утаскивает врага с 10% здоровья и меньше; элитных и боссов — нет', () => {
+  const battle = mapWith({ lake: [[6, 4], [7, 4], [8, 4], [6, 3]] }), k = battle.place(player(), 'frost', 6, 3, { runes: ['kraken', 'drown'] });
+  k.critChance = 0;
+  battle.step(TICK);
+  const weak = walker(battle, 8, 1000), elite = put(battle, special(battle, 'elite', 'leader', 1000), 8.2);
+  still(weak, elite);
+  weak.hp = 90;
+  elite.hp = 90;
+  battle._fire(k);
+  ok(weak.dead && weak.drowned, 'утащил под воду');
+  ok(battle.events.some((e) => e.kind === 'drown' && e.mob === weak));
+  no(elite.dead && elite.drowned, 'элитного не топит');
+});
+
+test('кракен: дальность не меняется ни от холмов и вышек, ни от аур и оружия', () => {
+  const battle = mapWith({ hill: [[4, 3]], watch: [[12, 3]] });
+  const plain = water(battle, 8, 3, ['kraken']), hill = water(battle, 4, 3, ['kraken']), watch = water(battle, 12, 3, ['kraken']);
+  battle.setMods(plain, { runes: ['kraken'], range: 2 });
+  battle.place(player(), 'priest', 9, 3, { runes: ['monk', 'mantraRange'] });
+  battle.step(TICK);
+  eq([plain.range, hill.range, watch.range], [WATER.kraken.reach, WATER.kraken.reach, WATER.kraken.reach]);
+});
+
 test('снег: все медленнее; дождь других магов становится снегом; до 5 сложений, с 3 — враги замерзают', () => {
   const battle = makeBattle();
   water(battle, 4, 2, ['cryo', 'snow']);
@@ -3017,7 +3058,7 @@ test('снег: все медленнее; дождь других магов с
   near(mob.slow, WATER.snow.slow[2]);
   battle.random = () => 0;
   runFor(battle, PULSE);
-  ok(mob.holdUntil > battle.time && mob.holdBy === 'frost', 'замерзает');
+  ok(mob.holdUntil > battle.time + WATER.snow.hold - 0.6 && mob.holdBy === 'frost', 'замерзает на 4 секунды');
   for (const x of [12, 14, 16]) water(battle, x, 2, ['cryo', 'snow']);
   runFor(battle, PULSE);
   eq(battle.snow, WATER.snow.max, 'больше пяти не бывает');
@@ -3058,6 +3099,160 @@ test('криомант: сосулька из руки и одна из трёх
   eq(t.icicles, WATER.cryo.stock, 'и остальные, по одной');
   runFor(battle, WATER.cryo.refill * 2);
   eq(t.icicles, WATER.cryo.stock, 'больше трёх не бывает');
+});
+
+test('кракен, плевок чернил: раз в 15 секунд в самого живучего врага на 5 клеток — медленнее вдвое, щупальца бьют его вдвое сильнее', () => {
+  const battle = makeBattle(), t = water(battle, 10, 4, ['kraken', 'ink']);
+  const small = walker(battle, 11, 1e6), tough = walker(battle, 10, 2e6), far = walker(battle, 17, 9e6);
+  still(small, tough, far);
+  runFor(battle, 1);
+  ok(battle.events.some((e) => e.kind === 'ink' && e.mob === tough), 'плюнул в самого живучего рядом');
+  ok(tough.ink && tough.ink.until > battle.time + WATER.ink.time - 1.5, 'в чернилах');
+  no(far.ink, 'дальше 5 клеток — нет');
+  near(tough.slow, WATER.ink.slow);
+  runFor(battle, 2);
+  eq(battle.events.filter((e) => e.kind === 'ink').length, 1, 'раз в 15 секунд');
+  const was = hit(tough), other = hit(small);
+  ok(battle._fire(t));
+  eq(hit(small), other, 'щупальце бьёт того, кто в чернилах');
+  near(hit(tough) - was, t.damage * WATER.ink.mul);
+});
+
+test('кракен, плевок чернил: босс замедляется только на четверть', () => {
+  const battle = makeBattle(), t = water(battle, 10, 4, ['kraken', 'ink']);
+  const boss = put(battle, special(battle, 'boss', BOSSES[0].id, 1e9), 11);
+  still(boss);
+  runFor(battle, 1);
+  ok(boss.ink);
+  near(boss.slow, WATER.ink.boss);
+});
+
+test('кракен, рёв чудовища: враг рядом — рёв на всю карту; 10 секунд щупальца и птицы бьют сильнее по силе кракена', () => {
+  const battle = makeBattle(), t = water(battle, 10, 4, ['kraken', 'roar']);
+  const far = walker(battle, 17, 1e9);
+  still(far);
+  runFor(battle, 1);
+  eq(battle.roaring(), 1, 'никого рядом — не ревёт');
+  const mob = walker(battle, 11, 1e9);
+  still(mob);
+  runFor(battle, 0.3);
+  ok(battle.events.some((e) => e.kind === 'bellow'), 'заревел');
+  const boost = WATER.roar.per * t.might / MIGHT.base;
+  near(battle.roaring(), 1 + boost);
+  const was = hit(mob);
+  ok(battle._fire(t));
+  near(hit(mob) - was, t.damage * (1 + boost), 'щупальце сильнее');
+  runFor(battle, WATER.roar.every);
+  eq(battle.events.filter((e) => e.kind === 'bellow').length, 2, 'враг всё рядом — ревёт снова');
+  battle.remove(t);
+  runFor(battle, WATER.roar.time + 0.2);
+  eq(battle.roaring(), 1, 'прошло 10 секунд');
+});
+
+test('рёв чудовища: птицы друида клюют сильнее', () => {
+  const battle = makeBattle(), t = forester(battle, 16, 4, ['druid']);
+  battle.roarUntil = 1e9;
+  battle.roarBoost = 0.5;
+  const mob = walker(battle, 17, 1e9);
+  still(mob);
+  runFor(battle, 4);
+  const pecks = battle.events.filter((e) => e.kind === 'peck' && e.tower === t).length;
+  ok(pecks > 0);
+  near(hit(mob) / pecks, t.damage * WOOD.bird.mul * 1.5);
+});
+
+test('криомант, стужа: ледяное кольцо в 2 клетки ранит и замедляет на 20%; в снег сильнее на 10% за сложение', () => {
+  const damage = (snow) => {
+    const battle = makeBattle(), t = water(battle, 10, 4, ['cryo', 'frostRing']), mob = walker(battle, 11, 1e9);
+    const far = walker(battle, 15, 1e9);
+    still(mob, far);
+    for (const x of [3, 5]) water(battle, x, 2, snow ? ['cryo', 'snow'] : ['cryo']);
+    runFor(battle, PULSE + 0.05);
+    eq(battle.snow, snow);
+    eq(far.hp, far.max, 'дальше 2 клеток — нет');
+    ok(mob.slow >= WATER.frostRing.slow - 1e-9, 'замедлен');
+    const was = hit(mob);
+    runFor(battle, WATER.frostRing.tick * 2);
+    return { hit: hit(mob) - was, t };
+  };
+  const plain = damage(0);
+  near(plain.hit, plain.t.damage * WATER.frostRing.mul * 2, 'ранит');
+  near(damage(2).hit / plain.hit, 1 + WATER.frostRing.snow * 2);
+});
+
+test('криомант, заморозка: большая сосулька взрывается на клетку вокруг и морозит — 3 секунды, элитных 2, боссов 1', () => {
+  const battle = makeBattle(), t = water(battle, 10, 4, ['cryo', 'iceBurst']);
+  const mob = walker(battle, 11, 1e9), next = walker(battle, 11.6, 1e9), elite = put(battle, special(battle, 'elite', 'leader', 1e9), 11.3);
+  const boss = put(battle, special(battle, 'boss', BOSSES[0].id, 1e9), 11.4), far = walker(battle, 16, 1e9);
+  still(mob, next, elite, boss, far);
+  battle._fire(t);
+  runFor(battle, 0.4);
+  const burst = battle.events.find((e) => e.kind === 'iceBurst');
+  ok(burst, 'взорвалась');
+  eq(burst.radius, WATER.iceBurst.radius);
+  const left = (m) => m.holdUntil - battle.time;
+  for (const m of [mob, next]) ok(left(m) > WATER.iceBurst.hold - 0.5 && left(m) <= WATER.iceBurst.hold, 'заморожен на 3 секунды');
+  ok(left(elite) > WATER.iceBurst.elite - 0.5 && left(elite) <= WATER.iceBurst.elite, 'элитный — на 2');
+  ok(left(boss) > WATER.iceBurst.boss - 0.5 && left(boss) <= WATER.iceBurst.boss, 'босс — на 1');
+  no(far.holdUntil > battle.time, 'дальний — нет');
+});
+
+test('криомант, ледяная стена: встаёт перед первым врагом в досягаемости, держит 10 ударов или 5 секунд; через 5 секунд — новая', () => {
+  const battle = makeBattle(), t = water(battle, 10, 4, ['cryo', 'iceWall']);
+  const flyer = walker(battle, 12, 1e9, bat()), mob = walker(battle, 9, 1e9);
+  still(flyer);
+  runFor(battle, TICK * 2);
+  const wall = battle.walls.find((w) => w.ice);
+  ok(wall, 'встала');
+  ok(wall.d > mob.d && wall.d < flyer.d, 'перед пешим, не перед летучим');
+  eq(wall.max, WATER.iceWall.hits);
+  runFor(battle, 3);
+  ok(mob.d < wall.d, 'держит');
+  ok(wall.hp < wall.max, 'бьют');
+  ok(battle.walls.includes(wall), 'ещё стоит');
+  runFor(battle, 2.5);
+  no(battle.walls.includes(wall), 'растаяла через 5 секунд');
+  ok(battle.events.some((e) => e.kind === 'crumble' && e.ice));
+  still(walker(battle, 9, 1e9));
+  runFor(battle, WATER.iceWall.rest - 1);
+  no(battle.walls.some((w) => w.ice), 'отдыхает 5 секунд');
+  runFor(battle, 1.5);
+  ok(battle.walls.some((w) => w.ice), 'новая');
+});
+
+test('ледяная стена: 10 ударов — и рассыпалась; родник её не чинит', () => {
+  const battle = makeBattle(), t = water(battle, 10, 4, ['cryo', 'iceWall']);
+  const mobs = [9, 8.8, 8.6, 8.4, 8.2, 8, 7.8, 7.6, 7.4, 7.2, 7].map((d) => walker(battle, d, 1e9));
+  runFor(battle, TICK * 2);
+  const wall = battle.walls.find((w) => w.ice);
+  ok(wall);
+  runFor(battle, 3);
+  no(battle.walls.includes(wall), 'от 10 ударов рассыпалась раньше 5 секунд');
+  ok(mobs[0].d > wall.d, 'прошли');
+  const healed = makeBattle(), h = water(healed, 10, 3, ['hydro', 'spring']), c = water(healed, 12, 4, ['cryo']);
+  healed.step(TICK);
+  const spring = healed.springs[0], ice = { tower: c, i: 0, r: 0, d: 0.5, x: spring.cx, y: 5.5, hp: 1, max: 10, hitAt: -1e9,
+    ice: true, until: 1e9 };
+  healed.walls.push(ice);
+  runFor(healed, PULSE * 2 + 0.05);
+  eq(ice.hp, 1, 'родник не чинит');
+});
+
+test('криомант, бог льда: запас 5 сосулек, отрастают за секунду; каждая атака — 3 сосульки в разных врагов, к каждой большая', () => {
+  const battle = makeBattle(), t = water(battle, 10, 4, ['cryo', 'iceGod']);
+  const mobs = [walker(battle, 11, 1e9), walker(battle, 10, 1e9), walker(battle, 9, 1e9)];
+  still(...mobs);
+  runFor(battle, 2.5);
+  eq(t.icicles, WATER.iceGod.stock, 'запас 5');
+  battle.events.length = 0;
+  battle._fire(t);
+  const shots = battle.events.filter((e) => e.kind === 'icicle');
+  eq(shots.filter((e) => !e.big).length, WATER.iceGod.count, 'три из руки');
+  eq(shots.filter((e) => e.big).length, WATER.iceGod.count, 'и к каждой большая');
+  eq(new Set(shots.filter((e) => !e.big).map((e) => e.mob)).size, 3, 'в разных врагов');
+  eq(t.icicles, WATER.iceGod.stock - 3);
+  runFor(battle, WATER.iceGod.refill + 0.1);
+  eq(t.icicles, WATER.iceGod.stock - 2, 'отросла за секунду');
 });
 
 function lab() {

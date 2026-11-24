@@ -1,9 +1,9 @@
 import { LETTERS, SIZE } from './field.js';
 import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintRoadMask, paintRoof } from './terrain.js';
-import { FIRE, HOLY, MANTRAS, MECH, SPELL, STORM, WATER, WOLF, WOOD, bubbleAt, bubbleStage, flightAt, hammerAt, heavyGun,
+import { FIRE, HOLY, MANTRAS, MECH, SPELL, STORM, WATER, WOLF, WOOD, bubbleAt, bubbleStage, flightAt, hammerAt, heavyGun, iceStock,
   pullAt, roadCurve } from './battle.js';
-import { FIREBALL_FRAMES, PHOENIX_FRAMES, ORB_FRAMES, bubbleSprite, orbSprite, seaArmSprite, bulletSprite, clodSprite,
-  coinSprite, fireballSprite, heartSprite, gooColor, heroSprite, hookSprite, linkSprite, meltSprite,
+import { FIREBALL_FRAMES, PHOENIX_FRAMES, ORB_FRAMES, PUDDLE_FRAMES, SPRING_FRAMES, bubbleSprite, orbSprite, puddleSprite, seaArmSprite, springSprite, bulletSprite, clodSprite,
+  coinSprite, fireballSprite, heartSprite, gooColor, heroSprite, hookSprite, iceWallSprite, linkSprite, meltSprite,
   meteorSprite, grenadeSprite, droneSprite, birdSprite, hawkSprite, snareSprite, trapSprite, cauldronSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
   rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, ventSprite, wallSprite } from './sprites.js';
 import { BREWS, SOILS, drawRootWall } from './props.js';
@@ -32,7 +32,13 @@ const AURAS = { team: { glow: 'rgba(100, 116, 139, 1)', tones: ['#64748b', '#475
 const RETICLES = { red: { line: '#b91c1c', dot: '#fca5a5' }, green: { line: '#16a34a', eye: true } };
 const BLAST_TONES = { warm: ['#fff3b0', '#ffd84a', '#ff9a1f', '#e2531f', '#6b5a50'],
   blue: ['#f0f9ff', '#bae6fd', '#4aa3ff', '#2563eb', '#4b5563'],
-  earth: ['#fef3c7', '#e7c9a0', '#b08356', '#7c5a3a', '#4a3426'] };
+  earth: ['#fef3c7', '#e7c9a0', '#b08356', '#7c5a3a', '#4a3426'],
+  water: ['#f0fbff', '#bae6fd', '#38bdf8', '#0369a1', '#0c4a6e'],
+  ice: ['#ffffff', '#e0f7ff', '#a5f3fc', '#7dd3fc', '#38bdf8'],
+  ink: ['#6d5a9c', '#3b2f5c', '#2a2140', '#1a1428', '#0d0a14'],
+  flash: ['#ffffff', '#fefce8', '#fef08a', '#d4d4d8', '#71717a'],
+  emp: ['#ecfeff', '#a5f3fc', '#22d3ee', '#0e7490', '#164e63'],
+  steel: ['#f8fafc', '#e2e8f0', '#94a3b8', '#64748b', '#334155'] };
 const DRONE_LIFT = 18;
 const AIRBURST = 22;
 const NUKE_ARC = 90;
@@ -154,6 +160,12 @@ const HEAT = { warm: ['rgba(255, 110, 30, .9)', 'rgba(255, 220, 120, .9)'],
   holy: ['rgba(250, 204, 21, .9)', 'rgba(255, 251, 230, .95)'],
   azure: ['rgba(56, 189, 248, .9)', 'rgba(224, 247, 255, .95)'],
   earth: ['rgba(176, 120, 66, .9)', 'rgba(254, 243, 199, .9)'],
+  water: ['rgba(56, 189, 248, .9)', 'rgba(224, 247, 255, .95)'],
+  ice: ['rgba(125, 211, 252, .9)', 'rgba(255, 255, 255, .95)'],
+  ink: ['rgba(59, 47, 92, .9)', 'rgba(109, 90, 156, .9)'],
+  flash: ['rgba(254, 240, 138, .9)', 'rgba(255, 255, 255, .95)'],
+  emp: ['rgba(34, 211, 238, .9)', 'rgba(236, 254, 255, .95)'],
+  steel: ['rgba(148, 163, 184, .9)', 'rgba(248, 250, 252, .95)'],
   storm: ['rgba(250, 204, 21, .9)', 'rgba(255, 255, 240, .95)'] };
 const TOTEM_LOOKS = {
   slow: { aura: '244, 114, 182', tint: '150, 96, 48', fill: 0.3, mote: '200, 128, 60', core: '255, 220, 170',
@@ -843,65 +855,6 @@ function softCircle(cache, key, size, paint) {
   return cache.get(key);
 }
 
-const STAR_INKS = { white: '#ffffff', thyme: '#5edc1f' };
-const STAR_SCALE = 0.68;
-const STAR_STEPS = 48;
-const even = (colors) => colors.map((color, i) => [i / (colors.length - 1), color]);
-const STAR_FLOWS = {
-  rainbow: { cycle: 2400, band: 120, stops: even(['#ff2b2b', '#ff8a00', '#ffe100', '#1ee35a', '#00b2ff', '#7b3cff',
-    '#ff2bd2', '#ff2b2b']) },
-  heart: { cycle: 8000, band: 240, stops: even(['#e3333d', '#ff5560', '#c81e2b', '#f2414b', '#b8162a', '#e3333d']) },
-  gem: { cycle: 6000, band: 360, glint: [0, 1], stops: [[0, '#00d980'], [0.1, '#4dffb8'], [0.22, '#00d980'],
-    [0.26, '#08704f'], [0.29, '#8a0a26'], [0.33, '#ff1a3c'], [0.44, '#ff6680'], [0.55, '#ff1a3c'], [0.66, '#7a2dff'],
-    [0.77, '#b57aff'], [0.88, '#7a2dff'], [1, '#00d980']] },
-  snow: { cycle: 6000, band: 400, glint: [0.7, 1], stops: [[0, '#a6d6ff'], [1, '#a6d6ff']] },
-  glare: { cycle: 3000, hot: [[0, 0.7], [0.09, 0.25], [0.13, 1.2], [0.31, 0.55], [0.35, 1], [0.52, 0.3], [0.56, 0.95],
-    [0.74, 0.6], [0.78, 1.1], [1, 0.7]] },
-};
-
-const hexRgb = (hex) => [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16));
-
-function mixAt(stops, u) {
-  let k = 1;
-  while (k < stops.length - 1 && stops[k][0] < u) k++;
-  const [p0, c0] = stops[k - 1], [p1, c1] = stops[k], f = p1 > p0 ? Math.max(0, Math.min(1, (u - p0) / (p1 - p0))) : 0;
-  const a = hexRgb(c0), b = hexRgb(c1);
-  return 'rgb(' + a.map((v, n) => Math.round(v + (b[n] - v) * f)).join(', ') + ')';
-}
-
-function lerpAt(points, u) {
-  let k = 1;
-  while (k < points.length - 1 && points[k][0] < u) k++;
-  const [p0, v0] = points[k - 1], [p1, v1] = points[k];
-  return v0 + (v1 - v0) * (p1 > p0 ? (u - p0) / (p1 - p0) : 0);
-}
-
-export function starStep(star, now = Date.now()) {
-  const flow = STAR_FLOWS[star];
-  return flow ? Math.floor((now % flow.cycle) / flow.cycle * STAR_STEPS) : 0;
-}
-
-function starInk(g, star, x, width, step) {
-  const flow = STAR_FLOWS[star];
-  if (!flow) return STAR_INKS[star] || null;
-  const phase = step / STAR_STEPS, w = Math.max(1, width);
-  if (flow.hot) {
-    const size = lerpAt(flow.hot, phase), ink = g.createRadialGradient(x + w / 2, 0, 0, x + w / 2, 0, Math.max(2, w * size / 2));
-    ink.addColorStop(0, '#ffffff');
-    ink.addColorStop(0.45, '#ffc2c2');
-    ink.addColorStop(1, '#ff2b2b');
-    return ink;
-  }
-  const band = flow.band * STAR_SCALE, ink = g.createLinearGradient(x, 0, x + w, 0), count = Math.ceil(w / 3);
-  const glint = flow.glint && phase >= flow.glint[0] ? (phase - flow.glint[0]) / (flow.glint[1] - flow.glint[0]) : -1;
-  for (let n = 0; n <= count; n++) {
-    const px = n / count * w, u = (((px - phase * band) / band) % 1 + 1) % 1;
-    const shine = glint >= 0 && Math.abs(px / w - (glint * 1.4 - 0.2)) < 0.12;
-    ink.addColorStop(n / count, shine ? '#ffffff' : mixAt(flow.stops, u));
-  }
-  return ink;
-}
-
 function glow(ctx, x, y, r, color, strength) {
   const image = softCircle(glows, color, 64, (g, half) => {
     const fill = g.createRadialGradient(half, half, 0, half, half, half);
@@ -1139,6 +1092,7 @@ export class Scene {
     const step = still ? 0 : dt;
     this._onField(ctx, () => {
       this._patches(ctx, battle);
+      this._puddles(ctx, battle);
       this._blazes(ctx, battle);
       this._vents(ctx, battle);
       this._venoms(ctx, battle);
@@ -1154,17 +1108,14 @@ export class Scene {
     this._walls(ctx, battle, still);
     this._base(ctx, battle);
     this._mobs(ctx, battle, dt, still);
+    this._onField(ctx, () => this._inks(ctx, battle));
     this._layer(ctx, this.roof);
     this._gates(ctx, battle);
     this._onField(ctx, () => this._flames(ctx, battle));
     this._auras(ctx, battle);
-    this._onField(ctx, () => {
-      this._puddles(ctx, battle);
-      this._springs(ctx, battle);
-    });
+    this._onField(ctx, () => this._springs(ctx, battle));
     this._arms(ctx, battle);
     this._towers(ctx, battle, dt, highlight, still);
-    this._flows(ctx, battle);
     this._arrows(ctx, battle, still ? 0 : dt);
     this._bubbles(ctx, battle);
     this._standards(ctx, battle);
@@ -1473,6 +1424,25 @@ export class Scene {
     }
   }
 
+  _frostRing(ctx, t) {
+    const pose = this._pose(t), x = at(pose.x), y = at(pose.y), r = WATER.frostRing.radius * CELL, seed = (t.x * 7 + t.y * 13) % 9;
+    const tones = BLAST_TONES.ice, c = this.clock;
+    glow(ctx, x, y, r, 'rgba(125, 211, 252, 1)', 0.24 + 0.04 * Math.sin(c * 2 + seed));
+    for (let i = 0, count = Math.round(r * 2.2); i < count; i++) {
+      const a = i / count * Math.PI * 2 - c * 0.6, d = r * (0.8 + 0.2 * noise(i + 3, seed));
+      const rise = (c * 1.6 + noise(i, seed)) % 1;
+      ctx.globalAlpha = 1 - rise * 0.7;
+      bit(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8 - rise * 10, rise < 0.35 ? 4 : 3,
+        tones[Math.min(tones.length - 1, Math.floor(rise * tones.length))], i + c * 9);
+    }
+    for (let i = 0; i < 40; i++) {
+      const k = (c * 0.5 + noise(i, seed + 20)) % 1, a = noise(i, seed + 21) * 6.28 + c * 0.8, d = r * Math.sqrt(noise(i, seed + 22));
+      ctx.globalAlpha = 0.8 * Math.sin(k * Math.PI);
+      bit(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8 - k * 6, 2, i % 3 ? '#e0f7ff' : '#ffffff', i + Math.floor(c * 8));
+    }
+    ctx.globalAlpha = 1;
+  }
+
   _blaze(ctx, x, y, r, seed, fade, blue, tall) {
     const tones = blue ? BLUE_FLAME : FLAME, [warm, core] = HEAT[blue ? 'blue' : 'warm'];
     glow(ctx, x, y, r * 1.05, 'rgba(40, 14, 6, .9)', 0.55 * fade);
@@ -1730,23 +1700,31 @@ export class Scene {
   }
 
   _swirl(ctx, e, share) {
-    const x = at(e.x), y = at(e.y), r = e.r * CELL, fade = Math.min(1, share * 5, (1 - share) * 3);
+    const x = at(e.x), y = at(e.y), r = e.r * CELL, fade = Math.min(1, share * 5, (1 - share) * 3), c = this.clock;
+    const tick = Math.floor(c * 12), colors = ['#e0f7ff', '#7dd3fc', '#38bdf8', '#0ea5e9', '#0369a1'];
     ctx.save();
-    ctx.lineCap = 'round';
-    for (let arm = 0; arm < 4; arm++) {
-      ctx.beginPath();
-      for (let k = 0; k <= 40; k++) {
-        const f = k / 40, a = e.seed + arm * Math.PI / 2 - this.clock * 7 + f * 4.5, d = r * (1 - f) * (1 - share * 0.4);
-        const px = x + Math.cos(a) * d, py = y + Math.sin(a) * d * 0.6;
-        if (k) ctx.lineTo(px, py);
-        else ctx.moveTo(px, py);
-      }
-      ctx.strokeStyle = arm % 2 ? 'rgba(186, 230, 253, ' + (0.8 * fade).toFixed(3) + ')'
-        : 'rgba(56, 189, 248, ' + (0.7 * fade).toFixed(3) + ')';
-      ctx.lineWidth = 2.6;
-      ctx.stroke();
+    const pool = ctx.createRadialGradient(x, y, 0, x, y, r);
+    pool.addColorStop(0, 'rgba(8, 47, 73, ' + (0.6 * fade).toFixed(3) + ')');
+    pool.addColorStop(0.45, 'rgba(3, 105, 161, ' + (0.35 * fade).toFixed(3) + ')');
+    pool.addColorStop(1, 'rgba(14, 165, 233, 0)');
+    ctx.fillStyle = pool;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    for (let i = 0; i < 110; i++) {
+      const k = (c * 0.75 + noise(i, 111)) % 1, d = r * Math.pow(1 - k, 0.85), a = e.seed + noise(i, 112) * 6.28 + k * 7 - c * 2.4;
+      const size = 1 + Math.round(3 * (1 - k) * (0.6 + 0.4 * noise(i, 113)));
+      ctx.globalAlpha = fade * Math.min(1, (1 - k) * 4) * Math.min(1, k * 6 + 0.2);
+      bit(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d, size, colors[Math.min(4, Math.floor(k * 3 + noise(i, 114) * 2))],
+        i + tick);
     }
-    glow(ctx, x, y, 18, 'rgba(14, 116, 144, 1)', 0.5 * fade);
+    for (let i = 0; i < 36; i++) {
+      const a = e.seed - c * 3 + i * Math.PI * 2 / 36, d = r * (0.95 + 0.06 * Math.sin(c * 5 + i * 1.7));
+      ctx.globalAlpha = fade * (0.5 + 0.4 * noise(i, tick));
+      bit(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d, 2 + (i % 3 === 0 ? 1 : 0), '#f0fbff', i * 3 + tick);
+    }
+    ctx.globalAlpha = 1;
+    glow(ctx, x, y, r * 0.45, 'rgba(125, 211, 252, 1)', 0.45 * fade);
     ctx.restore();
   }
 
@@ -1762,6 +1740,21 @@ export class Scene {
       ctx.stroke();
     }
     ctx.restore();
+  }
+
+  _reachOf(gap) {
+    return Math.max(1, SEA_ARM.lengths.filter((long) => long < gap * CELL / KRAKEN_REACH.unit + 3).length);
+  }
+
+  _lashArm(arm, mob, life) {
+    const top = this._reachOf(Math.hypot(mob.x - arm.x, mob.y - arm.y)), frames = [];
+    for (let k = 0; k < top; k++) frames.push(k);
+    frames.push(top - 1);
+    for (let k = top - 2; k >= 0; k--) frames.push(k);
+    const step = life / frames.length;
+    arm.lash = { frames, top, start: this.clock, step, until: this.clock + life,
+      angle: Math.atan2(mob.y - arm.y, mob.x - arm.x) + Math.PI / 2 };
+    return step;
   }
 
   _arms(ctx, battle) {
@@ -1945,85 +1938,50 @@ export class Scene {
       if (dt > 0) {
         fx.x = ease(fx.x, arrow.x, w.follow, dt);
         fx.y = ease(fx.y, arrow.y, w.follow, dt);
-        fx.trail.push([at(fx.x), at(fx.y) - 4]);
+        const last = fx.trail[fx.trail.length - 1], hx = at(fx.x), hy = at(fx.y) - 4;
+        if (!last || Math.hypot(hx - last[0], hy - last[1]) > 1.2) fx.trail.push([hx, hy]);
         if (fx.trail.length > w.trail) fx.trail.shift();
+        if (Math.random() < 0.35) this._sparks(fx.x, fx.y - 4 / CELL, SPRAY, 1, 0.4, 0.3);
       }
       const trail = fx.trail;
-      if (trail.length < 2) continue;
-      const [hx, hy] = trail[trail.length - 1], [px, py] = trail[trail.length - 2];
+      if (trail.length < 3) continue;
+      const n = trail.length, left = [], right = [];
+      trail.forEach(([px, py], k) => {
+        const [ax, ay] = trail[Math.max(0, k - 1)], [bx, by] = trail[Math.min(n - 1, k + 1)];
+        const len = Math.hypot(bx - ax, by - ay) || 1, f = k / (n - 1), width = 2.3 * Math.pow(f, 1.4);
+        left.push([px - (by - ay) / len * width, py + (bx - ax) / len * width]);
+        right.push([px + (by - ay) / len * width, py - (bx - ax) / len * width]);
+      });
+      const [hx, hy] = trail[n - 1];
       ctx.save();
-      ctx.lineCap = 'round';
-      for (let i = 1; i < trail.length; i++) {
-        const f = i / (trail.length - 1);
-        ctx.strokeStyle = 'rgba(125, 211, 252, ' + (0.55 * f).toFixed(3) + ')';
-        ctx.lineWidth = 0.6 + 2.2 * f;
-        ctx.beginPath();
-        ctx.moveTo(trail[i - 1][0], trail[i - 1][1]);
-        ctx.lineTo(trail[i][0], trail[i][1]);
-        ctx.stroke();
-      }
-      const angle = Math.atan2(hy - py, hx - px);
-      ctx.translate(hx, hy);
-      ctx.rotate(angle);
-      glow(ctx, 0, 0, 7, 'rgba(125, 211, 252, 1)', 0.45);
-      const body = ctx.createLinearGradient(-9, 0, 4, 0);
+      glow(ctx, hx, hy, 9, 'rgba(125, 211, 252, 1)', 0.5);
+      const body = ctx.createLinearGradient(trail[0][0], trail[0][1], hx, hy);
       body.addColorStop(0, 'rgba(56, 189, 248, 0)');
-      body.addColorStop(0.6, 'rgba(56, 189, 248, 0.9)');
-      body.addColorStop(1, '#ffffff');
+      body.addColorStop(0.55, 'rgba(56, 189, 248, 0.75)');
+      body.addColorStop(1, 'rgba(186, 230, 253, 0.98)');
       ctx.fillStyle = body;
       ctx.beginPath();
-      ctx.moveTo(4.5, 0);
-      ctx.lineTo(1, -1.6);
-      ctx.lineTo(-9, -0.6);
-      ctx.lineTo(-9, 0.6);
-      ctx.lineTo(1, 1.6);
+      left.forEach(([px, py], k) => (k ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+      ctx.arc(hx, hy, 2.3, Math.atan2(left[n - 1][1] - hy, left[n - 1][0] - hx),
+        Math.atan2(right[n - 1][1] - hy, right[n - 1][0] - hx), true);
+      for (let k = n - 1; k >= 0; k--) ctx.lineTo(right[k][0], right[k][1]);
       ctx.closePath();
+      ctx.fill();
+      const core = ctx.createRadialGradient(hx - 0.8, hy - 0.8, 0.2, hx, hy, 2.6);
+      core.addColorStop(0, '#ffffff');
+      core.addColorStop(0.5, 'rgba(186, 230, 253, 0.95)');
+      core.addColorStop(1, 'rgba(56, 189, 248, 0.9)');
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.arc(hx, hy, 2.4, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
     for (const arrow of this.waterArrows.keys()) {
       if (seen.has(arrow)) continue;
       const fx = this.waterArrows.get(arrow);
-      this._sparks(fx.x, fx.y, SPRAY, 4, 1.2, 0.25);
+      this._sparks(fx.x, fx.y, SPRAY, 5, 1.2, 0.3);
       this.waterArrows.delete(arrow);
-    }
-  }
-
-  _flows(ctx, battle) {
-    for (const t of battle.towers) {
-      if (!t.flow || t.flow.mob.dead) continue;
-      const tip = this._muzzle(t), spot = this.shown.get(t.flow.mob.id) || t.flow.mob;
-      const x1 = at(tip.x), y1 = at(tip.y), x2 = at(spot.x), y2 = at(spot.y) - (spot.lift || 0);
-      const len = Math.hypot(x2 - x1, y2 - y1) || 1, ax = (x2 - x1) / len, ay = (y2 - y1) / len, nx = -ay, ny = ax;
-      ctx.save();
-      ctx.lineCap = 'round';
-      for (const [width, color] of [[11, 'rgba(14, 116, 144, 0.35)'], [8, 'rgba(56, 189, 248, 0.75)'],
-        [3.5, 'rgba(186, 230, 253, 0.9)'], [1.2, 'rgba(255, 255, 255, 0.95)']]) {
-        ctx.strokeStyle = color;
-        ctx.lineWidth = width;
-        ctx.beginPath();
-        for (let d = 0; d <= len; d += 2) {
-          const wave = Math.sin(d * 0.35 - this.clock * 18) * Math.min(1, d / 10) * (width > 5 ? 1.4 : 0.8);
-          const px = x1 + ax * d + nx * wave, py = y1 + ay * d + ny * wave;
-          if (d) ctx.lineTo(px, py);
-          else ctx.moveTo(px, py);
-        }
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
-      }
-      ctx.fillStyle = '#e0f7ff';
-      for (let i = 0; i < 10; i++) {
-        const k = (this.clock * 2.5 + i / 10) % 1, side = noise(i, 7) - 0.5, d = len * (0.15 + 0.85 * noise(i, 3));
-        ctx.globalAlpha = 0.9 * (1 - k);
-        ctx.beginPath();
-        ctx.arc(x1 + ax * d + nx * side * (6 + k * 10), y1 + ay * d + ny * side * (6 + k * 10) + k * 3, 0.8 + noise(i, 5),
-          0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-      glow(ctx, x2, y2, 13, 'rgba(125, 211, 252, 1)', 0.6);
-      ctx.restore();
-      if (Math.random() < 0.3) this._sparks(spot.x, spot.y, SPRAY, 2, 1.8, 0.3);
     }
   }
 
@@ -2053,40 +2011,28 @@ export class Scene {
 
   _springs(ctx, battle) {
     for (const spring of battle.springs) {
-      const x = at(spring.cx), y = at(spring.cy), r = WATER.spring.radius * CELL, pulse = 0.5 + 0.5 * Math.sin(this.clock * 2);
-      ctx.save();
-      ctx.strokeStyle = 'rgba(125, 211, 252, ' + (0.18 + 0.12 * pulse).toFixed(3) + ')';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([4, 6]);
-      ctx.lineDashOffset = -this.clock * 6;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      glow(ctx, x, y, 16, 'rgba(125, 211, 252, 1)', 0.35 + 0.15 * pulse);
-      for (let i = 0; i < 9; i++) {
-        const a = i * Math.PI * 2 / 9;
-        ctx.fillStyle = i % 2 ? '#8b8f98' : '#a3a7b0';
-        ctx.beginPath();
-        ctx.ellipse(x + Math.cos(a) * 9, y + Math.sin(a) * 6.5, 3.4, 2.6, a, 0, Math.PI * 2);
-        ctx.fill();
+      const x = at(spring.cx), y = at(spring.cy), r = WATER.spring.radius * CELL, c = this.clock, seed = (spring.x * 7 + spring.y * 13) % 9;
+      glow(ctx, x, y, r, 'rgba(56, 189, 248, 1)', 0.26 + 0.05 * Math.sin(c * 2 + seed));
+      glow(ctx, x, y, r * 0.5, 'rgba(186, 230, 253, 1)', 0.16);
+      for (let i = 0; i < 24; i++) {
+        const a = noise(i, seed) * Math.PI * 2, d = r * 0.92 * Math.sqrt(noise(i + 30, seed));
+        const rise = (c * 0.4 + noise(i + 60, seed)) % 1;
+        ctx.globalAlpha = (1 - rise) * Math.min(1, rise * 5);
+        this._drop(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8 - rise * 26, -Math.PI / 2, 0.55);
       }
-      const pool = ctx.createRadialGradient(x - 2, y - 2, 1, x, y, 8);
-      pool.addColorStop(0, '#e0f7ff');
-      pool.addColorStop(0.5, '#38bdf8');
-      pool.addColorStop(1, '#0c4a6e');
-      ctx.fillStyle = pool;
-      ctx.beginPath();
-      ctx.ellipse(x, y, 7.5, 5.2, 0, 0, Math.PI * 2);
-      ctx.fill();
-      for (let i = 0; i < 5; i++) {
-        const k = (this.clock * 0.9 + i / 5) % 1, a = i * 1.3;
-        ctx.fillStyle = 'rgba(224, 247, 255, ' + (0.9 * (1 - k)).toFixed(3) + ')';
-        ctx.beginPath();
-        ctx.arc(x + Math.cos(a) * k * 5, y - 2 - Math.sin(k * Math.PI) * 9, 1 - k * 0.5, 0, Math.PI * 2);
-        ctx.fill();
+      ctx.globalAlpha = 1;
+      for (let i = 0; i < 30; i++) {
+        const a = noise(i + 90, seed) * Math.PI * 2, d = r * Math.sqrt(noise(i + 120, seed));
+        const phase = (c * 0.6 + noise(i + 150, seed)) % 1, shine = Math.sin(phase * Math.PI);
+        if (shine < 0.1) continue;
+        glow(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8, 3 + shine * 3, 'rgba(125, 211, 252, 1)', 0.35 * shine);
+        ctx.globalAlpha = shine;
+        bit(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8, 2, i % 2 ? '#bae6fd' : '#e0f7ff', i + Math.floor(c * 5));
       }
-      ctx.restore();
+      ctx.globalAlpha = 1;
+      glow(ctx, x, y, 22, 'rgba(125, 211, 252, 1)', 0.35 + 0.1 * Math.sin(c * 2));
+      const image = springSprite(Math.floor(c * 8 + spring.x) % SPRING_FRAMES);
+      ctx.drawImage(image, Math.round(x - image.width / 2), Math.round(y - image.height / 2 - 3));
     }
   }
 
@@ -2094,20 +2040,12 @@ export class Scene {
     for (const zone of battle.zones) {
       if (zone.kind !== 'puddle') continue;
       const left = zone.until - battle.time, fade = Math.min(1, left / 0.6, (WATER.rain.time - left) / 0.3);
-      const x = at(zone.x), y = at(zone.y), r = zone.radius * CELL, seed = zone.x * 7 + zone.y * 3;
-      ctx.save();
-      ctx.globalAlpha = 0.75 * fade;
-      const pool = ctx.createRadialGradient(x, y, 1, x, y, r);
-      pool.addColorStop(0, 'rgba(56, 189, 248, 0.75)');
-      pool.addColorStop(0.75, 'rgba(14, 116, 144, 0.55)');
-      pool.addColorStop(1, 'rgba(14, 116, 144, 0)');
-      ctx.fillStyle = pool;
-      ctx.beginPath();
-      ctx.ellipse(x, y, r, r * 0.62, noise(Math.floor(seed), 3), 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = fade;
-      this._ripples(ctx, x, y, r * 0.55, seed);
-      ctx.restore();
+      const seed = Math.floor(zone.x * 7 + zone.y * 3) % 9, image = puddleSprite(seed, Math.floor(this.clock * 5 + seed) % PUDDLE_FRAMES);
+      const scale = zone.radius * CELL * 2 / image.width;
+      ctx.globalAlpha = 0.8 * fade;
+      ctx.drawImage(image, Math.round(at(zone.x) - image.width * scale / 2), Math.round(at(zone.y) + 3 - image.height * scale / 2),
+        image.width * scale, image.height * scale);
+      ctx.globalAlpha = 1;
     }
   }
 
@@ -2165,7 +2103,7 @@ export class Scene {
   _iceRing(ctx, t, x, y) {
     const w = WATER_FX;
     for (let i = 0; i < (t.icicles || 0); i++) {
-      const a = this.clock * w.spin + i * Math.PI * 2 / WATER.cryo.stock;
+      const a = this.clock * w.spin + i * Math.PI * 2 / iceStock(t);
       this._icicle(ctx, x + Math.cos(a) * w.ring, y - 4 + Math.sin(a) * w.ring * 0.55, a + Math.PI / 2, 0.8);
     }
   }
@@ -2560,6 +2498,7 @@ export class Scene {
       if (t.style === 'druid' && t.runes.has('roots')) {
         this._rootWall(ctx, battle._blazeOf(t, WOOD.roots.cells));
       }
+      if (t.style === 'cryo' && t.runes.has('frostRing')) this._frostRing(ctx, t);
       if (t.style !== 'ignite') continue;
       const blue = t.runes.has('blue'), tones = blue ? BLUE_FLAME : FLAME;
       if (t.runes.has('fireWall')) this._fireWall(ctx, battle._blazeOf(t), blue, (t.x * 7 + t.y * 13) % 9);
@@ -3914,7 +3853,7 @@ export class Scene {
       if (!this.built.has(wall)) this.built.set(wall, this.clock - (still ? RISE : 0));
       const rise = Math.min(1, (this.clock - this.built.get(wall)) / RISE);
       const share = Math.max(0, wall.hp / wall.max), x = at(wall.x), y = at(wall.y);
-      const image = wallSprite(share > 0.66 ? 0 : share > 0.33 ? 1 : 2);
+      const stage = share > 0.66 ? 0 : share > 0.33 ? 1 : 2, image = wall.ice ? iceWallSprite(stage) : wallSprite(stage);
       ctx.fillStyle = 'rgba(0, 0, 0, .35)';
       roundRect(ctx, x - 14, y + 6, 30, 9, 4);
       ctx.fill();
@@ -3928,7 +3867,7 @@ export class Scene {
       if (share < 1) {
         ctx.fillStyle = '#15111d';
         ctx.fillRect(Math.round(x - 12) - 1, Math.round(y - 19) - 1, 26, 5);
-        ctx.fillStyle = '#c4b8a6';
+        ctx.fillStyle = wall.ice ? '#a5f3fc' : '#c4b8a6';
         ctx.fillRect(Math.round(x - 12), Math.round(y - 19), Math.round(24 * share), 3);
       }
     }
@@ -4352,7 +4291,6 @@ export class Scene {
         look = t.look + '-strum';
       }
       if (t.beam) look = t.look + '-beam';
-      if (t.flow) look = t.look + '-flow';
       if (t.style === 'raiju' && t.howlAt !== undefined && t.howlAt !== null && !act) {
         look = t.look + (now >= t.cryAt + DASH_FX.inhale && now < t.cryUntil ? '-howl' : '-howl2');
       }
@@ -4387,6 +4325,7 @@ export class Scene {
       const aloft = t.style === 'angel' || t.style === 'dragon' && spot.lift > 0;
       const hover = aloft ? Math.max(HOVER.shadow, 1 - Math.max(0, spot.lift - HOVER.lift) / (HOVER.bob * 6)) : 1;
       if (sea) this._ripples(ctx, x, y + 2, 11, t.x * 3 + t.y);
+      if (t.style === 'kraken' && battle.roarUntil > now) glow(ctx, x, y, 26, 'rgba(56, 189, 248, 1)', 0.35);
       else {
         ctx.fillStyle = aloft ? 'rgba(0, 0, 0, .22)' : 'rgba(0, 0, 0, .32)';
         ctx.beginPath();
@@ -4408,7 +4347,7 @@ export class Scene {
         if (t.style === 'angel' && !t.planted) this._sword(ctx, t, x, y + lift, facing);
         if (t.style === 'raiju') this._furSparks(ctx, t, x, y + lift, facing);
         if (t.style === 'cryo') this._iceRing(ctx, t, x, y + lift);
-        if (t.style === 'hydro' && !t.flow) this._waterBow(ctx, t, x, y + lift, facing, look);
+        if (t.style === 'hydro') this._waterBow(ctx, t, x, y + lift, facing, look);
       } else if (heavyGun(t)) smooth(ctx, heroSprite(look, reload), x, y + lift, pose.angle, ZOOM);
       else sprite(ctx, heroSprite(look, reload), x, y, pose.angle, ZOOM, lift, HERO_TURN_STEPS);
       if (t.cls.id === 'priest' && t.style !== 'monk' && t.style !== 'angel') this._holyTip(ctx, t);
@@ -4538,11 +4477,11 @@ export class Scene {
 
   _nameLabel(t, mark) {
     const text = t.player.name.length > 12 ? t.player.name.slice(0, 11) + '…' : t.player.name;
-    const pick = mark === 'pick', star = pick ? '' : t.player.star || '', step = starStep(star);
+    const pick = mark === 'pick';
     const coins = String(Math.floor(t.player.coins || 0)), size = pick ? 13 : mark ? 11.5 : 9.5;
     const h = pick ? 18 : mark ? 16 : 13;
     const font = (mark ? '900 ' : '700 ') + size + 'px "Segoe UI", system-ui, sans-serif';
-    const key = 'name:' + mark + ':' + star + step + ':' + text + ':' + coins;
+    const key = 'name:' + mark + ':' + text + ':' + coins;
     if (!this.labels.has(key)) this.ctx.font = font;
     const nameWidth = this.labels.has(key) ? 0 : this.ctx.measureText(text).width;
     const coinWidth = this.labels.has(key) ? 0 : this.ctx.measureText(coins).width;
@@ -4562,12 +4501,27 @@ export class Scene {
         roundRect(g, 0, 0, w, h, h / 2 - 0.5);
         g.fill();
       }
-      g.fillStyle = pick ? '#ff4d63' : starInk(g, star, 4.5, nameWidth, step) || (mark ? '#ffd2d2' : INK);
+      g.fillStyle = pick ? '#ff4d63' : mark ? '#ffd2d2' : INK;
       g.fillText(text, 4.5, h / 2 + 0.5);
       g.drawImage(coinSprite(), Math.round(8 + nameWidth), Math.round((h - coin) / 2), coin, coin);
       g.fillStyle = pick ? '#ffb3bd' : mark ? '#ffe9a8' : '#ffd86b';
       g.fillText(coins, 10 + coin + nameWidth, h / 2 + 0.5);
     });
+  }
+
+  _inks(ctx, battle) {
+    for (const mob of battle.mobs) {
+      if (mob.dead || !mob.ink || mob.ink.until <= battle.time) continue;
+      const spot = this.shown.get(mob.id);
+      if (!spot) continue;
+      const x = at(spot.x), y = at(spot.y) - (spot.lift || 0), size = spot.size || 18;
+      for (let i = 0; i < 7; i++) {
+        const drip = (this.clock * 0.6 + noise(i, mob.id)) % 1, a = noise(i + 3, mob.id) * 6.28, d = size * 0.3 * noise(i + 5, mob.id);
+        ctx.globalAlpha = 0.85 * (1 - drip);
+        bit(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.6 + drip * 8, 3, BLAST_TONES.ink[1 + (i % 3)], i + mob.id);
+      }
+    }
+    ctx.globalAlpha = 1;
   }
 
   _mobTops(ctx, battle) {
@@ -4664,6 +4618,11 @@ export class Scene {
       pose.lock = { x: spot.x, y: spot.y, mob: next.mob, until: this.clock + Math.max(SHOT_HOLD, next.hold) };
       next.spawn(next.x + spot.x - next.mx, next.y + spot.y - next.my, late);
     }
+  }
+
+  _blast(x, y, radius, tone) {
+    this.effects.push({ kind: 'blast', t: 0, life: 0.6, x, y, r: radius, seed: Math.floor(Math.random() * 97), tone });
+    this._sparks(x, y, BLAST_TONES[tone].slice(0, 4), 12, radius * 4.5, 0.45, 3);
   }
 
   _sparks(x, y, colors, count, speed, life = 0.35, size = 2) {
@@ -4780,9 +4739,7 @@ export class Scene {
         this._sparks(x2, y2, (event.blue ? BLUE_FLAME : FLAME).slice(0, 3), 18, 3, 0.45, 3);
       }, LASER.life);
     } else if (event.kind === 'flashbang') {
-      add({ kind: 'ring', life: 0.4, x: event.x, y: event.y, r: event.radius, color: '#ffffff', width: 3 });
-      add({ kind: 'pulse', life: 0.5, x: event.x, y: event.y, r: event.radius * 1.3, color: '#fef9c3', width: 2 });
-      this._sparks(event.x, event.y, ['#ffffff', '#fef9c3', '#e5e7eb'], 16, event.radius * 4, 0.4, 2);
+      this._blast(event.x, event.y, event.radius, 'flash');
     } else if (event.kind === 'burst') {
       add({ kind: 'boom', life: 0.3, x: event.x, y: event.y, r: event.radius, ring: '#e5e7eb' });
       this._sparks(event.x, event.y, ['#e5e7eb', '#9ca3af', '#fff3b0', '#d6a72e'], 14, event.radius * 5, 0.35, 2);
@@ -4817,12 +4774,17 @@ export class Scene {
         const tip = this._muzzle(t);
         this._sparks(tip.x, tip.y, SPRAY, 4, 1.2, 0.25);
       }, WATER_FX.loose);
-    } else if (event.kind === 'flow') {
-      this._face(t, event.mob.x, event.mob.y, event.mob, 0.5);
+    } else if (event.kind === 'slap') {
+      this._sparks(event.mob.x, event.mob.y, ['#ffffff', '#e0f7ff', '#7dd3fc', '#38bdf8'], 12, 1.8, 0.4, 3);
+    } else if (event.kind === 'drown') {
+      this._lashArm(event.arm, event.mob, WATER_FX.strike, null);
+      const spot = this.shown.get(event.mob.id);
+      if (spot && spot.image) {
+        add({ kind: 'sink', life: 0.6, image: spot.image, angle: spot.angle, x1: spot.x, y1: spot.y, x2: event.x,
+          y2: event.y, lift: spot.lift || 0 });
+      }
     } else if (event.kind === 'pop') {
-      this._sparks(event.x, event.y, SPRAY, 14 + event.stage * 6, 2 + event.stage * 0.6, 0.6, 3);
-      add({ kind: 'ring', life: 0.5, x: event.x, y: event.y, r: event.radius, color: '#7dd3fc', width: 3 });
-      add({ kind: 'ring', life: 0.35, x: event.x, y: event.y, r: event.radius * 0.6, color: '#e0f7ff', width: 2 });
+      this._blast(event.x, event.y, event.radius * (0.6 + event.stage * 0.1), 'water');
     } else if (event.kind === 'vortex') {
       add({ kind: 'vortex', life: event.time + 0.4, x: event.x, y: event.y, r: event.radius, seed: Math.random() * 6 });
     } else if (event.kind === 'spring') {
@@ -4833,19 +4795,12 @@ export class Scene {
     } else if (event.kind === 'tentacle') {
       const life = WATER_FX.strike;
       if (event.arm) {
-        const arm = event.arm, lengths = SEA_ARM.lengths, gap = Math.hypot(event.mob.x - arm.x, event.mob.y - arm.y);
-        const top = Math.max(1, lengths.filter((long) => long < gap * CELL / KRAKEN_REACH.unit + 3).length), frames = [];
-        for (let k = 0; k < top; k++) frames.push(k);
-        frames.push(top - 1);
-        for (let k = top - 2; k >= 0; k--) frames.push(k);
-        const step = life / frames.length;
-        arm.lash = { frames, start: this.clock, step, until: this.clock + life,
-          angle: Math.atan2(event.mob.y - arm.y, event.mob.x - arm.x) + Math.PI / 2 };
+        const step = this._lashArm(event.arm, event.mob, life), top = event.arm.lash.top;
         add({ kind: 'lash', life: step * (top + 0.5), x: event.mob.x, y: event.mob.y, mob: event.mob, crit: event.crit });
       } else {
         this._fire(t, event.mob.x, event.mob.y, event.mob, (x2, y2) => {
           const pose = this._pose(t), lengths = KRAKEN_REACH.lengths;
-          const want = Math.hypot(x2 - t.cx, y2 - t.cy) * CELL / (KRAKEN_REACH.unit * sizeOf(t.look));
+          const want = Math.hypot(x2 - t.cx, y2 - t.cy) * CELL / KRAKEN_REACH.unit;
           const top = Math.max(1, lengths.filter((long) => long < want + 3).length), frames = [];
           pose.reach = pose.reach === 'R' ? 'L' : 'R';
           for (let k = 1; k <= top; k++) frames.push('hit' + pose.reach + k);
@@ -4860,11 +4815,11 @@ export class Scene {
       const launch = (x2, y2, late = 0) => {
         let from = this._muzzle(t);
         if (event.big) {
-          const pose = this._pose(t), a = this.clock * WATER_FX.spin + event.slot * Math.PI * 2 / WATER.cryo.stock;
+          const pose = this._pose(t), a = this.clock * WATER_FX.spin + event.slot * Math.PI * 2 / iceStock(t);
           from = { x: pose.x + Math.cos(a) * WATER_FX.ring / CELL, y: pose.y + (Math.sin(a) * WATER_FX.ring * 0.55 - 4) / CELL };
         } else this._pose(t).act = { frame: 'cast', until: this.clock + WATER_FX.cast };
         add({ kind: 'icicle', life: Math.max(FLIGHT_MIN, event.time - late), x1: from.x, y1: from.y, x2, y2,
-          mob: event.mob, big: event.big, crit: event.crit });
+          mob: event.mob, big: event.big, crit: event.crit, bend: event.bend || 0 });
       };
       if (event.big) launch(event.x, event.y);
       else this._fire(t, event.x, event.y, event.mob, launch, WATER_FX.cast);
@@ -4946,6 +4901,8 @@ export class Scene {
       add({ kind: 'storm', life: 0.35, x, y });
       add({ kind: 'ring', life: 0.5, x, y, r: event.radius || 1, color: '#facc15', width: 3 });
       this._sparks(x, y, ['#fef9c3', '#facc15', '#ffffff'], 14, 3.2, 0.4);
+    } else if (event.kind === 'kill' && event.mob.drowned) {
+      this._sparks(event.mob.x, event.mob.y, SPRAY, 6, 1.2, 0.35);
     } else if (event.kind === 'kill') {
       const mob = event.mob, spot = this.shown.get(mob.id) || mob, goo = gooColor(mob.look);
       if (!goo || mob.fake) {
@@ -5055,6 +5012,20 @@ export class Scene {
     } else if (event.kind === 'power') {
       const mob = event.mob;
       add({ kind: 'ring', life: 0.5, x: mob.x, y: mob.y, r: 1, color: mob.kind ? mob.kind.glow : '#e879f9', width: 2 });
+    } else if (event.kind === 'wall' && event.ice) {
+      this._sparks(event.x, event.y, BLAST_TONES.ice, 14, 1.8, 0.5, 3);
+    } else if (event.kind === 'crumble' && event.ice) {
+      this._blast(event.x, event.y, 0.8, 'ice');
+    } else if (event.kind === 'ink') {
+      const tip = this._muzzle(t);
+      add({ kind: 'ink', life: event.time, x1: tip.x, y1: tip.y, x2: event.x, y2: event.y, mob: event.mob });
+    } else if (event.kind === 'inked') {
+      this._blast(event.mob.x, event.mob.y, 0.6, 'ink');
+    } else if (event.kind === 'bellow') {
+      add({ kind: 'bellow', life: 1.1, x: event.x, y: event.y });
+      this._blast(event.x, event.y, 1.2, 'water');
+    } else if (event.kind === 'iceBurst') {
+      this._blast(event.x, event.y, event.radius, 'ice');
     } else if (event.kind === 'wall') {
       this._sparks(event.x, event.y, ['#c4b8a6', '#9a8f80', '#6b6258'], 8, 1.6, 0.45, 2);
       add({ kind: 'ring', life: 0.45, x: event.x, y: event.y, r: 0.9, color: '#c4b8a6', width: 2 });
@@ -5073,13 +5044,10 @@ export class Scene {
           mob: event.mob, arc: arcOf(tip.x, tip.y, x2, y2), grenade: event.grenade });
       });
     } else if (event.kind === 'emp') {
-      add({ kind: 'ring', life: 0.5, x: event.x, y: event.y, r: event.radius, color: '#22d3ee', width: 3 });
-      add({ kind: 'pulse', life: 0.6, x: event.x, y: event.y, r: event.radius * 1.15, color: '#a5f3fc', width: 2 });
-      this._sparks(event.x, event.y, ['#ecfeff', '#67e8f9', '#0891b2'], 18, event.radius * 4, 0.45, 2);
+      this._blast(event.x, event.y, event.radius, 'emp');
     } else if (event.kind === 'steel') {
       const [bx, by] = this.battle.path[this.battle.path.length - 1];
-      this._sparks(bx + 0.5, by + 0.5, ['#f8fafc', '#cbd5e1', '#64748b'], 16, 2.4, 0.5, 2);
-      add({ kind: 'ring', life: 0.5, x: bx + 0.5, y: by + 0.5, r: 1, color: '#e2e8f0', width: 3 });
+      this._blast(bx + 0.5, by + 0.5, 1, 'steel');
     } else if (event.kind === 'immune') {
       const spot = this.shown.get(event.mob.id) || event.mob;
       add({ kind: 'ring', life: 0.35, x: spot.x, y: spot.y, r: 0.55, color: 'rgba(226, 232, 240, .8)', width: 1.5 });
@@ -5293,6 +5261,17 @@ export class Scene {
         this._swirl(ctx, e, share);
         continue;
       }
+      if (e.kind === 'sink') {
+        const k = share * share, x = at(e.x1 + (e.x2 - e.x1) * k), y = at(e.y1 + (e.y2 - e.y1) * k) - e.lift * (1 - share);
+        ctx.globalAlpha = Math.max(0, 1 - share * 1.1);
+        sprite(ctx, e.image, x, y, e.angle, ZOOM * (1 - share * 0.7));
+        ctx.globalAlpha = 1;
+        if (share > 0.8 && !e.splashed) {
+          e.splashed = true;
+          this._sparks(e.x2, e.y2, SPRAY, 10, 1.6, 0.4);
+        }
+        continue;
+      }
       if (e.kind === 'icicle') {
         const spot = e.mob && !e.mob.dead ? this.shown.get(e.mob.id) : null;
         if (spot) {
@@ -5301,8 +5280,41 @@ export class Scene {
         }
       }
       if (e.kind === 'icicle') {
-        const x = at(e.x1 + (e.x2 - e.x1) * share), y = at(e.y1 + (e.y2 - e.y1) * share);
-        this._icicle(ctx, x, y, Math.atan2(e.y2 - e.y1, e.x2 - e.x1), e.big ? 1.25 : 0.85);
+        const dx = e.x2 - e.x1, dy = e.y2 - e.y1, len = Math.hypot(dx, dy) || 1, side = Math.sin(e.bend) * len * 0.6;
+        const cx = e.x1 + dx / 2 - dy / len * side, cy = e.y1 + dy / 2 + dx / len * side, u = share, v = 1 - share;
+        const px = v * v * e.x1 + 2 * v * u * cx + u * u * e.x2, py = v * v * e.y1 + 2 * v * u * cy + u * u * e.y2;
+        const tx = 2 * v * (cx - e.x1) + 2 * u * (e.x2 - cx), ty = 2 * v * (cy - e.y1) + 2 * u * (e.y2 - cy);
+        this._icicle(ctx, at(px), at(py), Math.atan2(ty, tx), e.big ? 1.25 : 0.85);
+        continue;
+      }
+      if (e.kind === 'ink') {
+        const spot = e.mob && !e.mob.dead ? this.shown.get(e.mob.id) : null;
+        if (spot) {
+          e.x2 = spot.x;
+          e.y2 = spot.y;
+        }
+        const x = at(e.x1 + (e.x2 - e.x1) * share), y = at(e.y1 + (e.y2 - e.y1) * share) - Math.sin(share * Math.PI) * 22;
+        glow(ctx, x, y, 9, 'rgba(59, 47, 92, 1)', 0.6);
+        const blob = ctx.createRadialGradient(x - 1.5, y - 1.5, 0.5, x, y, 5);
+        blob.addColorStop(0, '#8b78c4');
+        blob.addColorStop(0.35, '#3b2f5c');
+        blob.addColorStop(1, '#0d0a14');
+        ctx.fillStyle = blob;
+        ctx.beginPath();
+        ctx.arc(x, y, 4.6, 0, Math.PI * 2);
+        ctx.fill();
+        if (Math.random() < 0.6) this._sparks((x - EDGE) / CELL, (y - EDGE) / CELL, BLAST_TONES.ink.slice(1), 1, 0.4, 0.4, 2);
+        continue;
+      }
+      if (e.kind === 'bellow') {
+        const x = at(e.x), y = at(e.y), reach = BOARD * 1.2 * share, fade = 1 - share, tick = Math.floor(this.clock * 14);
+        glow(ctx, x, y, 40 * (1 - share) + 10, 'rgba(56, 189, 248, 1)', 0.5 * fade);
+        for (let i = 0; i < 90; i++) {
+          const a = i * Math.PI * 2 / 90 + noise(i, 7) * 0.05, d = reach * (0.94 + 0.06 * noise(i, tick));
+          ctx.globalAlpha = fade * (0.4 + 0.5 * noise(i + 3, tick));
+          bit(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d, 2 + (i % 3 === 0 ? 1 : 0), i % 2 ? '#7dd3fc' : '#e0f7ff', i + tick);
+        }
+        ctx.globalAlpha = 1;
         continue;
       }
       if (e.kind === 'hail') {

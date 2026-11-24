@@ -32,7 +32,7 @@ const COOLDOWNS = ['nextActive', 'nextBlaze',
   'nextFar', 'nextInferno', 'nextLight', 'nextPhoenix', 'nextPool',
   'nextEmp', 'nextNuke', 'nextQuake', 'nextRift', 'nextSand', 'nextStorm', 'nextTsunami',
   'nextWall', 'nextWave', 'nextHail', 'nextHoly', 'nextBeam', 'nextRain', 'nextSiren', 'nextDirge',
-  'nextGlobe', 'nextTempest', 'nextBubble', 'nextVortex'];
+  'nextGlobe', 'nextTempest', 'nextBubble', 'nextVortex', 'nextInk', 'nextRoar', 'nextIceWall'];
 const WARD_AURA = 0.25;
 const FIREBALL_FLIGHT = 0.3;
 const ZONE_PULSE = 0.5;
@@ -116,15 +116,21 @@ export const WOLF = { dash: { idle: 2, speed: 10, touch: 0.8, mul: 1 },
   howl: { idle: 3, self: 0.2, team: 0.1, share: 0.5, time: [2, 5], rest: [5, 10] },
   rage: { steps: [[10, 0.03], [10, 0.02]], rest: 0.01, max: 3 }, pack: { boost: 0.3, per: 0.01 } };
 export const WATER = { drop: 9,
-  hydro: { reach: 3, interval: 1.1, mul: 3, speed: 11, touch: 0.25 },
+  hydro: { reach: 3, interval: 1.1, mul: 3, speed: 11, touch: 0.25, turn: 9 }, triple: { count: 3, spread: 0.7 },
   kraken: { reach: 2, interval: 1.3, mul: 4, sea: 3, arm: 1.5 },
   cryo: { reach: 3.5, interval: 1.1, mul: 3.6, speed: 9, big: 2, stock: 3, refill: 2 },
-  flow: { tick: 0.5, mul: 2, elite: 0.5, boss: 0.2 },
+  slap: { chance: 0.1, hold: 2, elite: 1, boss: 0.5 }, drown: 0.1,
+  ink: { every: 15, reach: 5, time: 10, slow: 0.5, boss: 0.25, mul: 2, speed: 6 },
+  roar: { every: 12, reach: 2, time: 10, per: 0.3 },
+  frostRing: { radius: 2, tick: 0.5, mul: 0.5, slow: 0.2, snow: 0.1 },
+  iceBurst: { radius: 1, hold: 3, elite: 2, boss: 1 },
+  iceWall: { time: 5, hits: 10, rest: 5, bite: 1 },
+  iceGod: { stock: 5, refill: 1, count: 3, spread: 0.7 },
   bubble: { every: 30, per: 0.5, max: 200, speed: 1.5, touch: 0.5, radius: 3, orbit: 0.8, spin: 1.3,
     stages: [0, 20, 50, 100, 150] },
   vortex: { chance: 0.08, gap: 4, radius: 3, time: 1 }, spring: { radius: 3, heal: 0.01, undead: 3, clarity: 0.1 },
-  home: 0.25, tide: 0.1, rain: { chance: 0.01, radius: 0.45, time: 3, slow: 0.3, rods: 2 },
-  snow: { slow: [0.1, 0.15, 0.2, 0.25, 0.4], from: 3, freeze: 0.01, hold: 2, max: 5 } };
+  home: 0.25, tide: 0.1, rain: { chance: 0.01, radius: 0.6, time: 3, slow: 0.3, rods: 2 },
+  snow: { slow: [0.1, 0.15, 0.2, 0.25, 0.4], from: 3, freeze: 0.01, hold: 4, max: 5 } };
 export const ARM_SPOTS = [[0.5, 0.5], [0.22, 0.22], [0.78, 0.22], [0.22, 0.78], [0.78, 0.78]];
 export const SONG = { every: 15, time: 3, back: 1, dirge: 0.5, anthem: 0.3, ultrasound: 0.2 };
 export const TOTEMS = { totemSlow: 'slow', totemPurge: 'purge', totemPower: 'power' };
@@ -264,6 +270,8 @@ export class Battle {
     this.rain = null;
     this.snow = 0;
     this.weather = 0;
+    this.roarUntil = 0;
+    this.roarBoost = 0;
     this.solid = null;
     this.tall = null;
     this.sight = null;
@@ -565,7 +573,7 @@ export class Battle {
     tower.cx = x + 0.5;
     tower.cy = y + 0.5;
     this._stats(tower);
-    if (this.walls.some((wall) => wall.tower === tower)) {
+    if (tower.cls.id === 'earth' && this.walls.some((wall) => wall.tower === tower)) {
       this.walls = this.walls.filter((wall) => wall.tower !== tower);
       this._raiseWall(tower, this.time);
     }
@@ -824,6 +832,7 @@ export class Battle {
     }
     this.lastSpawn = this.spawns.length ? this.spawns[this.spawns.length - 1].at : start;
     for (const wall of this.walls) {
+      if (wall.ice) continue;
       const max = this._wallMax(wall.tower);
       wall.hp = max * wall.hp / wall.max;
       wall.max = max;
@@ -1348,7 +1357,7 @@ export class Battle {
     mob.holdUntil = Math.max(mob.holdUntil, this.time + time);
     mob.holdFree = mob.holdUntil + HOLD_GAP;
     if (tower && tower.run) this._help(tower, HELP.control);
-    mob.holdBy = tower ? tower.cls.id : '';
+    mob.holdBy = tower ? (tower.style === 'kraken' ? 'kraken' : tower.cls.id) : '';
     this._event({ kind: 'hold', mob, by: mob.holdBy });
   }
 
@@ -1464,6 +1473,10 @@ export class Battle {
     }
   }
 
+  roaring() {
+    return this.roarUntil > this.time ? 1 + this.roarBoost : 1;
+  }
+
   nearWater(t) {
     for (let y = t.y - 1; y <= t.y + 1; y++) for (let x = t.x - 1; x <= t.x + 1; x++) if (this.sea(x, y) >= 0) return true;
     return false;
@@ -1477,8 +1490,11 @@ export class Battle {
       if (!arrow.mob) return false;
       const mob = arrow.mob, gap = Math.hypot(mob.x - arrow.x, mob.y - arrow.y), step = s.speed * dt;
       if (gap > step + s.touch) {
-        arrow.x += (mob.x - arrow.x) / gap * step;
-        arrow.y += (mob.y - arrow.y) / gap * step;
+        const want = Math.atan2(mob.y - arrow.y, mob.x - arrow.x), turn = bend(want, arrow.heading);
+        const most = dt * Math.max(s.turn, s.speed / Math.max(0.35, gap) * 1.2);
+        arrow.heading += Math.sign(turn) * Math.min(Math.abs(turn), most);
+        arrow.x += Math.cos(arrow.heading) * step;
+        arrow.y += Math.sin(arrow.heading) * step;
         return true;
       }
       arrow.x = mob.x;
@@ -1503,7 +1519,7 @@ export class Battle {
     for (const mob of this._around(x, y, s.radius)) {
       if (hidden(mob, now) || this.covered(mob.x, mob.y)) continue;
       const to = Math.max(this.gates[mob.r], this._closestD(mob.r, x, y));
-      mob.drag = { from: mob.d, to, start: now, end: now + s.time };
+      mob.drag = { from: mob.d, to, sx: mob.x, sy: mob.y, x, y, start: now, end: now + s.time };
       mob.biting = 0;
     }
   }
@@ -1520,10 +1536,14 @@ export class Battle {
   _drags(now) {
     for (const mob of this.mobs) {
       if (!mob.drag || mob.dead) continue;
-      const k = Math.min(1, (now - mob.drag.start) / (mob.drag.end - mob.drag.start)), ease = 1 - (1 - k) * (1 - k);
-      mob.d = mob.drag.from + (mob.drag.to - mob.drag.from) * ease;
-      this._locate(mob);
-      if (k >= 1) mob.drag = null;
+      const drag = mob.drag, k = Math.min(1, (now - drag.start) / (drag.end - drag.start)), ease = k * k * (3 - 2 * k);
+      mob.d = drag.from + (drag.to - drag.from) * ease;
+      mob.x = drag.sx + (drag.x - drag.sx) * ease;
+      mob.y = drag.sy + (drag.y - drag.sy) * ease;
+      if (k >= 1) {
+        mob.drag = null;
+        this._locate(mob);
+      }
     }
   }
 
@@ -1542,7 +1562,7 @@ export class Battle {
     const s = WATER.spring;
     for (const spring of this.springs) {
       for (const wall of this.walls) {
-        if (near(wall, spring.cx, spring.cy, s.radius)) wall.hp = Math.min(wall.max, wall.hp + wall.max * s.heal);
+        if (!wall.ice && near(wall, spring.cx, spring.cy, s.radius)) wall.hp = Math.min(wall.max, wall.hp + wall.max * s.heal);
       }
       for (const mob of this._around(spring.cx, spring.cy, s.radius)) {
         if (mob.undead) this._hurt(mob, spring.tower.damage * s.undead, spring.tower, 'water', true);
@@ -1900,7 +1920,7 @@ export class Battle {
       one();
       for (let k = 1; k < shot.count; k++) this._later(k * shot.gap, one);
     } else if (drone.kind === 'bird' || drone.kind === 'hawk') {
-      const owner = drone.source || t, peck = owner.damage * shot.mul * lead, hawk = drone.kind === 'hawk';
+      const owner = drone.source || t, peck = owner.damage * shot.mul * lead * this.roaring(), hawk = drone.kind === 'hawk';
       const toxic = !hawk && owner.runes.has('flock');
       this._event({ kind: 'peck', tower: t, mob: target, x: target.x, y: target.y, hawk, toxic });
       if (hawk) {
@@ -1947,6 +1967,14 @@ export class Battle {
   }
 
   _batter(wall, mob, dt, now) {
+    if (wall.ice) {
+      if (now < (mob.iceBite || 0)) return;
+      mob.iceBite = now + WATER.iceWall.bite;
+      wall.hp -= 1;
+      wall.hitAt = now;
+      if (wall.hp <= 0) this._melt(wall, now);
+      return;
+    }
     wall.hp -= this._wallUnit() * mob.info.leak * WALL_BITE * dt;
     wall.hitAt = now;
     const t = wall.tower;
@@ -1969,6 +1997,24 @@ export class Battle {
     }
     t.nextWall = now + t.cls.base.rebuild;
     this._event({ kind: 'crumble', tower: t, x: wall.x, y: wall.y });
+  }
+
+  _melt(wall, now) {
+    this.walls = this.walls.filter((known) => known !== wall);
+    wall.tower.nextIceWall = now + WATER.iceWall.rest;
+    this._event({ kind: 'crumble', tower: wall.tower, x: wall.x, y: wall.y, ice: true });
+  }
+
+  _iceWall(t, now) {
+    const lead = this.mobs.filter((mob) => grounded(mob, now) && !mob.r && this._targetable(t, mob))
+      .sort((x, y) => y.d - x.d)[0];
+    if (!lead) return;
+    const d = Math.ceil(lead.d + 0.6), i = d - 1;
+    if (i < 0 || i >= this.path.length || d > this.length - HEART_GAP - 1 || this.walls.some((w) => w.i === i)) return;
+    const [x, y] = this.road[i];
+    this.walls.push({ tower: t, i, r: 0, d, x: x + 0.5, y: y + 0.5, hp: WATER.iceWall.hits, max: WATER.iceWall.hits,
+      hitAt: -1e9, ice: true, until: now + WATER.iceWall.time });
+    this._event({ kind: 'wall', tower: t, x: x + 0.5, y: y + 0.5, ice: true });
   }
 
   _intervalOf(t, now) {
@@ -3027,36 +3073,22 @@ function nextPrey(b, t, from) {
 }
 
 function loose(b, t) {
-  if (t.flow) return false;
   const first = b._target(t);
   if (!first) return false;
-  b.arrows.push({ tower: t, x: t.cx, y: t.cy, mob: first, hit: new Set() });
-  b._event({ kind: 'arrow', tower: t, mob: first });
+  const aims = [first];
+  if (t.runes.has('triple')) {
+    const others = b.mobs.filter((mob) => mob !== first && b._targetable(t, mob));
+    while (aims.length < WATER.triple.count) {
+      aims.push(others.length ? others.splice(Math.floor(b.random() * others.length), 1)[0] : first);
+    }
+  }
+  aims.forEach((mob, i) => {
+    const bend = i ? (i % 2 ? 1 : -1) * WATER.triple.spread : 0;
+    b.arrows.push({ tower: t, x: t.cx, y: t.cy, mob, hit: new Set(),
+      heading: Math.atan2(mob.y - t.cy, mob.x - t.cx) + bend });
+  });
+  b._event({ kind: 'arrow', tower: t, mob: first, count: aims.length });
   return true;
-}
-
-function against(b, mob, t) {
-  const ahead = b._roadPoint(mob.r, mob.d + 0.2);
-  return (ahead.x - mob.x) * (t.cx - mob.x) + (ahead.y - mob.y) * (t.cy - mob.y) > 0;
-}
-
-function flood(b, t, now, alive) {
-  const s = WATER.flow, old = t.flow;
-  const kept = old && b._targetable(t, old.mob) ? old.mob : null;
-  const mob = alive ? kept || b.mobs.filter((other) => big(other) && b._targetable(t, other))
-    .sort((x, y) => (x.x - t.cx) ** 2 + (x.y - t.cy) ** 2 - (y.x - t.cx) ** 2 - (y.y - t.cy) ** 2)[0] || null : null;
-  if (!mob) {
-    t.flow = null;
-    return;
-  }
-  if (!old || old.mob !== mob) {
-    t.flow = { mob, next: now };
-    b._event({ kind: 'flow', tower: t, mob });
-  }
-  if (now < t.flow.next) return;
-  t.flow.next = now + s.tick;
-  b._hurt(mob, t.damage * s.mul, t);
-  if (!mob.dead && against(b, mob, t)) b._slow(mob, mob.info.boss ? s.boss : s.elite, s.tick * 1.5, 'water');
 }
 
 export function bubbleAt(t, now) {
@@ -3106,13 +3138,28 @@ function bubble(b, t, now) {
   t.nextBubble = now + s.every;
 }
 
+const inked = (b, mob) => Boolean(mob.ink && mob.ink.until > b.time);
+
+function slap(b, t, mob) {
+  const s = WATER.slap;
+  if (!t.runes.has('slap') || mob.dead || b.random() >= s.chance) return;
+  b._hold(mob, mob.info.boss ? s.boss : elite(mob) ? s.elite : s.hold, t, true);
+  b._event({ kind: 'slap', tower: t, mob });
+}
+
+function lashOf(b, t, mob, hit) {
+  return hit * (inked(b, mob) ? WATER.ink.mul : 1) * b.roaring();
+}
+
 function grab(b, t) {
   const crit = rollCrit(b, t), hit = t.damage * (crit ? t.critMul : 1);
   if (!b.swims(t)) {
-    const target = b._target(t);
+    const marked = b.mobs.find((mob) => inked(b, mob) && b._targetable(t, mob));
+    const target = marked || b._target(t);
     if (!target) return false;
     b._event({ kind: 'tentacle', tower: t, mob: target, x: t.cx, y: t.cy, crit });
-    b._hurt(target, hit, t);
+    b._hurt(target, lashOf(b, t, target, hit), t);
+    slap(b, t, target);
     return true;
   }
   const s = WATER.kraken, now = b.time;
@@ -3122,39 +3169,116 @@ function grab(b, t) {
     let mob = null, gap = s.sea * s.sea;
     for (const other of b.mobs) {
       if (other.dead || hidden(other, now) || immune(other, t.element) || b.covered(other.x, other.y)) continue;
-      const d = (other.x - arm.x) ** 2 + (other.y - arm.y) ** 2;
-      if (d <= gap) [mob, gap] = [other, d];
+      const d = (other.x - arm.x) ** 2 + (other.y - arm.y) ** 2 - (inked(b, other) ? 1e6 : 0);
+      if (d <= gap && (other.x - arm.x) ** 2 + (other.y - arm.y) ** 2 <= s.sea * s.sea) [mob, gap] = [other, d];
     }
     if (!mob) continue;
     struck = true;
+    if (t.runes.has('drown') && !big(mob) && mob.hp <= mob.max * WATER.drown) {
+      mob.drowned = true;
+      b._event({ kind: 'drown', tower: t, mob, x: arm.x, y: arm.y, arm });
+      b._slay(mob, t);
+      continue;
+    }
     b._event({ kind: 'tentacle', tower: t, mob, x: arm.x, y: arm.y, arm, crit });
-    b._hurt(mob, hit * s.arm / s.mul, t);
+    b._hurt(mob, lashOf(b, t, mob, hit * s.arm / s.mul), t);
+    slap(b, t, mob);
   }
   return struck;
 }
 
+export const iceStock = (t) => (t.runes.has('iceGod') ? WATER.iceGod.stock : WATER.cryo.stock);
+const iceRefill = (t) => (t.runes.has('iceGod') ? WATER.iceGod.refill : WATER.cryo.refill);
+
+function shatter(b, t, mob) {
+  const s = WATER.iceBurst, x = mob.x, y = mob.y;
+  b._event({ kind: 'iceBurst', tower: t, x, y, radius: s.radius });
+  for (const other of b._around(x, y, s.radius)) {
+    if (immune(other, 'ice')) continue;
+    b._hold(other, other.info.boss ? s.boss : elite(other) ? s.elite : s.hold, t, true);
+  }
+}
+
 function icicles(b, t, target, hit, crit, now) {
-  const s = WATER.cryo, flight = Math.hypot(target.x - t.cx, target.y - t.cy) / s.speed;
-  b._event({ kind: 'icicle', tower: t, mob: target, x: target.x, y: target.y, time: flight, crit });
-  b._later(flight, () => {
-    if (!target.dead) b._hurt(target, hit, t);
-  }, t);
-  if (t.icicles <= 0) return true;
-  t.icicles -= 1;
-  if (!t.refillAt) t.refillAt = now + s.refill;
-  b._event({ kind: 'icicle', tower: t, mob: target, x: target.x, y: target.y, time: flight, crit, big: true,
-    slot: t.icicles });
-  b._later(flight, () => {
-    if (!target.dead) b._hurt(target, hit * s.big, t);
-  }, t);
+  const s = WATER.cryo, aims = [target];
+  if (t.runes.has('iceGod')) {
+    const others = b.mobs.filter((mob) => mob !== target && b._targetable(t, mob));
+    while (aims.length < WATER.iceGod.count) {
+      aims.push(others.length ? others.splice(Math.floor(b.random() * others.length), 1)[0] : target);
+    }
+  }
+  aims.forEach((mob, i) => {
+    const bend = i ? (i % 2 ? 1 : -1) * WATER.iceGod.spread : 0;
+    const flight = Math.hypot(mob.x - t.cx, mob.y - t.cy) / s.speed * (bend ? 1.15 : 1);
+    b._event({ kind: 'icicle', tower: t, mob, x: mob.x, y: mob.y, time: flight, crit, bend });
+    b._later(flight, () => {
+      if (!mob.dead) b._hurt(mob, hit, t);
+    }, t);
+    if (t.icicles <= 0) return;
+    t.icicles -= 1;
+    if (!t.refillAt) t.refillAt = now + iceRefill(t);
+    b._event({ kind: 'icicle', tower: t, mob, x: mob.x, y: mob.y, time: flight, crit, big: true, slot: t.icicles, bend });
+    b._later(flight, () => {
+      if (mob.dead) return;
+      b._hurt(mob, hit * s.big, t);
+      if (t.runes.has('iceBurst')) shatter(b, t, mob);
+    }, t);
+  });
   return true;
 }
 
 function regrow(t, now) {
-  const s = WATER.cryo;
-  if (!t.refillAt || now < t.refillAt) return;
-  t.icicles = Math.min(s.stock, t.icicles + 1);
-  t.refillAt = t.icicles < s.stock ? now + s.refill : 0;
+  const stock = iceStock(t);
+  if (t.icicles >= stock) {
+    t.refillAt = 0;
+    return;
+  }
+  if (!t.refillAt) t.refillAt = now + iceRefill(t);
+  if (now < t.refillAt) return;
+  t.icicles += 1;
+  t.refillAt = t.icicles < stock ? now + iceRefill(t) : 0;
+}
+
+function frostRing(b, t, now) {
+  const s = WATER.frostRing;
+  if (now < (t.nextFrost || 0)) return;
+  t.nextFrost = now + s.tick;
+  for (const mob of b._around(t.cx, t.cy, s.radius)) {
+    if (immune(mob, 'ice')) continue;
+    b._hurt(mob, t.damage * s.mul * (1 + s.snow * b.snow), t, 'ice');
+    if (!mob.dead) b._slow(mob, s.slow, s.tick * 2, 'ice');
+  }
+}
+
+function spit(b, t, now) {
+  const s = WATER.ink;
+  let prey = null;
+  for (const mob of b.mobs) {
+    if (mob.dead || hidden(mob, now) || immune(mob, t.element) || b.covered(mob.x, mob.y) || !near(mob, t.cx, t.cy, s.reach)) {
+      continue;
+    }
+    if (!prey || mob.hp > prey.hp) prey = mob;
+  }
+  if (!prey) return;
+  t.nextInk = now + s.every;
+  const flight = Math.hypot(prey.x - t.cx, prey.y - t.cy) / s.speed;
+  b._event({ kind: 'ink', tower: t, mob: prey, x: prey.x, y: prey.y, time: flight });
+  b._later(flight, () => {
+    if (prey.dead) return;
+    prey.ink = { until: b.time + s.time, by: t };
+    b._slow(prey, prey.info.boss ? s.boss : s.slow, s.time);
+    b._event({ kind: 'inked', tower: t, mob: prey });
+  }, t);
+}
+
+function roar(b, t, now) {
+  const s = WATER.roar;
+  if (now < (t.nextRoar || 0) || !b.mobs.some((mob) => !mob.dead && near(mob, t.cx, t.cy, s.reach))) return;
+  t.nextRoar = now + s.every;
+  const boost = s.per * t.might / MIGHT.base;
+  b.roarBoost = b.roarUntil > now ? Math.max(b.roarBoost, boost) : boost;
+  b.roarUntil = now + s.time;
+  b._event({ kind: 'bellow', tower: t, x: t.cx, y: t.cy });
 }
 
 function globe(b, t, now) {
@@ -4065,10 +4189,19 @@ const SKILLS = {
       return true;
     },
     every(b, t, now, alive) {
-      if (t.style === 'cryo') regrow(t, now);
+      if (t.style === 'cryo') {
+        regrow(t, now);
+        if (t.runes.has('frostRing')) frostRing(b, t, now);
+        const wall = b.walls.find((w) => w.tower === t && w.ice);
+        if (wall && now >= wall.until) b._melt(wall, now);
+        if (t.runes.has('iceWall') && alive && !wall && now >= (t.nextIceWall || 0)) b._iceWall(t, now);
+      }
+      if (t.style === 'kraken') {
+        if (t.runes.has('ink') && alive && now >= (t.nextInk || 0)) spit(b, t, now);
+        if (t.runes.has('roar') && alive) roar(b, t, now);
+      }
       if (t.style !== 'hydro') return;
       if (t.runes.has('spring') && !b.springs.some((spring) => spring.tower === t)) b._plantSpring(t);
-      if (t.runes.has('flow')) flood(b, t, now, alive);
       if (t.bubble) bubble(b, t, now);
     },
   },

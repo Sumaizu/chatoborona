@@ -42,7 +42,7 @@ const SFX_PER_FRAME = 4;
 const SHOTS = { sniper: 'crack', mechanic: 'gun', forester: 'bolt',
   priest: 'holy', sorceress: 'cast', thunder: 'zap', frost: 'splash' };
 const BATTLE_SOUNDS = { dash: 'zap', chord: 'lute', drum: 'drum', totem: 'build', claw: 'hit', hammer: 'leap', rod: 'build', conjure: 'cast', strike: 'hit', wall: 'build', crumble: 'crumble',
-  bite: 'chomp', icicle: 'ice', tentacle: 'splash', splash: 'splash', arrow: 'bolt', flow: 'splash', pop: 'boom',
+  bite: 'chomp', icicle: 'ice', tentacle: 'splash', splash: 'splash', arrow: 'bolt', pop: 'boom', drown: 'splash', ink: 'splash', slap: 'splash', iceBurst: 'freeze',
   vortex: 'wind', spring: 'build', bubble: 'splash',
   spikes: 'rock', clink: 'clink', treasure: 'treasure', rattle: 'rattle', rise: 'rise',
   hex: 'hex', blink: 'leap', burrow: 'burrow', leech: 'summon', steal: 'clink', loot: 'treasure', reflect: 'block',
@@ -469,6 +469,12 @@ export class View {
       this._sound('execute');
     } else if (kind === 'arrive') {
       this._sound(event.mob.info.boss ? 'roar' : 'growl');
+    } else if (kind === 'bellow') {
+      this._sound('roar');
+      const board = $('board');
+      board.classList.remove('shake');
+      void board.offsetWidth;
+      board.classList.add('shake');
     } else if (kind === 'wild') {
       this._sound('roar');
       this.scene.say('Мобы рассвирепели: бегут быстрее, сквозь стены и оковы', '#ef4444');
@@ -1262,7 +1268,8 @@ export class View {
           weapon.textContent = '';
           weapon.append(m.weapon ? weaponLine(m.weapon) : el('div', 'gear-line', 'Оружия нет — пиши гача'));
         }
-        count.textContent = skills.length + '/' + stonesAt(level);
+        const styled = CLASS_BY_ID.get(m.cls).styles ? 1 : 0, own = skills.length - (styleOf(m.cls, skills) ? 1 : 0);
+        count.textContent = own + '/' + Math.max(0, stonesAt(level) - styled);
       },
     };
   }

@@ -44,6 +44,7 @@ export const BOTS = [
 export const OVER_TIME = 60;
 export const CARD_MIN = 10;
 export const CARD_TIME = 20;
+export const CARD_LONGEST = 30;
 const CARD_HOLD = 0.5;
 export const CARD_ROOM = 2;
 export const SPIN_LIMIT = QUEUE_CAP;
@@ -717,7 +718,7 @@ export class Game {
             note.left = 0;
           });
       }
-      if (!this.cards.length) for (const note of shown) if (note.left <= 0) note.left = CARD_HOLD;
+      if (!this.cards.length) for (const note of shown) if (note.left <= 0 && note.since < CARD_LONGEST) note.left = CARD_HOLD;
       this.notes = this.notes.filter((note) => note.left > 0 && this.members.has(note.login));
     }
     this._turnCards();

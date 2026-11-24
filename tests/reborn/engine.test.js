@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { PLAIN, makeGame, memoryStorage, runFor, seeded, until } from './fixtures.js';
-import { ASCEND_TIME, CARD_MIN, CARD_ROOM, CARD_TIME, DIVINE_TIME, HOLD_SHOW, OVER_TIME, PICK_TIME, Profiles, QUICK_PAUSE,
+import { ASCEND_TIME, CARD_LONGEST, CARD_MIN, CARD_ROOM, CARD_TIME, DIVINE_TIME, HOLD_SHOW, OVER_TIME, PICK_TIME, Profiles, QUICK_PAUSE,
   QUICK_WAVE, SKILL_TIME, SKILLS_TIME, SPEED_MAX, SPIN_LIMIT, SUMMIT_EVERY, SUMMIT_TIME }
   from '../../site/reborn/js/engine.js';
 import { FAMILY_BY_ID, LEVEL_MAX, MIGHT, REWARD, SLEEP_AFTER, TEMPO, TICK, waveReward, xpForLevel }
@@ -528,7 +528,7 @@ test('чат: боты не играют, обычное сообщение — 
   ok(game.members.has('тоня'), 'но в отряд вступила');
 });
 
-test('профиль показывает карточку игрока 20 секунд, повторный — ещё 20; без очереди две последние остаются', () => {
+test('профиль показывает карточку игрока 20 секунд, повторный — ещё 20; без новых запросов — не дольше 30 секунд', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Уля', 'привет');
@@ -542,11 +542,14 @@ test('профиль показывает карточку игрока 20 се�
   say(game, 'Уля', 'профиль');
   runFor(game, CARD_TIME - 1);
   ok(game.notes.some((n) => n.kind === 'card'), 'повторный профиль продлил показ');
-  runFor(game, 60);
-  ok(game.notes.some((n) => n.kind === 'card' && n.login === 'уля'), 'других нет — последний профиль остаётся');
+  eq(CARD_LONGEST, 30);
+  runFor(game, CARD_LONGEST - CARD_TIME);
+  ok(game.notes.some((n) => n.kind === 'card' && n.login === 'уля'), 'других нет — профиль ещё висит');
+  runFor(game, 1.5);
+  no(game.notes.some((n) => n.kind === 'card'), 'больше 30 секунд — ушёл');
   eq(say(game, 'Федя', 'Профиль'), 'card', 'новичок вступает и сразу видит карточку');
   runFor(game, 60);
-  eq(game.notes.filter((n) => n.kind === 'card').map((n) => n.login), ['уля', 'федя'], 'обе остаются, пока не позовут третью');
+  eq(game.notes.filter((n) => n.kind === 'card').length, 0, 'и он не висит бесконечно');
 });
 
 test('гача: пустота ничего не даёт, мешок — монеты', () => {
@@ -808,8 +811,10 @@ test('профиль: две карточки сразу, третья ждёт 
   runFor(game, CARD_MIN + 0.2);
   eq(shown(), ['гоша']);
   game.cardRoom = 2;
-  runFor(game, CARD_TIME * 3);
-  eq(shown(), ['гоша'], 'очередь пуста — остаётся, пока не позовут другую');
+  runFor(game, CARD_LONGEST - 1);
+  eq(shown(), ['гоша'], 'очередь пуста — остаётся, но не дольше 30 секунд');
+  runFor(game, 2);
+  eq(shown(), []);
 });
 
 test('реролл: сколько угодно раз, пока не выбран первый навык; на поле — новый класс на той же клетке', () => {
