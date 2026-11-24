@@ -3229,6 +3229,15 @@ test('криомант, стужа: ледяное кольцо в 2 клетк�
   near(damage(2).hit / plain.hit, 1 + WATER.frostRing.snow * 2);
 });
 
+test('криомант, стужа: радиус растёт на клетку за каждые 100 мощи сверх 100, до 4', () => {
+  const battle = makeBattle(), t = water(battle, 10, 4, ['cryo', 'frostRing']);
+  near(t.frost, WATER.frostRing.radius);
+  battle.setMods(t, { runes: ['cryo', 'frostRing'], power: 100 });
+  near(t.frost, WATER.frostRing.radius + WATER.frostRing.grow, 'радиус растёт с мощью');
+  battle.setMods(t, { runes: ['cryo', 'frostRing'], power: 5000 });
+  near(t.frost, WATER.frostRing.max, 'но не больше предела');
+});
+
 test('криомант, заморозка: большая сосулька взрывается на клетку вокруг и морозит — 3 секунды, элитных 2, боссов 1', () => {
   const battle = makeBattle(), t = water(battle, 10, 4, ['cryo', 'iceBurst']);
   const mob = walker(battle, 11, 1e9), next = walker(battle, 11.6, 1e9), elite = put(battle, special(battle, 'elite', 'leader', 1e9), 11.3);

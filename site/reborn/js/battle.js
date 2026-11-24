@@ -122,7 +122,7 @@ export const WATER = { drop: 9,
   slap: { chance: 0.1, hold: 2, elite: 1, boss: 0.5 }, drown: 0.1,
   ink: { every: 15, reach: 5, time: 10, slow: 0.5, boss: 0.25, mul: 2, speed: 6 },
   roar: { every: 12, reach: 3, time: 10, per: 0.3 },
-  frostRing: { radius: 2, tick: 0.5, mul: 0.5, slow: 0.2, snow: 0.1 },
+  frostRing: { radius: 2, grow: 1, max: 4, tick: 0.5, mul: 0.5, slow: 0.2, snow: 0.1 },
   iceBurst: { radius: 1, hold: 3, elite: 2, boss: 1 },
   iceWall: { time: 5, hits: 10, rest: 5, bite: 1 },
   iceGod: { stock: 5, refill: 1, count: 3, spread: 0.7 },
@@ -1311,6 +1311,8 @@ export class Battle {
     tower.cone = tower.style === 'dragon' ? FIRE.cone * (tower.runes.has('wide') ? FIRE.coneWide : 1) : 0;
     tower.ring = tower.style === 'ignite' && tower.runes.has('flameRing') ? Math.min(FIRE.ring.max,
       FIRE.ring.radius + FIRE.ring.grow * Math.max(0, tower.might / MIGHT.base - 1)) : 0;
+    tower.frost = tower.style === 'cryo' && tower.runes.has('frostRing') ? Math.min(WATER.frostRing.max,
+      WATER.frostRing.radius + WATER.frostRing.grow * Math.max(0, tower.might / MIGHT.base - 1)) : 0;
     tower.baseRange = Math.max(RANGE_MIN, this._reachOf(tower, b) + (mods.range || 0))
       + (this.onHill(tower) ? TERRAIN.hill : 0) + (this.onWatch(tower) ? TERRAIN.watch : 0);
     tower.ownRange = tower.baseRange + tower.reach;
@@ -3249,7 +3251,7 @@ function frostRing(b, t, now) {
   const s = WATER.frostRing;
   if (now < (t.nextFrost || 0)) return;
   t.nextFrost = now + s.tick;
-  for (const mob of b._around(t.cx, t.cy, s.radius)) {
+  for (const mob of b._around(t.cx, t.cy, t.frost)) {
     if (immune(mob, 'ice')) continue;
     b._hurt(mob, t.damage * s.mul * (1 + s.snow * b.snow), t, 'ice');
     if (!mob.dead) b._slow(mob, s.slow, s.tick * 2, 'ice');

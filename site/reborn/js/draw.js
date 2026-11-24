@@ -1425,7 +1425,7 @@ export class Scene {
   }
 
   _frostRing(ctx, t) {
-    const pose = this._pose(t), x = at(pose.x), y = at(pose.y), r = WATER.frostRing.radius * CELL, seed = (t.x * 7 + t.y * 13) % 9;
+    const pose = this._pose(t), x = at(pose.x), y = at(pose.y), r = t.frost * CELL, seed = (t.x * 7 + t.y * 13) % 9;
     const tones = BLAST_TONES.ice, c = this.clock;
     glow(ctx, x, y, r, 'rgba(125, 211, 252, 1)', 0.24 + 0.04 * Math.sin(c * 2 + seed));
     for (let i = 0, count = Math.round(r * 2.2); i < count; i++) {
@@ -1435,12 +1435,17 @@ export class Scene {
       bit(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8 - rise * 10, rise < 0.35 ? 4 : 3,
         tones[Math.min(tones.length - 1, Math.floor(rise * tones.length))], i + c * 9);
     }
-    for (let i = 0; i < 110; i++) {
+    this._ringFill(ctx, x, y, r, seed, tones.slice(1, 4));
+  }
+
+  _ringFill(ctx, x, y, r, seed, tones) {
+    const c = this.clock;
+    for (let i = 0, count = Math.round(r * 1.8); i < count; i++) {
       const k = (c * 0.35 + noise(i, seed + 20)) % 1, a = noise(i, seed + 21) * 6.28 + c * 0.5 + k * 1.2;
       const d = r * (0.18 + 0.72 * k);
       ctx.globalAlpha = 0.85 * Math.sin(k * Math.PI);
       bit(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d * 0.8, noise(i, seed + 23) > 0.7 ? 3 : 2,
-        tones[Math.min(tones.length - 1, 1 + Math.floor(noise(i, seed + 24) * 3))], i + Math.floor(c * 8));
+        tones[Math.floor(noise(i, seed + 24) * tones.length)], i + Math.floor(c * 8));
     }
     ctx.globalAlpha = 1;
   }
@@ -2093,23 +2098,28 @@ export class Scene {
 
   _orbit(t, i) {
     const w = WATER_FX, c = this.clock, s = t.x * 7 + t.y * 13;
-    const a = c * w.spin * (0.55 + 0.9 * noise(i, s)) + noise(i, s + 1) * Math.PI * 2
-      + 0.7 * Math.sin(c * (0.9 + noise(i, s + 2)) + i * 2.3);
-    const r = w.ring * (0.7 + 0.5 * noise(i, s + 3)) + 3 * Math.sin(c * (1.4 + noise(i, s + 4)) + i * 1.9);
-    const lift = 4 + 3 * Math.sin(c * (1.8 + noise(i, s + 5)) + i * 1.3);
-    return { x: Math.cos(a) * r, y: Math.sin(a) * r * 0.55 - lift, angle: a + Math.PI / 2 + 0.6 * Math.sin(c * 2.2 + i * 1.7) };
+    const a = c * w.spin * (0.6 + 0.5 * noise(i, s)) + noise(i, s + 1) * Math.PI * 2;
+    const r = w.ring * (0.8 + 0.35 * noise(i, s + 3)) + 1.5 * Math.sin(c * (0.6 + 0.3 * noise(i, s + 4)) + i * 1.9);
+    const lift = 5 + 1.5 * Math.sin(c * (0.8 + 0.4 * noise(i, s + 5)) + i * 1.3);
+    return { x: Math.cos(a) * r, y: Math.sin(a) * r * 0.55 - lift };
   }
 
   _iceRing(ctx, t, x, y) {
+    const image = icicleSprite(18);
     for (let i = 0; i < (t.icicles || 0); i++) {
-      const spot = this._orbit(t, i);
-      this._icicle(ctx, x + spot.x, y + spot.y, spot.angle, true);
+      const spot = this._orbit(t, i), px = x + spot.x, py = y + spot.y;
+      glow(ctx, px, py, 5, 'rgba(165, 243, 252, 1)', 0.3);
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(Math.PI / 2);
+      ctx.drawImage(image, -image.width / 4, -image.height / 4, image.width / 2, image.height / 2);
+      ctx.restore();
     }
   }
 
   _icicle(ctx, x, y, angle, big) {
-    const image = icicleSprite(big ? 34 : 26);
-    glow(ctx, x, y, big ? 11 : 8, 'rgba(165, 243, 252, 1)', 0.4);
+    const image = icicleSprite(big ? 22 : 18);
+    glow(ctx, x, y, big ? 7 : 6, 'rgba(165, 243, 252, 1)', 0.4);
     sprite(ctx, image, x, y, angle, ZOOM, 0, HERO_TURN_STEPS);
   }
 
@@ -2486,6 +2496,7 @@ export class Scene {
           tones[Math.min(tones.length - 1, Math.floor(rise * tones.length))], i + this.clock * 9);
       }
       ctx.globalAlpha = 1;
+      this._ringFill(ctx, x, y, r, seed, tones.slice(0, 3));
     }
   }
 

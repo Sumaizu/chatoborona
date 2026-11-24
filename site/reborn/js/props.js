@@ -599,37 +599,46 @@ const WALL_TOP = '#b2a794';
 const WALL_FACE = '#83796b';
 const WALL_EDGE = '#bdb3a0';
 
-const ICE = { base: '#6fa7c9', crystal: ['#d4f2ff', '#9ad6f5', '#e8f9ff', '#7cc0ea'], cap: '#f4fcff', crack: '#24557a',
-  clusters: [[8.5, 20, 8, 6, 0.3, 9], [18, 15.5, 10, 7, 1.1, 13], [27.5, 20, 8, 6, 2.2, 9], [12.5, 26.5, 6.5, 5, 0.8, 7],
-    [23.5, 27, 6.5, 5, 1.7, 7]],
-  cracks: [[[15, 15], [17, 18], [16, 20]], [[24, 18], [26, 21]], [[8, 21], [10, 24]], [[20, 24], [22, 27]]] };
-
-export function drawIceWall(stage) {
-  const m = new Model(36, 1, 18, 21);
-  m.egg(18, 23, 0, 12.5, 6, 1.8, ICE.base, 0.4);
-  ICE.clusters.forEach(([cx, cy, r, spikes, turn, tall], n) => {
-    for (let k = 0; k < spikes; k++) {
-      if (stage >= 1 && (k + n) % 3 === 0 || stage >= 2 && (k + n) % 3 === 1) continue;
-      const a = turn + k * Math.PI * 2 / spikes, len = r * (0.8 + 0.45 * grain(k, n, 5)), half = Math.PI / spikes * 0.75;
-      const tip = [cx + Math.cos(a) * len, cy + Math.sin(a) * len * 0.9];
-      const left = [cx + Math.cos(a - half) * len * 0.4, cy + Math.sin(a - half) * len * 0.36];
-      const right = [cx + Math.cos(a + half) * len * 0.4, cy + Math.sin(a + half) * len * 0.36];
-      const out = [Math.cos(a), Math.sin(a)], side = [-Math.sin(a), Math.cos(a)], color = ICE.crystal[(k + n) % 4];
-      m.sheet([[cx, cy], left, tip], tall, color, [out[0] * 0.6 - side[0] * 0.6, out[1] * 0.6 - side[1] * 0.6, 0.55]);
-      m.sheet([[cx, cy], tip, right], tall, color, [out[0] * 0.6 + side[0] * 0.6, out[1] * 0.6 + side[1] * 0.6, 0.55]);
+function wallModel(stage, c) {
+  const m = new Model(36, 1), broken = stage >= 2;
+  m.egg(18, 28, 0, 15.5, 5.5, 2, c.base);
+  [[30.5, 2, 0], [26.5, 5, 1], [22.5, 8, 0]].forEach(([y, z, shift]) => {
+    for (let x = 4 + shift * 3.5; x < 33; x += 7) {
+      m.egg(Math.min(31.5, x + 3), y, z, 3.4, 1.9, 1.6, (x + y) % 3 < 1.5 ? c.face : c.alt, c.gloss);
     }
-    const cap = [];
-    for (let k = 0; k < 6; k++) cap.push([cx + Math.cos(turn + k * Math.PI / 3) * r * 0.28, cy + Math.sin(turn + k * Math.PI / 3) * r * 0.25]);
-    m.sheet(cap, tall + 1, ICE.cap, [-0.2, -0.25, 0.95]);
   });
-  for (const line of ICE.cracks.slice(0, stage * 2)) {
+  for (const [x, y] of [[11, 12.5], [25, 12.5], [11, 17.5], [25, 17.5]]) {
+    m.egg(x, y, 10, 7.6, 3.6, 1.4, broken ? c.worn : c.top, c.gloss);
+  }
+  for (let k = 0; k <= 24; k++) m.dot(6 + k, 15, c.seam, 13);
+  for (const x of [12, 24]) for (let y = 10; y <= 20; y++) m.dot(x + (y > 15 ? 2 : 0), y, c.seam, 13);
+  const rim = [];
+  for (let x = 5; x <= 31; x += 4.33) rim.push([x, 8.6], [x, 21.2]);
+  for (let y = 12.8; y <= 17.5; y += 4.2) rim.push([4.6, y], [31.4, y]);
+  rim.forEach(([x, y], k) => {
+    if (broken && k % 3) return;
+    m.egg(x, y, k % 2 ? 12 : 13.5, 2.1, 1.7, 2.6, c.edge, c.gloss + 0.1);
+  });
+  const cracks = [[[17, 11], [19, 13], [18, 15]], [[12, 23], [13, 25], [12, 27]], [[25, 27], [26, 29], [25, 31]],
+    [[27, 17], [25, 19]]];
+  for (const line of cracks.slice(0, stage * 2)) {
     for (let k = 0; k + 1 < line.length; k++) {
-      const [x0, y0] = line[k], [x1, y1] = line[k + 1];
-      for (let s = 0; s <= 4; s++) m.dot(x0 + (x1 - x0) * s / 4, y0 + (y1 - y0) * s / 4, ICE.crack, 30);
+      const [x0, y0] = line[k], [x1, y1] = line[k + 1], steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+      for (let t = 0; t <= steps; t++) m.dot(x0 + (x1 - x0) * t / steps, y0 + (y1 - y0) * t / steps, c.crack);
     }
   }
+  if (broken) for (const [x, y] of [[3, 32], [11, 33.5], [26, 33], [33, 31.5]]) m.egg(x, y, 1, 2, 1.4, 1.2, c.face);
+  else if (c.moss) for (const [x, y] of [[8, 13], [9, 13], [28, 18], [17, 20.5]]) m.dot(x, y, c.moss, 30);
   return m.paint();
 }
+
+const STONE_WALL = { base: '#5c564d', face: WALL_FACE, alt: '#8b8172', top: WALL_TOP, worn: '#a39885', seam: '#8f8574',
+  edge: WALL_EDGE, crack: '#2b2620', moss: '#6f8a3e', gloss: 0.1 };
+const ICE_WALL = { base: '#4f86ad', face: '#9fd4f2', alt: '#7fbde6', top: '#d8f3ff', worn: '#aedbf3', seam: '#6aa8d2',
+  edge: '#e8f9ff', crack: '#24557a', moss: null, gloss: 0.5 };
+
+export const drawWall = (stage) => wallModel(stage, STONE_WALL);
+export const drawIceWall = (stage) => wallModel(stage, ICE_WALL);
 
 const ICICLE = { outline: '#1e5f8c', top: ['#ffffff', '#e4f8ff', '#bfeaff'], low: ['#8fd3f5', '#5fb2e3', '#3f8cc4'] };
 
@@ -663,38 +672,7 @@ export function drawIcicle(length) {
   return canvas;
 }
 
-export function drawWall(stage) {
-  const m = new Model(36, 1), broken = stage >= 2;
-  m.egg(18, 28, 0, 15.5, 5.5, 2, '#5c564d');
-  [[30.5, 2, 0], [26.5, 5, 1], [22.5, 8, 0]].forEach(([y, z, shift]) => {
-    for (let x = 4 + shift * 3.5; x < 33; x += 7) {
-      m.egg(Math.min(31.5, x + 3), y, z, 3.4, 1.9, 1.6, (x + y) % 3 < 1.5 ? WALL_FACE : '#8b8172', 0.1);
-    }
-  });
-  for (const [x, y] of [[11, 12.5], [25, 12.5], [11, 17.5], [25, 17.5]]) {
-    m.egg(x, y, 10, 7.6, 3.6, 1.4, broken ? '#a39885' : WALL_TOP, 0.1);
-  }
-  for (let k = 0; k <= 24; k++) m.dot(6 + k, 15, '#8f8574', 13);
-  for (const x of [12, 24]) for (let y = 10; y <= 20; y++) m.dot(x + (y > 15 ? 2 : 0), y, '#8f8574', 13);
-  const rim = [];
-  for (let x = 5; x <= 31; x += 4.33) rim.push([x, 8.6], [x, 21.2]);
-  for (let y = 12.8; y <= 17.5; y += 4.2) rim.push([4.6, y], [31.4, y]);
-  rim.forEach(([x, y], k) => {
-    if (broken && k % 3) return;
-    m.egg(x, y, k % 2 ? 12 : 13.5, 2.1, 1.7, 2.6, WALL_EDGE, 0.2);
-  });
-  const cracks = [[[17, 11], [19, 13], [18, 15]], [[12, 23], [13, 25], [12, 27]], [[25, 27], [26, 29], [25, 31]],
-    [[27, 17], [25, 19]]];
-  for (const line of cracks.slice(0, stage * 2)) {
-    for (let k = 0; k + 1 < line.length; k++) {
-      const [x0, y0] = line[k], [x1, y1] = line[k + 1], steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
-      for (let t = 0; t <= steps; t++) m.dot(x0 + (x1 - x0) * t / steps, y0 + (y1 - y0) * t / steps, '#2b2620');
-    }
-  }
-  if (broken) for (const [x, y] of [[3, 32], [11, 33.5], [26, 33], [33, 31.5]]) m.egg(x, y, 1, 2, 1.4, 1.2, WALL_FACE);
-  else for (const [x, y] of [[8, 13], [9, 13], [28, 18], [17, 20.5]]) m.dot(x, y, '#6f8a3e', 30);
-  return m.paint();
-}
+
 
 const RUINS = {
   grass: { stone: '#9a9284', light: '#b3ab9c', dark: '#6f685d', floor: '#7d766a', moss: '#5f8f3a' },
