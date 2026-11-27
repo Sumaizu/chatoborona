@@ -65,7 +65,7 @@ export const FIRE = { styled: 1.5, giant: 1.5, splash: 1, wide: 1.5, breath: 0.6
 const TORCH_USERS = new Set(['sniper', 'mechanic', 'forester']);
 const LOFTY = new Set(['scope', 'mortar']);
 export const SHOT = { scope: { mul: 11.7, aim: 2, reload: 3 }, assault: { range: -1, interval: 0.55, mul: 0.61,
-  crit: 0.25, mag: 30, reload: 3 }, marksman: { range: 1.5, interval: 2.2, mul: 2.15, crit: 0.25, mag: 5, reload: 3 },
+  crit: 0.25, mag: 30, reload: 3 }, marksman: { range: 1.5, interval: 2.2, mul: 2.8, crit: 0.25, mag: 5, reload: 3 },
   gold: 2, mark: { bonus: 0.25, time: 4 }, ricochet: { share: 0.5, arc: 75, reach: 3 },
   burst: { count: 3, radius: 1, gap: 0.08 },
   flash: { every: 30, radius: 1, stun: 1.5 }, double: { arc: 30 }, air: 3 };
