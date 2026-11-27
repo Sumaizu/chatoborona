@@ -3,7 +3,7 @@ import { AFFIXES, BIOME_RULES, BOSSES, DIABLO, ELITES, FAMILIES, FINALE, LIVES, 
   SILVER, SLIMES, STAT, TERRAIN, WAVE, eliteCount, familyPool, levelOf, lookOf, resistOf, silverChance, waveHp,
   waveSpawns } from './balance.js';
 import { CLASS_BY_ID, PERKS, RUNE_CAPS, baseOf, mastery, mightOf, scaled } from './classes.js';
-import { ASSIST_COINS, KILL_COINS } from './gacha.js';
+import { FARM } from './gacha.js';
 
 export const MOVE_PAUSE = 1;
 export const BITE_TIME = 1;
@@ -124,7 +124,7 @@ export const WATER = { drop: 9,
   ink: { every: 15, reach: 5, time: 10, slow: 0.5, boss: 0.25, mul: 2, speed: 6 },
   roar: { every: 12, reach: 3, time: 10, per: 0.3 },
   frostRing: { radius: 2, grow: 1, tick: 0.5, mul: 0.5, slow: 0.2, snow: 0.1 },
-  iceBurst: { radius: 1, hold: 3, elite: 2, boss: 1 },
+  iceBurst: { chance: 0.25, radius: 0.5, hold: 3, elite: 2, boss: 1 },
   iceWall: { time: 5, hits: 10, rest: 5, bite: 1 },
   iceGod: { stock: 5, refill: 1, count: 3, spread: 0.7 },
   bubble: { every: 30, per: 0.5, max: 200, speed: 2.25, chase: 1.5, touch: 0.5, radius: 3, orbit: 0.8, spin: 1.3,
@@ -136,6 +136,11 @@ export const ARM_SPOTS = [[0.5, 0.5], [0.22, 0.22], [0.78, 0.22], [0.22, 0.78], 
 export const SONG = { every: 15, time: 3, back: 1, dirge: 0.5, anthem: 0.3, ultrasound: 0.2 };
 export const TOTEMS = { totemSlow: 'slow', totemPurge: 'purge', totemPower: 'power' };
 export const HELP = { assist: 1, control: 1, react: 2, heart: 10, heal: 10, save: 50 };
+export const EARN = { scope: { big: 3 }, marksman: { big: 1.6 }, hunter: { big: 1.6 }, cryo: { help: 2 }, kraken: { help: 1.5 },
+  angel: { help: 2, aura: 1.5 }, monk: { aura: 2 }, shamaness: { aura: 2 }, minstrel: { aura: 2, help: 1.5 },
+  earth: { help: 1.5 } };
+const NO_PROFILE = {};
+export const earnOf = (t) => EARN[t.style] || EARN[t.cls.id] || NO_PROFILE;
 const LEFT_ITEMS = ['vents', 'cauldrons', 'banners', 'rods', 'traps', 'walls', 'patches', 'clouds', 'puddles'];
 const DEMONS = new Set(['imp', 'hellhound', 'demon', 'devilkin', 'gatekeeper', 'archdemon', 'diablo']);
 export const MANTRAS = ['mantraSpeed', 'mantraPower', 'mantraRange'];
@@ -664,9 +669,8 @@ export class Battle {
     this._event({ kind: 'links', tower: rod.tower, pairs: pairs.map(([p, q]) => [p.cx, p.cy, q.cx, q.cy]), time: s.time });
   }
 
-  _arc(mob, towers) {
-    const by = towers.find((t) => t.cls.id === 'thunder' && t.runes.has('spark'));
-    if (!by) return;
+  _arc(mob, by) {
+    if (by.cls.id !== 'thunder' || !by.runes.has('spark')) return;
     const s = STORM.spark, x = mob.x, y = mob.y;
     this._event({ kind: 'skybolt', tower: by, x, y, mob, ground: true });
     this._hurt(mob, by.damage * s.mul, by, 'storm');
@@ -965,7 +969,7 @@ export class Battle {
       charge: null, rot: null,
       muteUntil: 0, purgeUntil: 0, exposed: false, netUntil: 0, rootAt: 0, rootUntil: 0, rootFree: 0, stuck: null, thicketUntil: 0,
       rollAt: this.time + ROLL_EVERY, thornAt: 0, resist: resistOf(this.wave), holdUntil: 0, holdFree: 0,
-      holdBy: '', pushed: 0, poison: null, burn: null, helpers: new Set(), last: null, dead: false, biting: 0,
+      holdBy: '', pushed: 0, poison: null, burn: null, helpers: new Set(), dealt: new Map(), last: null, dead: false, biting: 0,
       wall: null, fury: 0, sx: 0, sy: 0, placed: false,
     };
     this._locate(mob);
@@ -1651,6 +1655,10 @@ export class Battle {
       if (item) for (const t of item.by) if (this.towers.includes(t)) party.add(t);
     }
     if (!party.size) return;
+    let caster = null, latest = -Infinity;
+    if (marks.includes('lightning') && mob.marks && mob.marks.has('lightning')) {
+      for (const [t, until] of mob.marks.get('lightning')) if (until > latest) [caster, latest] = [t, until];
+    }
     for (const t of party) this._help(t, HELP.react);
     const towers = Array.from(party), lead = towers[0], blue = towers.some((t) => t.runes.has('blue'));
     const fiery = marks.includes('fire') || name === 'blast' || name === 'lava';
@@ -1660,7 +1668,7 @@ export class Battle {
     for (const key of states) if (mob.states) mob.states.delete(key);
     const r = REACTIONS[name], x = mob.x, y = mob.y;
     this._event({ kind: 'react', mob, name: r.name, color: blue && fiery ? '#7cc4ff' : r.color });
-    if (marks.includes('lightning')) this._arc(mob, towers);
+    if (caster) this._arc(mob, caster);
     const hit = (target, amount, element) => {
       target.party = towers;
       this._hurt(target, amount, lead, element, true, ARMOR);
@@ -2547,6 +2555,7 @@ export class Battle {
     const share = Math.min(dealt, mob.hp);
     if (mob.party && mob.party.length) for (const ally of mob.party) ally.run.damage += share / mob.party.length;
     else t.run.damage += share;
+    this._credit(mob, t, share);
     mob.hp -= dealt;
     if (t.style === 'inquisitor' && t.runes.has('banish')) mob.banished = true;
     if (!dot) mob.hitAt = now;
@@ -2581,6 +2590,7 @@ export class Battle {
   _slay(mob, t) {
     if (mob.dead) return;
     t.run.damage += mob.hp;
+    this._credit(mob, t, mob.hp);
     mob.helpers.add(t);
     mob.last = t;
     this._kill(mob);
@@ -2600,11 +2610,13 @@ export class Battle {
       && h.runes.has('trophy') && near(mob, h.cx, h.cy, WOOD.trophy.radius)).map(() => WOOD.trophy.bonus))
       * (this.blessed || 1);
     if (trophy) this._event({ kind: 'trophy', x: mob.x, y: mob.y });
+    const total = Array.from(mob.dealt.values()).reduce((sum, value) => sum + value, 0) || 1;
     for (const t of mob.helpers) {
-      const earn = t.cls.earn || NO_EARN;
-      this._grant(t, mob.info.xp * earn.xp * prize);
-      const coins = (killers.has(t) ? KILL_COINS : ASSIST_COINS) * mob.info.coins * earn.coins * purse
-        * Math.max(0, 1 + (t.mods.coins || 0)) * (1 + trophy);
+      const earn = t.cls.earn || NO_EARN, profile = earnOf(t), big = mob.info.elite || mob.info.boss ? profile.big || 1 : 1;
+      const part = (FARM.part + FARM.damage * (mob.dealt.get(t) || 0) / total + (killers.has(t) ? FARM.killer : 0)) * big;
+      this._grant(t, mob.info.xp * earn.xp * prize * part);
+      const coins = FARM.coins * part * mob.info.coins * earn.coins * purse * Math.max(0, 1 + (t.mods.coins || 0))
+        * (1 + trophy);
       t.player.coins += coins;
       t.run.coins += coins;
       if (t === killer) {
@@ -2614,7 +2626,7 @@ export class Battle {
           t.frenzyUntil = this.time + STORM.frenzy.time;
           t.cooldown = Math.min(t.cooldown, this._intervalOf(t, this.time));
         }
-      } else this._help(t, HELP.assist);
+      } else this._help(t, HELP.assist, false);
     }
     this._event({ kind: 'kill', mob, by: killer });
     if (mob.stolen && killer) {
@@ -2684,10 +2696,24 @@ export class Battle {
     }
   }
 
-  _help(t, points) {
+  _help(t, points, paid = true) {
     points = Math.round(points);
     t.run.assists += points;
     t.player.assists += points;
+    if (!paid || !points) return;
+    const pay = points * (earnOf(t).help || 1), coins = pay * FARM.helpCoins * Math.max(0, 1 + (t.mods.coins || 0));
+    t.player.coins += coins;
+    t.run.coins += coins;
+    this._grant(t, pay * FARM.helpXp);
+  }
+
+  _credit(mob, t, amount) {
+    if (amount <= 0) return;
+    const party = mob.party && mob.party.length ? mob.party : [t];
+    for (const ally of party) mob.dealt.set(ally, (mob.dealt.get(ally) || 0) + amount / party.length);
+    if (!t.boostBy || !t.boostBy.size) return;
+    const cut = amount * FARM.boost / t.boostBy.size;
+    for (const by of t.boostBy) mob.dealt.set(by, (mob.dealt.get(by) || 0) + cut * (earnOf(by).aura || 1));
   }
 
   _plant(t) {
@@ -3200,12 +3226,10 @@ export const iceStock = (t) => (t.runes.has('iceGod') ? WATER.iceGod.stock : WAT
 const iceRefill = (t) => (t.runes.has('iceGod') ? WATER.iceGod.refill : WATER.cryo.refill);
 
 function shatter(b, t, mob) {
-  const s = WATER.iceBurst, x = mob.x, y = mob.y;
-  b._event({ kind: 'iceBurst', tower: t, x, y, radius: s.radius });
-  for (const other of b._around(x, y, s.radius)) {
-    if (immune(other, 'ice')) continue;
-    b._hold(other, other.info.boss ? s.boss : elite(other) ? s.elite : s.hold, t, true);
-  }
+  const s = WATER.iceBurst;
+  if (immune(mob, 'ice') || b.time < mob.holdFree || b.random() >= s.chance) return;
+  b._event({ kind: 'iceBurst', tower: t, x: mob.x, y: mob.y, radius: s.radius });
+  b._hold(mob, mob.info.boss ? s.boss : elite(mob) ? s.elite : s.hold, t, true);
 }
 
 function icicles(b, t, target, hit, crit, now) {

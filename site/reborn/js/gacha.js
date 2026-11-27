@@ -2,8 +2,7 @@ import { CLASS_BY_ID, CLASSES } from './classes.js';
 
 export const PRICE = 50;
 export const UPGRADE_PRICE = 100;
-export const KILL_COINS = 3;
-export const ASSIST_COINS = 2;
+export const FARM = { part: 0.4, damage: 0.55, killer: 0.15, coins: 2.4, boost: 0.3, helpCoins: 0.5, helpXp: 0.15 };
 export const SLOTS = 4;
 export const SPIN_TIME = 2;
 export const SHOW_TIME = 7;

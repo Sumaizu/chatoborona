@@ -1,13 +1,13 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { AIM, ARCANE, BITE_TIME, Battle, WOLF, godStage, hammerAt, HELP, HOLY, SONG, SPELL, STORM, WATER, WOOD, GRENADE, MECH, MOVE_PAUSE, OVERTIME, FIRE,
+import { AIM, ARCANE, BITE_TIME, Battle, EARN, WOLF, godStage, hammerAt, HELP, HOLY, SONG, SPELL, STORM, WATER, WOOD, GRENADE, MECH, MOVE_PAUSE, OVERTIME, FIRE,
   PULSE, REACTIONS, ROT, SHOT, SPLIT_TIME }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
 import { AFFIXES, BOSSES, DIABLO, ELITES, FAMILIES, FAMILY_BY_ID, FINALE, LIVES, LOOKS, MIGHT, MIMIC, MOBS, POWERS,
   SILVER, TERRAIN, TICK, familyPool, resistOf, silverChance, waveHp, waveSpawns, xpForLevel }
   from '../../site/reborn/js/balance.js';
-import { ASSIST_COINS, KILL_COINS } from '../../site/reborn/js/gacha.js';
+import { FARM } from '../../site/reborn/js/gacha.js';
 import { CLASSES, CLASS_BY_ID, RUNE_CAPS, baseOf, choiceOf, describe } from '../../site/reborn/js/classes.js';
 
 const leakOf = (wave) => waveSpawns(wave).reduce((sum, s) => sum + MOBS[s.type].leak, 0);
@@ -49,11 +49,12 @@ test('бой: защитник у дороги убивает, получает 
   eq(battle.lives, LIVES);
   const count = waveSpawns(1).length;
   eq(hero.kills, count);
-  ok(hero.xp >= xpForLevel(40) + count);
-  near(hero.coins, KILL_COINS * MOBS.normal.coins * earn.coins * count);
+  const solo = FARM.part + FARM.damage + FARM.killer;
+  ok(hero.xp >= xpForLevel(40) + count * solo * 0.99);
+  near(hero.coins, FARM.coins * solo * MOBS.normal.coins * earn.coins * count);
 });
 
-test('бой: опыт и монеты за помощь, убийство — добившему', () => {
+test('бой: награда за моба — каждому, кто бил, поровну за участие, остальное — по доле урона и добившему', () => {
   const battle = makeBattle(), a = level(20), b = level(20), earn = CLASS_BY_ID.get('frost').earn;
   const ta = battle.place(a, 'frost', 2, 4), tb = battle.place(b, 'frost', 2, 6);
   battle.startWave(1, 2);
@@ -62,7 +63,8 @@ test('бой: опыт и монеты за помощь, убийство — �
   eq(a.kills + b.kills, count);
   eq(a.kills + a.assists, count);
   eq(b.kills + b.assists, count);
-  near(a.coins, (a.kills * KILL_COINS + a.assists * ASSIST_COINS) * MOBS.normal.coins * earn.coins);
+  near(a.coins + b.coins, FARM.coins * (2 * FARM.part + FARM.damage + FARM.killer) * MOBS.normal.coins * earn.coins * count,
+    'на двоих — участие обоим, урон делится, добившему сверху');
   eq(ta.run.kills, a.kills);
   eq(tb.run.assists, b.assists);
 });
@@ -73,9 +75,52 @@ test('бой: у каждого класса свой множитель опы�
     const mob = battle._spawn({ type: 'normal', hp: 10 }, 3);
     battle._hurt(mob, 1e6, tower, null);
     ok(mob.dead, cls.id);
-    near(hero.xp, MOBS.normal.xp * cls.earn.xp, cls.id + ' опыт');
-    near(hero.coins, KILL_COINS * MOBS.normal.coins * cls.earn.coins, cls.id + ' монеты');
+    const solo = FARM.part + FARM.damage + FARM.killer;
+    near(hero.xp, MOBS.normal.xp * cls.earn.xp * solo, cls.id + ' опыт');
+    near(hero.coins, FARM.coins * solo * MOBS.normal.coins * cls.earn.coins, cls.id + ' монеты');
   }
+});
+
+test('награда: кто нанёс больше урона, тому больше; снайпер за элитных и боссов — втрое', () => {
+  const battle = makeBattle(), big = player(), small = player();
+  const a = battle.place(big, 'pyro', 2, 4), b = battle.place(small, 'pyro', 2, 6);
+  const mob = battle._spawn({ type: 'normal', hp: 100 }, 3);
+  battle._hurt(mob, 10, b, null);
+  battle._hurt(mob, 1e6, a, null);
+  ok(mob.dead);
+  ok(big.coins > small.coins * 2, 'больше урона — больше монет: ' + big.coins + ' / ' + small.coins);
+  ok(small.coins >= FARM.coins * FARM.part * CLASS_BY_ID.get('pyro').earn.coins - 1e-9, 'за участие — всегда');
+  const field = makeBattle(), sniper = player(), gunner = player();
+  const s = field.place(sniper, 'sniper', 2, 4, { runes: ['scope'] }), g = field.place(gunner, 'sniper', 2, 6, { runes: ['assault'] });
+  const boss = put(field, special(field, 'boss', BOSSES[0].id, 1e6), 3);
+  field._hurt(boss, 5e5, s, null);
+  field._hurt(boss, 1e9, g, null);
+  ok(boss.dead);
+  ok(sniper.coins > gunner.coins * 1.5, 'снайпер за босса получает больше: ' + sniper.coins + ' / ' + gunner.coins);
+  eq(EARN.scope.big, 3);
+});
+
+test('награда: помощь — контроль, лечение, спасение сердца — платит монетами и опытом', () => {
+  const battle = makeBattle(), hero = player(), t = battle.place(hero, 'frost', 2, 4, { runes: ['cryo'] });
+  const coins = hero.coins, xp = hero.xp;
+  battle._help(t, HELP.save);
+  ok(hero.coins > coins && hero.xp > xp, 'помощь оплачена');
+  near(hero.coins - coins, HELP.save * EARN.cryo.help * FARM.helpCoins, 'криоманту — вдвое');
+  const plain = battle.place(player(), 'pyro', 2, 6), before = plain.player.coins;
+  battle._help(plain, HELP.assist, false);
+  eq(plain.player.coins, before, 'простое участие в убийстве не платит второй раз');
+});
+
+test('награда: поддержка получает долю урона тех, кого усиливает', () => {
+  const battle = makeBattle(), monkPlayer = player(), ally = player();
+  const monk = battle.place(monkPlayer, 'priest', 4, 3, { runes: ['monk', 'mantraPower'] });
+  const gun = battle.place(ally, 'sniper', 5, 3, { runes: ['assault'] });
+  battle.step(TICK);
+  ok(gun.boostBy.has(monk), 'монах усиливает соседа');
+  const mob = battle._spawn({ type: 'normal', hp: 100 }, 3);
+  battle._hurt(mob, 1e6, gun, null);
+  ok(mob.dead);
+  ok(monkPlayer.coins > FARM.coins * FARM.part * CLASS_BY_ID.get('priest').earn.coins, 'монах получил больше, чем за участие');
 });
 
 test('мощь: от уровня не растёт; урон и способности — в мощь раз, скорость, крит и дальность — свои у класса', () => {
@@ -1739,6 +1784,23 @@ test('маг молнии, разрядка: реакция с молнией �
   eq(battle.events.filter((e) => e.kind === 'surge').length, 2, 'волна у обоих громоотводов');
 });
 
+test('маг молнии, разрядка: только своя молния — реакция с молнией другого мага её не вызывает', () => {
+  const battle = makeBattle(), t = storm(battle, 10, 4, ['stormReact', 'spark']), other = storm(battle, 12, 4, ['stormReact']);
+  const pyro = battle.place(player(), 'pyro', 8, 4, { runes: ['fireReact'] });
+  battle.step(TICK);
+  const mob = walker(battle, 10, 1e9);
+  still(mob);
+  battle._mark(mob, 'lightning', t);
+  battle.step(TICK);
+  battle._mark(mob, 'lightning', other);
+  battle._mark(mob, 'fire', pyro);
+  battle.events.length = 0;
+  battle.pulseAt = 0;
+  battle.step(TICK);
+  ok(battle.events.some((e) => e.kind === 'react'), 'реакция была');
+  no(battle.events.some((e) => e.kind === 'skybolt' && e.tower === t), 'молнию в реакцию дал другой маг — разрядки нет');
+});
+
 test('громоотвод: у одного мага до двух — второй в соседней клетке; громоотводы разных магов работают вместе', () => {
   const battle = makeBattle(), a = storm(battle, 4, 3, ['rod', 'rod']), b = storm(battle, 16, 3, ['rod']);
   battle.step(TICK);
@@ -3265,21 +3327,39 @@ test('криомант, стужа: радиус растёт на клетку 
   near(t.frost, WATER.frostRing.radius + WATER.frostRing.grow * 5, 'без предела');
 });
 
-test('криомант, заморозка: большая сосулька взрывается на клетку вокруг и морозит — 3 секунды, элитных 2, боссов 1', () => {
-  const battle = makeBattle(), t = water(battle, 10, 4, ['cryo', 'iceBurst']);
-  const mob = walker(battle, 11, 1e9), next = walker(battle, 11.6, 1e9), elite = put(battle, special(battle, 'elite', 'leader', 1e9), 11.3);
-  const boss = put(battle, special(battle, 'boss', BOSSES[0].id, 1e9), 11.4), far = walker(battle, 16, 1e9);
-  still(mob, next, elite, boss, far);
+test('криомант, заморозка: большая сосулька с шансом 25% морозит только цель — 3 секунды, элитных 2, боссов 1', () => {
+  eq(WATER.iceBurst.chance, 0.25);
+  const freeze = (make, roll) => {
+    const battle = makeBattle(), t = water(battle, 10, 4, ['cryo', 'iceBurst']), mob = make(battle);
+    const side = walker(battle, 10.4, 1e9);
+    still(mob, side);
+    battle.random = () => roll;
+    battle._fire(t);
+    runFor(battle, 0.4);
+    no(side.holdUntil > battle.time, 'соседи не замерзают');
+    return mob.holdUntil - battle.time;
+  };
+  const left = freeze((b) => walker(b, 11, 1e9), 0.1);
+  ok(left > WATER.iceBurst.hold - 0.5 && left <= WATER.iceBurst.hold, 'цель — на 3 секунды');
+  const elite = freeze((b) => put(b, special(b, 'elite', 'leader', 1e9), 11), 0.1);
+  ok(elite > WATER.iceBurst.elite - 0.5 && elite <= WATER.iceBurst.elite, 'элитный — на 2');
+  const boss = freeze((b) => put(b, special(b, 'boss', BOSSES[0].id, 1e9), 11), 0.1);
+  ok(boss > WATER.iceBurst.boss - 0.5 && boss <= WATER.iceBurst.boss, 'босс — на 1');
+  ok(freeze((b) => walker(b, 11, 1e9), 0.5) <= 0, 'в остальных 75% — нет');
+});
+
+test('криомант, заморозка: только что оттаявшего сразу не замораживает', () => {
+  const battle = makeBattle(), t = water(battle, 10, 4, ['cryo', 'iceBurst']), mob = walker(battle, 11, 1e9);
+  still(mob);
+  battle.random = () => 0.1;
   battle._fire(t);
   runFor(battle, 0.4);
-  const burst = battle.events.find((e) => e.kind === 'iceBurst');
-  ok(burst, 'взорвалась');
-  eq(burst.radius, WATER.iceBurst.radius);
-  const left = (m) => m.holdUntil - battle.time;
-  for (const m of [mob, next]) ok(left(m) > WATER.iceBurst.hold - 0.5 && left(m) <= WATER.iceBurst.hold, 'заморожен на 3 секунды');
-  ok(left(elite) > WATER.iceBurst.elite - 0.5 && left(elite) <= WATER.iceBurst.elite, 'элитный — на 2');
-  ok(left(boss) > WATER.iceBurst.boss - 0.5 && left(boss) <= WATER.iceBurst.boss, 'босс — на 1');
-  no(far.holdUntil > battle.time, 'дальний — нет');
+  const until = mob.holdUntil;
+  ok(until > battle.time);
+  runFor(battle, until - battle.time + 0.1);
+  battle._fire(t);
+  runFor(battle, 0.3);
+  ok(mob.holdUntil <= battle.time, 'передышка после заморозки');
 });
 
 test('криомант, ледяная стена: встаёт перед первым врагом в досягаемости, держит 10 ударов или 5 секунд; через 5 секунд — новая', () => {
