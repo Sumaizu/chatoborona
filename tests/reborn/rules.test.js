@@ -281,8 +281,8 @@ test('мощь: 100 без оружия, оружие прибавляет св�
   eq(MIGHT.paragon, 0.05);
 });
 
-test('гача: оружия и пустоты нет — монеты с прежними шансами оружия и пустоты, частица бога как была', () => {
-  const random = seeded(11), counts = new Map(), money = { handful: [1, 50], bag: [51, 150], chest: [151, 500] };
+test('гача: горстка — остальное, мешок 10%, сундук 3%, частица бога 0,5%; цвета редкости', () => {
+  const random = seeded(11), counts = new Map(), money = { handful: [1, 50], bag: [51, 200], chest: [201, 1000] };
   for (let i = 0; i < 20000; i++) {
     const outcome = spin(random, 'sniper');
     counts.set(outcome.kind, (counts.get(outcome.kind) || 0) + 1);
@@ -297,12 +297,17 @@ test('гача: оружия и пустоты нет — монеты с пре
     ok(Math.abs(share - item.chance) < 0.005 + item.chance * 0.15, item.id + ' ' + share);
   }
   no(OUTCOMES.some((item) => item.id === 'void'), 'пустоты нет');
+  const color = (id) => OUTCOMES.find((item) => item.id === id).color;
+  eq([color('handful'), color('bag'), color('chest'), color('particle')], ['#ffffff', '#60a5fa', '#facc15', '#ff2e4d']);
+  eq([chanceOf('bag'), chanceOf('chest'), chanceOf('particle')], [0.1, 0.03, 0.005]);
 });
 
-test('оружие: у всех с начала белое; 5 улучшений — следующая редкость, мощь +1 на белом … +6 на оранжевом', () => {
+const chanceOf = (id) => OUTCOMES.find((item) => item.id === id).chance;
+
+test('оружие: у всех с начала белое; 10 улучшений — следующая редкость и снова +0, мощь +1 на белом … +6 на оранжевом', () => {
   eq(RARITIES.map((rarity) => [rarity.id, rarity.gain]), [['plain', 1], ['common', 2], ['rare', 3], ['mythic', 4],
     ['epic', 5], ['legendary', 6]]);
-  eq(TIER_STEPS, 5);
+  eq(TIER_STEPS, 10);
   const weapon = makeWeapon(seeded(4), 'frost');
   eq([weapon.rarity, weapon.power, weapon.plus], ['plain', 0, 0], 'белое, без мощи');
   eq(weaponPower(weapon), 0);
@@ -316,15 +321,17 @@ test('оружие: у всех с начала белое; 5 улучшений
       power += rarity.gain;
     }
   }
-  eq([weapon.rarity, weapon.power, weapon.plus], ['legendary', power, 25], 'оранжевое после 25 улучшений');
-  eq(weaponTitle(weapon), 'Оружие +25');
+  eq([weapon.rarity, weapon.power, weapon.plus], ['legendary', power, 0], 'оранжевое после 50 улучшений, счёт с нуля');
+  eq(weaponTitle(weapon), 'Оружие');
+  upgrade(weapon);
+  eq(weaponTitle(weapon), 'Оружие +1');
   ok(boonOf(weapon.boon), 'оранжевое даёт свойство');
-  eq(makeWeapon(seeded(1), 'frost', RARITIES[3]).power, 5 + 10 + 15, 'готовое синее — как после 15 улучшений');
+  eq(makeWeapon(seeded(1), 'frost', RARITIES[3]).power, 10 + 20 + 30, 'готовое фиолетовое — как после 30 улучшений');
 });
 
-test('оружие: красное — после 10 улучшений оранжевого, дальше +10 мощи без конца; свойство на красном ×1,5', () => {
+test('оружие: красное — после 30 улучшений оранжевого, дальше +10 мощи без конца; свойство на красном ×1,5', () => {
   const weapon = makeWeapon(seeded(4), 'sniper', RARITIES[RARITIES.length - 1]), start = weapon.power, boon = weapon.boon;
-  eq(ASCEND_AT, 10);
+  eq(ASCEND_AT, 30);
   for (let i = 1; i < ASCEND_AT; i++) {
     const up = upgrade(weapon);
     no(up.ascended);
@@ -353,9 +360,9 @@ test('свойство оранжевого: одно из пяти, случа�
   for (const rarity of RARITIES.slice(0, -1)) no(makeWeapon(random, 'sniper', rarity).boon, rarity.id);
 });
 
-test('гача: частица бога — 0,3%, у кого она есть, тому не выпадает', () => {
+test('гача: частица бога — 0,5%, у кого она есть, тому не выпадает', () => {
   const particle = OUTCOMES.find((outcome) => outcome.id === 'particle');
-  eq(particle.chance, 0.003);
+  eq(particle.chance, 0.005);
   const total = OUTCOMES.reduce((sum, item) => sum + item.chance, 0);
   let seen = 0;
   for (let i = 0; i < 2000; i++) {
@@ -367,13 +374,23 @@ test('гача: частица бога — 0,3%, у кого она есть, �
   eq(seen, 2000);
 });
 
-test('гача: камень навыка — первый с шансом 20%, первый после стиля — 10%, следующие — 5%, и только тому, кому он положен', () => {
-  eq([STONE_CHANCE.first, STONE_CHANCE.second, STONE_CHANCE.next], [0.2, 0.1, 0.05]);
+test('гача: камень класса 30%, первый после стиля 20%, следующие 10% — вместо части горстки, только тому, кому положен', () => {
+  eq([STONE_CHANCE.first, STONE_CHANCE.second, STONE_CHANCE.next], [0.3, 0.2, 0.1]);
   eq(OUTCOMES.find((outcome) => outcome.id === 'stone').color, '#ff2e4d', 'цвет — божественный');
   eq(OUTCOMES.find((outcome) => outcome.id === 'stone').chance, 0, 'в общей таблице камня нет');
-  eq(spin(() => 0.19, 'sniper', { stone: 0.2 }).kind, 'stone');
-  no(spin(() => 0.21, 'sniper', { stone: 0.2 }).kind === 'stone');
-  no(spin(() => 0.01, 'sniper').kind === 'stone', 'не положен — не выпадает');
+  const random = seeded(5), counts = new Map();
+  for (let i = 0; i < 20000; i++) {
+    const kind = spin(random, 'sniper', { stone: 0.3 }).kind;
+    counts.set(kind, (counts.get(kind) || 0) + 1);
+  }
+  const share = (id) => (counts.get(id) || 0) / 20000;
+  ok(Math.abs(share('stone') - 0.3) < 0.015, 'камень 30%: ' + share('stone'));
+  ok(Math.abs(share('handful') - (chanceOf('handful') - 0.3)) < 0.015, 'забран у горстки: ' + share('handful'));
+  for (const id of ['bag', 'chest']) ok(Math.abs(share(id) - chanceOf(id)) < 0.01, id + ' не изменился: ' + share(id));
+  const first = spin(() => 0.99, 'sniper', { stone: 0.3, first: true });
+  eq([first.kind, first.first], ['stone', true], 'первый камень — камень класса');
+  eq(OUTCOMES.find((outcome) => outcome.id === 'stone').first, 'Камень класса');
+  no(spin(() => 0.99, 'sniper').kind === 'stone', 'не положен — не выпадает');
 });
 
 test('камни навыков: первый — с 1 уровня, дальше на 10, 20, 30, 50, 75 и 100', () => {

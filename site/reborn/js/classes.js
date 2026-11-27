@@ -2,7 +2,7 @@ import { MIGHT, STAT, TOWER } from './balance.js';
 
 export const PERKS = [10, 30, 50];
 export const STONES = [1, 10, 20, 30, 50, 75, 100];
-export const STONE_CHANCE = { first: 0.2, second: 0.1, next: 0.05 };
+export const STONE_CHANCE = { first: 0.3, second: 0.2, next: 0.1 };
 export const RUNE_CAPS = { rot: 0.6 };
 
 const pct = (value) => Math.round(value * 100) + '%';

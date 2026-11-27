@@ -200,7 +200,7 @@ test('гача: команда без восклицательного знак�
   say(game, 'Нина', 'привет');
   toWave(game);
   const member = game.members.get('нина');
-  member.coins = 60;
+  member.coins = PRICE + 10;
   eq(say(game, 'Нина', 'гача'), 'queued');
   game.step(TICK);
   const slot = game.slots[0];
@@ -355,7 +355,7 @@ test('оружие: у всех с начала белое без мощи; ор
   member.coins = 100 * TIER_STEPS * 5;
   eq(say(game, 'Ося', 'улучшить все'), 'upgraded');
   eq(member.weapon.rarity, 'legendary');
-  eq(member.weapon.power, 5 * (1 + 2 + 3 + 4 + 5));
+  eq(member.weapon.power, TIER_STEPS * (1 + 2 + 3 + 4 + 5));
   eq(member.tower.mods.power, member.weapon.power, 'мощь оружия дошла до бойца');
   ok(game.notes.some((n) => n.kind === 'legend' && n.login === 'ося' && n.detail.boon === member.weapon.boon),
     'стало оранжевым — в «События», со свойством');
@@ -811,7 +811,7 @@ test('улучшение до божественного: событие, сво
   member.weapon = makeWeapon(seeded(3), member.cls, RARITIES[RARITIES.length - 1]);
   member.coins = 100 * (ASCEND_AT - 1);
   eq(say(game, 'Рая', 'улучшить все'), 'upgraded');
-  eq(member.weapon.plus, TIER_STEPS * 5 + ASCEND_AT - 1);
+  eq(member.weapon.plus, ASCEND_AT - 1, 'после смены редкости счёт с нуля');
   game.events.length = 0;
   member.coins = 100;
   eq(say(game, 'Рая', 'улучшить'), 'divine');

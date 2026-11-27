@@ -417,13 +417,12 @@ test('страницы: божественное оружие — плашка �
   await until(() => game.state === 'placing', 'расстановка');
   const anya = game.members.get('аня');
   anya.weapon = makeWeapon(Math.random, anya.cls, RARITIES[RARITIES.length - 1]);
-  anya.weapon.plus = 33;
-  anya.weapon.step = 8;
+  anya.weapon.plus = 28;
   anya.coins = 200;
   anya.particle = true;
   game.feed('Аня', 'улучшить', { login: 'аня' });
   await until(() => w.document.querySelector('#notes .log.upgrade'), 'прокачка оружия — в истории');
-  ok(w.document.querySelector('#notes .log.upgrade').textContent.endsWith('оружие +1 (+34)'), 'на сколько улучшено и в скобках — сколько стало');
+  ok(w.document.querySelector('#notes .log.upgrade').textContent.endsWith('оружие +1 (+29)'), 'на сколько улучшено и в скобках — сколько стало');
   game.feed('Аня', 'улучшить', { login: 'аня' });
   await until(() => w.document.querySelector('#notes .log.divine'), 'строка в «Событиях», между эффектами и профилями');
   const note = w.document.querySelector('#notes .log.divine');

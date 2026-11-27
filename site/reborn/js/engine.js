@@ -757,9 +757,9 @@ export class Game {
       entry.count -= 1;
       if (entry.count <= 0) this.queue.splice(next, 1);
       if (!member) continue;
-      const left = this.pending >= RUSH.queue ? RUSH.spin : SPIN_TIME;
+      const left = this.pending >= RUSH.queue ? RUSH.spin : SPIN_TIME, stone = this._stoneDue(member);
       this.slots[i] = { id: ++this._spinNo, login: member.login, outcome: spin(this.random, member.cls,
-        { particle: member.particle, stone: this._stoneDue(member) }), phase: 'spin', left, span: left };
+        { particle: member.particle, stone, first: stone > 0 && !member.skills.length }), phase: 'spin', left, span: left };
       this._emit('spin', { login: member.login });
     }
   }

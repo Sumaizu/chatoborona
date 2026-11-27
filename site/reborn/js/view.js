@@ -950,13 +950,14 @@ export class View {
       const name = member ? this._starName(member.name, member.star, member.color, 'nick') : el('span', '', slot.login);
       const kind = slot.outcome.kind;
       const verb = slot.phase === 'spin' ? ' крутит гачу…'
-        : COIN_FINDS[kind] || (kind === 'particle' ? ' находит частицу бога!' : ' находит камень навыка!');
+        : COIN_FINDS[kind] || (kind === 'particle' ? ' находит частицу бога!'
+          : slot.outcome.first ? ' находит камень класса!' : ' находит камень навыка!');
       view.who.append(name, verb);
       view.result.textContent = '';
       view.box.classList.toggle('shown', slot.phase !== 'spin');
       if (slot.phase === 'spin') return;
       view.result.append(prizeCell(prizeOf(slot.outcome)));
-      const prize = outcomeOf(kind), title = el('b', 'prize', prize.name);
+      const prize = outcomeOf(kind), title = el('b', 'prize', slot.outcome.first ? prize.first : prize.name);
       title.style.color = prize.color;
       const what = kind === 'particle' ? 'навсегда, для парагона' : kind === 'stone' ? (slot.took ? 'выбор навыка — ниже'
         : 'все навыки класса уже есть') : '+' + slot.coins + ' ' + plural(slot.coins, 'монета', 'монеты', 'монет');
