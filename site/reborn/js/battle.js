@@ -1715,7 +1715,7 @@ export class Battle {
     if (marks.includes('lightning') && mob.marks && mob.marks.has('lightning')) {
       for (const [t, until] of mob.marks.get('lightning')) if (until > latest) [caster, latest] = [t, until];
     }
-    for (const t of party) this._help(t, HELP.react);
+    for (const t of party) this._help(t, HELP.react, false);
     const towers = Array.from(party), lead = towers[0], blue = towers.some((t) => t.runes.has('blue'));
     const fiery = marks.includes('fire') || name === 'blast' || name === 'lava';
     const power = towers.reduce((sum, t) => sum + t.skill, 0) * (blue && fiery ? BLUE_REACT : 1);

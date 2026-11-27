@@ -100,6 +100,19 @@ test('награда: кто нанёс больше урона, тому бол
   eq(EARN.scope.big, 3);
 });
 
+test('награда: реакция не даёт ни монет, ни опыта сверх удара', () => {
+  const { battle, towers } = lab(), fire = towers.fire, water = towers.water;
+  const mob = walker(battle, 2, 1e6);
+  still(mob);
+  const coins = [fire.player.coins, water.player.coins], xp = [fire.player.xp, water.player.xp];
+  battle._mark(mob, 'fire', fire);
+  battle._mark(mob, 'water', water);
+  battle.step(TICK);
+  ok(battle.events.some((e) => e.kind === 'react'), 'реакция случилась');
+  eq([fire.player.coins, water.player.coins], coins, 'монет за неё нет');
+  eq([fire.player.xp, water.player.xp], xp, 'опыта тоже');
+});
+
 test('награда: кто моба не бил, тоже получает монеты — долю отряда, без опыта', () => {
   const battle = makeBattle(), hunter = player(), idle = player();
   const a = battle.place(hunter, 'pyro', 2, 4), b = battle.place(idle, 'priest', 18, 2);
