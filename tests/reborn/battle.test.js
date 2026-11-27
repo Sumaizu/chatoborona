@@ -1314,7 +1314,7 @@ test('баланс: урон снайперов, штурмовиков, мар�
     return t.damage / baseOf(t.cls).damage;
   };
   eq([SHOT.scope.mul, SHOT.assault.mul, SHOT.marksman.mul, HOLY.inquisitor.mul, MECH.turret.mul, WOOD.witch.mul],
-    [9, 0.47, 2.15, 3, 0.39, 1.75]);
+    [11.7, 0.61, 2.15, 3, 0.39, 1.75]);
   eq([MECH.droneAttack.mul, MECH.droneLaser.mul, MECH.droneAir.mul], [0.6, 1.7, 0.35]);
   near(damage('pyro', []), 1.25);
   near(damage('thunder', []), 1.25);

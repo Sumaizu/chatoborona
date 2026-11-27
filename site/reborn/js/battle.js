@@ -64,7 +64,7 @@ export const FIRE = { styled: 1.5, giant: 1.5, splash: 1, wide: 1.5, breath: 0.6
   phoenix: { every: 15, speed: 8, mul: 10, reach: 0.9, step: 0.25 } };
 const TORCH_USERS = new Set(['sniper', 'mechanic', 'forester']);
 const LOFTY = new Set(['scope', 'mortar']);
-export const SHOT = { scope: { mul: 9, aim: 2, reload: 3 }, assault: { range: -1, interval: 0.55, mul: 0.47,
+export const SHOT = { scope: { mul: 11.7, aim: 2, reload: 3 }, assault: { range: -1, interval: 0.55, mul: 0.61,
   crit: 0.25, mag: 30, reload: 3 }, marksman: { range: 1.5, interval: 2.2, mul: 2.15, crit: 0.25, mag: 5, reload: 3 },
   gold: 2, mark: { bonus: 0.25, time: 4 }, ricochet: { share: 0.5, arc: 75, reach: 3 },
   burst: { count: 3, radius: 1, gap: 0.08 },
@@ -73,7 +73,7 @@ export const MECH = { turret: { range: -1.5, interval: 1, mul: 0.39, count: 3, g
   reload: 3 }, demo: { range: 0, interval: 3, mul: 1.6, radius: 1, flight: 0.25, pace: 0.12 },
   mortar: { interval: 2.4, mul: 1.1, radius: 0.8, flight: 0.7, pace: 0.06 },
   team: { radius: 1.5, per: 0.1 }, tuning: { radius: 1.5, haste: 0.3 },
-  emp: { every: 8, radius: 2, stun: 1.5, mute: 4, drop: 0.35 },
+  emp: { every: 8, radius: 2, stun: 3, mute: 4, drop: 0.35 },
   cluster: { count: 2, share: 0.5, reach: 1, radius: 0.9, flight: 0.35 }, caliber: 2, salvo: { chance: 0.3, gap: 0.25 },
   aimed: { idle: 5 }, napalm: { radius: 0.8, time: 2, dps: 0.5, mark: 2 },
   shrapnel: { count: 8, spread: 2, side: 0.3, mul: 0.35, hit: 0.45, fall: 0.3, fire: 0.35 },
