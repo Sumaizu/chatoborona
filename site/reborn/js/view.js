@@ -43,7 +43,7 @@ const SHOTS = { sniper: 'crack', mechanic: 'gun', forester: 'bolt',
 const BATTLE_SOUNDS = { dash: 'zap', chord: 'lute', drum: 'drum', totem: 'build', claw: 'hit', hammer: 'leap', rod: 'build', conjure: 'cast', strike: 'hit', wall: 'build', crumble: 'crumble',
   bite: 'chomp', icicle: 'ice', tentacle: 'splash', splash: 'splash', arrow: 'bolt', pop: 'boom', drown: 'splash', ink: 'splash', slap: 'splash', iceBurst: 'freeze',
   vortex: 'wind', spring: 'build', bubble: 'splash',
-  mound: 'build', clink: 'clink', treasure: 'treasure', rattle: 'rattle', rise: 'rise',
+  mound: 'build', thorns: 'rock', clink: 'clink', treasure: 'treasure', rattle: 'rattle', rise: 'rise',
   hex: 'hex', blink: 'leap', burrow: 'burrow', leech: 'summon', steal: 'clink', loot: 'treasure', reflect: 'block',
   swallow: 'burrow', breath: 'flame', web: 'hex', ward: 'block', mirage: 'summon', dig: 'burrow', drop: 'summon',
   hook: 'chain', yank: 'yank', charge: 'charge', reload: 'reload', ricochet: 'ricochet', burst: 'mine',
@@ -456,6 +456,12 @@ export class View {
       this._sound(event.mob.info.boss ? 'roar' : 'growl');
     } else if (kind === 'bellow') {
       this._sound('roar');
+      const board = $('board');
+      board.classList.remove('shake');
+      void board.offsetWidth;
+      board.classList.add('shake');
+    } else if (kind === 'quake') {
+      this._sound('quake');
       const board = $('board');
       board.classList.remove('shake');
       void board.offsetWidth;

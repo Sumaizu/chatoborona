@@ -3547,7 +3547,8 @@ test('маг земли: взмахом руки бросает груду ка�
   runFor(battle, 1);
   ok(mob.marks && mob.marks.has('earth'), 'с «Земляной реакцией» — метка земли');
   eq(choiceOf('earth', []).map((option) => option.skill.id), ['keeper', 'serpent', 'geo'], 'первый камень — подкласс');
-  eq(choiceOf('earth', ['geo']).map((option) => option.skill.id), ['earthReact', 'solid', 'terraform', 'petrify']);
+  eq(choiceOf('earth', ['geo']).map((option) => option.skill.id), ['meteor', 'shards', 'quake', 'stones', 'earthReact',
+    'solid', 'terraform', 'petrify']);
 });
 
 test('маг земли: лавовый змей — половина урона огнём, половина землёй; геомант бьёт крупным камнем сильнее', () => {
@@ -3605,6 +3606,107 @@ test('хранитель: стена на ближайшей клетке дор
   eq(other.walls.length, 0, 'у других подклассов стены нет');
 });
 
+test('лавовый змей: лавовая лужа там, где упал шар; прожигание навсегда снимает половину брони', () => {
+  const battle = makeBattle(), snake = earth(battle, 10, 4, ['serpent', 'lavaPool', 'burnThrough']);
+  const mob = walker(battle, 11, 1e9);
+  still(mob);
+  mob.armor = 0.4;
+  battle._fire(snake);
+  snake.busy = 1e9;
+  runFor(battle, 1);
+  ok(battle.zones.some((zone) => zone.kind === 'lava' && zone.tower === snake), 'лужа лавы');
+  near(mob.armor, 0.2, 'броня вдвое меньше');
+  snake.busy = 0;
+  snake.cooldown = 0;
+  battle._fire(snake);
+  snake.busy = 1e9;
+  runFor(battle, 1);
+  near(mob.armor, 0.2, 'один раз, навсегда');
+});
+
+test('гидра: змей в лаве поднимает в соседних клетках две головы, они бьют сами; на суше голов нет', () => {
+  const battle = mapWith({ lake: [[6, 3], [7, 3], [6, 2], [8, 3]] }, 'volcano');
+  const snake = battle.place(player(), 'earth', 7, 3, { runes: ['serpent', 'hydra'] });
+  snake.critChance = 0;
+  const mob = walker(battle, 8, 1e9);
+  still(mob);
+  battle.step(TICK);
+  eq(snake.heads.length, 2, 'две головы');
+  for (const head of snake.heads) ok(Math.max(Math.abs(head.x - 7), Math.abs(head.y - 3)) === 1, 'в соседней клетке');
+  ok(snake.heads.every((head) => battle.molten(head.x, head.y)), 'рядом есть лава — головы в лаве');
+  runFor(battle, 0.5);
+  const starts = battle.events.filter((e) => e.kind === 'shot' && e.tower === snake && e.sx !== undefined);
+  eq(new Set(starts.map((e) => e.sx + ',' + e.sy)).size, 2, 'стреляют обе головы');
+  ok(battle.move(snake, 12, 4));
+  runFor(battle, MOVE_PAUSE + 0.1);
+  eq(snake.heads, null, 'на суше голов нет');
+});
+
+test('вулканические брызги: из клеток лавы и вулканов мага огня раз в тик с шансом 25% — брызг огнём во врага рядом', () => {
+  const battle = mapWith({ lake: [[10, 3]] }, 'volcano');
+  const snake = battle.place(player(), 'earth', 2, 3, { runes: ['serpent', 'spatter'] });
+  const mob = walker(battle, 11, 1e9), far = walker(battle, 19, 1e9);
+  still(mob, far);
+  battle.random = () => 0.1;
+  battle.step(TICK);
+  const shots = battle.events.filter((e) => e.kind === 'shot' && e.tower === snake);
+  eq(shots.length, 1, 'одна клетка лавы — один брызг');
+  eq([shots[0].sx, shots[0].sy], [10.5, 3.5], 'из лавы');
+  ok(shots[0].mob === mob, 'во врага рядом, не в далёкого');
+  runFor(battle, 1);
+  ok(hit(mob) > 0);
+  battle.random = () => 0.3;
+  const before = battle.events.length;
+  runFor(battle, PULSE);
+  no(battle.events.slice(before).some((e) => e.kind === 'shot' && e.tower === snake), '25% — не выпало');
+  battle.random = () => 0.1;
+  battle.vents.push({ tower: snake, x: 17, y: 4, cx: 17.5, cy: 4.5, next: 1e9, born: 0 });
+  const vent = battle.events.length;
+  runFor(battle, PULSE);
+  ok(battle.events.slice(vent).some((e) => e.kind === 'shot' && e.sx === 17.5), 'и из вулкана');
+});
+
+test('геомант: метеорит раз в 15 с на первую цель — урон на 3 клетки и долгое оглушение; землетрясение — всех на карте', () => {
+  const battle = makeBattle(), geo = earth(battle, 10, 4, ['geo', 'meteor']), lead = walker(battle, 12, 1e9);
+  const side = walker(battle, 10, 1e9), far = walker(battle, 2, 1e9);
+  still(lead, side, far);
+  geo.busy = 0;
+  battle.step(TICK);
+  ok(battle.events.some((e) => e.kind === 'shot' && e.tower === geo && e.size === EARTH.meteor.size), 'летит');
+  const hp = lead.hp;
+  runFor(battle, EARTH.meteor.fall);
+  ok(hp - lead.hp >= geo.damage * EARTH.meteor.mul * 0.99 && hit(side) >= geo.damage * EARTH.meteor.mul * 0.99, 'всем рядом');
+  ok(lead.holdUntil > battle.time + EARTH.meteor.stun - 1, 'надолго оглушён');
+  eq(far.hp, far.max, 'дальний цел');
+  ok(Math.abs(geo.nextMeteor - EARTH.meteor.every) < 0.2, 'раз в 15 с');
+  const shake = makeBattle(), a = walker(shake, 2, 1e9), z = walker(shake, 18, 1e9);
+  earth(shake, 10, 4, ['geo', 'quake']);
+  shake.step(TICK);
+  ok(shake.events.some((e) => e.kind === 'quake'));
+  ok(a.holdUntil > shake.time + 1.5 && z.holdUntil > shake.time + 1.5, 'по всей карте на 2 с');
+});
+
+test('геомант: обломки ранят ещё двоих рядом тем же уроном; каменный град раз в 10 с бьёт и оглушает всех в радиусе', () => {
+  const battle = makeBattle(), geo = earth(battle, 10, 4, ['geo', 'shards']), target = walker(battle, 11, 1e9);
+  const near1 = walker(battle, 12, 1e9), near2 = walker(battle, 10, 1e9), far = walker(battle, 16, 1e9);
+  still(target, near1, near2, far);
+  battle._fire(geo);
+  geo.busy = 1e9;
+  runFor(battle, 1.5);
+  near(hit(near1), hit(target), 'тем же уроном');
+  near(hit(near2), hit(target));
+  eq(far.hp, far.max);
+  const field = makeBattle(), g = earth(field, 10, 4, ['geo', 'stones']), a = walker(field, 11, 1e9), z = walker(field, 18, 1e9);
+  still(a, z);
+  g.cooldown = 1e9;
+  field.step(TICK);
+  runFor(field, EARTH.stones.fall + 0.1);
+  ok(hit(a) >= g.damage * EARTH.stones.mul * 0.99, 'град бьёт');
+  ok(a.holdUntil > field.time, 'и оглушает');
+  eq(z.hp, z.max, 'вне радиуса — нет');
+  ok(Math.abs(g.nextStones - EARTH.stones.every) < 0.2, 'раз в 10 с');
+});
+
 test('хранитель: прочность стены растёт с мощью; 10 секунд без атак — чинится целиком; сломанная встаёт через 9 секунд', () => {
   const battle = makeBattle(), weak = earth(battle, 10, 4, ['keeper']), strong = earth(battle, 4, 4, ['keeper']);
   battle.setMods(strong, { runes: ['keeper'], power: 100 });
@@ -3627,6 +3729,53 @@ test('хранитель: прочность стены растёт с мощь
   no(own(weak));
   runFor(battle, 1);
   ok(own(weak), 'встала снова');
+});
+
+test('хранитель: стальная стена вдвое прочнее; острый камень ранит грызущих; обвал оглушает всех вокруг, даже боссов', () => {
+  const battle = makeBattle(), plain = earth(battle, 10, 4, ['keeper']), steel = earth(battle, 4, 4, ['keeper', 'steelWall']);
+  runFor(battle, 0.2);
+  const own = (t) => battle.walls.find((wall) => wall.tower === t);
+  near(own(steel).max, own(plain).max * EARTH.wall.steel, 'стальная — ×2');
+  ok(own(steel).steel);
+  battle.setMods(plain, { runes: ['keeper', 'steelWall'] });
+  battle.step(TICK);
+  near(own(plain).max, own(steel).max, 'взял навык — стоящая стена тоже окрепла');
+  const field = makeBattle(), keeper = earth(field, 10, 4, ['keeper', 'sharp', 'collapse']);
+  runFor(field, 0.2);
+  keeper.busy = 1e9;
+  const wall = own.call(null, keeper) || field.walls[0], mob = put(field, walker(field, 1, 1e9), wall.d - 0.6);
+  field._batter(wall, mob, TICK, field.time);
+  near(hit(mob), keeper.damage * EARTH.sharp.mul, 'острый камень — урон как от атаки');
+  field._batter(wall, mob, TICK, field.time);
+  near(hit(mob), keeper.damage * EARTH.sharp.mul, 'не чаще раза в секунду');
+  const boss = put(field, special(field, 'boss', BOSSES[0].id, 1e9), wall.d - 0.8);
+  wall.hp = 1e-9;
+  field._batter(wall, mob, TICK, field.time);
+  no(field.walls.includes(wall), 'рухнула');
+  near(boss.holdUntil - field.time, EARTH.collapse.stun, 'босс оглушён на все 2 с');
+  ok(mob.holdUntil > field.time);
+});
+
+test('баррикада: стены хранителей в 2 клетках друг от друга — общая прочность цепочкой; кончилась — рушатся все', () => {
+  const battle = makeBattle(), a = earth(battle, 4, 4, ['keeper', 'barricade']), b = earth(battle, 6, 4, ['keeper']);
+  const c = earth(battle, 8, 4, ['keeper']), far = earth(battle, 14, 4, ['keeper']);
+  runFor(battle, 0.2);
+  const own = (t) => battle.walls.find((wall) => wall.tower === t);
+  for (const t of [a, b, c, far]) t.busy = 1e9;
+  eq(battle._barricade(own(c)).length, 3, 'цепочка: c рядом с b, b рядом с a, у a — баррикада');
+  eq(battle._barricade(own(b)).map((w) => w.tower).sort((x, y) => x.x - y.x), [a, b, c]);
+  eq(battle._barricade(own(far)).length, 1, 'далёкая — сама по себе');
+  const lone = makeBattle(), x = earth(lone, 4, 4, ['keeper']), y = earth(lone, 6, 4, ['keeper']);
+  runFor(lone, 0.2);
+  eq(lone._barricade(lone.walls[0]).length, 1, 'без баррикады ни у кого — каждая сама по себе');
+  no(x === y);
+  const sum = () => own(a).hp + own(b).hp + own(c).hp, pool = sum(), mob = walker(battle, 1, 1e9);
+  battle._batter(own(b), mob, 1, battle.time);
+  near(sum(), pool - battle._wallUnit() * MOBS.normal.leak * 0.125, 'убывает общий запас');
+  ok(own(a).hp < own(a).max && own(c).hp < own(c).max, 'и у соседних');
+  battle._batter(own(a), mob, 1e9, battle.time);
+  no(own(a) || own(b) || own(c), 'кончился запас — рухнула вся цепочка');
+  ok(own(far), 'далёкая стоит');
 });
 
 test('хранитель перебежал — новая стена встаёт сразу, старая убрана', () => {

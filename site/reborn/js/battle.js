@@ -32,7 +32,8 @@ const COOLDOWNS = ['nextActive', 'nextBlaze',
   'nextFar', 'nextInferno', 'nextLight', 'nextPhoenix', 'nextPool',
   'nextEmp', 'nextNuke', 'nextStorm', 'nextTsunami',
   'nextWall', 'nextWave', 'nextHail', 'nextHoly', 'nextBeam', 'nextRain', 'nextSiren', 'nextDirge',
-  'nextGlobe', 'nextTempest', 'nextBubble', 'nextVortex', 'nextInk', 'nextRoar', 'nextIceWall'];
+  'nextGlobe', 'nextTempest', 'nextMeteor', 'nextQuake', 'nextStones', 'nextBubble', 'nextVortex', 'nextInk',
+  'nextRoar', 'nextIceWall'];
 const WARD_AURA = 0.25;
 const FIREBALL_FLIGHT = 0.3;
 const ZONE_PULSE = 0.5;
@@ -156,7 +157,11 @@ const ROAD_ROUND = 0.9;
 const DRONE_SHOTS = { attack: MECH.droneAttack, laser: MECH.droneLaser, air: MECH.droneAir, bird: WOOD.bird,
   hawk: WOOD.hawk };
 export const EARTH = { pile: { speed: 7 }, keeper: { mul: 1 }, serpent: { mul: 1, speed: 6 }, geo: { mul: 1.3, speed: 5 },
-  wall: { might: 1, rebuild: 9, heal: 10 }, petrify: { time: 3, elite: 2, boss: 1 } };
+  wall: { might: 1, rebuild: 9, heal: 10, steel: 2 }, sharp: { mul: 1, every: 1 }, collapse: { radius: 1.5, stun: 2 },
+  barricade: { reach: 2 }, hydra: { heads: 2 }, spatter: { chance: 0.25, reach: 3, mul: 0.3 },
+  pool: { radius: 0.6, time: 2, dot: 0.3 }, burn: 0.5,
+  meteor: { every: 15, mul: 8, radius: 3, stun: 4, fall: 1, size: 24 }, shards: { count: 2, reach: 2, size: 5 },
+  quake: { every: 20, stun: 2 }, stones: { every: 10, mul: 1, stun: 1, fall: 0.5, size: 6 }, petrify: { time: 3, elite: 2, boss: 1 } };
 export const AIM = { turn: 8, slack: Math.PI / 12, hold: 0.15, heavy: { turn: 2.5, slack: Math.PI / 36 } };
 export const heavyGun = (t) => t.style === 'turret' && t.runes.has('giant');
 export const GRENADE = { flight: 0.5, pace: 0.05 };
@@ -1000,7 +1005,7 @@ export class Battle {
       mark: 0, markUntil: 0, vuln: 0, vulnUntil: 0, rush: 0, rushUntil: 0,
       charge: null, rot: null,
       muteUntil: 0, purgeUntil: 0, exposed: false, netUntil: 0, rootAt: 0, rootUntil: 0, rootFree: 0, stuck: null, thicketUntil: 0,
-      rollAt: this.time + ROLL_EVERY, stoneUntil: 0, stoned: null, rage: 0, solid: false, resist: resistOf(this.wave), holdUntil: 0, holdFree: 0,
+      rollAt: this.time + ROLL_EVERY, sharpAt: 0, stoneUntil: 0, stoned: null, rage: 0, solid: false, resist: resistOf(this.wave), holdUntil: 0, holdFree: 0,
       holdBy: '', pushed: 0, poison: null, burn: null, helpers: new Set(), dealt: new Map(), last: null, dead: false, biting: 0,
       wall: null, fury: 0, sx: 0, sy: 0, placed: false,
     };
@@ -2022,14 +2027,43 @@ export class Battle {
       if (wall.hp <= 0) this._melt(wall, now);
       return;
     }
-    wall.hp -= this._wallUnit() * mob.info.leak * WALL_BITE * dt * (1 + (mob.rage || 0));
-    wall.hitAt = now;
-    const t = wall.tower;
+    const bite = this._wallUnit() * mob.info.leak * WALL_BITE * dt * (1 + (mob.rage || 0));
+    const t = wall.tower, group = this._barricade(wall), total = group.reduce((sum, w) => sum + Math.max(0, w.hp), 0);
+    for (const w of group) {
+      w.hp -= total > 0 ? bite * Math.max(0, w.hp) / total : bite;
+      w.hitAt = now;
+    }
     mob.helpers.add(t);
-    if (wall.hp > 0) return;
+    if (t.runes.has('sharp') && now >= mob.sharpAt) {
+      mob.sharpAt = now + EARTH.sharp.every;
+      this._event({ kind: 'thorns', tower: t, mob });
+      this._hurt(mob, t.damage * EARTH.sharp.mul, t, 'earth');
+    }
+    if (total - bite > 0) return;
+    for (const w of group) this._crumble(w, now);
+  }
+
+  _crumble(wall, now) {
+    const t = wall.tower;
     this.walls = this.walls.filter((known) => known !== wall);
     t.nextWall = now + EARTH.wall.rebuild;
     this._event({ kind: 'crumble', tower: t, x: wall.x, y: wall.y });
+    if (!t.runes.has('collapse')) return;
+    const s = EARTH.collapse;
+    this._event({ kind: 'boom', tower: t, x: wall.x, y: wall.y, radius: s.radius, tone: 'earth' });
+    for (const mob of this._around(wall.x, wall.y, s.radius)) this._hold(mob, s.stun, t, true);
+  }
+
+  _barricade(wall) {
+    const stone = this.walls.filter((w) => !w.ice), group = [wall];
+    for (let k = 0; k < group.length; k++) {
+      const from = group[k];
+      for (const w of stone) {
+        if (group.includes(w) || w.tower === from.tower) continue;
+        if (Math.hypot(w.x - from.x, w.y - from.y) <= EARTH.barricade.reach + 1e-9) group.push(w);
+      }
+    }
+    return group.some((w) => w.tower.runes.has('barricade')) ? group : [wall];
   }
 
   _melt(wall, now) {
@@ -2444,7 +2478,7 @@ export class Battle {
   }
 
   _wallMax(t) {
-    return t.might * EARTH.wall.might;
+    return t.might * EARTH.wall.might * (t.runes.has('steelWall') ? EARTH.wall.steel : 1);
   }
 
   _raiseWall(t, now) {
@@ -2452,7 +2486,8 @@ export class Battle {
     const i = this._wallSpot(t);
     if (i === null) return;
     const [x, y] = this.road[i], hp = this._wallMax(t), { r, d } = this._spot(i);
-    this.walls.push({ tower: t, i, r, d, x: x + 0.5, y: y + 0.5, hp, max: hp, hitAt: -1e9 });
+    this.walls.push({ tower: t, i, r, d, x: x + 0.5, y: y + 0.5, hp, max: hp, hitAt: -1e9,
+      steel: t.runes.has('steelWall') });
     this._event({ kind: 'wall', tower: t, x: x + 0.5, y: y + 0.5 });
   }
 
@@ -4009,19 +4044,146 @@ function sideShot(b, t, first) {
   return pool[0] || null;
 }
 
-function rocks(b, t, target) {
+function rocks(b, t, target, from = null) {
   const crit = rollCrit(b, t), hit = t.damage * (crit ? t.critMul : 1);
-  const s = EARTH[t.style] && EARTH[t.style].speed ? EARTH[t.style] : EARTH.pile;
-  const flight = Math.hypot(target.x - t.cx, target.y - t.cy) / s.speed;
-  b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target, time: flight });
+  const s = EARTH[t.style] && EARTH[t.style].speed ? EARTH[t.style] : EARTH.pile, start = from || { cx: t.cx, cy: t.cy };
+  const flight = Math.hypot(target.x - start.cx, target.y - start.cy) / s.speed;
+  const shot = { kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target, time: flight };
+  if (from) Object.assign(shot, { sx: from.cx, sy: from.cy - 0.3 });
+  b._event(shot);
   b._later(flight, () => {
     if (target.dead) return;
-    if (t.style !== 'serpent') b._hurt(target, hit, t);
-    else {
-      b._hurt(target, hit / 2, t, 'fire');
-      b._hurt(target, hit / 2, t, 'earth');
+    if (t.style !== 'serpent') {
+      b._hurt(target, hit, t);
+      if (t.style === 'geo' && t.runes.has('shards') && !from) shards(b, t, target, hit);
+      return;
+    }
+    lava(b, t, target, hit / 2, 'fire');
+    lava(b, t, target, hit / 2, 'earth');
+    if (t.runes.has('lavaPool')) {
+      const s = EARTH.pool;
+      b._zone('lava', t, target.x, target.y, s.radius, s.time, { dot: t.damage * s.dot, party: null });
     }
   }, t);
+}
+
+function lava(b, t, mob, amount, element) {
+  b._hurt(mob, amount, t, element);
+  if (!t.runes.has('burnThrough') || mob.burnt || mob.dead) return;
+  mob.burnt = true;
+  mob.armor *= 1 - EARTH.burn;
+}
+
+function hydra(b, t, now) {
+  if (!t.runes.has('hydra') || !b.bathes(t)) {
+    t.heads = null;
+    return;
+  }
+  const key = t.x + ',' + t.y;
+  if (!t.heads || t.heads.key !== key) {
+    const near = [];
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const x = t.x + dx, y = t.y + dy;
+      if (!inside(x, y) || b.byCell.has(y * SIZE + x) || b.blocked.has(y * SIZE + x)) continue;
+      near.push({ x, y, hot: b.molten(x, y) });
+    }
+    near.sort((p, q) => Number(q.hot) - Number(p.hot));
+    t.heads = near.slice(0, EARTH.hydra.heads).map(({ x, y }) => ({ x, y, cx: x + 0.5, cy: y + 0.5, next: now,
+      angle: 0 }));
+    t.heads.key = key;
+  }
+  for (const head of t.heads) {
+    if (now < head.next || now < t.busy) continue;
+    let prey = null, best = -Infinity;
+    for (const mob of b.mobs) {
+      if (mob.dead || hidden(mob, now) || b.covered(mob.x, mob.y) || immune(mob, 'fire') && immune(mob, 'earth')
+        || Math.hypot(mob.x - head.cx, mob.y - head.cy) > t.range) continue;
+      const score = b.ahead(mob);
+      if (score > best) {
+        best = score;
+        prey = mob;
+      }
+    }
+    if (!prey) continue;
+    head.next = now + t.interval;
+    head.angle = Math.atan2(prey.x - head.cx, -(prey.y - head.cy));
+    rocks(b, t, prey, head);
+  }
+}
+
+function spatter(b, t, now) {
+  if (!t.runes.has('spatter') || now < (t.nextSpatter || 0)) return;
+  t.nextSpatter = now + PULSE;
+  const s = EARTH.spatter, spots = b.vents.map((vent) => ({ cx: vent.cx, cy: vent.cy }));
+  for (let at = 0; at < SIZE * SIZE; at++) {
+    const x = at % SIZE, y = (at - x) / SIZE;
+    if (b.molten(x, y)) spots.push({ cx: x + 0.5, cy: y + 0.5 });
+  }
+  for (const spot of spots) {
+    if (b.random() >= s.chance) continue;
+    const prey = b.mobs.filter((mob) => !mob.dead && !hidden(mob, now) && !b.covered(mob.x, mob.y)
+      && Math.hypot(mob.x - spot.cx, mob.y - spot.cy) <= s.reach);
+    if (!prey.length) continue;
+    const mob = prey[Math.floor(b.random() * prey.length)];
+    const flight = Math.hypot(mob.x - spot.cx, mob.y - spot.cy) / EARTH.serpent.speed;
+    b._event({ kind: 'shot', tower: t, x: mob.x, y: mob.y, mob, time: flight, sx: spot.cx, sy: spot.cy, size: 6 });
+    b._later(flight, () => {
+      if (!mob.dead) lava(b, t, mob, t.damage * s.mul, 'fire');
+    }, t);
+  }
+}
+
+function shards(b, t, target, hit) {
+  const s = EARTH.shards, near = b._around(target.x, target.y, s.reach, target);
+  for (let k = 0; k < s.count && near.length; k++) {
+    const mob = near.splice(Math.floor(b.random() * near.length), 1)[0];
+    const flight = Math.hypot(mob.x - target.x, mob.y - target.y) / EARTH.geo.speed;
+    b._event({ kind: 'shot', tower: t, x: mob.x, y: mob.y, mob, time: flight, sx: target.x, sy: target.y, size: s.size });
+    b._later(flight, () => {
+      if (!mob.dead) b._hurt(mob, hit, t);
+    }, t);
+  }
+}
+
+function geoSkills(b, t, now, alive) {
+  if (!alive) return;
+  if (t.runes.has('meteor') && now >= (t.nextMeteor || 0)) {
+    const lead = b._target(t), s = EARTH.meteor;
+    if (lead) {
+      t.nextMeteor = now + s.every;
+      const x = lead.x, y = lead.y;
+      b._event({ kind: 'shot', tower: t, x, y, mob: null, time: s.fall, sx: x - 1.5, sy: y - 6, size: s.size });
+      b._later(s.fall, () => {
+        b._event({ kind: 'boom', tower: t, x, y, radius: s.radius, tone: 'earth' });
+        for (const mob of b._around(x, y, s.radius)) {
+          b._hurt(mob, t.damage * s.mul, t, 'earth');
+          b._hold(mob, s.stun, t);
+        }
+      }, t);
+    }
+  }
+  if (t.runes.has('quake') && now >= (t.nextQuake || 0)) {
+    const s = EARTH.quake, all = b.mobs.filter((mob) => !mob.dead && !hidden(mob, now));
+    if (all.length) {
+      t.nextQuake = now + s.every;
+      b._event({ kind: 'quake', tower: t });
+      for (const mob of all) b._hold(mob, s.stun, t);
+    }
+  }
+  if (t.runes.has('stones') && now >= (t.nextStones || 0)) {
+    const s = EARTH.stones, prey = b.mobs.filter((mob) => b._targetable(t, mob));
+    if (prey.length) {
+      t.nextStones = now + s.every;
+      for (const mob of prey) {
+        b._event({ kind: 'shot', tower: t, x: mob.x, y: mob.y, mob, time: s.fall, sx: mob.x, sy: mob.y - 4, size: s.size });
+        b._later(s.fall, () => {
+          if (mob.dead) return;
+          b._hurt(mob, t.damage * s.mul, t, 'earth');
+          b._hold(mob, s.stun, t);
+        }, t);
+      }
+    }
+  }
 }
 
 function petrify(b, t, now) {
@@ -4342,10 +4504,18 @@ const SKILLS = {
     },
     every(b, t, now, alive) {
       if (t.style === 'keeper') {
-        const wall = b.walls.find((w) => w.tower === t);
+        const wall = b.walls.find((w) => w.tower === t), max = b._wallMax(t);
         if (!wall && now >= t.nextWall) b._raiseWall(t, now);
+        if (wall && wall.max !== max) {
+          Object.assign(wall, { hp: wall.hp * max / wall.max, max, steel: t.runes.has('steelWall') });
+        }
         if (wall && wall.hp < wall.max && now - wall.hitAt >= EARTH.wall.heal) wall.hp = wall.max;
       }
+      if (t.style === 'serpent') {
+        hydra(b, t, now);
+        spatter(b, t, now);
+      }
+      if (t.style === 'geo') geoSkills(b, t, now, alive);
       if (t.runes.has('terraform')) b._mound(t);
       if (t.runes.has('petrify') && alive) petrify(b, t, now);
     },

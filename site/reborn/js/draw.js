@@ -2140,6 +2140,11 @@ export class Scene {
     }
   }
 
+  _heads(ctx, t) {
+    const image = heroSprite('earth-serpent-lava');
+    for (const head of t.heads) sprite(ctx, image, at(head.cx), at(head.cy), head.angle, ZOOM, 0, HERO_TURN_STEPS);
+  }
+
   _sandTip(ctx, t) {
     const tip = this._muzzle(t), x = at(tip.x), y = at(tip.y), seed = t.x * 7 + t.y * 13;
     for (let i = 0; i < EARTH_FX.grains; i++) {
@@ -4383,6 +4388,7 @@ export class Scene {
       if (t.cls.id === 'sorceress') this._spellGlow(ctx, t);
       if (t.style === 'caller') this._staffZap(ctx, t);
       if (t.style === 'geo') this._sandTip(ctx, t);
+      if (t.heads) this._heads(ctx, t);
       if (t.style === 'angel' || t.style === 'inquisitor') this._halo(ctx, t, x, y);
       if (pose.flash > 0 && t.cls.id !== 'priest' && t.cls.id !== 'sorceress') {
         const tip = this._muzzle(t), fx = at(tip.x), fy = at(tip.y);
@@ -4959,6 +4965,9 @@ export class Scene {
       const ice = event.by === 'frost', stone = event.by === 'stone';
       this._sparks(event.mob.x, event.mob.y, ice ? ['#e0fbff', '#67e8f9'] : stone ? ['#a8a29e', '#57534e']
         : ['#ffe14d', '#ffffff'], 6, 1.8, 0.35);
+    } else if (event.kind === 'thorns') {
+      const spot = this.shown.get(event.mob.id) || event.mob;
+      this._sparks(spot.x, spot.y, ['#c4b8a6', '#8a7f70', '#5e5142'], 6, 1.6, 0.35, 2);
     } else if (event.kind === 'mound') {
       this._sparks(event.x, event.y, ['#a8855a', '#8a6a44', '#5e4630'], 14, 1.6, 0.5, 2);
     } else if (event.kind === 'ignite') {

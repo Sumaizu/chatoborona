@@ -898,8 +898,8 @@ test('камень навыка: игра идёт дальше, игрок пи
   member.xp = xpForLevel(30);
   ok(stone(game, 'рина').took);
   const choice = game.choice;
-  eq(game.optionsOf(choice).map((option) => option.skill.id), ['earthReact', 'solid', 'terraform', 'petrify'],
-    'все навыки после подкласса');
+  eq(game.optionsOf(choice).map((option) => option.skill.id), ['meteor', 'shards', 'quake', 'stones', 'earthReact',
+    'solid', 'terraform', 'petrify'], 'все навыки после подкласса');
   const time = game.battle.time;
   runFor(game, 5);
   ok(game.battle.time > time, 'бой идёт');
@@ -908,14 +908,14 @@ test('камень навыка: игра идёт дальше, игрок пи
   eq(say(game, 'Рина', '9'), null, 'такого номера нет');
   eq(say(game, 'Рина', '2'), 'skill');
   eq(game.choice, null);
-  eq(member.skills, ['geo', 'solid']);
-  ok(member.tower.runes.has('solid'), 'дошёл до бойца');
-  ok(game.notes.some((n) => n.kind === 'skill' && n.detail.skill === 'solid' && !n.detail.auto));
+  eq(member.skills, ['geo', 'shards']);
+  ok(member.tower.runes.has('shards'), 'дошёл до бойца');
+  ok(game.notes.some((n) => n.kind === 'skill' && n.detail.skill === 'shards' && !n.detail.auto));
   stone(game, 'рина');
   eq(game.optionsOf(game.choice)[1].state, 'taken', 'взятый — отмечен');
   eq(say(game, 'Рина', '2'), null, 'и второй раз не берётся');
   eq(say(game, 'Рина', '4'), 'skill', 'номера на своих местах');
-  eq(member.skills, ['geo', 'solid', 'petrify']);
+  eq(member.skills, ['geo', 'shards', 'stones']);
   game.restart();
   say(game, 'Рина', 'снова');
   eq(game.members.get('рина').skills, [], 'в новой игре навыков нет');
