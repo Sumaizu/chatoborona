@@ -7,8 +7,8 @@ import { LEVEL_MAX, MIGHT, MOBS, STAT, TEMPO, WAVE, crowdFactor, eliteCount, lev
 import { CLASSES, CLASS_BY_ID, PERKS, STONES, STONE_CHANCE, choiceOf, describe, mastery, mightOf, poolOf, scaled,
   skinOf, stonesAt, styleOf }
   from '../../site/reborn/js/classes.js';
-import { ASCEND_AT, BOONS, DIVINE, OUTCOMES, RARITIES, boonOf, makeWeapon, rankOf, spin, upgrade, weaponPower,
-  weaponTitle } from '../../site/reborn/js/gacha.js';
+import { ASCEND_AT, BOONS, DIVINE, OUTCOMES, RARITIES, TIER_STEPS, boonMods, boonOf, makeWeapon, spin, upgrade,
+  weaponPower, weaponTitle } from '../../site/reborn/js/gacha.js';
 import { clean, fromQuery, toQuery, DEFAULTS } from '../../site/reborn/js/config.js';
 
 test('клетка: буква и число в любом порядке, латинские двойники', () => {
@@ -281,91 +281,82 @@ test('мощь: 100 без оружия, оружие прибавляет св�
   eq(MIGHT.paragon, 0.05);
 });
 
-test('гача: пустота, монеты (горстка 50%, мешок 45%, сундук 5% от 15%), остальное — оружие по редкостям', () => {
+test('гача: оружия и пустоты нет — монеты с прежними шансами оружия и пустоты, частица бога как была', () => {
   const random = seeded(11), counts = new Map(), money = { handful: [1, 50], bag: [51, 150], chest: [151, 500] };
   for (let i = 0; i < 20000; i++) {
-    const outcome = spin(random, 'sniper'), key = outcome.kind === 'weapon' ? outcome.weapon.rarity : outcome.kind;
-    counts.set(key, (counts.get(key) || 0) + 1);
-    if (money[key]) ok(outcome.coins >= money[key][0] && outcome.coins <= money[key][1], key + ' ' + outcome.coins);
+    const outcome = spin(random, 'sniper');
+    counts.set(outcome.kind, (counts.get(outcome.kind) || 0) + 1);
+    if (money[outcome.kind]) {
+      ok(outcome.coins >= money[outcome.kind][0] && outcome.coins <= money[outcome.kind][1], outcome.kind + ' ' + outcome.coins);
+    }
   }
-  const chance = (id) => OUTCOMES.find((outcome) => outcome.id === id).chance;
-  ok(Math.abs(chance('handful') + chance('bag') + chance('chest') - 0.15) < 1e-9, 'монеты вместе — 15%');
-  eq([chance('handful') / 0.15, chance('bag') / 0.15, chance('chest') / 0.15].map((v) => v.toFixed(3)),
-    ['0.500', '0.450', '0.050']);
-  const all = OUTCOMES.concat(RARITIES);
-  eq(all.map((r) => r.chance).reduce((a, b) => a + b, 0).toFixed(6), '1.000000');
-  for (const item of all) {
+  eq([...counts.keys()].sort(), ['bag', 'chest', 'handful', 'particle'], 'только монеты и частица');
+  eq(OUTCOMES.reduce((sum, item) => sum + item.chance, 0).toFixed(6), '1.000000');
+  for (const item of OUTCOMES) {
     const share = (counts.get(item.id) || 0) / 20000;
     ok(Math.abs(share - item.chance) < 0.005 + item.chance * 0.15, item.id + ' ' + share);
   }
-  no(counts.has('poor'), 'плохого оружия больше нет');
+  no(OUTCOMES.some((item) => item.id === 'void'), 'пустоты нет');
 });
 
-test('гача: у оружия одно число — мощь; чем реже, тем больше, разброс не больше 20%', () => {
-  const random = seeded(4), means = [];
-  for (const rarity of RARITIES) {
-    const base = MIGHT.rarity[rarity.id];
-    let sum = 0;
-    for (let i = 0; i < 300; i++) {
-      const weapon = makeWeapon(random, 'frost', rarity);
-      eq(weapon.rarity, rarity.id);
-      no('stats' in weapon, 'статов нет');
-      ok(weapon.power >= Math.floor(base * (1 - MIGHT.spread)) && weapon.power <= Math.ceil(base * (1 + MIGHT.spread)),
-        rarity.id + ': ' + weapon.power);
-      sum += weaponPower(weapon);
-    }
-    means.push(sum / 300);
-  }
-  for (let i = 1; i < means.length; i++) ok(means[i] > means[i - 1], RARITIES[i].id + ' сильнее предыдущего');
+test('оружие: у всех с начала белое; 5 улучшений — следующая редкость, мощь +1 на белом … +6 на оранжевом', () => {
+  eq(RARITIES.map((rarity) => [rarity.id, rarity.gain]), [['plain', 1], ['common', 2], ['rare', 3], ['mythic', 4],
+    ['epic', 5], ['legendary', 6]]);
+  eq(TIER_STEPS, 5);
+  const weapon = makeWeapon(seeded(4), 'frost');
+  eq([weapon.rarity, weapon.power, weapon.plus], ['plain', 0, 0], 'белое, без мощи');
+  eq(weaponPower(weapon), 0);
   eq(weaponPower(null), 0);
-  const legendary = RARITIES.find((rarity) => rarity.id === 'legendary');
-  eq(legendary.chance, 0.06, 'легендарное — вдвое чаще прежнего');
+  let power = 0;
+  for (const rarity of RARITIES.slice(0, -1)) {
+    for (let k = 0; k < TIER_STEPS; k++) {
+      eq(weapon.rarity, rarity.id);
+      const up = upgrade(weapon, seeded(k + 1));
+      eq(up.amount, rarity.gain);
+      power += rarity.gain;
+    }
+  }
+  eq([weapon.rarity, weapon.power, weapon.plus], ['legendary', power, 25], 'оранжевое после 25 улучшений');
+  eq(weaponTitle(weapon), 'Оружие +25');
+  ok(boonOf(weapon.boon), 'оранжевое даёт свойство');
+  eq(makeWeapon(seeded(1), 'frost', RARITIES[3]).power, 5 + 10 + 15, 'готовое синее — как после 15 улучшений');
 });
 
-test('свойство легендарного: у каждого легендарного одно из пяти, у остальной редкости — нет', () => {
+test('оружие: красное — после 10 улучшений оранжевого, дальше +10 мощи без конца; свойство на красном ×1,5', () => {
+  const weapon = makeWeapon(seeded(4), 'sniper', RARITIES[RARITIES.length - 1]), start = weapon.power, boon = weapon.boon;
+  eq(ASCEND_AT, 10);
+  for (let i = 1; i < ASCEND_AT; i++) {
+    const up = upgrade(weapon);
+    no(up.ascended);
+    eq(up.amount, 6);
+  }
+  const last = upgrade(weapon);
+  ok(last.ascended, 'десятое улучшение оранжевого');
+  eq([weapon.rarity, weapon.boon], [DIVINE.id, boon], 'свойство осталось');
+  eq(weapon.power, start + ASCEND_AT * 6);
+  const before = weapon.power;
+  for (let i = 0; i < 500; i++) eq(upgrade(weapon).amount, 10);
+  eq(weapon.power, before + 5000, 'растёт без предела');
+  const mods = boonMods(weapon), plain = boonOf(boon).mods, key = Object.keys(plain)[0];
+  ok(Math.abs(mods[key] - plain[key] * 1.5) < 1e-9, 'на красном свойство сильнее в полтора раза');
+  const orange = makeWeapon(seeded(4), 'sniper', RARITIES[RARITIES.length - 1]);
+  eq(boonMods(orange), boonOf(orange.boon).mods, 'на оранжевом — как есть');
+  eq(boonMods(makeWeapon(seeded(4), 'sniper')), null, 'у остальных свойства нет');
+});
+
+test('свойство оранжевого: одно из пяти, случайное', () => {
   const random = seeded(9), seen = new Set();
   eq(BOONS.map((boon) => boon.id), ['rapid', 'long', 'keen', 'swift', 'rich']);
   for (const boon of BOONS) ok(boon.name && boon.text && Object.keys(boon.mods).length === 1, boon.id);
-  for (let i = 0; i < 400; i++) {
-    const weapon = makeWeapon(random, 'sniper', RARITIES[RARITIES.length - 1]);
-    ok(boonOf(weapon.boon), 'у легендарного есть свойство');
-    seen.add(weapon.boon);
-  }
+  for (let i = 0; i < 400; i++) seen.add(makeWeapon(random, 'sniper', RARITIES[RARITIES.length - 1]).boon);
   eq(seen.size, BOONS.length, 'выпадают все пять');
   for (const rarity of RARITIES.slice(0, -1)) no(makeWeapon(random, 'sniper', rarity).boon, rarity.id);
-  const weapon = makeWeapon(random, 'sniper', RARITIES[RARITIES.length - 1]), boon = weapon.boon;
-  for (let i = 0; i < ASCEND_AT; i++) upgrade(weapon);
-  eq([weapon.rarity, weapon.boon], [DIVINE.id, boon], 'у божественного свойство остаётся');
-});
-
-test('улучшение: легендарное на +30 становится божественным, дальше — проценты от мощи', () => {
-  const weapon = makeWeapon(seeded(4), 'sniper', RARITIES[RARITIES.length - 1]), start = weapon.power;
-  for (let i = 1; i < ASCEND_AT; i++) {
-    no(upgrade(weapon).ascended);
-    eq(weapon.plus, i);
-  }
-  eq(weaponTitle(weapon), 'Оружие +' + (ASCEND_AT - 1));
-  eq(ASCEND_AT, 30);
-  const last = upgrade(weapon);
-  ok(last.ascended, 'тридцатое улучшение');
-  eq(weapon.rarity, DIVINE.id);
-  eq(weapon.plus, 0, 'счёт улучшений сначала');
-  eq(weapon.power, start + ASCEND_AT * MIGHT.upgrade, 'мощь со всеми улучшениями осталась');
-  ok(rankOf(weapon) > rankOf({ rarity: 'legendary' }), 'выше легендарного');
-  const before = weapon.power, next = upgrade(weapon);
-  eq(weapon.plus, 1);
-  eq(next.amount, MIGHT.divine, 'по ' + MIGHT.divine + ' мощи');
-  ok(MIGHT.divine > MIGHT.upgrade, 'больше обычного улучшения');
-  eq(weapon.power, before + next.amount);
-  eq(weaponTitle(weapon), 'Оружие +1');
-  for (let i = 0; i < 499; i++) upgrade(weapon);
-  eq(weapon.power, before + 500 * MIGHT.divine, 'растёт ровно, а не процентами от набранного');
 });
 
 test('гача: частица бога — 0,3%, у кого она есть, тому не выпадает', () => {
   const particle = OUTCOMES.find((outcome) => outcome.id === 'particle');
   eq(particle.chance, 0.003);
-  const total = OUTCOMES.concat(RARITIES).reduce((sum, item) => sum + item.chance, 0);
+  const total = OUTCOMES.reduce((sum, item) => sum + item.chance, 0);
   let seen = 0;
   for (let i = 0; i < 2000; i++) {
     const before = OUTCOMES.slice(0, OUTCOMES.indexOf(particle)).reduce((sum, item) => sum + item.chance, 0);
@@ -406,13 +397,6 @@ test('маг огня: первый камень — только стиль; д
   eq(styleOf('pyro', ['twin', 'fireball']).name, 'Огненный шар');
   eq(choiceOf('earth', []).length, poolOf('earth').length, 'у классов без стилей — сразу навыки');
   for (const option of choiceOf('pyro', [])) ok(option.skill.text.length < 140, 'коротко: ' + option.skill.name);
-});
-
-test('улучшение: +' + MIGHT.upgrade + ' мощи за каждое, сколько угодно раз', () => {
-  const weapon = makeWeapon(seeded(2), 'sniper', RARITIES[2]), start = weapon.power;
-  for (let i = 0; i < 10; i++) eq(upgrade(weapon).amount, MIGHT.upgrade);
-  eq(weapon.power, start + 10 * MIGHT.upgrade);
-  eq(weapon.plus, 10);
 });
 
 test('настройки: по умолчанию, границы, адрес туда и обратно', () => {

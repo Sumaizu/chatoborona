@@ -488,13 +488,6 @@ const PRIZES = {
   particle(p) {
     drawParticle(p, 16);
   },
-  weapon(p, tone) {
-    p.bar(3, 12, 11, 4, '#e5e7eb', 2);
-    p.line(4, 12, 11, 5, '#9ca3af', 1);
-    p.px(12, 3, '#ffffff');
-    p.bar(3, 9, 6, 12, '#8a5a2b', 1);
-    p.box(2, 12, 2, 2, tone);
-  },
   stone(p, tone) {
     p.ball(8, 8.5, 6, '#3f3a4a', '#26222e', '#5b5468');
     p.line(8, 4, 8, 13, tone);
@@ -506,11 +499,6 @@ const PRIZES = {
     p.px(5, 6, '#ffd0d8');
     p.px(11, 6, '#ffd0d8');
     for (const [x, y] of [[2, 3], [14, 4], [13, 14]]) p.px(x, y, '#ffffff');
-  },
-  void(p) {
-    p.ball(8, 8, 5, '#374151', '#1f2937', '#4b5563');
-    p.disc(8, 8, 2.6, '#111827');
-    p.line(4, 12, 12, 4, '#9ca3af', 1);
   },
   handful(p) {
     for (const [x, y] of [[5, 11], [10, 11], [7.5, 8], [7.5, 4.5]]) {

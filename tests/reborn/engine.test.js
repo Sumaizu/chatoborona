@@ -5,7 +5,7 @@ import { ASCEND_TIME, CARD_LONGEST, CARD_MIN, CARD_ROOM, CARD_TIME, DIVINE_TIME,
   from '../../site/reborn/js/engine.js';
 import { FAMILY_BY_ID, LEVEL_MAX, MIGHT, REWARD, SLEEP_AFTER, TEMPO, TICK, waveReward, xpForLevel }
   from '../../site/reborn/js/balance.js';
-import { ASCEND_AT, PRICE, QUEUE_CAP, RARITIES, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, ascend,
+import { ASCEND_AT, PRICE, QUEUE_CAP, RARITIES, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, TIER_STEPS, ascend,
   makeWeapon, WEAPON } from '../../site/reborn/js/gacha.js';
 import { CLASSES, CLASS_BY_ID, STONE_CHANCE, poolOf } from '../../site/reborn/js/classes.js';
 import { ODDS, effectOf, rollEvent } from '../../site/reborn/js/events.js';
@@ -15,14 +15,6 @@ const MOD = { mod: true };
 const say = (game, user, text, details = {}) => game.feed(user, text, Object.assign({ login: user.toLowerCase() },
   details));
 const event = (kind, id) => Object.assign({ kind }, effectOf(kind, id));
-
-function drop(game, login, weapon) {
-  const slot = { id: 99, login, outcome: { kind: 'weapon', weapon }, phase: 'spin', left: 0 };
-  const free = game.slots.indexOf(null);
-  game.slots[free >= 0 ? free : 0] = slot;
-  game._apply(slot);
-  return slot;
-}
 
 function stone(game, login) {
   const slot = { id: 97, login, outcome: { kind: 'stone' }, phase: 'spin', left: 0 };
@@ -202,7 +194,7 @@ test('игра: в лобби клетка ничего не двигает, н�
   ok(game.members.has('гоша'));
 });
 
-test('гача: команда без восклицательного знака, оружие под класс игрока', () => {
+test('гача: команда без восклицательного знака; выпадают монеты, частица или камень', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Нина', 'привет');
@@ -213,8 +205,8 @@ test('гача: команда без восклицательного знак�
   game.step(TICK);
   const slot = game.slots[0];
   eq(slot.login, 'нина');
-  ok(['weapon', 'void', 'handful', 'bag', 'chest', 'particle', 'rune'].includes(slot.outcome.kind));
-  if (slot.outcome.kind === 'weapon') eq(slot.outcome.weapon.cls, member.cls);
+  ok(['handful', 'bag', 'chest', 'particle', 'stone'].includes(slot.outcome.kind), slot.outcome.kind);
+  eq(member.weapon.cls, member.cls, 'своё оружие — под класс игрока');
   eq(WEAPON, 'Оружие', 'у оружия нет названий — только «Оружие» цветом редкости');
 });
 
@@ -291,7 +283,7 @@ test('гача: без монет нельзя, крутят четверо ср
   runFor(game, 0.4);
   eq(game.slots[0].phase, 'show');
   const kind = game.slots[0].outcome.kind;
-  eq(game.slots[0].took, kind !== 'void', 'оружие надето или монеты удвоены, пустота — ничего');
+  ok(game.slots[0].took || kind === 'stone', 'выпавшее досталось игроку');
   runFor(game, SHOW_FAST + 0.2);
   eq(game.slots.map((slot) => slot && slot.login), ['ева', 'йод', 'ева', null], 'освободились места — крутят ждавшие');
 });
@@ -322,7 +314,7 @@ test('гача: в очереди у игрока не больше десяти
   const members = Array.from(game.members.values());
   for (const member of members) member.coins = PRICE * 50;
   const first = members[0];
-  game.slots = game.slots.map(() => ({ id: 0, login: 'занято', outcome: { kind: 'void' }, phase: 'show', left: 1e9 }));
+  game.slots = game.slots.map(() => ({ id: 0, login: 'занято', outcome: { kind: 'handful', coins: 1 }, phase: 'show', left: 1e9 }));
   eq(say(game, first.name, 'гача 3'), 'queued');
   eq(say(game, first.name, 'гача 9'), 'queued', 'ещё семь до десяти');
   eq(game.queue.reduce((sum, entry) => sum + entry.count, 0), QUEUE_CAP);
@@ -352,53 +344,21 @@ test('гача: окошек всегда четыре — над картой, 
   ok(game.slots.every(Boolean), 'все крутят');
 });
 
-test('гача: первое легендарное у игрока и камень навыка видны 5 настоящих секунд, даже на ×3', () => {
+test('оружие: у всех с начала белое без мощи; оранжевое после улучшений — в «События» со свойством', () => {
   const { game } = makeGame();
-  game._stoneDue = () => 0;
   game.open();
   say(game, 'Ося', 'привет');
   toWave(game);
   const member = game.members.get('ося');
-  game.speed = 3;
-  const legend = drop(game, 'ося', makeWeapon(seeded(3), member.cls, RARITIES[RARITIES.length - 1]));
-  ok(legend.real && legend.left === HOLD_SHOW, 'первое легендарное — на 5 секунд');
-  ok(game.notes.some((n) => n.kind === 'legend' && n.login === 'ося' && n.detail.boon === legend.outcome.weapon.boon),
-    'надел легендарное — в «События», с аспектом');
-  runFor(game, HOLD_SHOW - 0.2);
-  ok(game.slots.includes(legend), 'не ускоряется вместе с игрой');
-  runFor(game, 0.3);
-  no(game.slots.includes(legend), 'через 5 настоящих секунд ушло');
-  const again = drop(game, 'ося', makeWeapon(seeded(4), member.cls, RARITIES[RARITIES.length - 1]));
-  no(again.real, 'второе легендарное — как обычно');
-});
-
-test('гача: редкость выше — меняется само, та же — если мощь больше, ниже — остаётся своё; без оружия — любое', () => {
-  const { game } = makeGame();
-  game.open();
-  say(game, 'Зоя', 'привет');
-  toWave(game);
-  const member = game.members.get('зоя'), make = (i, power) => Object.assign(makeWeapon(seeded(i + 1), member.cls,
-    RARITIES[i]), power ? { power } : {});
-  const first = make(0), mythic = make(2, 20), common = make(0), weaker = make(2, 15), stronger = make(2, 25);
-  const legendary = make(4, 30);
-  ok(drop(game, 'зоя', first).took);
-  eq(member.weapon, first);
-  ok(drop(game, 'зоя', mythic).took);
-  eq(member.weapon, mythic);
-  eq(member.tower.mods.power, mythic.power, 'мощь оружия дошла до бойца');
-  eq(member.tower.might, MIGHT.base + mythic.power);
-  game.events.length = 0;
-  const slot = drop(game, 'зоя', common);
-  no(slot.took);
-  eq(member.weapon, mythic);
-  eq(slot.phase, 'show');
-  ok(game.events.some((e) => e.kind === 'kept' && e.login === 'зоя'));
-  no(drop(game, 'зоя', weaker).took, 'та же редкость и мощь меньше — остаётся своё');
-  ok(drop(game, 'зоя', stronger).took, 'та же редкость и мощь больше — меняется');
-  ok(drop(game, 'зоя', legendary).took, 'редкость выше — меняется, даже если мощь меньше');
-  eq(member.tower.mods.power, legendary.power);
-  runFor(game, SHOW_TIME + 0.2);
-  eq(game.slots.filter(Boolean).length, 0, 'места освободились');
+  eq([member.weapon.rarity, member.weapon.power], ['plain', 0]);
+  eq(member.tower.might, MIGHT.base);
+  member.coins = 100 * TIER_STEPS * 5;
+  eq(say(game, 'Ося', 'улучшить все'), 'upgraded');
+  eq(member.weapon.rarity, 'legendary');
+  eq(member.weapon.power, 5 * (1 + 2 + 3 + 4 + 5));
+  eq(member.tower.mods.power, member.weapon.power, 'мощь оружия дошла до бойца');
+  ok(game.notes.some((n) => n.kind === 'legend' && n.login === 'ося' && n.detail.boon === member.weapon.boon),
+    'стало оранжевым — в «События», со свойством');
 });
 
 test('события: перед каждой волной может выпасть одно на всех, доли как заявлены', () => {
@@ -470,7 +430,7 @@ test('события: благословение — всем до конца и
   game.restart();
   say(game, 'Лёва', 'снова');
   const lev = game.members.get('лёва');
-  eq(lev.weapon, null);
+  eq([lev.weapon.rarity, lev.weapon.power], ['plain', 0], 'в новой игре — снова белое');
   eq(lev.coins, 0);
   ok(until(game, () => game.state === 'placing'));
   eq(lev.tower.mods.damage, 0);
@@ -552,18 +512,13 @@ test('профиль показывает карточку игрока 20 се�
   eq(game.notes.filter((n) => n.kind === 'card').length, 0, 'и он не висит бесконечно');
 });
 
-test('гача: пустота ничего не даёт, мешок — монеты', () => {
+test('гача: мешок — монеты', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Ося', 'привет');
   toWave(game);
   const member = game.members.get('ося');
   member.coins = 70;
-  const empty = { id: 1, login: 'ося', outcome: { kind: 'void' }, phase: 'spin', left: 0 };
-  game.slots[0] = empty;
-  game._apply(empty);
-  eq(member.coins, 70);
-  eq(member.weapon, null);
   const lucky = { id: 2, login: 'ося', outcome: { kind: 'bag', coins: 120 }, phase: 'spin', left: 0 };
   game.slots[1] = lucky;
   game._apply(lucky);
@@ -572,29 +527,30 @@ test('гача: пустота ничего не даёт, мешок — мон
   ok(game.events.some((e) => e.kind === 'jackpot' && e.prize === 'bag' && e.coins === 120));
 });
 
-test('улучшить: за 100 монет +' + MIGHT.upgrade + ' мощи оружию, без оружия и без денег — нельзя', () => {
+test('улучшить: за 100 монет, +1 мощи на белом, +2 на зелёном; без денег — нельзя', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Рита', 'привет');
   toWave(game);
   const member = game.members.get('рита');
   member.coins = 500;
-  eq(say(game, 'Рита', 'улучшить'), 'poor', 'без оружия нечего улучшать');
-  ok(game.notes.some((n) => n.kind === 'bare'));
-  member.weapon = makeWeapon(seeded(3), member.cls, RARITIES[2]);
-  game._refresh(member);
-  const power = member.weapon.power, might = member.tower.might;
+  const might = member.tower.might;
   eq(say(game, 'Рита', 'улучшить'), 'upgraded');
   eq(member.coins, 400);
-  eq(member.weapon.power, power + MIGHT.upgrade);
-  eq(member.tower.might, might + MIGHT.upgrade, 'мощь дошла до бойца');
+  eq(member.weapon.power, 1, 'на белом +1');
+  eq(member.tower.might, might + 1, 'мощь дошла до бойца');
+  member.weapon = makeWeapon(seeded(3), member.cls, RARITIES[1]);
+  game._refresh(member);
+  const power = member.weapon.power;
+  eq(say(game, 'Рита', 'улучшить'), 'upgraded');
+  eq(member.weapon.power, power + 2, 'на зелёном +2');
   eq(say(game, 'Рита', 'улучшить сила'), 'upgraded', 'лишние слова не мешают');
   member.coins = 50;
   eq(say(game, 'Рита', '!улучшить'), 'poor');
   ok(game.notes.some((n) => n.kind === 'poor' && n.detail.price === 100));
 });
 
-test('свойство легендарного действует на бойца: чаще бьёт, дальше, крит, способности, монеты', () => {
+test('свойство оранжевого действует на бойца: чаще бьёт, дальше, крит, способности, монеты', () => {
   const { game } = makeGame();
   game.open();
   say(game, 'Ося', 'привет');
@@ -628,7 +584,7 @@ test('улучшить с числом или «все» — нужное чис
   say(game, 'Лиза', 'привет');
   toWave(game);
   const member = game.members.get('лиза');
-  member.weapon = makeWeapon(seeded(7), member.cls, RARITIES[1]);
+  member.weapon = ascend(makeWeapon(seeded(7), member.cls, RARITIES[RARITIES.length - 1]));
   game._refresh(member);
   const tries = [['улучшить все', 750, 7, 50], ['!улучшить 2', 1000, 2, 800], ['улучшить 3', 330, 3, 30],
     ['улучшить всё', 260, 2, 60]];
@@ -637,11 +593,11 @@ test('улучшить с числом или «все» — нужное чис
     const before = member.weapon.plus, power = member.weapon.power;
     eq(say(game, 'Лиза', text), 'upgraded', text);
     eq(member.weapon.plus - before, times, text + ': сколько раз');
-    eq(member.weapon.power - power, times * MIGHT.upgrade, text + ': сколько мощи');
+    eq(member.weapon.power - power, times * 10, text + ': сколько мощи');
     eq(member.coins, left, text + ': сколько монет осталось');
   }
   const note = game.notes.find((n) => n.kind === 'upgrade');
-  eq([note.detail.times, note.detail.amount], [2, 2 * MIGHT.upgrade], 'в плашке — сколько раз и сколько мощи');
+  eq([note.detail.times, note.detail.amount], [2, 20], 'в плашке — сколько раз и сколько мощи');
 });
 
 test('ускорить и замедлить: только стример и модераторы, от ×1 до ×3, игра идёт быстрее', () => {
@@ -776,11 +732,13 @@ test('число и «все» в команде: «гача 3», «гача в�
   eq([queue(), gena.coins], [[2], 0]);
   gena.weapon = makeWeapon(seeded(3), gena.cls, RARITIES[2]);
   gena.coins = 550;
+  const power = gena.weapon.power;
   eq(say(game, 'Гена', 'улучшить 5'), 'upgraded');
   eq(gena.coins, 50);
   const note = game.notes.find((n) => n.kind === 'upgrade' && n.login === 'гена');
   eq(note.detail.times, 5);
-  eq(note.detail.amount, 5 * MIGHT.upgrade, 'в плашке — вся прибавка мощи');
+  eq(note.detail.amount, gena.weapon.power - power, 'в плашке — вся прибавка мощи');
+  eq(note.detail.amount, 5 * 3, 'пять раз по +3 на синем');
   gena.coins = 350;
   eq(say(game, 'Гена', 'улучшить всё'), 'upgraded');
   eq(gena.coins, 50);
@@ -850,10 +808,10 @@ test('улучшение до божественного: событие, сво
   say(game, 'Рая', 'привет');
   toWave(game);
   const member = game.members.get('рая');
-  drop(game, 'рая', makeWeapon(seeded(3), member.cls, RARITIES[RARITIES.length - 1]));
+  member.weapon = makeWeapon(seeded(3), member.cls, RARITIES[RARITIES.length - 1]);
   member.coins = 100 * (ASCEND_AT - 1);
   eq(say(game, 'Рая', 'улучшить все'), 'upgraded');
-  eq(member.weapon.plus, ASCEND_AT - 1);
+  eq(member.weapon.plus, TIER_STEPS * 5 + ASCEND_AT - 1);
   game.events.length = 0;
   member.coins = 100;
   eq(say(game, 'Рая', 'улучшить'), 'divine');

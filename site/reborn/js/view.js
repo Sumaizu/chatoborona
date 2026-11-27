@@ -2,8 +2,8 @@ import { Scene } from './draw.js';
 import { CLASSES, CLASS_BY_ID, describe, mightOf, skillOf, skinOf, stonesAt, styleOf } from './classes.js';
 import { coinUrl, effectUrl, emblemUrl, flagCanvas, flagUrl, heroUrl, markUrl, mightUrl, particleSprite, particleUrl,
   prizeUrl } from './sprites.js';
-import { OUTCOMES, RARITIES, SPIN_TIME, boonOf, gearColor,
-  outcomeOf, rarityOf, WEAPON, weaponTitle } from './gacha.js';
+import { OUTCOMES, SPIN_TIME, boonOf, gearColor,
+  outcomeOf, rarityOf, weaponTitle } from './gacha.js';
 import { ASCEND_TIME } from './engine.js';
 import { effectOf } from './events.js';
 import { BIOME_RULES, LEVEL_MAX, LIVES, levelOf, resistOf } from './balance.js';
@@ -33,10 +33,9 @@ const CARD_GAP = 6;
 const CARD_MOST = 3;
 const CARD_TALL = 94;
 const REEL = { cells: 26, result: 21, width: 28 };
-const BIG_PRIZES = new Set(['epic', 'legendary']);
 const CYCLES = new Map([['rainbow', 2400], ['heart-reds', 8000], ['snow-glint', 6000], ['glare', 3000], ['gem', 6000]]);
 const SOUND_PRIORITY = ['over', 'divine', 'relic', 'win', 'boss', 'wave', 'jackpot', 'prize', 'upgrade', 'reward',
-  'meh', 'void', 'level',
+  'level',
   'buff', 'debuff', 'spin', 'leak', 'card', 'tick'];
 const SFX_PER_FRAME = 4;
 const SHOTS = { sniper: 'crack', mechanic: 'gun', forester: 'bolt',
@@ -81,7 +80,7 @@ const PLAYERS_SLIDE = 0.6;
 const HINT = ['гача', 'улучшить', 'проф', 'навыки', 'реролл'];
 const RULES = [
   ['К7', '— клетка'],
-  ['гача', '— оружие'],
+  ['гача', '— монеты'],
   ['улучшить', '— сильнее'],
   ['профиль', '— карточка'],
   ['реролл', '— другой класс'],
@@ -176,7 +175,7 @@ const easeBack = (value) => {
 function prizeCell(prize) {
   const cell = el('div', 'cell');
   cell.style.setProperty('--tone', prize.color);
-  cell.append(image(prizeUrl(OUTCOMES.includes(prize) ? prize.id : 'weapon', prize.color)));
+  cell.append(image(prizeUrl(prize.id, prize.color)));
   return cell;
 }
 
@@ -210,15 +209,8 @@ function pick(list) {
   return list[list.length - 1];
 }
 
-function statLine(weapon) {
-  const line = el('div', 'stats'), boon = boonOf(weapon.boon);
-  line.append(mightTag(weapon.power));
-  if (boon) line.append(' · ' + boon.text);
-  return line;
-}
-
-const PRIZES = OUTCOMES.concat(RARITIES);
-const prizeOf = (outcome) => (outcome.kind === 'weapon' ? rarityOf(outcome.weapon.rarity) : outcomeOf(outcome.kind));
+const PRIZES = OUTCOMES;
+const prizeOf = (outcome) => outcomeOf(outcome.kind);
 
 export class View {
   constructor() {
@@ -396,13 +388,7 @@ export class View {
         this._names.set(event.login, NAME_TIME);
         this._cue('card');
       }
-      if (event.kind === 'took') {
-        const member = game.members.get(event.login);
-        this._cue(member && member.weapon && BIG_PRIZES.has(member.weapon.rarity) ? 'win' : 'prize');
-      }
-      if (event.kind === 'kept') this._cue('meh');
-      if (event.kind === 'void') this._cue('void');
-      if (event.kind === 'jackpot') this._cue(event.prize === 'chest' ? 'win' : 'jackpot');
+      if (event.kind === 'jackpot') this._cue(event.prize === 'chest' ? 'win' : event.prize === 'bag' ? 'jackpot' : 'prize');
       if (event.kind === 'particle' || event.kind === 'stone') {
         this._cue('relic');
         this._names.set(event.login, NAME_TIME);
@@ -963,27 +949,18 @@ export class View {
       view.who.textContent = '';
       const name = member ? this._starName(member.name, member.star, member.color, 'nick') : el('span', '', slot.login);
       const kind = slot.outcome.kind;
-      const verb = slot.phase === 'spin' ? ' крутит гачу…' : kind === 'void' ? ': пусто'
-        : COIN_FINDS[kind] || (kind === 'particle' ? ' находит частицу бога!' : kind === 'stone'
-          ? ' находит камень навыка!'
-          : slot.took ? ' надевает' : ' оставляет своё');
+      const verb = slot.phase === 'spin' ? ' крутит гачу…'
+        : COIN_FINDS[kind] || (kind === 'particle' ? ' находит частицу бога!' : ' находит камень навыка!');
       view.who.append(name, verb);
       view.result.textContent = '';
       view.box.classList.toggle('shown', slot.phase !== 'spin');
       if (slot.phase === 'spin') return;
       view.result.append(prizeCell(prizeOf(slot.outcome)));
-      if (kind !== 'weapon') {
-        const prize = outcomeOf(kind), title = el('b', 'prize', prize.name);
-        title.style.color = prize.color;
-        const what = kind === 'void' ? 'ничего не выпало — повезёт в другой раз' : kind === 'particle'
-          ? 'навсегда, для парагона' : kind === 'stone' ? (slot.took ? 'выбор навыка — ниже'
-            : 'все навыки класса уже есть') : '+' + slot.coins + ' ' + plural(slot.coins, 'монета', 'монеты', 'монет');
-        view.result.append(title, el('div', 'now', what));
-        return;
-      }
-      const weapon = slot.outcome.weapon, title = el('b', 'prize', WEAPON);
-      title.style.color = rarityOf(weapon.rarity).color;
-      view.result.append(title, statLine(weapon));
+      const prize = outcomeOf(kind), title = el('b', 'prize', prize.name);
+      title.style.color = prize.color;
+      const what = kind === 'particle' ? 'навсегда, для парагона' : kind === 'stone' ? (slot.took ? 'выбор навыка — ниже'
+        : 'все навыки класса уже есть') : '+' + slot.coins + ' ' + plural(slot.coins, 'монета', 'монеты', 'монет');
+      view.result.append(title, el('div', 'now', what));
     });
   }
 
@@ -1266,7 +1243,7 @@ export class View {
         if (state.gear !== gearKey) {
           state.gear = gearKey;
           weapon.textContent = '';
-          weapon.append(m.weapon ? weaponLine(m.weapon) : el('div', 'gear-line', 'Оружия нет — пиши гача'));
+          weapon.append(weaponLine(m.weapon));
         }
         const styled = CLASS_BY_ID.get(m.cls).styles ? 1 : 0, own = skills.length - (styleOf(m.cls, skills) ? 1 : 0);
         count.textContent = own + '/' + Math.max(0, stonesAt(level) - styled);

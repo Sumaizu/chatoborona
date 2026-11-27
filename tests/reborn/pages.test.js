@@ -87,8 +87,8 @@ test('страницы: пример в рамке — середина волн
   await wait(300);
   eq(text(w, 'wave'), '8');
   ok(element(w, 'lobby').hidden && element(w, 'over').hidden);
-  ok(text(w, 'slot-0').includes('надевает'), 'выпавшее оружие на месте карусели: ' + text(w, 'slot-0'));
-  ok(w.document.querySelector('#slot-0 .stats .might-icon'), 'у оружия видна мощь');
+  ok(text(w, 'slot-0').includes('Сундук монет'), 'выпавшее на месте карусели: ' + text(w, 'slot-0'));
+  ok(text(w, 'slot-0').includes('+320 монет'), 'сколько монет');
   no(w.document.getElementById('chat'), 'чата на экране нет');
   eq(w.document.querySelectorAll('#slot-1 .cell').length, 26, 'вторая карусель крутится');
   eq(w.document.querySelectorAll('#main #slots .slot:not([hidden])').length, 4, 'четыре окна гачи над картой');
@@ -417,12 +417,13 @@ test('страницы: божественное оружие — плашка �
   await until(() => game.state === 'placing', 'расстановка');
   const anya = game.members.get('аня');
   anya.weapon = makeWeapon(Math.random, anya.cls, RARITIES[RARITIES.length - 1]);
-  anya.weapon.plus = 28;
+  anya.weapon.plus = 33;
+  anya.weapon.step = 8;
   anya.coins = 200;
   anya.particle = true;
   game.feed('Аня', 'улучшить', { login: 'аня' });
   await until(() => w.document.querySelector('#notes .log.upgrade'), 'прокачка оружия — в истории');
-  ok(w.document.querySelector('#notes .log.upgrade').textContent.endsWith('оружие +1 (+29)'), 'на сколько улучшено и в скобках — сколько стало');
+  ok(w.document.querySelector('#notes .log.upgrade').textContent.endsWith('оружие +1 (+34)'), 'на сколько улучшено и в скобках — сколько стало');
   game.feed('Аня', 'улучшить', { login: 'аня' });
   await until(() => w.document.querySelector('#notes .log.divine'), 'строка в «Событиях», между эффектами и профилями');
   const note = w.document.querySelector('#notes .log.divine');
@@ -463,9 +464,9 @@ test('страницы: в карточке игрока — убийства, �
   eq(card.querySelectorAll('.marks .mark').length, 3, 'урон, добивания, помощь');
   ok(card.querySelector('.top').textContent.includes('ур. ') && card.querySelector('.top .mark'), 'уровень и клетка у ника');
   ok(card.querySelector('.kind').textContent.startsWith(anya.cls === 'pyro' ? 'Маг огня' : ''), 'класс');
-  eq(card.querySelector('.gear-line').textContent, 'Оружия нет — пиши гача');
+  eq(card.querySelector('.gear-line').textContent, 'Оружие');
   const might = () => card.querySelector('.kind .power').textContent;
-  eq(might(), 'мощь 100', 'без оружия — мощь 100');
+  eq(might(), 'мощь 100', 'белое оружие без улучшений — мощь 100');
   ok(card.querySelector('.kind .power img.might-icon'), 'со значком мощи');
   no(/КШ|КУ|скор \d|ловкост|интеллект|мастерств/.test(card.textContent), 'статов в карточке нет');
   game.battle.setMods(anya.tower, Object.assign({}, anya.tower.mods, { power: 40 }));
@@ -612,7 +613,7 @@ test('страницы: парагон — церемония перед ито�
   fresh();
 });
 
-test('страницы: плашка уровня в отряде — цвета оружия, без оружия белая', async () => {
+test('страницы: плашка уровня в отряде — цвета оружия, у белого белая', async () => {
   fresh();
   const frame = await overlay('lobby=10&first_wave=5');
   const w = frame.contentWindow, game = w.chatoborona.game;
@@ -777,7 +778,7 @@ test('спрайты: герои, мобы, оружие и монета рис�
   }
   for (const kind of ELITES.concat(BOSSES)) ok(MOB_KINDS.includes(kind.id), kind.id);
   ok(coinUrl().startsWith('data:image/png'));
-  for (const kind of ['weapon', 'void', 'handful', 'bag', 'chest', 'particle']) {
+  for (const kind of ['handful', 'bag', 'chest', 'particle', 'stone']) {
     ok(prizeUrl(kind, '#facc15').startsWith('data:image/png'), kind);
   }
 });

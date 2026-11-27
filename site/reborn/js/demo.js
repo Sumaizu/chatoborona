@@ -42,7 +42,7 @@ export function demoGame(settings) {
   while (!(game.state === 'wave' && game.wave === WAVE)) game.step(TICK);
   for (let t = 0; t < INTO_WAVE; t += TICK) game.step(TICK);
   const member = (name) => game.members.get(name.toLowerCase());
-  for (const [name, rarity] of [['Gera', 4], ['Сова', 3], ['Ветерок', 2], ['Лёша_К', 1], ['sunny_day', 0]]) {
+  for (const [name, rarity] of [['Gera', 5], ['Сова', 4], ['Ветерок', 3], ['Лёша_К', 2], ['sunny_day', 1]]) {
     member(name).weapon = makeWeapon(random, member(name).cls, RARITIES[rarity]);
     game._refresh(member(name));
   }
@@ -50,14 +50,12 @@ export function demoGame(settings) {
   member('Ёжик').skills = ['perk0'];
   member('Gera').skills = ['perk0', 'perk2', 'perk1'];
   game._sleep(member('dr_Groove'));
-  member('Ёжик').weapon = makeWeapon(random, member('Ёжик').cls, RARITIES[1]);
+  member('Ёжик').weapon = makeWeapon(random, member('Ёжик').cls, RARITIES[2]);
   member('Gera').weapon = makeWeapon(random, member('Gera').cls, RARITIES[RARITIES.length - 1]);
   game._refresh(member('Gera'));
   game.slots = [
-    { id: 1, login: 'gera', outcome: { kind: 'weapon', weapon: member('Gera').weapon }, phase: 'show', left: 5,
-      took: true },
-    { id: 2, login: 'марго', outcome: { kind: 'weapon', weapon: makeWeapon(random, member('Марго').cls) },
-      phase: 'spin', left: 1.4 },
+    { id: 1, login: 'gera', outcome: { kind: 'chest', coins: 320 }, phase: 'show', left: 5, took: true, coins: 320 },
+    { id: 2, login: 'марго', outcome: { kind: 'bag', coins: 90 }, phase: 'spin', left: 1.4 },
     null,
     null,
   ];

@@ -47,10 +47,6 @@ const RECIPES = {
     [A5, E6].forEach((note, i) => s.pluck(at + i * 0.07, note, 0.7, 0.18, i ? 0.25 : -0.25, 1.3));
     s.chime(at + 0.12, 2637, 0.9, 0.06, 0);
   },
-  meh(s, at) {
-    s.pluck(at, A4, 0.25, 0.14, -0.1, 0.4);
-    s.pluck(at + 0.13, FS4, 0.4, 0.13, 0.1, 0.4);
-  },
   win(s, at) {
     s.thump(at, 160, 50, 0.4, 0.3);
     s.horn(at, D4, 1.4, 0.085, -0.3);
@@ -144,10 +140,6 @@ const RECIPES = {
     s.bell(at + 0.13, 784, 0.5, 0.1, 3.1, 1.6);
     s.thump(at + 0.13, 150, 38, 0.55, 0.42);
     s.crunch(at + 0.14, 0.3, 0.16);
-  },
-  void(s, at) {
-    s.horn(at, 196, 0.5, 0.08, 0);
-    s.swish(at, 900, 200, 0.5, 0.06);
   },
   jackpot(s, at) {
     const notes = [1318.5, 1568, 1975.5];

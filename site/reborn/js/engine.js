@@ -2,8 +2,8 @@ import { Battle, flier } from './battle.js';
 import { makeMap, parseCell, parseMove } from './field.js';
 import { CLASSES, CLASS_BY_ID, STONE_CHANCE, choiceOf, skillOf, skinOf, stonesAt } from './classes.js';
 import { FINALE, LEVEL_MAX, SLEEP_AFTER, TICK, levelOf, rollTempo, waveReward } from './balance.js';
-import { DIVINE, PRICE, QUEUE_CAP, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, UPGRADE_PRICE, boonOf,
-  rankOf, spin, upgrade } from './gacha.js';
+import { DIVINE, PRICE, QUEUE_CAP, RUSH, SHOW_FAST, SHOW_TIME, SLOTS, SPIN_TIME, UPGRADE_PRICE, boonMods,
+  makeWeapon, spin, upgrade } from './gacha.js';
 import { LASTING, effectOf, rollEvent } from './events.js';
 
 export const COMMANDS = new Map([
@@ -311,6 +311,7 @@ export class Game {
       cls: this._randomClass(), weapon: null, skills: [], tower: null,
       quiet: 0, asleep: false, seat: null, held: null, left: null,
     };
+    member.weapon = makeWeapon(this.random, member.cls);
     this.members.set(login, member);
     this.profiles.update(member);
     if (this.battle) this._place(member, cell && this.movable && this.battle.free(cell.x, cell.y) ? cell : null);
@@ -391,22 +392,20 @@ export class Game {
 
   improve(member, times = 1) {
     if (!member || !this.battle) return null;
-    if (!member.weapon) {
-      this._note('bare', member);
-      return 'poor';
-    }
     if (member.coins < UPGRADE_PRICE) {
       this._note('poor', member, NOTE_TIME, { price: UPGRADE_PRICE });
       return 'poor';
     }
-    let done = 0, amount = 0, ascended = false;
+    let done = 0, amount = 0, ascended = false, legend = false;
     for (; done < times && member.coins >= UPGRADE_PRICE; done++) {
       member.coins -= UPGRADE_PRICE;
-      const up = upgrade(member.weapon);
+      const up = upgrade(member.weapon, this.random);
       if (up.ascended) ascended = true;
+      if (up.rose === 'legendary') legend = true;
       amount += up.amount;
     }
     this._refresh(member);
+    if (legend && !ascended) this._note('legend', member, NOTE_TIME, { boon: member.weapon.boon });
     if (ascended) this._note('divine', member, DIVINE_TIME, { weapon: Object.assign({}, member.weapon) });
     else this._note('upgrade', member, NOTE_TIME, { amount, times: done, plus: member.weapon.plus });
     this._emit('upgraded', { login: member.login, amount });
@@ -468,7 +467,7 @@ export class Game {
       addMods(total, this.run.mods);
     }
     total.power = member.weapon ? member.weapon.power : 0;
-    if (member.weapon && member.weapon.boon) addMods(total, boonOf(member.weapon.boon).mods);
+    addMods(total, boonMods(member.weapon));
     const chosen = (member.skills || []).map((id) => skillOf(member.cls, id)).filter(Boolean);
     total.perks = chosen.filter((skill) => skill.perk !== null).map((skill) => skill.perk);
     total.runes = chosen.filter((skill) => skill.perk === null).map((skill) => skill.id);
@@ -773,15 +772,10 @@ export class Game {
   }
 
   _apply(slot) {
-    const member = this.members.get(slot.login), outcome = slot.outcome, weapon = outcome.weapon;
+    const member = this.members.get(slot.login), outcome = slot.outcome;
     slot.phase = 'show';
     slot.left = this.pending >= RUSH.queue ? RUSH.show : this.queue.length ? SHOW_FAST : SHOW_TIME;
     if (!member) return;
-    if (outcome.kind === 'void') {
-      slot.took = false;
-      this._emit('void', { login: member.login });
-      return;
-    }
     if (outcome.kind === 'particle') {
       slot.took = true;
       member.particle = true;
@@ -804,20 +798,7 @@ export class Game {
       slot.coins = outcome.coins;
       member.coins += slot.coins;
       this._emit('jackpot', { login: member.login, coins: slot.coins, prize: outcome.kind });
-      return;
     }
-    if (weapon.rarity === 'legendary' && !member.legend) {
-      member.legend = true;
-      Object.assign(slot, { real: true, left: HOLD_SHOW });
-    }
-    const held = member.weapon;
-    slot.took = !held || rankOf(weapon) > rankOf(held) || rankOf(weapon) === rankOf(held) && weapon.power > held.power;
-    if (slot.took) {
-      member.weapon = weapon;
-      this._refresh(member);
-      if (weapon.rarity === 'legendary') this._note('legend', member, NOTE_TIME, { boon: weapon.boon });
-    }
-    this._emit(slot.took ? 'took' : 'kept', { login: member.login });
   }
 
   get choice() {
