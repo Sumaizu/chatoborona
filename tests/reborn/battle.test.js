@@ -3724,7 +3724,7 @@ test('хранитель: прочность стены растёт с мощь
   runFor(battle, 0.2);
   const own = (t) => battle.walls.find((wall) => wall.tower === t);
   near(own(strong).max, own(weak).max * 2, 'мощь 200 — вдвое прочнее');
-  near(own(weak).max, weak.might * EARTH.wall.might, 'прочность — от мощи');
+  near(own(weak).max, battle._wallUnit() * 0.125 * EARTH.wall.hold, 'при 100 мощи держит обычного моба 30 с');
   const wall = own(weak);
   wall.hp = wall.max / 2;
   wall.hitAt = battle.time;

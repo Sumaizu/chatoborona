@@ -157,7 +157,7 @@ const ROAD_ROUND = 0.9;
 const DRONE_SHOTS = { attack: MECH.droneAttack, laser: MECH.droneLaser, air: MECH.droneAir, bird: WOOD.bird,
   hawk: WOOD.hawk };
 export const EARTH = { pile: { speed: 7 }, keeper: { mul: 1 }, serpent: { mul: 1, speed: 6 }, geo: { mul: 1.3, speed: 5 },
-  wall: { might: 1, rebuild: 9, heal: 10, steel: 2 }, sharp: { mul: 1, every: 1 }, collapse: { radius: 1.5, stun: 2 },
+  wall: { hold: 30, rebuild: 9, heal: 10, steel: 2 }, sharp: { mul: 1, every: 1 }, collapse: { radius: 1.5, stun: 2 },
   barricade: { reach: 2 }, hydra: { heads: 2 }, spatter: { chance: 0.25, reach: 3, mul: 0.3 },
   pool: { radius: 0.6, time: 2, dot: 0.3 }, burn: 0.5,
   meteor: { every: 15, mul: 8, radius: 3, stun: 3, fall: 1, size: 24 }, shards: { count: 2, reach: 2, size: 5 },
@@ -2491,7 +2491,8 @@ export class Battle {
   }
 
   _wallMax(t) {
-    return t.might * EARTH.wall.might * (t.runes.has('steelWall') ? EARTH.wall.steel : 1);
+    const steel = t.runes.has('steelWall') ? EARTH.wall.steel : 1;
+    return this._wallUnit() * WALL_BITE * EARTH.wall.hold * t.might / MIGHT.base * steel;
   }
 
   _raiseWall(t, now) {
