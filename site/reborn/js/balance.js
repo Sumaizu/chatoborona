@@ -107,7 +107,7 @@ export const POWERS = {
     + 'боится той, что сейчас', every: 6, cycle: ['fire', 'ice', 'storm', 'poison'] },
 };
 
-export const SILVER = { from: 4, chance: 0.04, step: 0.002, max: 0.15, hp: 2.5, xp: 3, coins: 2, burst: 1.5,
+export const SILVER = { from: 4, chance: 0.04, step: 0.002, max: 0.1, hp: 2.5, xp: 3, coins: 2, burst: 1.5,
   daze: 1.5, split: 0.3 };
 
 export const AFFIXES = [
