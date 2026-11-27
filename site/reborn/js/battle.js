@@ -30,7 +30,7 @@ const PIERCE_WIDTH = 0.4;
 const FAR_REACH = SIZE * 1.5;
 const COOLDOWNS = ['nextActive', 'nextBlaze',
   'nextFar', 'nextInferno', 'nextLight', 'nextPhoenix', 'nextPool',
-  'nextEmp', 'nextNuke', 'nextQuake', 'nextRift', 'nextSand', 'nextStorm', 'nextTsunami',
+  'nextEmp', 'nextNuke', 'nextStorm', 'nextTsunami',
   'nextWall', 'nextWave', 'nextHail', 'nextHoly', 'nextBeam', 'nextRain', 'nextSiren', 'nextDirge',
   'nextGlobe', 'nextTempest', 'nextBubble', 'nextVortex', 'nextInk', 'nextRoar', 'nextIceWall'];
 const WARD_AURA = 0.25;
@@ -147,28 +147,27 @@ export const MANTRAS = ['mantraSpeed', 'mantraPower', 'mantraRange'];
 export const FLIERS = new Set(['angel', 'dragon']);
 export const flier = (runes) => {
   const list = Array.from(runes || []);
-  return list.some((id) => FLIERS.has(id)) ? true : list.includes('kraken') ? 'sea' : false;
+  if (list.some((id) => FLIERS.has(id))) return true;
+  return list.includes('kraken') ? 'sea' : list.includes('serpent') ? 'lava' : false;
 };
 const STYLE_ELEMENTS = { witch: 'poison', cryo: 'ice' };
 const STYLE_BALL = 11;
 const ROAD_ROUND = 0.9;
 const DRONE_SHOTS = { attack: MECH.droneAttack, laser: MECH.droneLaser, air: MECH.droneAir, bird: WOOD.bird,
   hawk: WOOD.hawk };
-const STEEL_BLAST = { radius: 1.5, mul: 8, stun: 1 };
-const METEOR_FLIGHT = 1.2;
+export const EARTH = { pile: { speed: 7 }, keeper: { mul: 1 }, serpent: { mul: 1, speed: 6 }, geo: { mul: 1.3, speed: 5 },
+  wall: { might: 1, rebuild: 9, heal: 10 }, petrify: { time: 3, elite: 2, boss: 1 } };
 export const AIM = { turn: 8, slack: Math.PI / 12, hold: 0.15, heavy: { turn: 2.5, slack: Math.PI / 36 } };
 export const heavyGun = (t) => t.style === 'turret' && t.runes.has('giant');
 export const GRENADE = { flight: 0.5, pace: 0.05 };
-const SPIKE_TOUCH = 0.55;
 const ROLL_EVERY = 1;
 const MUTE_HOLD = 0.25;
 const PULL_TIME = 0.6;
 const POTION_SPLASH = 0.8;
-const STONE_SPIKES = 5;
 const ARMOR = 1;
 const SHIELDS = 2;
 export const OVERTIME = 120;
-const OVERTIME_SPEED = 0.5;
+export const RAGE = { step: 0.2, every: 10, max: 10 };
 const REVIVE_TIME = 1.5;
 const CLINK_GAP = 0.25;
 const RATTLE = { min: 3, spread: 3 };
@@ -231,11 +230,11 @@ const MIRAGE_GAP = 0.35;
 const elite = (mob) => mob.info.elite || Boolean(mob.silver);
 const big = (mob) => elite(mob) || mob.info.boss;
 const lookOfMob = (mob) => Object.values(LOOKS).flat().find((look) => look.id === mob.look) || null;
-const steady = (mob, now) => mob.wild || Boolean(mob.power) && (Boolean(mob.power.firm)
+const steady = (mob, now) => mob.rage >= 1 || Boolean(mob.power) && (Boolean(mob.power.firm)
   || mob.power.steady && mob.powerUntil > now);
 const veiled = (mob, now) => Boolean(mob.power) && mob.power.id === 'veil' && mob.powerUntil > now;
-const underground = (mob, now) => mob.underUntil > now
-  || Boolean(mob.power) && mob.power.id === 'tunnel' && mob.powerUntil <= now;
+const underground = (mob, now) => !mob.solid && (mob.underUntil > now
+  || Boolean(mob.power) && mob.power.id === 'tunnel' && mob.powerUntil <= now);
 const ghostly = (mob, now) => mob.phaseUntil > now;
 const hidden = (mob, now) => veiled(mob, now) || underground(mob, now);
 const grounded = (mob, now) => !mob.flying && !underground(mob, now) && !ghostly(mob, now);
@@ -312,6 +311,7 @@ export class Battle {
     this.spawns = [];
     this.patches = [];
     this.walls = [];
+    this.mounds = [];
     this.zones = [];
     this.vents = [];
     this.cauldrons = [];
@@ -395,6 +395,14 @@ export class Battle {
     return t.style === 'kraken' && this.sea(t.x, t.y) >= 0;
   }
 
+  molten(x, y) {
+    return Boolean(this.rules.lava && !this.cooled && this.tiles && inside(x, y) && SEAS.has(this.tiles[y * SIZE + x]));
+  }
+
+  bathes(t) {
+    return t.style === 'serpent' && this.molten(t.x, t.y);
+  }
+
   _seaArms() {
     const wet = this.towers.filter((t) => this.sea(t.x, t.y) >= 0);
     const key = wet.map((t) => t.x + ',' + t.y + (t.style === 'kraken' ? 'k' : '')).join(';');
@@ -418,7 +426,7 @@ export class Battle {
   free(x, y, over = false) {
     const at = y * SIZE + x;
     return inside(x, y) && !this.blocked.has(at) && (over === true || !this.rough.has(at)
-      || over === 'sea' && this.seaOf[at] >= 0) && !this.byCell.has(at)
+      || over === 'sea' && this.seaOf[at] >= 0 || over === 'lava' && this.molten(x, y)) && !this.byCell.has(at)
       && !this.vents.some((vent) => vent.x === x && vent.y === y)
       && !this.springs.some((spring) => spring.x === x && spring.y === y)
       && !this.cauldrons.some((pot) => pot.x === x && pot.y === y);
@@ -531,7 +539,29 @@ export class Battle {
   }
 
   onWatch(tower) {
-    return Boolean(this.tiles && this.tiles[tower.y * SIZE + tower.x] === 'watch');
+    return Boolean(this.tiles && this.tiles[tower.y * SIZE + tower.x] === 'watch')
+      || this.mounds.some((mound) => mound.x === tower.x && mound.y === tower.y);
+  }
+
+  _mound(t) {
+    const made = this.mounds.filter((mound) => mound.player === t.player).length;
+    if (made >= (t.stacks.get('terraform') || 0)) return;
+    const taken = (x, y) => this.mounds.some((mound) => mound.x === x && mound.y === y)
+      || Boolean(this.tiles && this.tiles[y * SIZE + x] === 'watch');
+    let spot = taken(t.x, t.y) ? null : { x: t.x, y: t.y };
+    if (!spot) {
+      const near = [];
+      for (const [dx, dy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) {
+        const x = t.x + dx, y = t.y + dy, at = y * SIZE + x;
+        if (inside(x, y) && !this.blocked.has(at) && !this.rough.has(at) && !taken(x, y)) near.push({ x, y });
+      }
+      if (!near.length) return;
+      spot = near[Math.floor(this.random() * near.length)];
+    }
+    this.mounds.push({ player: t.player, x: spot.x, y: spot.y });
+    this._event({ kind: 'mound', tower: t, x: spot.x + 0.5, y: spot.y + 0.5 });
+    const there = this.towerAt(spot.x, spot.y);
+    if (there) this._stats(there);
   }
 
   screen(t) {
@@ -579,7 +609,7 @@ export class Battle {
     tower.cx = x + 0.5;
     tower.cy = y + 0.5;
     this._stats(tower);
-    if (tower.cls.id === 'earth' && this.walls.some((wall) => wall.tower === tower)) {
+    if (tower.style === 'keeper' && this.walls.some((wall) => wall.tower === tower)) {
       this.walls = this.walls.filter((wall) => wall.tower !== tower);
       this._raiseWall(tower, this.time);
     }
@@ -598,7 +628,8 @@ export class Battle {
 
   _ground(tower) {
     const over = flier(tower.runes);
-    if (this.aloft(tower) && over !== true && !(over === 'sea' && this.sea(tower.x, tower.y) >= 0)) this._land(tower);
+    if (this.aloft(tower) && over !== true && !(over === 'sea' && this.sea(tower.x, tower.y) >= 0)
+      && !(over === 'lava' && this.molten(tower.x, tower.y))) this._land(tower);
   }
 
   _land(tower) {
@@ -887,6 +918,7 @@ export class Battle {
     }
     if (!this.wild && this.mobs.length && now - this.lastSpawn > OVERTIME) {
       this.wild = true;
+      this.wildAt = now;
       for (const mob of this.mobs) mob.wild = true;
       this._event({ kind: 'wild' });
     }
@@ -968,7 +1000,7 @@ export class Battle {
       mark: 0, markUntil: 0, vuln: 0, vulnUntil: 0, rush: 0, rushUntil: 0,
       charge: null, rot: null,
       muteUntil: 0, purgeUntil: 0, exposed: false, netUntil: 0, rootAt: 0, rootUntil: 0, rootFree: 0, stuck: null, thicketUntil: 0,
-      rollAt: this.time + ROLL_EVERY, thornAt: 0, resist: resistOf(this.wave), holdUntil: 0, holdFree: 0,
+      rollAt: this.time + ROLL_EVERY, stoneUntil: 0, stoned: null, rage: 0, solid: false, resist: resistOf(this.wave), holdUntil: 0, holdFree: 0,
       holdBy: '', pushed: 0, poison: null, burn: null, helpers: new Set(), dealt: new Map(), last: null, dead: false, biting: 0,
       wall: null, fury: 0, sx: 0, sy: 0, placed: false,
     };
@@ -1003,9 +1035,12 @@ export class Battle {
         mob.ward = 0;
       }
     }
+    const solid = this.towers.some((t) => t.runes.has('solid')), rage = this.rage;
     for (const mob of this.mobs) {
       if (mob.dead) continue;
-      if (mob.burrow && now >= mob.burrowAt) {
+      mob.solid = solid;
+      mob.rage = mob.wild ? rage : 0;
+      if (mob.burrow && now >= mob.burrowAt && !solid) {
         mob.burrowAt = now + mob.burrow.every;
         mob.underUntil = now + mob.burrow.time;
         this._event({ kind: 'dig', mob });
@@ -1299,7 +1334,7 @@ export class Battle {
     const shot = cls.id === 'sniper' && SHOT[tower.style] || cls.id === 'mechanic' && MECH[tower.style]
       || cls.id === 'forester' && WOOD[tower.style] || cls.id === 'priest' && HOLY[tower.style]
       || cls.id === 'sorceress' && SPELL[tower.style] || cls.id === 'thunder' && STORM[tower.style]
-      || cls.id === 'frost' && WATER[tower.style] || null;
+      || cls.id === 'frost' && WATER[tower.style] || cls.id === 'earth' && EARTH[tower.style] || null;
     if (shot) tower.damage *= shot.mul;
     if (tower.style === 'shamaness' && tower.runes.has('resonance')) tower.damage *= SPELL.resonance.mul;
     tower.interval = (shot && shot.interval || base.interval) / Math.max(FLOOR, 1 + (mods.rate || 0));
@@ -1807,7 +1842,7 @@ export class Battle {
       let slow = steady(mob, now) || !(mob.slowUntil > now) ? 0 : mob.slow;
       if (this.banners.length && !steady(mob, now)) slow = 1 - (1 - slow) * (1 - this._totems(mob, 'slow'));
       if (mob.info.boss) slow *= BOSS_SLOW;
-      let speed = mob.speed * (1 + mob.fury) * (mob.wild ? 1 + OVERTIME_SPEED : 1)
+      let speed = mob.speed * (1 + mob.fury) * (1 + (mob.rage || 0))
         * (mob.rushUntil > now ? 1 + mob.rush : 1);
       const power = mob.muteUntil > now ? null : mob.power;
       if (power && power.boost && power.time && mob.powerUntil > now) speed *= 1 + power.boost;
@@ -1815,7 +1850,7 @@ export class Battle {
       const back = this.sirenUntil > now && !mob.info.boss;
       let next = mob.d + speed * (1 - slow) * dt * (back ? -SONG.back : 1);
       if (back && !this._retreats(mob, next)) next = mob.d;
-      if (grounded(mob, now) && !mob.wild && this.walls.length) {
+      if (grounded(mob, now) && this.walls.length) {
         let wall = null, at = Infinity;
         for (const w of this.walls) {
           const spot = w.r === mob.r ? w.d : mob.r && w.i === this.merge ? this.joinAt : -1;
@@ -1982,32 +2017,18 @@ export class Battle {
     if (wall.ice) {
       if (now < (mob.iceBite || 0)) return;
       mob.iceBite = now + WATER.iceWall.bite;
-      wall.hp -= 1;
+      wall.hp -= 1 + (mob.rage || 0);
       wall.hitAt = now;
       if (wall.hp <= 0) this._melt(wall, now);
       return;
     }
-    wall.hp -= this._wallUnit() * mob.info.leak * WALL_BITE * dt;
+    wall.hp -= this._wallUnit() * mob.info.leak * WALL_BITE * dt * (1 + (mob.rage || 0));
     wall.hitAt = now;
     const t = wall.tower;
     mob.helpers.add(t);
-    if (open(t, 1) && now >= mob.thornAt) {
-      mob.thornAt = now + ROLL_EVERY;
-      if (this.random() < t.s[1].chance) {
-        this._event({ kind: 'thorns', tower: t, mob });
-        this._hurt(mob, t.skill * t.s[1].bonus, t);
-      }
-    }
     if (wall.hp > 0) return;
     this.walls = this.walls.filter((known) => known !== wall);
-    if (t.runes.has('steel')) {
-      this._event({ kind: 'boom', tower: t, x: wall.x, y: wall.y, radius: STEEL_BLAST.radius });
-      for (const other of this._around(wall.x, wall.y, STEEL_BLAST.radius)) {
-        this._hurt(other, t.skill * STEEL_BLAST.mul, t, 'earth');
-        this._hold(other, STEEL_BLAST.stun, t);
-      }
-    }
-    t.nextWall = now + t.cls.base.rebuild;
+    t.nextWall = now + EARTH.wall.rebuild;
     this._event({ kind: 'crumble', tower: t, x: wall.x, y: wall.y });
   }
 
@@ -2404,13 +2425,14 @@ export class Battle {
 
   _wallSpot(t) {
     const taken = new Set(this.walls.map((w) => w.i));
-    let best = null, gap = Infinity;
+    let best = null, gap = Infinity, rest = Infinity;
     this.road.forEach(([x, y], i) => {
       const { r, d } = this._spot(i);
       if (taken.has(i) || d < WALL_MARGIN || !r && d > this.length - HEART_GAP - WALL_MARGIN) return;
-      const far = (x + 0.5 - t.cx) ** 2 + (y + 0.5 - t.cy) ** 2;
-      if (far < gap) {
+      const far = (x + 0.5 - t.cx) ** 2 + (y + 0.5 - t.cy) ** 2, left = this.length - (r ? d + this.joinShift : d);
+      if (far < gap || far === gap && left < rest) {
         gap = far;
+        rest = left;
         best = i;
       }
     });
@@ -2422,7 +2444,7 @@ export class Battle {
   }
 
   _wallMax(t) {
-    return this._wallUnit() * t.s[0].wall * (t.runes.has('steel') ? 3 : 1);
+    return t.might * EARTH.wall.might;
   }
 
   _raiseWall(t, now) {
@@ -2430,8 +2452,7 @@ export class Battle {
     const i = this._wallSpot(t);
     if (i === null) return;
     const [x, y] = this.road[i], hp = this._wallMax(t), { r, d } = this._spot(i);
-    this.walls.push({ tower: t, i, r, d, x: x + 0.5, y: y + 0.5, hp, max: hp, hitAt: -1e9,
-      steel: t.runes.has('steel') });
+    this.walls.push({ tower: t, i, r, d, x: x + 0.5, y: y + 0.5, hp, max: hp, hitAt: -1e9 });
     this._event({ kind: 'wall', tower: t, x: x + 0.5, y: y + 0.5 });
   }
 
@@ -2756,7 +2777,12 @@ export class Battle {
   }
 
   _resistOf(mob) {
-    return Math.max(0, mob.resist - (this.deafen || 0));
+    return Math.min(1, Math.max(0, mob.resist - (this.deafen || 0)) + (mob.rage || 0));
+  }
+
+  get rage() {
+    if (!this.wild) return 0;
+    return Math.min(RAGE.max, RAGE.step * (1 + Math.floor((this.time - this.wildAt) / RAGE.every)));
   }
 
   _sorcery(id, value) {
@@ -3983,18 +4009,34 @@ function sideShot(b, t, first) {
   return pool[0] || null;
 }
 
-function spikes(b, t, target) {
-  const crit = rollCrit(b, t), damage = t.damage * (crit ? t.critMul : 1), base = t.cls.base;
-  const count = t.runes.has('stone') ? STONE_SPIKES : base.spikes, first = -Math.floor((count - 1) / 2);
-  const points = [], hit = new Set();
-  for (let k = 0; k < count; k++) points.push(b._roadPoint(target.r, Math.max(0, target.d - first - k)));
-  b._event({ kind: 'spikes', tower: t, x: target.x, y: target.y, points: points.map((p) => [p.x, p.y]) });
-  for (const point of points) {
-    for (const mob of b._around(point.x, point.y, SPIKE_TOUCH)) {
-      if (hit.has(mob) || !grounded(mob, b.time)) continue;
-      hit.add(mob);
-      b._hurt(mob, damage, t);
+function rocks(b, t, target) {
+  const crit = rollCrit(b, t), hit = t.damage * (crit ? t.critMul : 1);
+  const s = EARTH[t.style] && EARTH[t.style].speed ? EARTH[t.style] : EARTH.pile;
+  const flight = Math.hypot(target.x - t.cx, target.y - t.cy) / s.speed;
+  b._event({ kind: 'shot', tower: t, x: target.x, y: target.y, crit, mob: target, time: flight });
+  b._later(flight, () => {
+    if (target.dead) return;
+    if (t.style !== 'serpent') b._hurt(target, hit, t);
+    else {
+      b._hurt(target, hit / 2, t, 'fire');
+      b._hurt(target, hit / 2, t, 'earth');
     }
+  }, t);
+}
+
+function petrify(b, t, now) {
+  const s = EARTH.petrify;
+  for (const mob of b.mobs) {
+    if (mob.dead || hidden(mob, now) || Math.abs(Math.floor(mob.x) - t.x) > 1 || Math.abs(Math.floor(mob.y) - t.y) > 1) continue;
+    if (!mob.stoned) mob.stoned = new Set();
+    if (mob.stoned.has(t) || steady(mob, now)) continue;
+    mob.stoned.add(t);
+    const time = (mob.info.boss ? s.boss : elite(mob) ? s.elite : s.time) * (1 - (mob.rage || 0));
+    mob.stoneUntil = mob.stoneUntil > now ? mob.stoneUntil + time : now + time;
+    mob.holdUntil = Math.max(mob.holdUntil, mob.stoneUntil);
+    mob.holdBy = 'stone';
+    b._help(t, HELP.control);
+    b._event({ kind: 'hold', mob, by: 'stone' });
   }
 }
 
@@ -4295,59 +4337,17 @@ const SKILLS = {
     fire(b, t) {
       const target = b._target(t);
       if (!target) return false;
-      spikes(b, t, target);
+      rocks(b, t, target);
       return true;
     },
     every(b, t, now, alive) {
-      if (open(t, 0) && now >= t.nextWall && !b.walls.some((wall) => wall.tower === t)) b._raiseWall(t, now);
-      if (open(t, 3) && alive && now >= (t.nextQuake || 0)) {
-        const caught = b.mobs.filter((mob) => grounded(mob, now) && b._targetable(t, mob));
-        if (caught.length) {
-          t.nextQuake = now + t.s[3].every;
-          b._event({ kind: 'quake', tower: t, radius: t.range });
-          for (const mob of caught) b._hold(mob, t.s[3].stun, t);
-        }
+      if (t.style === 'keeper') {
+        const wall = b.walls.find((w) => w.tower === t);
+        if (!wall && now >= t.nextWall) b._raiseWall(t, now);
+        if (wall && wall.hp < wall.max && now - wall.hitAt >= EARTH.wall.heal) wall.hp = wall.max;
       }
-      if (open(t, 4) && alive && now >= (t.nextRift || 0)) {
-        const lead = b._target(t), s = t.s[4];
-        if (lead) {
-          t.nextRift = now + s.every;
-          const points = [], hit = new Set();
-          for (let k = 0; k < s.count; k++) points.push(b._roadPoint(lead.r, Math.max(0, lead.d + 1 - k)));
-          b._event({ kind: 'spikes', tower: t, x: lead.x, y: lead.y, points: points.map((p) => [p.x, p.y]) });
-          for (const point of points) {
-            for (const mob of b._around(point.x, point.y, SPIKE_TOUCH)) {
-              if (hit.has(mob) || !grounded(mob, now)) continue;
-              hit.add(mob);
-              const share = mob.info.boss ? s.boss : elite(mob) ? s.elite : s.share;
-              b._hurt(mob, Math.min(mob.hp * share, t.skill * s.cap), t, 'earth', false, ARMOR);
-            }
-          }
-        }
-      }
-      if (open(t, 5) && alive && now >= (t.nextSand || 0)) {
-        const lead = b._target(t), s = t.s[5];
-        if (lead) {
-          const at = b._roadPoint(lead.r, lead.d + 1);
-          t.nextSand = now + s.every;
-          b._zone('sand', t, at.x, at.y, s.radius, s.time, { slow: s.slow });
-        }
-      }
-      if (!open(t, 2) || !alive || now < t.nextActive) return;
-      const living = b.mobs.filter((mob) => !mob.dead && !hidden(mob, now) && !b.covered(mob.x, mob.y));
-      if (!living.length) return;
-      const s = t.s[2], mob = living[Math.floor(b.random() * living.length)], x = mob.x, y = mob.y;
-      t.nextActive = now + s.every;
-      b._event({ kind: 'meteor', tower: t, x, y, radius: s.radius, time: METEOR_FLIGHT });
-      b._later(METEOR_FLIGHT, () => {
-        b._event({ kind: 'boom', tower: t, x, y, radius: s.radius, meteor: true });
-        for (const other of b._around(x, y, s.radius)) {
-          const crit = rollCrit(b, t), damage = t.skill * s.bonus * (crit ? t.critMul : 1) / 2;
-          b._hurt(other, damage, t, 'earth');
-          b._hurt(other, damage, t, 'fire');
-          b._hold(other, s.stun, t);
-        }
-      }, t);
+      if (t.runes.has('terraform')) b._mound(t);
+      if (t.runes.has('petrify') && alive) petrify(b, t, now);
     },
   },
 };

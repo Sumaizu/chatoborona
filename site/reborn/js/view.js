@@ -39,11 +39,11 @@ const SOUND_PRIORITY = ['over', 'divine', 'relic', 'win', 'boss', 'wave', 'jackp
   'buff', 'debuff', 'spin', 'leak', 'card', 'tick'];
 const SFX_PER_FRAME = 4;
 const SHOTS = { sniper: 'crack', mechanic: 'gun', forester: 'bolt',
-  priest: 'holy', sorceress: 'cast', thunder: 'zap', frost: 'splash' };
+  priest: 'holy', sorceress: 'cast', thunder: 'zap', frost: 'splash', earth: 'rock' };
 const BATTLE_SOUNDS = { dash: 'zap', chord: 'lute', drum: 'drum', totem: 'build', claw: 'hit', hammer: 'leap', rod: 'build', conjure: 'cast', strike: 'hit', wall: 'build', crumble: 'crumble',
   bite: 'chomp', icicle: 'ice', tentacle: 'splash', splash: 'splash', arrow: 'bolt', pop: 'boom', drown: 'splash', ink: 'splash', slap: 'splash', iceBurst: 'freeze',
   vortex: 'wind', spring: 'build', bubble: 'splash',
-  spikes: 'rock', clink: 'clink', treasure: 'treasure', rattle: 'rattle', rise: 'rise',
+  mound: 'build', clink: 'clink', treasure: 'treasure', rattle: 'rattle', rise: 'rise',
   hex: 'hex', blink: 'leap', burrow: 'burrow', leech: 'summon', steal: 'clink', loot: 'treasure', reflect: 'block',
   swallow: 'burrow', breath: 'flame', web: 'hex', ward: 'block', mirage: 'summon', dig: 'burrow', drop: 'summon',
   hook: 'chain', yank: 'yank', charge: 'charge', reload: 'reload', ricochet: 'ricochet', burst: 'mine',
@@ -51,8 +51,7 @@ const BATTLE_SOUNDS = { dash: 'zap', chord: 'lute', drum: 'drum', totem: 'build'
   ignite: 'ignite', oil: 'splash',
   oilfire: 'flame', net: 'snap', snare: 'snap', trap: 'snap', hail: 'wind', blob: 'splash', absorb: 'summon',
   trophy: 'clink', cauldron: 'splash',
-  heal: 'heal', lastStand: 'rise', judgement: 'divine', holyRing: 'holy', warded: 'block', aegis: 'block',
-  thorns: 'rock' };
+  heal: 'heal', lastStand: 'rise', judgement: 'divine', holyRing: 'holy', warded: 'block', aegis: 'block' };
 const GOOD_EVENTS = new Set(['buff', 'blessing']);
 const COIN_FINDS = { handful: ' находит горстку монет', bag: ' находит мешок монет!',
   chest: ' открывает сундук монет!' };
@@ -444,7 +443,7 @@ export class View {
     } else if (kind === 'flame' || kind === 'beam') {
       this._sound('flame');
     } else if (kind === 'boom' || kind === 'flashbang') {
-      this._sound(event.meteor ? 'quake' : 'boom');
+      this._sound('boom');
     } else if (kind === 'thunderbolt' || kind === 'skybolt') {
       this._sound('storm');
     } else if (kind === 'kill') {
@@ -463,17 +462,11 @@ export class View {
       board.classList.add('shake');
     } else if (kind === 'wild') {
       this._sound('roar');
-      this.scene.say('Мобы рассвирепели: бегут быстрее, сквозь стены и оковы', '#ef4444');
+      this.scene.say('Мобы свирепеют: каждые 10 с быстрее, злее к стенам и крепче к оковам', '#ef4444');
     } else if (kind === 'silver' || kind === 'newcomer') {
       this._sound('growl');
-    } else if (kind === 'mortar' && event.nuke || kind === 'meteor') {
+    } else if (kind === 'mortar' && event.nuke) {
       this._sound('fall', event.time);
-    } else if (kind === 'quake') {
-      this._sound('quake');
-      const board = $('board');
-      board.classList.remove('shake');
-      void board.offsetWidth;
-      board.classList.add('shake');
     } else if (kind === 'react') {
       this._sound('crit');
     } else if (MAGE_SAYS[kind]) {

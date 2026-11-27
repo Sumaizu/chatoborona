@@ -4,7 +4,7 @@ import { FIRE, HOLY, MANTRAS, MECH, SPELL, STORM, WATER, WOLF, WOOD, bubbleAt, b
   pullAt, roadCurve } from './battle.js';
 import { FIREBALL_FRAMES, PHOENIX_FRAMES, ORB_FRAMES, PUDDLE_FRAMES, SPRING_FRAMES, bubbleSprite, orbSprite, puddleSprite, seaArmSprite, springSprite, bulletSprite, clodSprite,
   coinSprite, fireballSprite, heartSprite, gooColor, heroSprite, hookSprite, iceWallSprite, icicleSprite, linkSprite, meltSprite,
-  meteorSprite, grenadeSprite, droneSprite, birdSprite, hawkSprite, snareSprite, trapSprite, cauldronSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
+  boulderSprite, hillockSprite, grenadeSprite, droneSprite, birdSprite, hawkSprite, snareSprite, trapSprite, cauldronSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
   rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, ventSprite, wallSprite } from './sprites.js';
 import { BREWS, SOILS, drawRootWall } from './props.js';
 import { ANGEL_BODY, FINE_HEROES, HERO, HERO_IDS, KRAKEN_REACH, MUZZLES, RELOAD_FRAMES, SEA_ARM, sizeOf } from './models.js';
@@ -64,14 +64,13 @@ const TRAIL_STEP = 0.2;
 const CORPSE = { fall: 0.45, lie: 1, fade: 1.1, max: 60 };
 const DECALS_MAX = 300;
 const TINTS = { burn: '#ff7a1f', blue: '#4aa3ff', black: '#1c1917',
-  chill: '#8ee6ff', ink: '#120d1f',
+  chill: '#8ee6ff', ink: '#120d1f', stone: '#7d7670',
   fury: '#ff4d1f', steam: '#f1f5f9', mud: '#8a5a2b', corrosion: '#a3e635', disease: '#7c3aed',
   epidemic: '#4c1d95' };
 const STATE_TINTS = ['steam', 'mud', 'corrosion', 'disease', 'epidemic'];
 const MARK_COLORS = { fire: '#ff7a1f', water: '#38bdf8', earth: '#c08a4a', air: '#ccfbf1', lightning: '#facc15',
   poison: '#84cc16' };
-const ZONE_LOOKS = { sand: ['#c9a66b', '#e7cf9b', '#8a6a3a'],
-  gas: ['#84cc16', '#d9f99d', '#4d7c0f'],
+const ZONE_LOOKS = { gas: ['#84cc16', '#d9f99d', '#4d7c0f'],
   lava: ['#ef4444', '#fb923c', '#7f1d1d'] };
 const HIT_FLASH = 0.15;
 const HERO_LOOKS = new Set(HERO_IDS);
@@ -97,12 +96,14 @@ const DARK = '#100e1f';
 const STYLE_BOLTS = { hunter: { look: 'bolt', color: '#e7e5e4', width: 3 },
   witch: { look: 'fireball', color: '#84cc16', size: 11, tone: 'toxic' },
   inquisitor: { look: 'fireball', color: '#fde68a', size: 11, tone: 'holy' },
-  enchantress: { look: 'fireball', color: '#7dd3fc', size: 11, tone: 'azure' } };
+  enchantress: { look: 'fireball', color: '#7dd3fc', size: 11, tone: 'azure' },
+  serpent: { look: 'fireball', color: '#ff8a1f', size: 10, tone: 'lava' },
+  geo: { look: 'boulder', color: '#8a7a66', size: 8 } };
 const BOLTS = {
   sniper: { look: 'tracer', color: '#fff3b0', width: 2, bullet: true },
   mechanic: { look: 'tracer', color: '#ffe8a3', width: 1.5, bullet: true },
   forester: { look: 'bolt', color: '#c8a26a', width: 2 },
-  earth: { look: 'lob', color: '#9a8f80', size: 4 },
+  earth: { look: 'spear', color: '#9a8f80', size: 4 },
   frost: { look: 'drop', color: '#7dd3fc', size: 1 },
   pyro: { look: 'fireball', color: '#ff7a1f', size: 7 },
   priest: { look: 'light', color: '#fde68a', size: 3 },
@@ -116,6 +117,7 @@ const FLAME_TONES = { warm: FLAME, blue: BLUE_FLAME, toxic: ['#f7fee7', '#d9f99d
   azure: ['#f0fbff', '#c7f0ff', '#7dd3fc', '#38bdf8', '#0284c7'],
   plague: ['#ede9fe', '#a78bfa', '#6d28d9', '#3b0764', '#1e1033'],
   earth: ['#fef3c7', '#e7c9a0', '#b08356', '#7c5a3a', '#4a3426'],
+  lava: ['#fff1a8', '#ffd166', '#ff8a1f', '#e2531f', '#8a2a12'],
   storm: ['#ffffff', '#fef9c3', '#fde047', '#facc15', '#ca8a04'] };
 const BALL_TONES = { fire: 'warm', poison: 'toxic', holy: 'holy', earth: 'earth', lightning: 'storm' };
 const BEAMS = { arcane: ['56, 189, 248', '224, 247, 255'], fire: ['249, 115, 22', '255, 237, 213'],
@@ -124,6 +126,7 @@ const BEAMS = { arcane: ['56, 189, 248', '224, 247, 255'], fire: ['249, 115, 22'
 const UNBIND = { edge: 40, inner: 16,
   tones: ['255, 140, 60', '125, 211, 252', '163, 230, 53', '250, 204, 21', '196, 181, 253'] };
 const STONES = { count: 5, spread: 3.6, size: 2.2, glow: '232, 170, 90' };
+const EARTH_FX = { throw: 0.25, arc: 9, dust: 6, grains: 9, orbit: 5.5 };
 const ROAD_AURA = { zoom: 2, motes: 5, reach: 1.12 };
 const SHOCK = { grow: 0.3, tail: 0.18, zoom: 2, bands: [[0.3, 1, 0.12], [0.15, 0.55, 0.2], [0.05, 0.22, 0.5]] };
 const ZAP = { glow: '96, 165, 250', mid: '191, 219, 254', core: '255, 255, 255', jag: 0.42, steps: 11 };
@@ -160,6 +163,7 @@ const HEAT = { warm: ['rgba(255, 110, 30, .9)', 'rgba(255, 220, 120, .9)'],
   holy: ['rgba(250, 204, 21, .9)', 'rgba(255, 251, 230, .95)'],
   azure: ['rgba(56, 189, 248, .9)', 'rgba(224, 247, 255, .95)'],
   earth: ['rgba(176, 120, 66, .9)', 'rgba(254, 243, 199, .9)'],
+  lava: ['rgba(255, 106, 31, .9)', 'rgba(255, 209, 102, .9)'],
   water: ['rgba(56, 189, 248, .9)', 'rgba(224, 247, 255, .95)'],
   ice: ['rgba(125, 211, 252, .9)', 'rgba(255, 255, 255, .95)'],
   ink: ['rgba(59, 47, 92, .9)', 'rgba(109, 90, 156, .9)'],
@@ -1113,6 +1117,7 @@ export class Scene {
     this._gates(ctx, battle);
     this._onField(ctx, () => this._flames(ctx, battle));
     this._auras(ctx, battle);
+    this._onField(ctx, () => this._hillocks(ctx, battle));
     this._onField(ctx, () => this._springs(ctx, battle));
     this._arms(ctx, battle);
     this._towers(ctx, battle, dt, highlight, still);
@@ -2121,6 +2126,42 @@ export class Scene {
     const image = icicleSprite(big ? 22 : 18);
     glow(ctx, x, y, big ? 7 : 6, 'rgba(165, 243, 252, 1)', 0.4);
     sprite(ctx, image, x, y, angle, ZOOM, 0, HERO_TURN_STEPS);
+  }
+
+  _hillocks(ctx, battle) {
+    const image = hillockSprite();
+    for (const mound of battle.mounds) {
+      const x = at(mound.x + 0.5), y = at(mound.y + 0.5);
+      ctx.fillStyle = 'rgba(0, 0, 0, .3)';
+      ctx.beginPath();
+      ctx.ellipse(x + 2, y + 6, 15, 9, 0, 0, Math.PI * 2);
+      ctx.fill();
+      sprite(ctx, image, x, y + 2, 0);
+    }
+  }
+
+  _sandTip(ctx, t) {
+    const tip = this._muzzle(t), x = at(tip.x), y = at(tip.y), seed = t.x * 7 + t.y * 13;
+    for (let i = 0; i < EARTH_FX.grains; i++) {
+      const a = this.clock * (1.6 + noise(i, seed) * 1.4) + i * 2.1, r = EARTH_FX.orbit * (0.5 + 0.6 * noise(i + 9, seed));
+      const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r * 0.7 - 1;
+      square(ctx, px, py, i % 3 ? 1 : 2, i % 3 ? '#e7cf9b' : '#8a7a66');
+    }
+  }
+
+  _boulder(ctx, e, share) {
+    const { cx, cy } = this._flightOf(e, share), arc = Math.sin(share * Math.PI) * EARTH_FX.arc;
+    const x = at(cx), y = at(cy), zoom = e.bolt.size / 10;
+    ctx.fillStyle = 'rgba(0, 0, 0, .28)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + 3, 6 * zoom + 2, 3 * zoom + 1, 0, 0, Math.PI * 2);
+    ctx.fill();
+    for (let i = 1; i <= EARTH_FX.dust; i++) {
+      const back = Math.max(0, share - i * 0.035), dx = at(e.x1 + (e.x2 - e.x1) * back), dy = at(e.y1 + (e.y2 - e.y1) * back);
+      const lift = Math.sin(back * Math.PI) * EARTH_FX.arc;
+      glow(ctx, dx, dy - lift, 5 - i * 0.5, 'rgba(201, 166, 107, 1)', 0.4 * (1 - i / (EARTH_FX.dust + 1)));
+    }
+    sprite(ctx, boulderSprite(), x, y - arc, this.clock * 7, zoom * ZOOM, 0, 64);
   }
 
   _staffZap(ctx, t) {
@@ -4207,7 +4248,8 @@ export class Scene {
       for (const name of STATE_TINTS) if (this.battle.state(mob, name)) layers.push([name, 0.3]);
     }
     const inked = Boolean(mob.ink && mob.ink.until > this.battle.time);
-    if (inked) layers.push(['ink', 0.6]);
+    if (mob.stoneUntil > this.battle.time) layers.push(['stone', 0.75]);
+    else if (inked) layers.push(['ink', 0.6]);
     else if (slowed) layers.push(['chill', frozen ? 0.5 : 0.26]);
     if (mob.fury && !mob.kind) layers.push(['fury', 0.22]);
     for (const [kind, strength] of layers) {
@@ -4269,6 +4311,7 @@ export class Scene {
       if (t.style === 'monk' && pose.staff && this.clock < pose.staff.until) look = t.look + '-strike';
       const sea = t.style === 'kraken' && battle.swims(t);
       if (sea) look = t.look + '-sea';
+      if (battle.bathes(t)) look = t.look + '-lava';
       const act = pose.act && this.clock < pose.act.until ? pose.act : null;
       if (act && act.frames) {
         look = t.look + '-' + act.frames[Math.min(act.frames.length - 1, Math.floor((this.clock - act.start) / act.step))];
@@ -4339,6 +4382,7 @@ export class Scene {
       if (t.cls.id === 'priest' && t.style !== 'monk' && t.style !== 'angel') this._holyTip(ctx, t);
       if (t.cls.id === 'sorceress') this._spellGlow(ctx, t);
       if (t.style === 'caller') this._staffZap(ctx, t);
+      if (t.style === 'geo') this._sandTip(ctx, t);
       if (t.style === 'angel' || t.style === 'inquisitor') this._halo(ctx, t, x, y);
       if (pose.flash > 0 && t.cls.id !== 'priest' && t.cls.id !== 'sorceress') {
         const tip = this._muzzle(t), fx = at(tip.x), fy = at(tip.y);
@@ -4646,13 +4690,17 @@ export class Scene {
         bolt = Object.assign({}, bolt, { tone: BALL_TONES[event.element],
           look: event.element === 'earth' && !event.size ? 'spear' : 'fireball' });
       }
-      const flight = event.time || TRAVEL * (bolt.look === 'lob' ? 2.5 : 1);
+      const flight = event.time || TRAVEL;
       const launch = (x2, y2, late = 0, head = null) => {
         const tip = away ? { x: event.sx, y: event.sy - (event.high ? DRONE_LIFT / CELL : 0) }
           : this._muzzle(t, event.hand || 0);
         add({ kind: 'shot', life: Math.max(FLIGHT_MIN, flight - late), x1: tip.x, y1: tip.y, x2, y2, bolt,
-          crit: event.crit, heavy: event.heavy, head, track: t.style === 'enchantress' || t.cls.id === 'thunder' || t.cls.id === 'frost' ? event.mob : null });
+          crit: event.crit, heavy: event.heavy, head, track: t.style === 'enchantress' || t.cls.id === 'thunder' || t.cls.id === 'frost' || t.cls.id === 'earth'
+            ? event.mob : null });
         if (t.cls.id === 'frost' && !t.style) this._pose(t).act = { frame: 'flick', until: this.clock + WATER_FX.flick };
+        if (t.cls.id === 'earth' && t.style !== 'serpent') {
+          this._pose(t).act = { frame: t.style === 'geo' ? 'swing' : 'throw', until: this.clock + EARTH_FX.throw };
+        }
         if (event.heavy) {
           this._pose(t).flash = FLASH * 3;
           this._sparks(tip.x, tip.y, CHARGES.heavy.sparks, event.heavy === 'mega' ? 14 : 8, 2.4, 0.35);
@@ -4871,7 +4919,7 @@ export class Scene {
     } else if (event.kind === 'links') {
       add({ kind: 'links', life: event.time, pairs: event.pairs });
     } else if (event.kind === 'boom') {
-      const tone = event.tone || (event.meteor ? 'earth' : null), big = event.rocket || event.meteor;
+      const tone = event.tone || null, big = event.rocket;
       add({ kind: 'blast', life: big ? 0.65 : 0.55, x: event.x, y: event.y, r: event.radius,
         seed: Math.floor(Math.random() * 97), blue: event.blue, tone });
       this._sparks(event.x, event.y, tone ? BLAST_TONES[tone].slice(1) : event.blue ? BLUE_FLAME.slice(0, 4)
@@ -4908,13 +4956,11 @@ export class Scene {
         angle: Math.atan2(bx - ax, -(by - ay)) });
       this._sparks(spot.x, spot.y, [goo, tone(goo, [255, 255, 255], 0.5)], 10, 2, 0.45, 2);
     } else if (event.kind === 'hold') {
-      const ice = event.by === 'frost';
-      this._sparks(event.mob.x, event.mob.y, ice ? ['#e0fbff', '#67e8f9'] : ['#ffe14d', '#ffffff'], 6, 1.8, 0.35);
-    } else if (event.kind === 'meteor') {
-      add({ kind: 'meteor', life: event.time, x: event.x, y: event.y, r: event.radius });
-    } else if (event.kind === 'thorns') {
-      const spot = this.shown.get(event.mob.id) || event.mob;
-      this._sparks(spot.x, spot.y, ['#c4b8a6', '#8a7f70', '#7a1f1f'], 6, 1.6, 0.35, 2);
+      const ice = event.by === 'frost', stone = event.by === 'stone';
+      this._sparks(event.mob.x, event.mob.y, ice ? ['#e0fbff', '#67e8f9'] : stone ? ['#a8a29e', '#57534e']
+        : ['#ffe14d', '#ffffff'], 6, 1.8, 0.35);
+    } else if (event.kind === 'mound') {
+      this._sparks(event.x, event.y, ['#a8855a', '#8a6a44', '#5e4630'], 14, 1.6, 0.5, 2);
     } else if (event.kind === 'ignite') {
       const tones = event.black ? BLACK_FLAME : event.blue ? BLUE_FLAME : FLAME;
       add({ kind: 'ring', life: 0.45, x: event.x, y: event.y, r: event.radius, color: tones[2], width: 3 });
@@ -5045,12 +5091,6 @@ export class Scene {
       const zone = event.zone, look = ZONE_LOOKS[zone.kind];
       add({ kind: 'ring', life: 0.5, x: zone.x, y: zone.y, r: zone.radius, color: look[0], width: 2 });
       this._sparks(zone.x, zone.y, look, 7, zone.radius * 2.4, 0.5, 2);
-    } else if (event.kind === 'quake') {
-      add({ kind: 'ring', life: 0.6, x: t.cx, y: t.cy, r: event.radius, color: '#a8794a', width: 3 });
-      this._sparks(t.cx, t.cy, ['#c9a66b', '#6b5032'], 12, event.radius * 3, 0.5, 2);
-    } else if (event.kind === 'spikes') {
-      this._face(t, event.x, event.y);
-      add({ kind: 'spikes', life: 0.4, points: event.points });
     } else if (event.kind === 'rise') {
       const mob = event.mob;
       add({ kind: 'ring', life: 0.6, x: mob.x, y: mob.y, r: 0.9, color: '#a3e635', width: 2 });
@@ -5382,6 +5422,8 @@ export class Scene {
           this._fireball(ctx, e, share, dt);
         } else if (b.look === 'spear') {
           this._spear(ctx, e, share);
+        } else if (b.look === 'boulder') {
+          this._boulder(ctx, e, share);
         } else if (b.look === 'light') {
           this._holyMotes(ctx, e, share);
         } else if (b.look === 'wisp') {
@@ -5407,10 +5449,6 @@ export class Scene {
           ctx.moveTo(x - dx / len * 7, y - dy / len * 7);
           ctx.lineTo(x, y);
           ctx.stroke();
-        } else if (b.look === 'lob') {
-          const arc = Math.sin(share * Math.PI) * 10;
-          square(ctx, x, y - arc, b.size + 2, '#15111d');
-          square(ctx, x, y - arc, b.size, b.color);
         } else if (b.look === 'drop') {
           this._drop(ctx, x, y, Math.atan2(e.y2 - e.y1, e.x2 - e.x1), e.crit ? 1.35 : 1);
         } else if (b.look === 'shard') {
@@ -5490,45 +5528,6 @@ export class Scene {
       } else if (e.kind === 'grenade') {
         const { x, y } = this._lofted(ctx, e, share);
         sprite(ctx, grenadeSprite(e.grenade, Math.floor(this.clock * 8) % 2 === 0), x, y, share * Math.PI * 4, 1.3);
-      } else if (e.kind === 'meteor') {
-        const tx = at(e.x), ty = at(e.y), k = share * share, mx = tx - 150 * (1 - k), my = ty - 210 * (1 - k);
-        ctx.save();
-        ctx.globalAlpha = 0.4 + 0.3 * Math.sin(this.clock * 12);
-        ctx.strokeStyle = '#ff7a1f';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 4]);
-        ctx.lineDashOffset = -this.clock * 20;
-        ctx.beginPath();
-        ctx.ellipse(tx, ty, e.r * CELL, e.r * CELL * 0.92, 0, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-        ctx.fillStyle = 'rgba(0, 0, 0, ' + (0.15 + 0.35 * share).toFixed(3) + ')';
-        ctx.beginPath();
-        ctx.ellipse(tx, ty + 3, 6 + 14 * share, 3 + 6 * share, 0, 0, Math.PI * 2);
-        ctx.fill();
-        for (let i = 1; i <= 12; i++) {
-          glow(ctx, mx - i * 8 * (150 / 210), my - i * 8, 16 - i * 0.8, i < 6 ? 'rgba(255, 140, 40, 1)'
-            : 'rgba(120, 100, 90, 1)', 0.75 * (1 - i / 13));
-        }
-        glow(ctx, mx, my, 26, 'rgba(255, 120, 30, .95)', 0.9);
-        sprite(ctx, meteorSprite(), mx, my, this.clock * 3, 2.6, 0, 64);
-      } else if (e.kind === 'spikes') {
-        const rise = Math.sin(Math.min(1, share * 2.5) * Math.PI / 2) * (1 - Math.max(0, share - 0.6) / 0.4);
-        e.points.forEach(([px, py], k) => {
-          for (let i = 0; i < 4; i++) {
-            const a = i * 1.6 + k * 0.7, d = CELL * (i ? 0.3 : 0);
-            const x = at(px) + Math.cos(a) * d, y = at(py) + Math.sin(a) * d * 0.7, h = (7 + (i % 3) * 2) * rise;
-            ctx.fillStyle = '#8a7f70';
-            ctx.beginPath();
-            ctx.moveTo(x - 3, y + 2);
-            ctx.lineTo(x, y + 2 - h);
-            ctx.lineTo(x + 3, y + 2);
-            ctx.closePath();
-            ctx.fill();
-            ctx.fillStyle = '#c4b8a6';
-            ctx.fillRect(Math.round(x - 1), Math.round(y + 1 - h), 1, Math.max(0, Math.round(h - 2)));
-          }
-        });
       } else if (e.kind === 'zap') {
         const spot = e.mob && !e.mob.dead ? this.shown.get(e.mob.id) : null;
         if (spot) {

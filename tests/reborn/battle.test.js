@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { AIM, ARCANE, BITE_TIME, Battle, EARN, WOLF, godStage, hammerAt, HELP, HOLY, SONG, SPELL, STORM, WATER, WOOD, GRENADE, MECH, MOVE_PAUSE, OVERTIME, FIRE,
+import { AIM, ARCANE, BITE_TIME, Battle, EARN, EARTH, RAGE, WOLF, flier, godStage, hammerAt, HELP, HOLY, SONG, SPELL, STORM, WATER, WOOD, GRENADE, MECH, MOVE_PAUSE, OVERTIME, FIRE,
   PULSE, REACTIONS, ROT, SHOT, SPLIT_TIME }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
@@ -3429,7 +3429,7 @@ function lab() {
   const towers = {
     fire: at('pyro', 1, { runes: ['fireReact'] }), fire2: at('pyro', 3, { runes: ['fireReact'] }),
     fire3: at('pyro', 17, { runes: ['fireReact'] }),
-    water: at('frost', 5, { runes: ['waterReact'] }), earth: at('earth', 7, { perks: [6] }),
+    water: at('frost', 5, { runes: ['waterReact'] }), earth: at('earth', 7, { runes: ['earthReact'] }),
     lightning: at('thunder', 11, { runes: ['stormReact'] }), poison: at('forester', 13, { runes: ['witch'] }),
   };
   return { battle, towers };
@@ -3516,117 +3516,242 @@ test('реакции: гарантированные — лава, эпидем�
   ok(!battle.zones.includes(cloud), 'облако сгорело');
 });
 
-test('маг земли: землетрясение, разлом, зыбучий песок, стальная крепость', () => {
-  const battle = makeBattle(), t = battle.place(player(), 'earth', 10, 4);
-  battle.setMods(t, { perks: [3, 4, 5] });
-  t.cooldown = 1e9;
-  const a = walker(battle, 10, 1000), b = walker(battle, 9.5, 1000);
-  still(a, b);
-  battle.step(TICK);
-  ok(a.holdUntil > battle.time && b.holdUntil > battle.time, 'землетрясение оглушает');
-  ok(a.hp <= 500 + 1e-6 && b.hp <= 500 + 1e-6, 'разлом: половина здоровья');
-  ok(battle.zones.some((zone) => zone.kind === 'sand'), 'зыбучий песок');
+function earth(battle, x, y, runes, xp = 0) {
+  const t = battle.place(player(xp), 'earth', x, y);
+  battle.setMods(t, { runes });
+  t.critChance = 0;
+  return t;
+}
 
-  const fort = makeBattle(), f = fort.place(level(10), 'earth', 10, 4);
-  fort.setMods(f, { perks: [0], runes: ['steel'] });
-  fort.step(TICK);
-  const wall = fort.walls[0], mob = walker(fort, 3, 1e6);
-  ok(wall, 'стена стоит');
-  wall.hp = 1e-9;
-  put(fort, mob, wall.d - 0.6);
-  fort._batter(wall, mob, TICK, fort.time);
-  ok(fort.events.some((e) => e.kind === 'boom' && e.tower === f), 'рухнув, взрывается');
-  ok(mob.holdUntil > fort.time, 'и оглушает');
+const beside = (battle, x, hp = 1e6) => {
+  const mob = walker(battle, 1, hp);
+  for (let d = 0; d < battle.length; d += 0.05) {
+    put(battle, mob, d);
+    if (Math.floor(mob.x) === x) return mob;
+  }
+  return mob;
+};
+
+test('маг земли: взмахом руки бросает груду камней — урон землёй по прилёту; стихию кладёт только с реакцией', () => {
+  const battle = makeBattle(), t = earth(battle, 10, 4, []), mob = walker(battle, 11, 1e6);
+  still(mob);
+  ok(battle._fire(t));
+  eq(mob.hp, mob.max, 'камни ещё летят');
+  ok(battle.events.some((e) => e.kind === 'shot' && e.tower === t));
+  runFor(battle, 1);
+  ok(hit(mob) > 0, 'попали');
+  no(mob.marks, 'без реакции стихию не кладёт');
+  battle.setMods(t, { runes: ['earthReact'] });
+  t.cooldown = 0;
+  battle._fire(t);
+  runFor(battle, 1);
+  ok(mob.marks && mob.marks.has('earth'), 'с «Земляной реакцией» — метка земли');
+  eq(choiceOf('earth', []).map((option) => option.skill.id), ['keeper', 'serpent', 'geo'], 'первый камень — подкласс');
+  eq(choiceOf('earth', ['geo']).map((option) => option.skill.id), ['earthReact', 'solid', 'terraform', 'petrify']);
 });
 
-test('маг земли: шипы бьют сразу две клетки дороги, руна «Каменные шипы» — пять; летучих не задевают', () => {
-  const battle = makeBattle(), mage = battle.place(player(), 'earth', 10, 4);
-  battle.random = () => 0.99;
-  const target = walker(battle, 11, 1e6), behind = walker(battle, 10, 1e6), far = walker(battle, 9, 1e6);
-  const flyer = walker(battle, 11, 1e6, bat());
-  still(target, behind, far, flyer);
-  battle._fire(mage);
-  ok(hit(target) > 0 && hit(behind) > 0, 'две клетки');
-  eq([far.hp, flyer.hp], [far.max, flyer.max]);
-  battle.setMods(mage, { runes: ['stone'] });
-  battle._fire(mage);
-  ok(hit(far) > 0, 'пять клеток');
-  eq(flyer.hp, flyer.max, 'летучих не задевают');
+test('маг земли: лавовый змей — половина урона огнём, половина землёй; геомант бьёт крупным камнем сильнее', () => {
+  const battle = makeBattle(), snake = earth(battle, 10, 4, ['serpent']), mob = walker(battle, 11, 1e6);
+  still(mob);
+  const hits = [], hurt = battle._hurt.bind(battle);
+  battle._hurt = (target, amount, t, element, ...rest) => {
+    if (t === snake) hits.push([element, amount]);
+    return hurt(target, amount, t, element, ...rest);
+  };
+  battle._fire(snake);
+  snake.busy = 1e9;
+  runFor(battle, 1);
+  eq(hits.map(([element]) => element).sort(), ['earth', 'fire']);
+  near(hits[0][1], hits[1][1], 'поровну');
+  near(hits[0][1] + hits[1][1], snake.damage);
+  const plain = earth(battle, 12, 4, []), geo = earth(battle, 14, 4, ['geo']);
+  near(geo.damage / plain.damage, EARTH.geo.mul);
 });
 
-test('маг земли: с 10-го стена на ближайшей клетке дороги держит мобов, пока её не разобьют; летучих не держит', () => {
-  const battle = makeBattle(), mage = battle.place(level(10), 'earth', 10, 4);
-  battle.startWave(1, 1);
-  battle.spawns = [];
-  runFor(battle, 1.2);
+test('лавовый змей встаёт в озеро или реку лавы; остыла лава — стоит на камне, без лавы', () => {
+  const battle = mapWith({ lake: [[6, 3], [7, 3]], river: [[12, 2]] }, 'volcano');
+  eq(flier(['serpent']), 'lava');
+  no(battle.place(player(), 'earth', 7, 3, { runes: ['geo'] }), 'в лаву — только змей');
+  const snake = battle.place(player(), 'earth', 6, 3, { runes: ['serpent'] });
+  ok(snake, 'змей в лаве');
+  ok(battle.bathes(snake));
+  ok(battle.move(snake, 12, 2), 'и в реку лавы');
+  const cold = mapWith({ lake: [[6, 3]] }, 'grass');
+  no(cold.place(player(), 'earth', 6, 3, { runes: ['serpent'] }), 'в обычную воду — нет');
+  battle.cooled = true;
+  battle._terrain();
+  no(battle.bathes(snake), 'лава остыла');
+});
+
+test('хранитель: стена на ближайшей клетке дороги, из равных — ближе к сердцу; держит мобов; летучих не держит', () => {
+  const path = Array.from({ length: 11 }, (_, x) => [x, 5]).concat(Array.from({ length: 9 }, (_, k) => [10, 6 + k]));
+  const battle = makeBattle({ path }), keeper = earth(battle, 9, 6, ['keeper']);
+  runFor(battle, 0.2);
   eq(battle.walls.length, 1, 'стена поставлена');
-  const wall = battle.walls[0];
+  eq([battle.walls[0].x, battle.walls[0].y], [10.5, 6.5], 'из двух ближайших — та, что ближе к сердцу');
+  const field = makeBattle(), mage = earth(field, 10, 4, ['keeper']);
+  runFor(field, 0.2);
+  const wall = field.walls[0];
   ok(Math.hypot(wall.x - mage.cx, wall.y - mage.cy) <= 1.01, 'на ближайшей клетке дороги');
   mage.busy = 1e9;
-  const mob = walker(battle, wall.d - 3, 30), flyer = walker(battle, wall.d - 3, 30, bat());
-  runFor(battle, 3);
-  ok(mob.d < wall.d, 'стоит у стены');
-  ok(mob.wall === wall);
+  const mob = walker(field, wall.d - 3, 30), flyer = walker(field, wall.d - 3, 30, bat());
+  runFor(field, 3);
+  ok(mob.d < wall.d && mob.wall === wall, 'стоит у стены и грызёт');
   ok(flyer.d > wall.d, 'летучая пролетела');
-  ok(wall.hp < wall.max, 'стену грызут');
-  for (let i = 0; i < 4000 && battle.walls.includes(wall); i++) battle.step(TICK);
-  no(battle.walls.includes(wall), 'стену пробили');
-  ok(battle.events.some((e) => e.kind === 'crumble'));
-  runFor(battle, 1);
-  ok(mob.d > wall.d, 'моб пошёл дальше');
+  ok(wall.hp < wall.max);
+  const other = makeBattle();
+  earth(other, 10, 4, ['geo']);
+  runFor(other, 0.2);
+  eq(other.walls.length, 0, 'у других подклассов стены нет');
 });
 
-test('маг земли: босс грызёт стену быстрее обычного моба; сломанная стена встаёт снова через несколько секунд', () => {
-  const battle = makeBattle(), mage = battle.place(level(10), 'earth', 10, 4);
-  battle.startWave(10, 1);
-  battle.spawns = [];
-  runFor(battle, 1.2);
-  const wall = battle.walls[0];
-  mage.busy = 1e9;
-  const before = wall.hp;
-  battle._batter(wall, walker(battle, 2, 100), 1, battle.time);
-  const byZombie = before - wall.hp, boss = special(battle, 'boss', 'crusher', 1e6);
-  still(boss, ...battle.mobs);
-  battle._batter(wall, boss, 1, battle.time);
-  ok(before - byZombie - wall.hp > byZombie * 5, 'босс — в разы сильнее');
-  mage.busy = 0;
-  battle._batter(wall, battle.mobs[0], 1e9, battle.time);
-  eq(battle.walls.length, 0, 'сломали');
-  runFor(battle, mage.cls.base.rebuild - 0.5);
-  eq(battle.walls.length, 0);
-  runFor(battle, 1);
-  eq(battle.walls.length, 1, 'встала снова');
-});
-
-test('маг земли: с 30-го грызущий стену то и дело напарывается на шипы, руна «Стальная стена» — втрое прочнее', () => {
-  const battle = makeBattle(), mage = battle.place(level(30), 'earth', 10, 4);
+test('хранитель: прочность стены растёт с мощью; 10 секунд без атак — чинится целиком; сломанная встаёт через 9 секунд', () => {
+  const battle = makeBattle(), weak = earth(battle, 10, 4, ['keeper']), strong = earth(battle, 4, 4, ['keeper']);
+  battle.setMods(strong, { runes: ['keeper'], power: 100 });
   runFor(battle, 0.2);
-  const wall = battle.walls[0], max = wall.max;
-  mage.busy = 1e9;
-  battle.random = () => 0;
-  const mob = walker(battle, wall.d - 1, 1e9);
-  runFor(battle, 3);
-  ok(mob.wall === wall);
-  ok(battle.events.some((e) => e.kind === 'thorns'));
-  ok(hit(mob) >= mage.damage * mage.s[1].bonus - 1e-6);
-  const field = makeBattle(), steel = field.place(level(30), 'earth', 10, 4);
-  field.setMods(steel, { runes: ['steel'] });
-  runFor(field, 0.2);
-  near(field.walls[0].max, max * 3);
-  ok(field.walls[0].steel);
+  const own = (t) => battle.walls.find((wall) => wall.tower === t);
+  near(own(strong).max, own(weak).max * 2, 'мощь 200 — вдвое прочнее');
+  near(own(weak).max, weak.might * EARTH.wall.might, 'прочность — от мощи');
+  const wall = own(weak);
+  wall.hp = wall.max / 2;
+  wall.hitAt = battle.time;
+  runFor(battle, EARTH.wall.heal - 0.5);
+  near(wall.hp, wall.max / 2, 'пока чинить рано');
+  runFor(battle, 1);
+  near(wall.hp, wall.max, 'починилась');
+  weak.busy = 1e9;
+  battle._batter(wall, walker(battle, 2, 100), 1e9, battle.time);
+  no(own(weak), 'сломали');
+  weak.busy = 0;
+  runFor(battle, EARTH.wall.rebuild - 0.5);
+  no(own(weak));
+  runFor(battle, 1);
+  ok(own(weak), 'встала снова');
 });
 
-test('маг земли: с 50-го метеорит — урон землёй и огнём и долгое оглушение вокруг', () => {
-  const battle = makeBattle(), mage = battle.place(level(50), 'earth', 2, 0), mob = walker(battle, 15, 1e9);
-  still(mob);
-  battle.random = () => 0.99;
+test('хранитель перебежал — новая стена встаёт сразу, старая убрана', () => {
+  const battle = makeBattle(), mage = earth(battle, 10, 4, ['keeper']);
+  runFor(battle, 0.2);
+  const old = battle.walls[0], spot = battle.bestCell(mage.range);
+  ok(old);
+  ok(battle.move(mage, spot.x, spot.y));
+  eq(battle.walls.filter((wall) => wall.tower === mage).length, 1);
+  no(battle.walls[0] === old, 'стена новая');
+  eq(battle.walls[0].hp, battle.walls[0].max);
+});
+
+test('непригодная почва: пока маг с ней на карте, никто не закапывается — подземных видно и можно бить', () => {
+  const battle = makeBattle(), gun = battle.place(player(), 'mechanic', 6, 4), mole = creature(battle, 'mole', 5);
+  mole.underUntil = 1e9;
+  battle._hurt(mole, 100, gun, null);
+  eq(mole.hp, mole.max, 'под землёй не ранится');
+  const mage = earth(battle, 14, 4, ['solid']);
   battle.step(TICK);
-  ok(battle.events.some((e) => e.kind === 'meteor'));
-  eq(mob.hp, mob.max, 'ещё летит');
-  runFor(battle, 1.3);
-  ok(battle.events.some((e) => e.kind === 'boom' && e.meteor));
-  ok(hit(mob) >= mage.damage * mage.s[2].bonus * 0.9);
-  ok(mob.holdUntil > battle.time + mage.s[2].stun - 2, 'надолго оглушён');
+  battle._hurt(mole, 100, gun, null);
+  ok(hit(mole) > 0, 'с непригодной почвой — ранится');
+  battle.remove(mage);
+  battle.step(TICK);
+  const hp = mole.hp;
+  battle._hurt(mole, 100, gun, null);
+  eq(mole.hp, hp, 'маг ушёл — снова под землёй');
+});
+
+test('терраформирование: каждое взятие — холм-вышка до конца игры на клетке мага, занята — на соседней; до 3', () => {
+  const battle = makeBattle(), mage = earth(battle, 10, 3, []), range = mage.range;
+  battle.setMods(mage, { runes: ['terraform'] });
+  battle.step(TICK);
+  eq(battle.mounds.map((m) => [m.x, m.y]), [[10, 3]]);
+  near(mage.range - range, TERRAIN.watch, 'стоит на холме — как на вышке');
+  ok(battle.move(mage, 12, 3));
+  runFor(battle, MOVE_PAUSE + 0.1);
+  eq(battle.mounds.map((m) => [m.x, m.y]), [[10, 3]], 'перебежал — новый холм не растёт, старый стоит');
+  battle.setMods(mage, { runes: ['terraform', 'terraform'] });
+  battle.step(TICK);
+  eq(battle.mounds.map((m) => [m.x, m.y]), [[10, 3], [12, 3]], 'взял второй раз — второй холм');
+  ok(battle.move(mage, 10, 3));
+  runFor(battle, MOVE_PAUSE + 0.1);
+  battle.setMods(mage, { runes: ['terraform', 'terraform', 'terraform'] });
+  battle.step(TICK);
+  eq(battle.mounds.length, 3, 'третий');
+  const third = battle.mounds[2];
+  ok(Math.max(Math.abs(third.x - 10), Math.abs(third.y - 3)) === 1, 'своя клетка занята холмом — на соседней');
+  no(battle.road.some(([x, y]) => x === third.x && y === third.y), 'не на дороге');
+  runFor(battle, 1);
+  eq(battle.mounds.length, 3, 'больше трёх не бывает');
+  const gun = battle.place(player(), 'mechanic', 12, 3), other = battle.place(player(), 'mechanic', 2, 3);
+  near(gun.range - other.range, TERRAIN.watch, 'чужой на холме тоже как на вышке');
+  battle.remove(mage);
+  eq(battle.mounds.length, 3, 'холмы стоят до конца игры');
+  ok(battle.onWatch(gun));
+});
+
+test('окаменение: враг в соседней клетке каменеет — 3 с, элитный 2, босс 1; от одного мага — раз, другой продлевает', () => {
+  const battle = makeBattle();
+  earth(battle, 10, 4, ['petrify']);
+  const mob = beside(battle, 10), far = beside(battle, 4);
+  battle.step(TICK);
+  near(mob.stoneUntil - battle.time, EARTH.petrify.time, 'обычный — 3 с');
+  ok(mob.holdUntil >= mob.stoneUntil, 'стоит');
+  eq(far.stoneUntil, 0, 'далеко — нет');
+  const until = mob.stoneUntil;
+  battle.step(TICK);
+  eq(mob.stoneUntil, until, 'от того же мага второй раз — нет');
+  earth(battle, 11, 6, ['petrify']);
+  battle.step(TICK);
+  near(mob.stoneUntil, until + EARTH.petrify.time, 'другой маг, пока каменный, — время складывается');
+  const elite = put(battle, special(battle, 'elite', ELITES[0].id, 1e6), mob.d);
+  const boss = put(battle, special(battle, 'boss', BOSSES[0].id, 1e6), mob.d);
+  battle.step(TICK);
+  near(elite.stoneUntil - battle.time, EARTH.petrify.elite * 2, 'элитный — по 2 с от каждого из двух магов');
+  near(boss.stoneUntil - battle.time, EARTH.petrify.boss * 2, 'босс — по 1 с от каждого');
+});
+
+test('свирепые мобы: через две минуты после последнего — и дальше каждые 10 с на 20% крепче к оковам и сильнее грызут стены', () => {
+  const battle = makeBattle(), mage = earth(battle, 10, 4, ['keeper']);
+  runFor(battle, 0.2);
+  mage.busy = 1e9;
+  const wall = battle.walls[0], mob = walker(battle, Math.max(0, wall.d - 1.5), 1e12);
+  wall.hp = wall.max = 1e9;
+  runFor(battle, OVERTIME - 10);
+  no(mob.wild, 'пока рано');
+  runFor(battle, 10.5);
+  ok(mob.wild, 'рассвирепел');
+  ok(battle.events.some((e) => e.kind === 'wild'));
+  near(mob.rage, RAGE.step, 'сначала +20%');
+  ok(mob.wall === wall, 'стена держит и свирепого');
+  battle._hold(mob, 5, null);
+  near(mob.holdUntil - battle.time, 5 * (1 - RAGE.step), 'оковы на 20% слабее');
+  const bite = (target) => {
+    const before = wall.hp;
+    battle._batter(wall, target, 1, battle.time);
+    return before - wall.hp;
+  };
+  const calm = walker(battle, 1, 1e12), gnaw = bite(mob);
+  near(gnaw, bite(calm) * (1 + RAGE.step), 'стену грызёт на 20% сильнее');
+  runFor(battle, RAGE.every);
+  near(mob.rage, RAGE.step * 2, 'через 10 с — ещё +20%');
+  runFor(battle, RAGE.every * 3);
+  near(mob.rage, 1);
+  mob.holdUntil = 0;
+  battle._hold(mob, 5, null);
+  ok(mob.holdUntil <= battle.time, 'на 100% оковы не держат');
+  runFor(battle, RAGE.every * 60);
+  near(mob.rage, RAGE.max, 'предел — +1000%');
+  eq(mob.info.leak, MOBS.normal.leak, 'по сердцу — как прежде');
+});
+
+test('свирепые мобы: каждые 10 с на 20% быстрее, до 1000%', () => {
+  const battle = makeBattle(), wild = walker(battle, 2, 1e9), calm = walker(battle, 2, 1e9);
+  battle.wild = true;
+  battle.wildAt = battle.time;
+  wild.wild = true;
+  const from = [wild.d, calm.d];
+  runFor(battle, 1);
+  near((wild.d - from[0]) / (calm.d - from[1]), 1 + RAGE.step, 'сначала на 20% быстрее');
+  battle.wildAt = battle.time - RAGE.every * 100;
+  const again = [wild.d, calm.d];
+  runFor(battle, 0.5);
+  near((wild.d - again[0]) / (calm.d - again[1]), 1 + RAGE.max, 'предел — на 1000%');
 });
 
 test('элементали: своя стихия их не берёт, остальное — как обычно', () => {
@@ -3796,38 +3921,6 @@ test('элитные: вампир сам по себе не лечится и �
   for (const mob of [vampire, friend]) mob.holdUntil = 1e9;
   runFor(battle, 5);
   eq([vampire.hp, friend.hp], [500, 400]);
-});
-
-test('каменный маг перебежал — новая стена встаёт сразу, старая убрана', () => {
-  const battle = makeBattle(), mage = battle.place(level(10), 'earth', 10, 4);
-  runFor(battle, 1.2);
-  const old = battle.walls[0], spot = battle.bestCell(mage.range);
-  ok(old);
-  ok(battle.move(mage, spot.x, spot.y));
-  eq(battle.walls.filter((wall) => wall.tower === mage).length, 1);
-  const wall = battle.walls[0];
-  no(wall === old, 'стена новая');
-  ok(Math.hypot(wall.x - mage.cx, wall.y - mage.cy) <= mage.range, 'рядом с новым местом');
-  eq(wall.hp, wall.max);
-});
-
-test('затянувшаяся волна: через две минуты после последнего моба выжившие звереют и идут сквозь стены', () => {
-  const battle = makeBattle();
-  const mage = battle.place(level(10), 'earth', 10, 4);
-  runFor(battle, 0.2);
-  mage.busy = 1e9;
-  const wall = battle.walls[0], mob = walker(battle, Math.max(0, wall.d - 1.5), 1e12);
-  wall.hp = wall.max = 1e12;
-  runFor(battle, OVERTIME - 10);
-  no(mob.wild, 'пока рано');
-  ok(mob.wall === wall, 'стоит у стены');
-  runFor(battle, 15);
-  ok(mob.wild, 'рассвирепел');
-  ok(battle.events.some((e) => e.kind === 'wild'));
-  battle._hold(mob, 5, null);
-  ok(mob.holdUntil <= battle.time, 'оковы не держат');
-  for (let i = 0; i < 4000 && battle.lives === LIVES; i++) battle.step(TICK);
-  ok(battle.lives < LIVES, 'прошёл сквозь стену к сердцу');
 });
 
 test('новые мобы: воришка крадёт монеты, добивший забирает украденное', () => {

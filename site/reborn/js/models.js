@@ -262,30 +262,6 @@ function robed(m, o) {
   o.head(m);
 }
 
-function mage(m, o) {
-  robed(m, {
-    robe: o.robe, dark: o.dark, sleeve: o.sleeve, trim: o.trim, hands: [12.5, 11.5, 20, 12.5],
-    weapon: (q) => {
-      q.limb(12.5, 16.5, 10, 12.5, 4.5, 10.8, 1, o.staff || WOOD);
-      o.tip(q, 12.5, 3);
-    },
-    head: (q) => hat(q, o.hat, o.trim, o.glow),
-  });
-}
-
-const MAGES = {
-  earth: (m) => mage(m, {
-    robe: '#7c5a3a', dark: '#4a3524', sleeve: '#86613f', hat: '#5c4128', trim: '#65a30d',
-    glow: '#bef264', staff: '#5c3d22',
-    tip: (q, x, y) => {
-      q.egg(x, y, 13.4, 1.8, 1.4, 3.4, '#b45309', 1);
-      q.egg(x - 1.3, y + 0.8, 12.4, 1.1, 0.9, 2.2, '#d97706', 1);
-      q.egg(x + 1.3, y + 0.6, 12.4, 1, 0.9, 2, '#92400e', 1);
-      q.dot(x - 0.4, y - 1, '#fde68a', 60);
-    },
-  }),
-};
-
 const STORM_ROBE = { robe: '#1e2a78', dark: '#141b52', sleeve: '#26338e', hat: '#172066', trim: '#facc15', glow: '#fef08a' };
 
 function stormTip(q, x, y) {
@@ -1911,6 +1887,234 @@ function cryomancer(m, cast = false) {
   }
 }
 
+const EARTH_SKIN = '#c98b5e';
+const BARE = { skin: EARTH_SKIN, shade: '#a26a43', pants: '#4a4130', pantsDark: '#36301f', foot: '#2b2621',
+  hair: '#1c1714', hairLit: '#4a3d34', ink: '#2a1d14' };
+const KEEPER = { tunic: '#6e2a1e', fold: '#4e1c14', trim: '#3d6b35', sleeve: '#3a3330', pants: '#2e2926',
+  pantsDark: '#221e1c', foot: '#1f1b19', hair: '#15110f', hairLit: '#3a302a' };
+const GEO = { robe: '#c9a66b', fold: '#a07d48', cuff: '#8a6a3c', foot: '#4a3a2a', hair: '#e4e2dc', hairShade: '#aaa69e',
+  staff: '#5e4428', knot: '#3e2c1a', stone: '#8c8073', stoneLit: '#b0a594' };
+const REACH = { rest: [23, 18.2, 21.6, 15.6, 9.4], throw: [23.4, 16.6, 22.2, 12.6, 10.6] };
+
+const EARTH_TALL = { foot: 25.4, k: 1.35 };
+
+function raised(m) {
+  const y = (v) => EARTH_TALL.foot + (v - EARTH_TALL.foot) * EARTH_TALL.k;
+  return {
+    egg: (cx, cy, cz, rx, ry, ...rest) => m.egg(cx, y(cy), cz, rx, ry * EARTH_TALL.k, ...rest),
+    ball: (cx, cy, ...rest) => m.ball(cx, y(cy), ...rest),
+    limb: (x0, y0, z0, x1, y1, ...rest) => m.limb(x0, y(y0), z0, x1, y(y1), ...rest),
+  };
+}
+
+function earthLegs(m, c) {
+  for (const side of [-1, 1]) {
+    m.limb(16 + side * 1.9, 22.2, 4, 16 + side * 2.2, 24.2, 2.2, 1.5, c.pants, 0.15, 1.2);
+    m.limb(16 + side * 2.2, 24.2, 2.2, 16 + side * 2.3, 25, 1, 1.15, c.pantsDark, 0.15, 1.05);
+    m.egg(16 + side * 2.3, 25.4, 0.6, 1.05, 0.7, 0.6, c.foot, 0.2);
+  }
+}
+
+function earthBack(m, top) {
+  m.limb(16, 18.6, 8.6, 16, 23, 5.4, 2.6, top, 0.15, 1.9);
+  for (const s of [-1, 1]) {
+    m.limb(16 + s * 0.6, 18.6, 9.4, 16 + s * 4.4, 19.4, 8.4, 1.35, top, 0.2, 1.05);
+    m.limb(16 + s * 4, 19.8, 7.8, 16 + s * 1.9, 23.2, 5.2, 1.7, top, 0.15, 0.9);
+    m.egg(16 + s * 2.4, 20.4, 8.4, 1.7, 1.9, 0.9, top, 0.2);
+  }
+}
+
+function earthArm(m, color, hand, sx, ex, ey, ez, wx, wy, wz) {
+  m.limb(sx, 19.8, 7.9, ex, ey, ez, 1.1, color, 0.2, 0.9);
+  m.limb(ex, ey, ez, wx, wy, wz, 0.95, color, 0.2, 0.7);
+  m.egg(wx, wy, wz + 0.1, 0.95, 1.05, 0.8, hand, 0.25);
+  for (const k of [-0.5, 0.5]) m.ball(wx + k * 0.7, wy - 0.7, wz + 0.4, 0.45, hand, 0.3);
+}
+
+function earthArms(m, color, hand, pose) {
+  earthArm(m, color, hand, 11.2, 10, 21.8, 6.8, 9.9, 23.8, 5.2);
+  const [ex, ey, hx, hy, hz] = REACH[pose];
+  earthArm(m, color, hand, 20.8, ex, ey, 8.6, hx, hy, hz);
+}
+
+function strands(m, list, z, lit, dark) {
+  list.forEach(([x0, y0, x1, y1, x2, y2, w], k) => {
+    const tone = k % 3 === 1 ? lit : dark;
+    m.limb(x0, y0, z, x1, y1, z - 0.8, w, tone, 0.35, w * 0.8);
+    m.limb(x1, y1, z - 0.8, x2, y2, z - 2.4, w * 0.8, tone, 0.35, 0.15);
+  });
+}
+
+function longHair(m, c, lit, dark, reach) {
+  m.egg(16, 17.6, 11.6, 2.9, 2.7, 2.2, dark, 0.25);
+  const flow = [];
+  for (let k = 0; k < 13; k++) {
+    const f = k / 12 - 0.5, sway = Math.sin(k * 2.1) * 0.45, long = reach - Math.abs(f) * 2.4 + (k * 7 % 3) * 0.5;
+    flow.push([16 + f * 3.2, 16.4 + Math.abs(f), 16 + f * 5.4 + sway, 19.6 + Math.abs(f) * 0.6,
+      16 + f * 6 - sway, 17.6 + long, 0.62]);
+  }
+  strands(m, flow, 13.6, lit, dark);
+  const crown = [];
+  for (let k = 0; k < 7; k++) {
+    const f = k / 6 - 0.5;
+    crown.push([16, 17.4, 16 + f * 2.6, 15.6, 16 + f * 4.4, 15.4 + Math.abs(f) * 1.6, 0.55]);
+  }
+  strands(m, crown, 14.4, lit, dark);
+}
+
+function earthRagged(model, pose = 'rest') {
+  const m = raised(model);
+  const c = BARE;
+  earthLegs(m, c);
+  earthBack(m, c.skin);
+  m.limb(16, 19, 10.2, 16, 22.6, 7.8, 0.22, c.shade);
+  for (const [x0, y0, x1, y1] of [[10.2, 19.4, 11.6, 19], [10, 20.4, 11.4, 20.2], [10.6, 21.2, 11.8, 21.2]]) {
+    m.limb(x0, y0, 9.4, x1, y1, 9.4, 0.22, c.ink);
+  }
+  earthArms(m, c.skin, c.skin, pose);
+  m.ball(16, 17.4, 10.4, 2.7, c.skin);
+  longHair(m, c, c.hairLit, c.hair, 5.6);
+}
+
+function hem(m, c, from, to, width, z) {
+  for (let k = 0; k < 9; k++) {
+    const f = k / 8 - 0.5, x = 16 + f * width, drop = to + Math.sin(k * 2.3) * 0.5 - Math.abs(f) * 1.2;
+    m.limb(x * 0.6 + 16 * 0.4, from, z, x, drop, z - 2.2, 0.95, k % 2 ? c.fold : c.tunic || c.robe, 0.15, 0.75);
+  }
+}
+
+function keeper(model, pose = 'rest') {
+  const m = raised(model);
+  const c = KEEPER;
+  earthLegs(m, c);
+  hem(m, c, 21.4, 24, 7.2, 5.4);
+  earthBack(m, c.tunic);
+  for (const [x0, y0, x1, y1] of [[13.2, 20.6, 14.4, 23], [18.6, 20.4, 17.8, 23.2]]) {
+    m.limb(x0, y0, 8.6, x1, y1, 6.4, 0.2, c.fold);
+  }
+  m.limb(12.4, 18.8, 9.6, 17.4, 23.4, 6.6, 0.42, c.trim, 0.3, 0.3);
+  earthArms(m, c.sleeve, SKIN, pose);
+  m.ball(16, 17.4, 10.4, 2.7, SKIN);
+  m.egg(16, 17.8, 11.8, 2.8, 2.6, 2, c.hair, 0.3);
+  const combed = [];
+  for (let k = 0; k < 9; k++) {
+    const f = k / 8 - 0.5;
+    combed.push([16 + f * 1.2, 15.6, 16 + f * 3.4, 17.2, 16 + f * 2.4, 19.2, 0.5]);
+  }
+  strands(m, combed, 14, c.hairLit, c.hair);
+  m.egg(16, 19, 14.4, 1.1, 1, 1, c.hair, 0.4);
+  m.limb(16, 19.2, 14.2, 15.2, 22.4, 11, 0.28, c.trim, 0.3, 0.14);
+  m.limb(16, 19.2, 14.2, 16.9, 22.2, 11.2, 0.28, c.trim, 0.3, 0.14);
+}
+
+const STAFF_TOP = { rest: [21.8, 14.4, 21], swing: [22.2, 9.4, 16] };
+const STAFF_HAND = { rest: [21.7, 17.6, 10.4], swing: [21.9, 15.4, 11.4] };
+
+function geoStaff(m, c, pose) {
+  const [tx, ty, tz] = STAFF_TOP[pose], bx = 21.6, by = 21.4, bz = 1;
+  const at = (k) => [bx + (tx - bx) * k, by + (ty - by) * k, bz + (tz - bz) * k];
+  m.limb(bx, by, bz, tx, ty, tz, 0.6, c.staff, 0.2, 0.48);
+  for (const k of [0.3, 0.7, 0.88]) {
+    const [x, y, z] = at(k);
+    m.ball(x + 0.2, y, z, 0.66, c.knot, 0.2);
+  }
+  for (let k = 0; k < 6; k++) {
+    const a = k * 1.05, r = 1.2;
+    m.limb(tx, ty, tz, tx + Math.cos(a) * r, ty + Math.sin(a) * r * 0.6, tz + 1, 0.3, c.staff, 0.2, 0.18);
+  }
+  m.egg(tx, ty - 0.2, tz + 1.4, 1.3, 1.1, 1, c.stone, 0.2);
+  m.egg(tx - 0.9, ty + 0.3, tz + 1.2, 0.7, 0.6, 0.6, c.stoneLit, 0.2);
+  m.egg(tx + 0.9, ty + 0.4, tz + 1.2, 0.6, 0.55, 0.5, c.fold, 0.2);
+}
+
+function geomancer(model, pose = 'rest') {
+  const m = raised(model);
+  const c = GEO, [hx, hy, hz] = STAFF_HAND[pose];
+  earthLegs(m, { pants: c.fold, pantsDark: c.cuff, foot: c.foot });
+  hem(m, c, 21.4, 24.2, 7.6, 5.4);
+  earthBack(m, c.robe);
+  for (const [x0, y0, x1, y1] of [[13, 20.4, 14, 23.4], [19, 20.4, 18.2, 23.4], [16, 20.8, 16, 23.6]]) {
+    m.limb(x0, y0, 8.6, x1, y1, 6.2, 0.2, c.fold);
+  }
+  earthArm(m, c.robe, SKIN, 11.2, 10, 21.8, 6.8, 9.9, 23.8, 5.2);
+  m.egg(9.9, 23.2, 5.6, 1.2, 0.8, 0.6, c.cuff, 0.2);
+  geoStaff(m, c, pose);
+  earthArm(m, c.robe, SKIN, 20.8, 23.2, 19.4, 8.6, hx, hy, hz);
+  m.ball(16, 17.4, 10.4, 2.7, SKIN);
+  longHair(m, c, c.hair, c.hairShade, 6.4);
+}
+
+const LAVA = { scale: '#2a2220', mid: '#3d322e', light: '#5c4c44', crack: '#ff6a1f', hot: '#ffd166', horn: '#1a1412',
+  hornLit: '#4a3c36',
+  eye: '#ffe08a', pool: '#ff8a1f', deep: '#b8320f' };
+
+function lavaCracks(m, points, z, every = 2) {
+  for (let i = 1; i < points.length - 1; i += every) {
+    const [x, y, r] = points[i];
+    m.limb(x - r * 0.55, y - r * 0.2, z + r * 0.92, x + r * 0.5, y + r * 0.25, z + r * 0.92, 0.22, LAVA.crack, 1, 0.18);
+    if (i % 4 === 1) m.dot(x - 0.5, y - 0.5, LAVA.hot, z + r + 0.2);
+  }
+}
+
+function serpentHead(m, x, y, z, open) {
+  const c = LAVA;
+  m.limb(x, y + 3.4, z - 0.8, x, y - 0.4, z, 2.2, c.scale, 0.4, 2.4);
+  m.egg(x, y - 0.4, z, 2.9, 2.8, 2.1, c.mid, 0.4);
+  m.limb(x, y - 1.2, z + 0.2, x, y - 5, z - 0.6, 2, c.scale, 0.4, 1.1);
+  if (open) {
+    m.limb(x, y - 2.6, z - 1.4, x, y - 5.4, z - 1.6, 1.3, c.deep, 0, 0.7);
+    m.limb(x, y - 2.8, z - 1, x, y - 5, z - 1.2, 0.7, c.hot, 1, 0.35);
+  }
+  for (const side of [-1, 1]) {
+    m.egg(x + side * 2.2, y + 0.6, z - 0.2, 1.6, 2, 1.4, c.scale, 0.4);
+    m.limb(x + side * 0.5, y - 4.8, z + 1.2, x + side * 2.6, y + 0.4, z + 1.6, 0.3, c.crack, 1, 0.24);
+    m.limb(x + side * 1.4, y - 2.8, z + 2, x + side * 2.4, y - 1.4, z + 2.2, 0.55, c.light, 0.6, 0.4);
+    m.dot(x + side * 1.8 - 0.5, y - 2.2, c.eye, z + 3);
+    m.limb(x + side * 2.4, y - 0.8, z + 2, x + side * 4.6, y + 3, z + 3.2, 0.95, c.hornLit, 0.6, 0.5);
+    m.limb(x + side * 4.6, y + 3, z + 3.2, x + side * 4.8, y + 6.2, z + 3.4, 0.5, c.hornLit, 0.6, 0.12);
+    m.limb(x + side * 4.7, y + 4.6, z + 3.6, x + side * 4.8, y + 6.2, z + 3.6, 0.22, c.crack, 1, 0.1);
+  }
+  m.limb(x, y - 1.2, z + 2.4, x, y + 2, z + 2.4, 0.28, c.crack, 1, 0.2);
+}
+
+function neck(m, points) {
+  const c = LAVA;
+  for (let k = 0; k < points.length - 1; k++) {
+    const [x0, y0, z0, r0] = points[k], [x1, y1, z1, r1] = points[k + 1];
+    m.limb(x0, y0, z0, x1, y1, z1, r0, k % 2 ? c.scale : c.mid, 0.35, r1);
+  }
+  for (let k = 1; k < points.length - 1; k++) {
+    const [x, y, z, r] = points[k];
+    if (k % 2) m.limb(x - r * 0.6, y, z + r * 0.85, x + r * 0.5, y + 0.4, z + r * 0.85, 0.24, c.crack, 1, 0.2);
+    m.limb(x, y - 0.2, z + r + 0.1, x, y + 0.8, z + r + 0.7, 0.36, c.horn, 0.6, 0.1);
+  }
+}
+
+function serpent(m) {
+  const c = LAVA, points = [];
+  for (let k = 0; k <= 40; k++) {
+    const f = k / 40, a = Math.PI * 0.5 + f * Math.PI * 3.2, r = 7.2 - f * 4.6;
+    points.push([16 + Math.cos(a) * r, 18.2 + Math.sin(a) * r * 0.74, 2.2 - f * 0.5]);
+  }
+  for (let k = 0; k < points.length - 1; k++) {
+    const [x0, y0, r0] = points[k], [x1, y1, r1] = points[k + 1], z = 2 + k * 0.08;
+    m.limb(x0, y0, z, x1, y1, z + 0.08, r0, k % 3 ? c.scale : c.mid, 0.35, r1);
+  }
+  lavaCracks(m, points, 2.4);
+  const [nx, ny] = points[points.length - 1];
+  neck(m, [[nx, ny, 5, 1.9], [17.4, 15.6, 7.4, 1.8], [15, 13, 9.2, 1.7], [16, 10.6, 10.4, 1.6]]);
+  serpentHead(m, 16, 7.4, 11, true);
+}
+
+function serpentLava(m) {
+  const c = LAVA;
+  m.egg(16, 22, 0.4, 8, 3.8, 0.3, c.deep);
+  m.egg(16, 21.8, 0.8, 5.8, 2.6, 0.3, c.pool, 0.6);
+  for (const [x, y] of [[11.2, 21.4], [20.8, 22.2], [14, 23.6]]) m.egg(x, y, 1.1, 1, 0.5, 0.3, c.hot, 0.8);
+  neck(m, [[16, 21.6, 1.4, 2.5], [17.4, 18.6, 5, 2.3], [15, 15.4, 8, 2.1], [16, 12.4, 10.4, 1.9]]);
+  serpentHead(m, 16, 9, 11.8, true);
+}
+
 const SKINS = {
   pyro: ragged,
   forester,
@@ -1973,6 +2177,15 @@ const SKINS = {
   'frost-kraken-hitL4': (m) => kraken(m, 'L', KRAKEN_REACH.lengths[3]),
   'frost-cryo': (m) => cryomancer(m),
   'frost-cryo-cast': (m) => cryomancer(m, true),
+  earth: (m) => earthRagged(m),
+  'earth-ragged': (m) => earthRagged(m),
+  'earth-ragged-throw': (m) => earthRagged(m, 'throw'),
+  'earth-keeper': (m) => keeper(m),
+  'earth-keeper-throw': (m) => keeper(m, 'throw'),
+  'earth-serpent': serpent,
+  'earth-serpent-lava': serpentLava,
+  'earth-geo': (m) => geomancer(m),
+  'earth-geo-swing': (m) => geomancer(m, 'swing'),
   priest: pilgrim,
   'priest-ragged': pilgrim,
   'priest-angel': (m) => angel(m, { armed: true }),
@@ -1996,7 +2209,7 @@ const SKINS = {
   'sorceress-shamaness-beat': (m) => shamaness(m, true),
 };
 
-const HEROES = Object.assign({}, MAGES, SKINS);
+const HEROES = SKINS;
 export const HERO_IDS = Object.keys(HEROES);
 
 const STAFF = [[12.5, 3]];
@@ -2024,20 +2237,23 @@ export const MUZZLES = {
   'sorceress-enchantress': [[20.4, 8.6]], 'sorceress-enchantress-beam': [[16, 8.4]], 'sorceress-shamaness': [[10.8, 13.2]],
   frost: [[21.4, 6.4]], 'frost-ragged': [[21.4, 6.4]], 'frost-ragged-flick': [[23.2, 5.4]],
   'frost-hydro': [[15.8, 6.2]], 'frost-hydro-loose': [[15.8, 6.2]], 'frost-kraken': [[16, 9]], 'frost-kraken-sea': [[16, 13]], 'frost-cryo': [[19.8, 8.8]],
-  'frost-cryo-cast': [[20.2, 6.4]], earth: STAFF, thunder: PALM, 'thunder-ragged': PALM, 'thunder-caller': STAFF,
+  'frost-cryo-cast': [[20.2, 6.4]], earth: [[21.6, 12.2]], 'earth-ragged': [[21.6, 12.2]],
+  'earth-ragged-throw': [[22.2, 8.1]], 'earth-keeper': [[21.6, 12.2]], 'earth-keeper-throw': [[22.2, 8.1]],
+  'earth-serpent': [[16, 4]], 'earth-serpent-lava': [[16, 5.2]], 'earth-geo': [[21.8, 9.7]], 'earth-geo-swing': [[22.2, 3]],
+  thunder: PALM, 'thunder-ragged': PALM, 'thunder-caller': STAFF,
   'thunder-caller-strike': [[12.5, 0.4]], 'thunder-raiju': [[16, 3.6]], 'thunder-thor': [[19.4, 11]], 'thunder-thor-throw': [[19.4, 11]], 'thunder-thor-empty': [[19.4, 11]],
   'thunder-thor-catch': [[19.4, 11]],
 };
 
 export const RELOAD_FRAMES = RELOAD.frames;
 
-export const FINE_HEROES = /^(priest|sorceress|thunder-(raiju|thor)|frost-(hydro|kraken|cryo))/;
+export const FINE_HEROES = /^(priest|sorceress|thunder-(raiju|thor)|frost-(hydro|kraken|cryo)|earth)/;
 export const ANGEL_BODY = 1.15;
 export const HERO = { scale: 1.3, center: [16, 18] };
 const BODIES = [[/^priest-angel/, ANGEL_BODY], [/^priest-(monk|inquisitor)/, 1.25], [/^priest(-ragged)?$/, 1.22], [/^priest/, 1.08],
   [/^sorceress-shamaness/, 1.2], [/^sorceress/, 1.35], [/^forester(-ragged)?$|^forester-hunter/, 1.2],
   [/^mechanic-(turret|mortar)$/, 1.3], [/^mechanic-demo/, 1.2], [/^mechanic-turret-giant/, 1.1], [/^sniper-marksman/, 1.2],
-  [/^thunder-raiju/, 1.05], [/^thunder-thor/, 1.2], [/^frost-(hydro|cryo)/, 1.35], [/^frost-kraken/, 1.25]];
+  [/^thunder-raiju/, 1.05], [/^thunder-thor/, 1.2], [/^frost-(hydro|cryo)/, 1.35], [/^frost-kraken/, 1.25], [/^earth-serpent/, 1.25], [/^earth/, 1.25]];
 export const sizeOf = (id) => {
   const body = BODIES.find(([kind]) => kind.test(id));
   return body ? body[1] : 1;

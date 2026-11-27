@@ -261,9 +261,8 @@ test('классы: описания — простой текст, без ме�
 });
 
 test('классы: мастерство одно на всех и постоянное, шанс способности никогда не 100%', () => {
-  const skill = mastery(), aim = CLASS_BY_ID.get('earth').skills[2];
+  const skill = mastery();
   ok(skill.power > 1 && skill.haste > 1 && skill.luck > 1);
-  ok(scaled(aim, skill).every < aim.v.every, 'перезарядка короче базовой');
   for (const cls of CLASSES) {
     for (const item of cls.skills) {
       for (const [key, how] of Object.entries(item.scale || {})) {
@@ -410,9 +409,9 @@ test('маг огня: первый камень — только стиль; д
   eq([skinOf('pyro', []), skinOf('pyro', ['dragon']), skinOf('pyro', ['fireball', 'blue']),
     skinOf('pyro', ['twin', 'fireball', 'blue'])], ['pyro-ragged', 'pyro-dragon', 'pyro-fireball-blue',
     'pyro-fireball-twin-blue'], 'двойной каст — второй шар во второй руке');
-  eq(skinOf('earth', ['perk0']), 'earth');
+  eq([skinOf('earth', []), skinOf('earth', ['keeper']), skinOf('earth', ['serpent', 'solid'])],
+    ['earth-ragged', 'earth-keeper', 'earth-serpent']);
   eq(styleOf('pyro', ['twin', 'fireball']).name, 'Огненный шар');
-  eq(choiceOf('earth', []).length, poolOf('earth').length, 'у классов без стилей — сразу навыки');
   for (const option of choiceOf('pyro', [])) ok(option.skill.text.length < 140, 'коротко: ' + option.skill.name);
 });
 

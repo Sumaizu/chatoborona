@@ -1,7 +1,7 @@
 import { HERO, HERO_IDS, drawHero, drawPhoenix, drawSeaArm } from './models.js';
 import { MOB_IDS, drawMelt, drawMob, drawSplit, gooColor } from './monsters.js';
 import { ORB_FRAMES, PUDDLE_FRAMES, SPRING_FRAMES, drawIceWall, drawIcicle, drawPuddle, drawSpring, drawWaterOrb, drawCauldron, drawClod, drawBird, drawHawk, drawSnare, drawTrap, drawCoinIcon, drawDrone, drawEmblem, drawFireball, drawGrenade, drawHeart,
-  drawMeteor, drawMound, drawNuke, drawVent, drawRocket, drawWall } from './props.js';
+  drawBoulder, drawHillock, drawMound, drawNuke, drawVent, drawRocket, drawWall } from './props.js';
 
 const OUTLINE = '#15111d';
 
@@ -331,7 +331,8 @@ export const puddleSprite = (seed, frame, water) => remember('puddle:' + water.k
   () => drawPuddle(seed, frame % PUDDLE_FRAMES, water.style));
 export const orbSprite = (radius, stage, frame) => remember('orb:' + radius + ':' + stage + ':' + frame,
   () => drawWaterOrb(radius, stage, frame % ORB_FRAMES));
-export const meteorSprite = () => remember('meteor', () => drawMeteor());
+export const boulderSprite = () => remember('boulder', () => drawBoulder());
+export const hillockSprite = () => remember('hillock', () => drawHillock());
 
 export const bulletSprite = () => remember('bullet', () => mapSprite([
   '.C.',

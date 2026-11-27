@@ -138,6 +138,7 @@ const FIREBALL = { width: 16, height: 26, head: 7, radius: 5.5,
     holy: ['#fffef7', '#fffbe0', '#fef3b4', '#fde68a', '#facc15', '#ca8a04'],
     azure: ['#f0fbff', '#c7f0ff', '#7dd3fc', '#38bdf8', '#0284c7', '#0c4a6e'],
     earth: ['#fef3c7', '#e7c9a0', '#b08356', '#7c5a3a', '#4a3426', '#241811'],
+    lava: ['#fff1a8', '#ffd166', '#ff8a1f', '#e2531f', '#8a2a12', '#2a1210'],
     storm: ['#ffffff', '#fefce8', '#fef08a', '#facc15', '#ca8a04', '#713f12'] } };
 
 const grain = (x, y, frame) => {
@@ -481,16 +482,35 @@ export function drawRocket() {
   return m.paint();
 }
 
-export function drawMeteor() {
+export function drawBoulder() {
   const m = new Model(24, 1);
-  m.ball(12, 12, 4, 8, '#4a3a30', 0.2);
-  for (const [x, y, r] of [[8, 9, 3.2], [15.5, 14, 3.4], [10, 16.5, 2.4], [16, 7.5, 2.6]]) {
-    m.ball(x, y, 7.6, r, '#5e4a3c', 0.2);
+  m.ball(12, 12, 4, 7.4, '#6b5d4d', 0.2);
+  for (const [x, y, r, c] of [[8.4, 9, 3.2, '#8a7a66'], [15.4, 13.6, 3.4, '#7a6b58'], [10, 16, 2.4, '#5e5142'],
+    [15.6, 7.8, 2.6, '#958672']]) {
+    m.ball(x, y, 7, r, c, 0.2);
   }
-  for (const [x0, y0, x1, y1] of [[7, 12, 12, 10], [12, 10, 16, 12], [11, 14, 14, 18], [9, 7, 12, 10]]) {
-    m.limb(x0, y0, 11.4, x1, y1, 11.4, 0.45, '#ff7a1f', 0.9);
+  for (const [x0, y0, x1, y1] of [[7, 12, 11.6, 10.6], [12.4, 11, 15.4, 12.2], [11, 14, 13.4, 17.4]]) {
+    m.limb(x0, y0, 10.6, x1, y1, 10.6, 0.35, '#3b3128');
   }
-  for (const [x, y] of [[12, 10], [14, 13], [9, 12]]) m.dot(x, y, '#ffd84a');
+  for (const [x, y] of [[8, 8], [15, 7], [16, 13]]) m.dot(x, y, '#c4b6a0');
+  return m.paint();
+}
+
+const HILLOCK = { dark: '#5e4630', soil: '#8a6a44', light: '#a8855a', stone: '#8c8580', stoneLit: '#aaa298',
+  slab: '#b5aca0', seam: '#6f6862' };
+
+export function drawHillock() {
+  const c = HILLOCK, m = new Model(40, 1);
+  m.egg(20, 22, 0, 17, 13, 1.2, c.dark);
+  m.egg(20, 21, 1, 14.6, 11, 4.6, c.soil, 0.1);
+  m.egg(20, 19.6, 4.6, 11.2, 8.4, 3.6, c.light, 0.1);
+  around(13, 0.2, 20, 22, 15, 11.4, (x, y, a, i) => m.egg(x, y, 1.6, 2.2 + (i % 3) * 0.4, 1.6, 1.6,
+    i % 2 ? c.stone : c.stoneLit, 0.15));
+  around(9, 0.5, 20, 19.6, 10.6, 8, (x, y, a, i) => m.egg(x, y, 6.4, 1.6, 1.2, 1.2, i % 2 ? c.seam : c.stone, 0.1));
+  m.egg(20, 18.6, 8.4, 7.4, 5.4, 1, c.slab, 0.15);
+  for (const [x0, y0, x1, y1] of [[14, 18.6, 26, 18.6], [20, 14, 20, 23.2], [16, 15.6, 18.4, 17], [22.4, 20.4, 24.6, 22]]) {
+    m.limb(x0, y0, 9.5, x1, y1, 9.5, 0.3, c.seam);
+  }
   return m.paint();
 }
 

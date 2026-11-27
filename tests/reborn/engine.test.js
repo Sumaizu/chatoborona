@@ -561,7 +561,7 @@ test('свойство оранжевого действует на бойца: 
   for (const key of Object.keys(game.run.mods)) game.run.mods[key] = 0;
   game._refresh(member);
   const tower = () => member.tower, plain = { interval: tower().interval, range: tower().range,
-    crit: tower().critChance, every: tower().s[2].every, coins: tower().mods.coins };
+    crit: tower().critChance, haste: tower().haste, coins: tower().mods.coins };
   const wear = (boon) => {
     member.weapon = Object.assign(makeWeapon(seeded(3), member.cls, RARITIES[RARITIES.length - 1]), { boon });
     game._refresh(member);
@@ -573,7 +573,7 @@ test('свойство оранжевого действует на бойца: 
   wear('keen');
   ok(Math.abs(tower().critChance - plain.crit - 0.1) < 1e-9, '+10% крита');
   wear('swift');
-  ok(Math.abs(tower().s[2].every - plain.every / 1.15) < 1e-9, 'способности на 15% чаще');
+  ok(Math.abs(tower().haste - plain.haste * 1.15) < 1e-9, 'способности на 15% чаще');
   wear('rich');
   ok(Math.abs(tower().mods.coins - plain.coins - 0.15) < 1e-9, '+15% монет');
 });
@@ -861,23 +861,26 @@ test('камень навыка: первый после выбора стиля
   eq(game._stoneDue(member), STONE_CHANCE.next, 'дальше — 5%');
 });
 
-test('камень навыка: первый с 1 уровня (20%), дальше по ступеням 10, 20, 30, 50, 75, 100', () => {
+test('камень навыка: первый с 1 уровня (30%), дальше по ступеням 10, 20, 30, 50, 75, 100', () => {
   const { game } = makeGame();
   game.open();
   earth(game, 'Рина');
   toWave(game);
   const member = game.members.get('рина');
   member.xp = 0;
-  eq(game._stoneDue(member), STONE_CHANCE.first, 'с первого уровня — 20%');
+  eq(game._stoneDue(member), STONE_CHANCE.first, 'с первого уровня — 30%');
   stone(game, 'рина');
   eq(game._stoneDue(member), 0, 'пока выбор открыт, второй не выпадает');
   game.choices = [];
-  member.skills = ['perk0'];
+  member.skills = ['geo'];
   eq(game._stoneDue(member), 0, 'за первую ступень уже взят');
   member.xp = xpForLevel(10);
-  eq(game._stoneDue(member), STONE_CHANCE.next, 'на 10-м — 3%');
+  eq(game._stoneDue(member), STONE_CHANCE.second, 'на 10-м — первый после подкласса');
+  member.skills = ['geo', 'solid'];
+  member.xp = xpForLevel(20);
+  eq(game._stoneDue(member), STONE_CHANCE.next, 'дальше — 10%');
   member.xp = xpForLevel(LEVEL_MAX);
-  member.skills = poolOf('earth').map((skill) => skill.id).slice(0, 7);
+  member.skills = ['geo', 'earthReact', 'solid', 'terraform', 'terraform', 'terraform', 'petrify'];
   eq(game._stoneDue(member), 0, 'семь ступеней — семь камней');
   member.skills = [];
   no(game.modsOf(member).perks.length, 'уровень сам приёмов не открывает');
@@ -889,11 +892,14 @@ test('камень навыка: игра идёт дальше, игрок пи
   earth(game, 'Рина');
   say(game, 'Лев', 'привет');
   toWave(game);
-  const member = game.members.get('рина'), pool = poolOf('earth'), second = pool[1], fourth = pool[3];
+  const member = game.members.get('рина');
+  member.skills = ['geo'];
+  game._refresh(member);
   member.xp = xpForLevel(30);
   ok(stone(game, 'рина').took);
   const choice = game.choice;
-  eq(game.optionsOf(choice).map((option) => option.skill.id), pool.map((skill) => skill.id), 'все навыки класса');
+  eq(game.optionsOf(choice).map((option) => option.skill.id), ['earthReact', 'solid', 'terraform', 'petrify'],
+    'все навыки после подкласса');
   const time = game.battle.time;
   runFor(game, 5);
   ok(game.battle.time > time, 'бой идёт');
@@ -902,14 +908,14 @@ test('камень навыка: игра идёт дальше, игрок пи
   eq(say(game, 'Рина', '9'), null, 'такого номера нет');
   eq(say(game, 'Рина', '2'), 'skill');
   eq(game.choice, null);
-  eq(member.skills, [second.id]);
-  eq(member.tower.mods.perks, [second.perk], 'дошёл до бойца');
-  ok(game.notes.some((n) => n.kind === 'skill' && n.detail.skill === second.id && !n.detail.auto));
+  eq(member.skills, ['geo', 'solid']);
+  ok(member.tower.runes.has('solid'), 'дошёл до бойца');
+  ok(game.notes.some((n) => n.kind === 'skill' && n.detail.skill === 'solid' && !n.detail.auto));
   stone(game, 'рина');
   eq(game.optionsOf(game.choice)[1].state, 'taken', 'взятый — отмечен');
   eq(say(game, 'Рина', '2'), null, 'и второй раз не берётся');
   eq(say(game, 'Рина', '4'), 'skill', 'номера на своих местах');
-  eq(member.skills, [second.id, fourth.id]);
+  eq(member.skills, ['geo', 'solid', 'petrify']);
   game.restart();
   say(game, 'Рина', 'снова');
   eq(game.members.get('рина').skills, [], 'в новой игре навыков нет');
@@ -959,10 +965,10 @@ test('камень навыка: не выбрал за 30 секунд — в �
   eq(member.skills.length, 1, 'навык выпал сам');
   ok(game.notes.some((n) => n.kind === 'skill' && n.detail.auto), 'с пометкой «случайно»');
   stone(game, 'рина');
-  const free = game.optionsOf(game.choice).findIndex((option) => option.state === 'open');
+  const options = game.optionsOf(game.choice), free = options.findIndex((option) => option.state === 'open');
   eq(say(game, 'Лев', '@рина ' + (free + 1)), null, 'зрителю нельзя');
   eq(game.feed('Streamer', '@Рина ' + (free + 1), { login: 'streamer' }), 'skill');
-  eq(member.skills[1], poolOf('earth')[free].id);
+  eq(member.skills[1], options[free].skill.id);
   const other = makeGame().game;
   other.open();
   earth(other, 'Лев');
@@ -1013,7 +1019,7 @@ test('навыки: «навыки» показывает навыки игро�
   toWave(game);
   const rina = game.members.get('рина');
   rina.xp = xpForLevel(50);
-  rina.skills = ['perk0'];
+  rina.skills = ['geo'];
   eq(say(game, 'Лев', 'навыки'), 'skills');
   eq(say(game, 'Лев', 'навыки'), null, 'второй раз в очередь не встаёт');
   stone(game, 'рина');
@@ -1072,15 +1078,15 @@ test('сон: монеты делятся поровну между всеми, 
   lev.coins = 10;
   ira.coins = 0;
   sonya.xp = xpForLevel(30);
-  sonya.skills = ['perk0'];
+  sonya.skills = ['geo'];
   sonya.tower.run.kills = 7;
   game._sleep(sonya);
   eq([sonya.coins, lev.coins, ira.coins], [0, 55, 45]);
   say(game, 'Соня', 'к7');
   ok(sonya.tower, 'проснулась');
   eq(sonya.xp, xpForLevel(30));
-  eq(sonya.skills, ['perk0']);
-  eq(sonya.tower.mods.perks, [0], 'навык при ней');
+  eq(sonya.skills, ['geo']);
+  eq(sonya.tower.style, 'geo', 'навык при ней');
   eq(sonya.tower.run.kills, 7, 'счёт этой игры не пропал');
 });
 
