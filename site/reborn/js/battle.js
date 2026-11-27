@@ -118,7 +118,7 @@ export const WOLF = { dash: { idle: 2, speed: 10, touch: 0.8, mul: 1 },
   howl: { idle: 3, self: 0.2, team: 0.1, share: 0.5, time: [2, 5], rest: [5, 10] },
   rage: { steps: [[10, 0.03], [10, 0.02]], rest: 0.01, max: 3 }, pack: { boost: 0.3, per: 0.01 } };
 export const WATER = { drop: 9,
-  hydro: { reach: 3, interval: 1.1, mul: 3, speed: 11, touch: 0.25, turn: 9 }, triple: { count: 3, spread: 0.7 },
+  hydro: { reach: 3, interval: 1.1, mul: 1.8, speed: 11, touch: 0.25, turn: 9 }, triple: { count: 3, spread: 0.7 },
   kraken: { reach: 2, interval: 1.3, mul: 4, sea: 3, arm: 1.5 },
   cryo: { reach: 3.5, interval: 1.1, mul: 3.6, speed: 9, big: 2, stock: 3, refill: 2 },
   slap: { chance: 0.1, hold: 2, elite: 1, boss: 0.5 }, drown: 0.1,
@@ -157,7 +157,7 @@ const ROAD_ROUND = 0.9;
 const DRONE_SHOTS = { attack: MECH.droneAttack, laser: MECH.droneLaser, air: MECH.droneAir, bird: WOOD.bird,
   hawk: WOOD.hawk };
 export const EARTH = { pile: { speed: 7 }, keeper: { mul: 1 }, serpent: { mul: 1, speed: 6 }, geo: { mul: 1.3, speed: 5 },
-  wall: { hold: 30, rebuild: 9, heal: 10, steel: 2 }, sharp: { mul: 1, every: 1 }, collapse: { radius: 1.5, stun: 2 },
+  wall: { hold: 15, rebuild: 9, heal: 10, steel: 2 }, sharp: { mul: 1, every: 1 }, collapse: { radius: 1.5, stun: 2 },
   barricade: { reach: 2 }, hydra: { heads: 2 }, spatter: { chance: 0.25, reach: 3, mul: 0.3 },
   pool: { radius: 0.6, time: 2, dot: 0.3 }, burn: 0.5,
   meteor: { every: 15, mul: 8, radius: 3, stun: 3, fall: 1, size: 24 }, shards: { count: 2, reach: 2, size: 5 },
@@ -3291,7 +3291,7 @@ function grab(b, t) {
     }
     if (!mob) continue;
     struck = true;
-    if (t.runes.has('drown') && !big(mob) && mob.hp <= mob.max * WATER.drown) {
+    if (t.runes.has('drown') && mob.hp <= mob.max * WATER.drown) {
       mob.drowned = true;
       b._event({ kind: 'drown', tower: t, mob, x: arm.x, y: arm.y, arm });
       b._slay(mob, t);

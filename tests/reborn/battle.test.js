@@ -3166,7 +3166,7 @@ test('кракен, оглушающий шлепок: с шансом 10% уд�
   ok(stun((b) => walker(b, 11, 1e9), 0.5) <= 0, 'в остальных 90% — нет');
 });
 
-test('кракен, утопление: щупальце из воды утаскивает врага с 10% здоровья и меньше; элитных и боссов — нет', () => {
+test('кракен, утопление: щупальце из воды утаскивает врага с 10% здоровья и меньше — даже элитного и босса', () => {
   const battle = mapWith({ lake: [[6, 4], [7, 4], [8, 4], [6, 3]] }), k = battle.place(player(), 'frost', 6, 3, { runes: ['kraken', 'drown'] });
   k.critChance = 0;
   battle.step(TICK);
@@ -3174,10 +3174,17 @@ test('кракен, утопление: щупальце из воды утас�
   still(weak, elite);
   weak.hp = 90;
   elite.hp = 90;
-  battle._fire(k);
+  const boss = put(battle, special(battle, 'boss', BOSSES[0].id, 1e6), 8.4);
+  still(boss);
+  boss.hp = boss.max * 0.09;
+  for (let i = 0; i < 6 && !(weak.dead && elite.dead && boss.dead); i++) {
+    k.cooldown = 0;
+    battle._fire(k);
+  }
   ok(weak.dead && weak.drowned, 'утащил под воду');
   ok(battle.events.some((e) => e.kind === 'drown' && e.mob === weak));
-  no(elite.dead && elite.drowned, 'элитного не топит');
+  ok(elite.dead && elite.drowned, 'и элитного');
+  ok(boss.dead && boss.drowned, 'и босса');
 });
 
 test('кракен: дальность не меняется ни от холмов и вышек, ни от аур и оружия', () => {
@@ -3724,7 +3731,7 @@ test('хранитель: прочность стены растёт с мощь
   runFor(battle, 0.2);
   const own = (t) => battle.walls.find((wall) => wall.tower === t);
   near(own(strong).max, own(weak).max * 2, 'мощь 200 — вдвое прочнее');
-  near(own(weak).max, battle._wallUnit() * 0.125 * EARTH.wall.hold, 'при 100 мощи держит обычного моба 30 с');
+  near(own(weak).max, battle._wallUnit() * 0.125 * EARTH.wall.hold, 'при 100 мощи держит обычного моба 15 с');
   const wall = own(weak);
   wall.hp = wall.max / 2;
   wall.hitAt = battle.time;
