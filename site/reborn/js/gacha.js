@@ -2,7 +2,8 @@ import { CLASS_BY_ID, CLASSES } from './classes.js';
 
 export const PRICE = 100;
 export const UPGRADE_PRICE = 100;
-export const FARM = { part: 0.4, damage: 0.55, killer: 0.15, coins: 2.4, boost: 0.3, helpCoins: 0.5, helpXp: 0.15 };
+export const FARM = { part: 0.75, damage: 0.4, killer: 0.4, squad: 0.4, coins: 2.4, boost: 0.5, helpCoins: 1.5,
+  helpXp: 0.15 };
 export const SLOTS = 4;
 export const SPIN_TIME = 2;
 export const SHOW_TIME = 7;
@@ -10,7 +11,7 @@ export const SHOW_FAST = 4;
 export const RUSH = { queue: 12, spin: 0.8, show: 1.2 };
 export const QUEUE_CAP = 10;
 export const ASCEND_AT = 30;
-export const TIER_STEPS = 10;
+export const TIER_STEPS = 5;
 
 export const OUTCOMES = [
   { id: 'handful', name: 'Горстка монет', color: '#ffffff', chance: 0.865, coins: [1, 50] },

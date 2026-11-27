@@ -303,10 +303,10 @@ test('гача: горстка — остальное, мешок 10%, сунд�
 
 const chanceOf = (id) => OUTCOMES.find((item) => item.id === id).chance;
 
-test('оружие: у всех с начала белое; 10 улучшений — следующая редкость и снова +0, мощь +1 на белом … +6 на оранжевом', () => {
+test('оружие: у всех с начала белое; 5 улучшений — следующая редкость и снова +0, мощь +1 на белом … +6 на оранжевом', () => {
   eq(RARITIES.map((rarity) => [rarity.id, rarity.gain]), [['plain', 1], ['common', 2], ['rare', 3], ['mythic', 4],
     ['epic', 5], ['legendary', 6]]);
-  eq(TIER_STEPS, 10);
+  eq(TIER_STEPS, 5);
   const weapon = makeWeapon(seeded(4), 'frost');
   eq([weapon.rarity, weapon.power, weapon.plus], ['plain', 0, 0], 'белое, без мощи');
   eq(weaponPower(weapon), 0);
@@ -320,12 +320,12 @@ test('оружие: у всех с начала белое; 10 улучшени�
       power += rarity.gain;
     }
   }
-  eq([weapon.rarity, weapon.power, weapon.plus], ['legendary', power, 0], 'оранжевое после 50 улучшений, счёт с нуля');
+  eq([weapon.rarity, weapon.power, weapon.plus], ['legendary', power, 0], 'оранжевое после 25 улучшений, счёт с нуля');
   eq(weaponTitle(weapon), 'Оружие');
   upgrade(weapon);
   eq(weaponTitle(weapon), 'Оружие +1');
   ok(boonOf(weapon.boon), 'оранжевое даёт свойство');
-  eq(makeWeapon(seeded(1), 'frost', RARITIES[3]).power, 10 + 20 + 30, 'готовое фиолетовое — как после 30 улучшений');
+  eq(makeWeapon(seeded(1), 'frost', RARITIES[3]).power, 5 + 10 + 15, 'готовое фиолетовое — как после 15 улучшений');
 });
 
 test('оружие: красное — после 30 улучшений оранжевого, дальше +10 мощи без конца; свойство на красном ×1,5', () => {

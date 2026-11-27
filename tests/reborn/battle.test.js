@@ -88,7 +88,7 @@ test('награда: кто нанёс больше урона, тому бол
   battle._hurt(mob, 10, b, null);
   battle._hurt(mob, 1e6, a, null);
   ok(mob.dead);
-  ok(big.coins > small.coins * 2, 'больше урона — больше монет: ' + big.coins + ' / ' + small.coins);
+  ok(big.coins > small.coins * 1.5, 'больше урона — больше монет: ' + big.coins + ' / ' + small.coins);
   ok(small.coins >= FARM.coins * FARM.part * CLASS_BY_ID.get('pyro').earn.coins - 1e-9, 'за участие — всегда');
   const field = makeBattle(), sniper = player(), gunner = player();
   const s = field.place(sniper, 'sniper', 2, 4, { runes: ['scope'] }), g = field.place(gunner, 'sniper', 2, 6, { runes: ['assault'] });
@@ -98,6 +98,17 @@ test('награда: кто нанёс больше урона, тому бол
   ok(boss.dead);
   ok(sniper.coins > gunner.coins * 1.5, 'снайпер за босса получает больше: ' + sniper.coins + ' / ' + gunner.coins);
   eq(EARN.scope.big, 3);
+});
+
+test('награда: кто моба не бил, тоже получает монеты — долю отряда, без опыта', () => {
+  const battle = makeBattle(), hunter = player(), idle = player();
+  const a = battle.place(hunter, 'pyro', 2, 4), b = battle.place(idle, 'priest', 18, 2);
+  const mob = battle._spawn({ type: 'normal', hp: 100 }, 3), xp = idle.xp;
+  battle._hurt(mob, 1e6, a, null);
+  ok(mob.dead);
+  near(idle.coins, FARM.coins * FARM.squad * MOBS.normal.coins * CLASS_BY_ID.get('priest').earn.coins, 'доля отряда');
+  eq(idle.xp, xp, 'опыта за это нет');
+  ok(hunter.coins > idle.coins, 'бивший получает больше');
 });
 
 test('награда: помощь — контроль, лечение, спасение сердца — платит монетами и опытом', () => {

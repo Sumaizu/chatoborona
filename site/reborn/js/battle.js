@@ -2697,6 +2697,13 @@ export class Battle {
         }
       } else this._help(t, HELP.assist, false);
     }
+    for (const t of this.towers) {
+      if (mob.helpers.has(t)) continue;
+      const coins = FARM.coins * FARM.squad * mob.info.coins * (t.cls.earn || NO_EARN).coins * purse
+        * Math.max(0, 1 + (t.mods.coins || 0));
+      t.player.coins += coins;
+      t.run.coins += coins;
+    }
     this._event({ kind: 'kill', mob, by: killer });
     if (mob.stolen && killer) {
       killer.player.coins += mob.stolen;
