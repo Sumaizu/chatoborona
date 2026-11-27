@@ -368,7 +368,7 @@ export class Battle {
     this.seaCells = [];
     this.armKey = '';
     this.arms = [];
-    if (!this.rules.ice && !this.rules.dry && !this.frozen) this._seas();
+    if (!this.rules.ice && (!this.rules.dry || this.rules.swim) && !this.frozen) this._seas();
     this.liquid = this.cooled ? 'basalt' : this.frozen ? 'ice' : null;
   }
 

@@ -1735,10 +1735,11 @@ export class Scene {
   _ripples(ctx, x, y, r, seed) {
     ctx.save();
     ctx.lineWidth = 1.2;
+    const tar = Boolean(this.battle && this.battle.rules.swim);
     for (let i = 0; i < 2; i++) {
       const k = (this.clock * 0.45 + i / 2 + seed * 0.13) % 1;
       ctx.globalAlpha = 0.55 * (1 - k);
-      ctx.strokeStyle = i ? '#e0f7ff' : '#bae6fd';
+      ctx.strokeStyle = tar ? (i ? '#c4b5fd' : '#8b5cf6') : i ? '#e0f7ff' : '#bae6fd';
       ctx.beginPath();
       ctx.ellipse(x, y, r * (0.75 + k * 0.6), r * (0.75 + k * 0.6) * 0.5, 0, 0, Math.PI * 2);
       ctx.stroke();

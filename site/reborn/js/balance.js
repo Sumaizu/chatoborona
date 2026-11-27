@@ -38,7 +38,7 @@ export const BIOME_RULES = {
     + 'стоять', weak: 'fire', ice: true },
   desert: { name: 'Пустыня', text: 'летучие мобы на ' + share(1.25) + ' быстрее, и их на ' + share(1 + TERRAIN.more)
     + ' больше', air: 1.25, more: 'air' },
-  graveyard: { name: 'Кладбище', text: 'павшие мобы с телом встают скелетами', rise: true, dry: true },
+  graveyard: { name: 'Кладбище', text: 'павшие мобы с телом встают скелетами', rise: true, dry: true, swim: true },
 };
 
 export const POWERS = {

@@ -3180,6 +3180,17 @@ test('кракен, оглушающий шлепок: с шансом 10% уд�
   ok(stun((b) => walker(b, 11, 1e9), 0.5) <= 0, 'в остальных 90% — нет');
 });
 
+test('кракен плавает и в смоле на кладбище; в лаве и во льду — нет', () => {
+  const tar = mapWith({ lake: [[6, 3], [7, 3]] }, 'graveyard');
+  ok(tar.place(player(), 'frost', 6, 3, { runes: ['kraken'] }), 'в смолу встал');
+  ok(tar.swims(tar.towerAt(6, 3)), 'плавает');
+  const lava = mapWith({ lake: [[6, 3]] }, 'volcano');
+  no(lava.place(player(), 'frost', 6, 3, { runes: ['kraken'] }), 'в лаву — нет');
+  const ice = mapWith({ lake: [[6, 3]] }, 'snow');
+  const k = ice.place(player(), 'frost', 6, 3, { runes: ['kraken'] });
+  no(k && ice.swims(k), 'во льду не плавает');
+});
+
 test('кракен, утопление: щупальце из воды утаскивает врага с 10% здоровья и меньше — даже элитного и босса', () => {
   const battle = mapWith({ lake: [[6, 4], [7, 4], [8, 4], [6, 3]] }), k = battle.place(player(), 'frost', 6, 3, { runes: ['kraken', 'drown'] });
   k.critChance = 0;
