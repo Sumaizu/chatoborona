@@ -617,7 +617,7 @@ export const CLASSES = [
     primary: 'int',
     earn: { xp: 0.98, coins: 1.02 },
     stats: { str: 'low', agi: 'low', int: 'high' },
-    base: { damage: 1.1, interval: 1.3, range: 3 },
+    base: { damage: 2.4, interval: 1.3, range: 3 },
     summary: 'Груда камней взмахом руки; первый камень даёт стиль: хранитель, лавовый змей или геомант',
     main: (b) => 'Взмахом правой руки бросает во врага груду камней на ' + cells(b.range) + ': урон землёй ×'
       + num(b.damage),

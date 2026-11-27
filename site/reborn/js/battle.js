@@ -61,7 +61,7 @@ export const FIRE = { styled: 1.5, giant: 1.5, splash: 1, wide: 1.5, breath: 0.6
   beam: { every: 10, charge: 1, mul: 8 }, torch: { radius: 1, share: 0.25 },
   ring: { radius: 2, mul: 0.5, grow: 1 },
   wall: { mul: 1.5, reach: 0.7 }, black: { chance: 1, damage: 0.2, max: 5 },
-  phoenix: { every: 15, speed: 8, mul: 10, reach: 0.9, step: 0.25 } };
+  phoenix: { every: 15, speed: 8, mul: 10, reach: 0.9, step: 0.25 }, styleMul: { fireball: 0.65, ignite: 0.5, dragon: 1.6 } };
 const TORCH_USERS = new Set(['sniper', 'mechanic', 'forester']);
 const LOFTY = new Set(['scope', 'mortar']);
 export const SHOT = { scope: { mul: 11.7, aim: 2, reload: 3 }, assault: { range: -1, interval: 0.55, mul: 0.61,
@@ -91,7 +91,7 @@ export const WOOD = { bow: { reload: 0.8 }, grace: { radius: 2.5, haste: 0.15 },
   beartrap: { time: 3, reopen: 10, dps: 0.3, reach: 0.45 }, hail: { every: 10, radius: 4, fall: 0.6, poison: 0.5 },
   venomBurst: { radius: 1, time: 4, dps: 0.4 }, plague: 0.1, absorb: { time: 0.35, size: 1.5 },
   cauldron: { every: 2.5, reach: 5, flight: 0.7, mul: 0.8, radius: 0.8, time: 8, dps: 0.3 } };
-export const HOLY = { angel: { reach: 1, interval: 1, mul: 2.6 }, monk: { reach: 1.5, interval: 0.4, mul: 0.8 },
+export const HOLY = { angel: { reach: 1, interval: 1, mul: 3.4 }, monk: { reach: 1.5, interval: 0.4, mul: 0.8 },
   inquisitor: { reach: 4, interval: 1.45, mul: 3, flight: FIREBALL_FLIGHT }, smite: { every: 5, mul: 11, below: 0.3 },
   mercy: { reach: 1, lives: 1 }, second: { charge: 1, awe: 10, lives: 10 },
   holyGround: { every: 6, radius: 4, mul: 2, flight: 0.8 }, heavy: { chance: 0.15, stun: 1 },
@@ -99,15 +99,15 @@ export const HOLY = { angel: { reach: 1, interval: 1, mul: 2.6 }, monk: { reach:
   repose: 3, chain: { jumps: 2, reach: 2 }, aegis: 0.2, blessing: 0.1, insight: 0.1 };
 export const SPELL = { wisp: 0.45, minstrel: { reach: 3.5, interval: 1.6, mul: 1.3, wide: 0.5, speed: 7 },
   enchantress: { reach: 4, interval: 1.45, mul: 2.2, wind: 0.3, speed: 5, curve: 1.15 },
-  shamaness: { reach: 2, interval: 1.8, mul: 1.2 }, resonance: { reach: 5, mul: 1.5 },
+  shamaness: { reach: 2, interval: 1.8, mul: 1.6 }, resonance: { reach: 5, mul: 1.5 },
   totem: { radius: 3, slow: 0.1, power: 0.1, hold: 0.3, spot: [0.5, 0.35] }, courses: 0.2, catalyst: 0.15, unbind: 3, circle: 0.5 };
 export const ARCANE = { control: { count: 3, mul: 1.25, spread: 0.6 }, splash: 1, cloud: 0.6, holy: 2, stun: 0.6,
   elements: ['fire', 'poison', 'holy', 'earth', 'lightning'],
   rain: { every: 8, count: 6, radius: 3, gap: 0.15, drop: 0.7, fall: 0.5, meteor: 1.6, heavy: 3 },
   beam: { mul: 1.6, tick: 0.25, cloud: 1 } };
 const MARKED = new Set(['fire', 'poison', 'earth', 'lightning']);
-export const STORM = { orb: 5, caller: { reach: 3.5, interval: 1, mul: 1.2 }, raiju: { reach: 2, interval: 1.2, mul: 1.1, arc: 1.3 },
-  thor: { reach: 4, interval: 1.6, mul: 1.8, out: 0.55, back: 0.55, bend: 0.35, touch: 0.6, steps: 10 },
+export const STORM = { orb: 5, caller: { reach: 3.5, interval: 1, mul: 1.2 }, raiju: { reach: 2, interval: 1.2, mul: 3.2, arc: 1.3 },
+  thor: { reach: 4, interval: 1.6, mul: 2.8, out: 0.55, back: 0.55, bend: 0.35, touch: 0.6, steps: 10 },
   quake: { every: 10, cells: 4, step: 0.1, touch: 0.75, stun: 1 }, god: { damage: 0.01, per: 10, haste: 0.02, stage: 12.5 },
   son: { damage: 0.05, haste: 0.05, kin: ['thunder'] },
   frenzy: { time: 3, haste: 2 }, spark: { mul: 4, reach: 2 },
@@ -119,7 +119,7 @@ export const WOLF = { dash: { idle: 2, speed: 10, touch: 0.8, mul: 1 },
   rage: { steps: [[10, 0.03], [10, 0.02]], rest: 0.01, max: 3 }, pack: { boost: 0.3, per: 0.01 } };
 export const WATER = { drop: 9,
   hydro: { reach: 3, interval: 1.1, mul: 1.8, speed: 11, touch: 0.25, turn: 9 }, triple: { count: 3, spread: 0.7 },
-  kraken: { reach: 2, interval: 1.3, mul: 4, sea: 3, arm: 1.5 },
+  kraken: { reach: 2, interval: 1.3, mul: 9, sea: 3, arm: 3 },
   cryo: { reach: 3.5, interval: 1.1, mul: 3.6, speed: 9, big: 2, stock: 3, refill: 2 },
   slap: { chance: 0.1, hold: 2, elite: 1, boss: 0.5 }, drown: 0.1,
   ink: { every: 15, reach: 5, time: 10, slow: 0.5, boss: 0.25, mul: 2, speed: 6 },
@@ -137,9 +137,11 @@ export const ARM_SPOTS = [[0.5, 0.5], [0.22, 0.22], [0.78, 0.22], [0.22, 0.78], 
 export const SONG = { every: 15, time: 3, back: 1, dirge: 0.5, anthem: 0.3, ultrasound: 0.2 };
 export const TOTEMS = { totemSlow: 'slow', totemPurge: 'purge', totemPower: 'power' };
 export const HELP = { assist: 1, control: 1, react: 2, heart: 10, heal: 10, save: 50 };
-export const EARN = { scope: { big: 3 }, marksman: { big: 1.6 }, hunter: { big: 1.6 }, cryo: { help: 2 }, kraken: { help: 1.5 },
-  angel: { help: 2, aura: 1.5 }, monk: { aura: 2 }, shamaness: { aura: 2 }, minstrel: { aura: 2, help: 1.5 },
-  earth: { help: 1.5 } };
+export const EARN = { scope: { big: 3 }, marksman: { big: 1.6 }, hunter: { big: 1.6, coins: 0.9 },
+  cryo: { help: 2, coins: 1.15 }, kraken: { help: 1.5, coins: 1.5 }, angel: { help: 2, aura: 1.5 }, monk: { aura: 2 },
+  shamaness: { aura: 2 }, minstrel: { aura: 2, help: 1.5 }, keeper: { help: 1.5, coins: 1.4 }, serpent: { help: 1.5, coins: 1.25 },
+  geo: { help: 1.5 }, thor: { coins: 1.4 }, caller: { coins: 1.25 }, raiju: { coins: 1.25 }, hydro: { coins: 1.3 },
+  assault: { coins: 1.2 }, fireball: { coins: 0.8 }, druid: { coins: 0.8 } };
 const NO_PROFILE = {};
 export const earnOf = (t) => EARN[t.style] || EARN[t.cls.id] || NO_PROFILE;
 const LEFT_ITEMS = ['vents', 'cauldrons', 'banners', 'rods', 'traps', 'walls', 'patches', 'clouds', 'puddles'];
@@ -156,7 +158,7 @@ const STYLE_BALL = 11;
 const ROAD_ROUND = 0.9;
 const DRONE_SHOTS = { attack: MECH.droneAttack, laser: MECH.droneLaser, air: MECH.droneAir, bird: WOOD.bird,
   hawk: WOOD.hawk };
-export const EARTH = { pile: { speed: 7 }, keeper: { mul: 1 }, serpent: { mul: 1, speed: 6 }, geo: { mul: 1.3, speed: 5 },
+export const EARTH = { pile: { speed: 7 }, keeper: { mul: 1.2 }, serpent: { mul: 2.2, speed: 6 }, geo: { mul: 1.3, speed: 5 },
   wall: { hold: 15, rebuild: 9, heal: 10, steel: 2 }, sharp: { mul: 1, every: 1 }, collapse: { radius: 1.5, stun: 2 },
   barricade: { reach: 2 }, hydra: { heads: 2 }, spatter: { chance: 0.25, reach: 3, mul: 0.3 },
   pool: { radius: 0.6, time: 2, dot: 0.3 }, burn: 0.5,
@@ -1354,6 +1356,7 @@ export class Battle {
       || cls.id === 'sorceress' && SPELL[tower.style] || cls.id === 'thunder' && STORM[tower.style]
       || cls.id === 'frost' && WATER[tower.style] || cls.id === 'earth' && EARTH[tower.style] || null;
     if (shot) tower.damage *= shot.mul;
+    if (cls.id === 'pyro') tower.damage *= FIRE.styleMul[tower.style] || 1;
     if (tower.style === 'shamaness' && tower.runes.has('resonance')) tower.damage *= SPELL.resonance.mul;
     tower.interval = (shot && shot.interval || base.interval) / Math.max(FLOOR, 1 + (mods.rate || 0));
     if (tower.style === 'dragon') tower.interval = PULSE / Math.max(FLOOR, 1 + (mods.rate || 0));
@@ -2685,8 +2688,8 @@ export class Battle {
       const earn = t.cls.earn || NO_EARN, profile = earnOf(t), big = mob.info.elite || mob.info.boss ? profile.big || 1 : 1;
       const part = (FARM.part + FARM.damage * (mob.dealt.get(t) || 0) / total + (killers.has(t) ? FARM.killer : 0)) * big;
       this._grant(t, mob.info.xp * earn.xp * prize * part);
-      const coins = FARM.coins * part * mob.info.coins * earn.coins * purse * Math.max(0, 1 + (t.mods.coins || 0))
-        * (1 + trophy);
+      const coins = FARM.coins * part * mob.info.coins * earn.coins * (profile.coins || 1) * purse
+        * Math.max(0, 1 + (t.mods.coins || 0)) * (1 + trophy);
       t.player.coins += coins;
       t.run.coins += coins;
       if (t === killer) {
@@ -2700,7 +2703,7 @@ export class Battle {
     }
     for (const t of this.towers) {
       if (mob.helpers.has(t)) continue;
-      const coins = FARM.coins * FARM.squad * mob.info.coins * (t.cls.earn || NO_EARN).coins * purse
+      const coins = FARM.coins * FARM.squad * mob.info.coins * (t.cls.earn || NO_EARN).coins * (earnOf(t).coins || 1) * purse
         * Math.max(0, 1 + (t.mods.coins || 0));
       t.player.coins += coins;
       t.run.coins += coins;

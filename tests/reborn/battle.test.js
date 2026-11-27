@@ -1320,8 +1320,8 @@ test('баланс: урон снайперов, штурмовиков, мар�
   near(damage('thunder', []), 1.25);
   near(damage('sorceress', []), 1.25);
   near(damage('sniper', []), 1);
-  near(damage('pyro', ['dragon']), 1.25, 'и все подклассы класса');
-  near(damage('pyro', ['fireball']), 1.25);
+  near(damage('pyro', ['dragon']) / FIRE.styleMul.dragon, 1.25, 'и все подклассы класса');
+  near(damage('pyro', ['fireball']) / FIRE.styleMul.fireball, 1.25);
   near(damage('thunder', ['caller']) / (STORM.caller ? STORM.caller.mul || 1 : 1), 1.25);
   near(damage('sorceress', ['shamaness']) / (SPELL.shamaness ? SPELL.shamaness.mul || 1 : 1), 1.25);
 });
