@@ -302,6 +302,9 @@ export const WAVE = {
   gap: 0.8,
   swarmGap: 0.4,
   bigGap: 1.5,
+  easeFrom: 70,
+  easeTo: 100,
+  ease: 0.8,
 };
 
 export const XP = { first: 10, step: 3, bend: 0.05, from: 10 };
@@ -362,7 +365,7 @@ export function waveHp(wave, type, players, tempo = 1) {
   const late = Math.max(0, n - WAVE.wall);
   return WAVE.hp * MOBS[type].hp * Math.pow(WAVE.growth, paced)
     * Math.exp(WAVE.accel * paced * paced + WAVE.wallGrowth * late * late) * Math.pow(WAVE.calmGrowth, calm)
-    * crowdFactor(players);
+    * crowdFactor(players) * (wave >= WAVE.easeFrom && wave <= WAVE.easeTo ? WAVE.ease : 1);
 }
 
 export function crowdFactor(players) {

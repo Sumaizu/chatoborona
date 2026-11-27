@@ -159,7 +159,13 @@ test('волны: босс на десятой, мобов больше со в�
 });
 
 test('здоровье мобов растёт с волной и с числом игроков', () => {
-  for (let wave = 2; wave < 80; wave++) ok(waveHp(wave, 'normal', 10) > waveHp(wave - 1, 'normal', 10));
+  for (let wave = 2; wave < 80; wave++) {
+    if (wave !== WAVE.easeFrom) ok(waveHp(wave, 'normal', 10) > waveHp(wave - 1, 'normal', 10), 'волна ' + wave);
+  }
+  const plain = (wave) => waveHp(wave, 'normal', 10) / (wave >= WAVE.easeFrom && wave <= WAVE.easeTo ? WAVE.ease : 1);
+  eq([WAVE.easeFrom, WAVE.easeTo, WAVE.ease], [70, 100, 0.8]);
+  for (const wave of [70, 85, 100]) ok(Math.abs(waveHp(wave, 'normal', 10) / plain(wave) - 0.8) < 1e-9, 'на 20% легче: ' + wave);
+  ok(Math.abs(waveHp(69, 'normal', 10) - plain(69)) < 1e-9, 'до 70-й — как было');
   for (let players = 2; players < 200; players++) ok(crowdFactor(players) > crowdFactor(players - 1));
   const step = (wave) => waveHp(wave + 1, 'normal', 10) / waveHp(wave, 'normal', 10);
   ok(step(85) > step(55) * 1.15, 'после 60-й волны мобы крепчают заметно быстрее — дальше не прорваться');
