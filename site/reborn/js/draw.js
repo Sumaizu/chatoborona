@@ -2,7 +2,7 @@ import { LETTERS, SIZE } from './field.js';
 import { CELL, EDGE, MOUTH, mouthPath, mouthsOf, paintGround, paintPeaks, paintRoadMask, paintRoof, waterOf } from './terrain.js';
 import { FIRE, HOLY, MANTRAS, MECH, SPELL, STORM, WATER, WOLF, WOOD, bubbleAt, bubbleStage, flightAt, hammerAt, heavyGun,
   pullAt, roadCurve } from './battle.js';
-import { FIREBALL_FRAMES, PHOENIX_FRAMES, ORB_FRAMES, PUDDLE_FRAMES, SPRING_FRAMES, bubbleSprite, orbSprite, puddleSprite, seaArmSprite, springSprite, bulletSprite, clodSprite,
+import { FIREBALL_FRAMES, LAVA_POOL_FRAMES, PHOENIX_FRAMES, ORB_FRAMES, PUDDLE_FRAMES, SPRING_FRAMES, bubbleSprite, lavaPoolSprite, orbSprite, puddleSprite, seaArmSprite, springSprite, bulletSprite, clodSprite,
   coinSprite, fireballSprite, heartSprite, gooColor, heroSprite, hookSprite, iceWallSprite, icicleSprite, linkSprite, meltSprite,
   boulderSprite, hillockSprite, grenadeSprite, droneSprite, birdSprite, hawkSprite, snareSprite, trapSprite, cauldronSprite, mobSprite, moundSprite, nukeSprite, phoenixSprite, pixelsOf,
   rocketSprite, shellSprite, splitSprite, starSprite, tintSprite, ventSprite, wallSprite } from './sprites.js';
@@ -2041,6 +2041,7 @@ export class Scene {
 
   _puddles(ctx, battle) {
     for (const zone of battle.zones) {
+      if (zone.kind === 'lava') this._lavaPool(ctx, battle, zone);
       if (zone.kind !== 'puddle') continue;
       const left = zone.until - battle.time, fade = Math.min(1, left / 0.6, (WATER.rain.time - left) / 0.3);
       const seed = Math.floor(zone.x * 7 + zone.y * 3) % 9, image = puddleSprite(seed, Math.floor(this.clock * 5 + seed) % PUDDLE_FRAMES, waterOf(battle.biome));
@@ -2048,6 +2049,19 @@ export class Scene {
       ctx.drawImage(image, Math.round(at(zone.x) - image.width / 2), Math.round(at(zone.y) + 3 - image.height / 2));
       ctx.globalAlpha = 1;
     }
+  }
+
+  _lavaPool(ctx, battle, zone) {
+    if (!this.built.has(zone)) this.built.set(zone, this.clock);
+    const left = zone.until - battle.time, fade = Math.max(0, Math.min(1, left / 0.5, (this.clock - this.built.get(zone)) / 0.2));
+    const seed = Math.floor(zone.x * 7 + zone.y * 3) % 9, x = at(zone.x), y = at(zone.y) + 3;
+    const image = lavaPoolSprite(seed, Math.floor(this.clock * 6 + seed) % LAVA_POOL_FRAMES);
+    const k = zone.radius * CELL * 2.2 / image.width;
+    glow(ctx, x, y, zone.radius * CELL * 1.4, 'rgba(255, 106, 31, 1)', 0.35 * fade);
+    ctx.globalAlpha = fade;
+    ctx.drawImage(image, Math.round(x - image.width * k / 2), Math.round(y - image.height * k / 2), Math.round(image.width * k),
+      Math.round(image.height * k));
+    ctx.globalAlpha = 1;
   }
 
   _weather(ctx, battle) {

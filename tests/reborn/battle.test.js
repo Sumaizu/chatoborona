@@ -3834,6 +3834,17 @@ test('терраформирование: каждое взятие — холм
   ok(battle.onWatch(gun));
 });
 
+test('терраформирование в лаве: холм — на ближайшей клетке суши, не в лаве', () => {
+  const battle = mapWith({ lake: [[6, 3], [7, 3], [8, 3], [7, 2]] }, 'volcano');
+  const snake = battle.place(player(), 'earth', 7, 3, { runes: ['serpent', 'terraform'] });
+  battle.step(TICK);
+  eq(battle.mounds.length, 1);
+  const [mound] = battle.mounds;
+  no(battle.molten(mound.x, mound.y), 'не в лаве');
+  ok(Math.hypot(mound.x - snake.x, mound.y - snake.y) <= Math.SQRT2 + 1e-9, 'на ближайшей суше: ' + [mound.x, mound.y]);
+  no(battle.road.some(([x, y]) => x === mound.x && y === mound.y), 'не на дороге');
+});
+
 test('окаменение: враг в соседней клетке каменеет — 3 с, элитный 2, босс 1; от одного мага — раз, другой продлевает', () => {
   const battle = makeBattle();
   earth(battle, 10, 4, ['petrify']);

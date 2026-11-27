@@ -553,7 +553,20 @@ export class Battle {
     if (made >= (t.stacks.get('terraform') || 0)) return;
     const taken = (x, y) => this.mounds.some((mound) => mound.x === x && mound.y === y)
       || Boolean(this.tiles && this.tiles[y * SIZE + x] === 'watch');
-    let spot = taken(t.x, t.y) ? null : { x: t.x, y: t.y };
+    const land = (x, y) => inside(x, y) && !this.blocked.has(y * SIZE + x) && !this.rough.has(y * SIZE + x)
+      && !this.molten(x, y) && !taken(x, y);
+    let spot = taken(t.x, t.y) || this.molten(t.x, t.y) ? null : { x: t.x, y: t.y };
+    if (!spot && this.molten(t.x, t.y)) {
+      let best = Infinity;
+      for (let at = 0; at < SIZE * SIZE; at++) {
+        const x = at % SIZE, y = (at - x) / SIZE, gap = Math.hypot(x - t.x, y - t.y) + this.random() * 0.01;
+        if (land(x, y) && gap < best) {
+          best = gap;
+          spot = { x, y };
+        }
+      }
+      if (!spot) return;
+    }
     if (!spot) {
       const near = [];
       for (const [dx, dy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) {

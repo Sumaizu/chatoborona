@@ -1,6 +1,6 @@
 import { HERO, HERO_IDS, drawHero, drawPhoenix, drawSeaArm } from './models.js';
 import { MOB_IDS, drawMelt, drawMob, drawSplit, gooColor } from './monsters.js';
-import { ORB_FRAMES, PUDDLE_FRAMES, SPRING_FRAMES, drawIceWall, drawIcicle, drawPuddle, drawSpring, drawWaterOrb, drawCauldron, drawClod, drawBird, drawHawk, drawSnare, drawTrap, drawCoinIcon, drawDrone, drawEmblem, drawFireball, drawGrenade, drawHeart,
+import { LAVA_POOL_FRAMES, ORB_FRAMES, PUDDLE_FRAMES, SPRING_FRAMES, drawIceWall, drawIcicle, drawLavaPool, drawPuddle, drawSpring, drawWaterOrb, drawCauldron, drawClod, drawBird, drawHawk, drawSnare, drawTrap, drawCoinIcon, drawDrone, drawEmblem, drawFireball, drawGrenade, drawHeart,
   drawBoulder, drawHillock, drawMound, drawNuke, drawVent, drawRocket, drawWall } from './props.js';
 
 const OUTLINE = '#15111d';
@@ -324,7 +324,9 @@ export const FIREBALL_FRAMES = 3;
 export const fireballSprite = (tone, frame = 0) => remember('fireball:' + tone + ':' + frame,
   () => drawFireball(tone, frame % FIREBALL_FRAMES));
 export const rocketSprite = () => remember('rocket', () => drawRocket());
-export { ORB_FRAMES, PUDDLE_FRAMES, SPRING_FRAMES };
+export { LAVA_POOL_FRAMES, ORB_FRAMES, PUDDLE_FRAMES, SPRING_FRAMES };
+export const lavaPoolSprite = (seed, frame) => remember('lavapool:' + seed + ':' + frame,
+  () => drawLavaPool(seed, frame % LAVA_POOL_FRAMES));
 export const springSprite = (frame, water) => remember('spring:' + water.key + ':' + frame,
   () => drawSpring(frame % SPRING_FRAMES, water.style));
 export const puddleSprite = (seed, frame, water) => remember('puddle:' + water.key + ':' + seed + ':' + frame,

@@ -297,6 +297,62 @@ export function drawPuddle(seed, frame, style) {
 
 export const PUDDLE_FRAMES = PUDDLE.frames;
 
+const LAVA_POOL = { w: 46, h: 30, frames: 6, tones: ['#1f1412', '#4a1a10', '#8a2a12', '#d2461a', '#ff7a1f', '#ffb347',
+  '#ffe08a', '#fff6cf'], crust: ['#2b211f', '#3d302c', '#55443e'] };
+
+export function drawLavaPool(seed, frame) {
+  const s = LAVA_POOL, canvas = document.createElement('canvas'), t = frame / s.frames * Math.PI * 2;
+  canvas.width = s.w;
+  canvas.height = s.h;
+  const g = canvas.getContext('2d'), cx = s.w / 2, cy = s.h / 2, turn = seed * 1.3;
+  const blobs = [[0, 0, 1], [Math.cos(turn) * 7, Math.sin(turn) * 3, 0.62], [-Math.cos(turn + 1) * 8, Math.sin(turn + 2) * 2.5, 0.55]];
+  for (let y = 0; y < s.h; y++) {
+    for (let x = 0; x < s.w; x++) {
+      let fill = -1;
+      for (const [bx, by, r] of blobs) {
+        const dx = (x + 0.5 - cx - bx) / (19 * r), dy = (y + 0.5 - cy - by) / (12 * r);
+        fill = Math.max(fill, 1 - Math.hypot(dx, dy));
+      }
+      if (fill <= -0.06) continue;
+      fill += (grain(x, y, seed) - 0.5) * 0.06 + 0.04 * Math.sin(x * 0.7 + seed) * Math.sin(y * 0.9);
+      if (fill <= 0) continue;
+      let tone;
+      if (fill < 0.08) tone = 0;
+      else if (fill < 0.16) tone = 1;
+      else if (fill < 0.26) tone = 2;
+      else {
+        const vein = Math.sin(x * 0.55 + y * 0.35 + t + Math.sin(y * 0.6 - t) * 1.4);
+        const heat = fill * 1.3 + vein * 0.3 + (grain(x, y, seed + 7) - 0.5) * 0.15;
+        tone = heat > 1.42 ? 7 : heat > 1.2 ? 6 : heat > 0.95 ? 5 : heat > 0.62 ? 4 : 3;
+      }
+      g.fillStyle = s.tones[tone];
+      g.fillRect(x, y, 1, 1);
+    }
+  }
+  for (let k = 0; k < 2; k++) {
+    const a = seed * 2.1 + k * 2.9 + t * 0.08, px = cx + Math.cos(a) * (7 + k * 3), py = cy + Math.sin(a) * (3 + k);
+    const rw = 1 + k, rh = 1;
+    for (let y = -rh; y <= rh; y++) {
+      for (let x = -rw; x <= rw; x++) {
+        if ((x / (rw + 0.5)) ** 2 + (y / (rh + 0.5)) ** 2 > 1) continue;
+        g.fillStyle = s.crust[(x + y + k + 9) % 3];
+        g.fillRect(Math.round(px + x), Math.round(py + y), 1, 1);
+      }
+    }
+  }
+  for (let k = 0; k < 3; k++) {
+    const life = (frame / s.frames + k / 3) % 1, bx = cx + Math.cos(seed + k * 2.4) * 8, by = cy + Math.sin(seed + k * 1.9) * 4;
+    if (life > 0.6) continue;
+    g.fillStyle = s.tones[7];
+    g.fillRect(Math.round(bx), Math.round(by - life * 2), 1, 1);
+    g.fillStyle = s.tones[6];
+    if (life > 0.3) g.fillRect(Math.round(bx) - 1, Math.round(by - life * 2), 3, 1);
+  }
+  return canvas;
+}
+
+export const LAVA_POOL_FRAMES = LAVA_POOL.frames;
+
 const ROOTS = { bark: ['#5b3a22', '#6b4a2c', '#4e3220', '#7a5636', '#644024'], soil: '#3a2a1b', hole: '#1c130b',
   thorn: '#e3d4b0', leaf: ['#4d7c0f', '#65a30d'], drop: 3 };
 
