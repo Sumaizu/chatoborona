@@ -11,7 +11,7 @@ export const resistOf = (wave) => 1 - Math.pow(RESIST.keep, Math.floor(Math.max(
 export const STAT = { grades: { low: 6, mid: 12, high: 18 }, mastery: 12, damage: 0.02, skill: 0.02, critBase: 1.5,
   critPower: 0.015, critChance: 0.005, critMax: 0.5, speed: 0.02, reach: 0.02, element: 0.02, masteryMax: 0.6,
   masteryHalf: 20, luckHalf: 20 };
-export const MIGHT = { base: 100, paragon: 0.05, lift: 0.45 };
+export const MIGHT = { base: 100, paragon: 0.05, lift: 0.45, damage: 1.5 };
 
 export const MOBS = {
   normal: { name: 'Зомби', hp: 1, speed: 1, xp: 1, coins: 1, leak: 1 },
@@ -290,7 +290,7 @@ export const WAVE = {
   crowd: 0.85,
   pivot: 10,
   wall: 60,
-  wallGrowth: 0.003,
+  wallGrowth: 0.0015,
   calm: 90,
   calmGrowth: 1.1,
   solo: 0.6,

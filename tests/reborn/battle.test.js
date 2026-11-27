@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { AIM, ARCANE, BITE_TIME, Battle, EARN, EARTH, RAGE, WOLF, flier, godStage, hammerAt, HELP, HOLY, SONG, SPELL, STORM, WATER, WOOD, GRENADE, MECH, MOVE_PAUSE, OVERTIME, FIRE,
+import { AIM, ARCANE, BITE_TIME, Battle, EARN, EARTH, RAGE, REACT_CUT, WOLF, flier, godStage, hammerAt, HELP, HOLY, SONG, SPELL, STORM, WATER, WOOD, GRENADE, MECH, MOVE_PAUSE, OVERTIME, FIRE,
   PULSE, REACTIONS, ROT, SHOT, SPLIT_TIME }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
@@ -160,8 +160,9 @@ test('мощь: от уровня не растёт; урон и способн�
   const strong = battle.place(player(), 'mechanic', 6, 4);
   battle.setMods(strong, { power: 50 });
   eq(strong.might, 150);
-  near(strong.damage, young.damage * 1.5, 'урон — в полтора раза');
-  near(strong.skill, young.skill * 1.5, 'способности — тоже');
+  near(strong.damage, young.damage * (1 + 0.5 * MIGHT.damage), '+50 мощи — урон +75%: влияние мощи на 50% сильнее');
+  near(strong.skill, young.skill * (1 + 0.5 * MIGHT.damage), 'способности — тоже');
+  eq(MIGHT.damage, 1.5);
   eq([strong.interval, strong.critChance, strong.critMul, strong.range], [young.interval, young.critChance,
     young.critMul, young.range], 'скорость, крит и дальность от оружия не меняются');
   battle.setMods(strong, { power: 50, paragon: 2 });
@@ -3481,7 +3482,7 @@ test('реакции: стихию накладывают только «… р�
   battle._pulse(battle.time);
   ok(!mob.marks, 'стихии ушли в реакцию');
   ok(battle.state(mob, 'steam'), 'пар');
-  near(hit(mob) - was, (towers.fire.skill + towers.water.skill) * REACTIONS.steam.fire, 'урон — от суммы мощи');
+  near(hit(mob) - was, (towers.fire.skill + towers.water.skill) * REACTIONS.steam.fire * REACT_CUT, 'урон — от суммы мощи, вдвое меньше');
   ok(battle.events.some((e) => e.kind === 'react' && e.name === 'Пар'));
   const weak = walker(battle, 4, 1e6);
   still(weak);

@@ -55,6 +55,7 @@ export const REACTIONS = {
 const PAIRS = [['fire', 'water', 'steam'], ['fire', 'lightning', 'blast'], ['fire', 'poison', 'corrosion'],
   ['water', 'earth', 'mud'], ['water', 'lightning', 'discharge'], ['earth', 'poison', 'disease']];
 const BLUE_REACT = 1.5;
+export const REACT_CUT = 0.5;
 export const FIRE = { styled: 1.5, giant: 1.5, splash: 1, wide: 1.5, breath: 0.6, cone: 0.35, coneWide: 1.6,
   ignite: 0.06, igniteMul: 1.2, smolder: 0.3, burn: 3, blue: 1.3, blueBurn: 1.5, crit: 0.15, twin: 1,
   rain: { every: 8, count: 6, radius: 3, gap: 0.15 }, vent: { every: 3, reach: 5 }, idle: 3, soar: 7,
@@ -1347,7 +1348,8 @@ export class Battle {
     tower.style = cls.styles ? (cls.styles.find((item) => tower.runes.has(item.id)) || {}).id || null : null;
     tower.react = cls.react && (cls.react.skill.startsWith('perk') ? open(tower, Number(cls.react.skill.slice(4)))
       : tower.runes.has(cls.react.skill)) ? cls.react.element : null;
-    const boost = Math.max(FLOOR, 1 + (mods.damage || 0)) * tower.might / MIGHT.base * (DAMAGE_UP[cls.id] || 1);
+    const boost = Math.max(FLOOR, 1 + (mods.damage || 0)) * (1 + (tower.might / MIGHT.base - 1) * MIGHT.damage)
+      * (DAMAGE_UP[cls.id] || 1);
     tower.damage = base.damage * boost;
     tower.skill = base.skill * boost;
     tower.element = STYLE_ELEMENTS[tower.style] || cls.element || null;
@@ -1718,7 +1720,7 @@ export class Battle {
     for (const t of party) this._help(t, HELP.react, false);
     const towers = Array.from(party), lead = towers[0], blue = towers.some((t) => t.runes.has('blue'));
     const fiery = marks.includes('fire') || name === 'blast' || name === 'lava';
-    const power = towers.reduce((sum, t) => sum + t.skill, 0) * (blue && fiery ? BLUE_REACT : 1);
+    const power = towers.reduce((sum, t) => sum + t.skill, 0) * (blue && fiery ? BLUE_REACT : 1) * REACT_CUT;
     for (const element of marks) if (mob.marks) mob.marks.delete(element);
     if (mob.marks && !mob.marks.size) mob.marks = null;
     for (const key of states) if (mob.states) mob.states.delete(key);

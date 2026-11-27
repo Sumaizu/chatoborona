@@ -164,7 +164,7 @@ test('здоровье мобов растёт с волной и с число�
   for (let wave = 2; wave < 80; wave++) ok(waveHp(wave, 'normal', 10) > waveHp(wave - 1, 'normal', 10));
   for (let players = 2; players < 200; players++) ok(crowdFactor(players) > crowdFactor(players - 1));
   const step = (wave) => waveHp(wave + 1, 'normal', 10) / waveHp(wave, 'normal', 10);
-  ok(step(85) > step(55) * 1.15, 'после 60-й волны мобы крепчают заметно быстрее — дальше не прорваться');
+  ok(step(85) > step(55) * 1.08, 'после 60-й волны мобы крепчают заметно быстрее');
   ok(Math.abs(step(30) - WAVE.growth * Math.exp(WAVE.accel * 59)) < 1e-9, 'до стены — как раньше');
   ok(waveHp(10, 'boss', 1) > waveHp(10, 'elite', 1));
 });
@@ -184,14 +184,14 @@ test('крутизна волн у каждой игры своя: обычны�
   near(waveHp(31, 'normal', 10, steep), waveHp(51, 'normal', 10), 'крутая: 31-я — как обычная 51-я');
   for (const wave of [1, 5, 11]) near(waveHp(wave, 'normal', 10, steep), waveHp(wave, 'normal', 10), 'начало общее');
   near(waveHp(40, 'normal', 10, 1), waveHp(40, 'normal', 10));
-  ok(waveHp(90, 'normal', 10, gentle) > waveHp(68, 'normal', 10) * 5, 'стена до 90-й не пологеет');
+  ok(waveHp(90, 'normal', 10, gentle) > waveHp(68, 'normal', 10) * 2, 'стена до 90-й не пологеет');
 });
 
 test('с 91-й волны мобы крепчают спокойно — на 10% за волну, иначе до Диабло не дойти', () => {
   eq([WAVE.calm, WAVE.calmGrowth], [90, 1.1]);
   for (const tempo of [rollTempo(() => 0), 1, rollTempo(() => 1)]) {
     const step = (wave) => waveHp(wave + 1, 'normal', 10, tempo) / waveHp(wave, 'normal', 10, tempo);
-    ok(step(89) > 1.2, 'до 90-й — круто: ' + step(89));
+    ok(step(89) > 1.12, 'до 90-й — круто: ' + step(89));
     for (let wave = 90; wave < 100; wave++) ok(Math.abs(step(wave) - 1.1) < 1e-9, wave + 1 + '-я: ' + step(wave));
   }
 });
