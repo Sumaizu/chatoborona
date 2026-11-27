@@ -55,7 +55,6 @@ export const REACTIONS = {
 const PAIRS = [['fire', 'water', 'steam'], ['fire', 'lightning', 'blast'], ['fire', 'poison', 'corrosion'],
   ['water', 'earth', 'mud'], ['water', 'lightning', 'discharge'], ['earth', 'poison', 'disease']];
 const BLUE_REACT = 1.5;
-export const REACT_CUT = 0.5;
 export const FIRE = { styled: 1.5, giant: 1.5, splash: 1, wide: 1.5, breath: 0.6, cone: 0.35, coneWide: 1.6,
   ignite: 0.06, igniteMul: 1.2, smolder: 0.3, burn: 3, blue: 1.3, blueBurn: 1.5, crit: 0.15, twin: 1,
   rain: { every: 8, count: 6, radius: 3, gap: 0.15 }, vent: { every: 3, reach: 5 }, idle: 3, soar: 7,
@@ -72,7 +71,7 @@ export const SHOT = { scope: { mul: 11.7, aim: 2, reload: 3 }, assault: { range:
   flash: { every: 30, radius: 1, stun: 1.5 }, double: { arc: 30 }, air: 3 };
 export const MECH = { turret: { range: -1.5, interval: 1, mul: 0.39, count: 3, gap: 0.08, radius: 1, mag: 15,
   reload: 3 }, demo: { range: 0, interval: 3, mul: 1.6, radius: 1, flight: 0.25, pace: 0.12 },
-  mortar: { interval: 2.4, mul: 1.1, radius: 0.8, flight: 0.7, pace: 0.06 },
+  mortar: { interval: 2.4, mul: 0.85, radius: 0.8, flight: 0.7, pace: 0.06 },
   team: { radius: 1.5, per: 0.1 }, tuning: { radius: 1.5, haste: 0.3 },
   emp: { every: 8, radius: 2, stun: 3, mute: 4, drop: 0.35 },
   cluster: { count: 2, share: 0.5, reach: 1, radius: 0.9, flight: 0.35 }, caliber: 2, salvo: { chance: 0.3, gap: 0.25 },
@@ -1720,7 +1719,7 @@ export class Battle {
     for (const t of party) this._help(t, HELP.react, false);
     const towers = Array.from(party), lead = towers[0], blue = towers.some((t) => t.runes.has('blue'));
     const fiery = marks.includes('fire') || name === 'blast' || name === 'lava';
-    const power = towers.reduce((sum, t) => sum + t.skill, 0) * (blue && fiery ? BLUE_REACT : 1) * REACT_CUT;
+    const power = Math.max(...towers.map((t) => t.skill)) * (blue && fiery ? BLUE_REACT : 1);
     for (const element of marks) if (mob.marks) mob.marks.delete(element);
     if (mob.marks && !mob.marks.size) mob.marks = null;
     for (const key of states) if (mob.states) mob.states.delete(key);

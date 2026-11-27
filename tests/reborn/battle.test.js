@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { AIM, ARCANE, BITE_TIME, Battle, EARN, EARTH, RAGE, REACT_CUT, WOLF, flier, godStage, hammerAt, HELP, HOLY, SONG, SPELL, STORM, WATER, WOOD, GRENADE, MECH, MOVE_PAUSE, OVERTIME, FIRE,
+import { AIM, ARCANE, BITE_TIME, Battle, EARN, EARTH, RAGE, WOLF, flier, godStage, hammerAt, HELP, HOLY, SONG, SPELL, STORM, WATER, WOOD, GRENADE, MECH, MOVE_PAUSE, OVERTIME, FIRE,
   PULSE, REACTIONS, ROT, SHOT, SPLIT_TIME }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
@@ -3467,7 +3467,7 @@ function lab() {
   return { battle, towers };
 }
 
-test('реакции: стихию накладывают только «… реакция»; две стихии — реакция в тик, урон от суммы мощи', () => {
+test('реакции: стихию накладывают только «… реакция»; две стихии — реакция в тик, урон от сильнейшего участника', () => {
   const { battle, towers } = lab(), plain = battle.place(player(), 'thunder', 15, 3);
   eq([towers.fire.react, towers.water.react, towers.earth.react], ['fire', 'water', 'earth']);
   eq(plain.react, null, 'без способности стихия не накладывается');
@@ -3482,7 +3482,7 @@ test('реакции: стихию накладывают только «… р�
   battle._pulse(battle.time);
   ok(!mob.marks, 'стихии ушли в реакцию');
   ok(battle.state(mob, 'steam'), 'пар');
-  near(hit(mob) - was, (towers.fire.skill + towers.water.skill) * REACTIONS.steam.fire * REACT_CUT, 'урон — от суммы мощи, вдвое меньше');
+  near(hit(mob) - was, Math.max(towers.fire.skill, towers.water.skill) * REACTIONS.steam.fire, 'урон — от сильнейшего участника');
   ok(battle.events.some((e) => e.kind === 'react' && e.name === 'Пар'));
   const weak = walker(battle, 4, 1e6);
   still(weak);
