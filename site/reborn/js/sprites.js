@@ -689,6 +689,49 @@ const SYMBOLS = {
     p.rect(12, 5, 2, 4, '#4f9a3a');
     p.rect(7, 4, 1, 10, '#7fc35a');
   },
+  jungle(p) {
+    p.bar(2, 14, 13, 3, '#3d8a33', 3);
+    p.bar(3, 13, 12, 4, '#5aa83f', 1);
+    for (const [x, y] of [[6, 8], [9, 6], [11, 4]]) p.bar(x, y, x - 2, y - 2, '#1f4a1c', 1);
+    p.rect(1, 14, 2, 1, '#5a4028');
+  },
+  canyon(p) {
+    p.rect(1, 9, 14, 6, '#b4583a');
+    p.rect(3, 6, 9, 3, '#c4683e');
+    p.rect(1, 11, 14, 1, '#8c3e26');
+    p.rect(3, 7, 9, 1, '#d27a48');
+    p.rect(12, 1, 3, 3, '#facc15');
+  },
+  cave(p) {
+    p.rect(1, 3, 14, 12, '#4a4552');
+    p.rect(4, 6, 8, 9, '#0f0d14');
+    for (const x of [5, 8, 10]) p.rect(x, 6, 1, 2, '#4a4552');
+    p.rect(11, 12, 2, 3, '#7dd3fc');
+    p.px(11, 11, '#bae6fd');
+  },
+  ruins(p) {
+    p.rect(3, 5, 4, 10, '#a8a296');
+    p.rect(2, 4, 6, 1, '#cfc9bc');
+    p.rect(4, 5, 1, 10, '#cfc9bc');
+    p.rect(9, 9, 5, 6, '#8a857a');
+    p.rect(9, 8, 2, 1, '#8a857a');
+    p.rect(1, 14, 14, 1, '#6f6a60');
+  },
+  sea(p) {
+    p.rect(1, 8, 14, 7, '#1f6fa8');
+    for (const y of [8, 12]) for (let x = 1; x < 15; x += 4) p.rect(x, y, 2, 1, '#bfe6ff');
+    p.rect(6, 4, 4, 1, '#a07a4c');
+    p.rect(6, 5, 1, 4, '#5a4028');
+    p.rect(9, 5, 1, 4, '#5a4028');
+  },
+  sky(p) {
+    p.rect(1, 2, 5, 2, '#ffffff');
+    p.rect(2, 1, 3, 1, '#ffffff');
+    p.rect(3, 7, 11, 2, '#4f9a3a');
+    p.rect(4, 9, 9, 2, '#7a5a38');
+    p.rect(6, 11, 5, 2, '#5e4329');
+    p.rect(8, 13, 2, 1, '#432f1d');
+  },
   graveyard(p) {
     p.rect(4, 3, 8, 12, '#8b8597');
     p.rect(5, 2, 6, 1, '#8b8597');

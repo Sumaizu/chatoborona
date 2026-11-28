@@ -22,23 +22,37 @@ export const MOBS = {
   boss: { name: 'Босс', hp: 6, speed: 0.6, xp: 20, coins: 10, leak: 6, boss: true },
 };
 
-export const TERRAIN = { weak: 0.75, more: 0.25, hill: 0.8, watch: 2.5, grave: 0.2,
+export const TERRAIN = { cut: 0.5, more: 0.25, hill: 0.8, watch: 2.5, grave: 0.2, favor: 3, slow: 0.8, light: 3,
   bodiless: ['ember', 'frostling', 'stormling', 'sludge', 'slime1', 'slime2', 'slime3', 'ghost', 'mirage', 'golem',
     'mimic', 'shade', 'slimeking', 'hopper', 'spark', 'slimemother', 'wingslime', 'magmaslime', 'frostslime',
     'stormslime', 'slimegiant', 'elemlord', 'banshee'] };
 
 const share = (value) => Math.round(Math.abs(1 - value) * 100) + '%';
+const weaker = share(TERRAIN.cut), more = share(1 + TERRAIN.more), slower = share(TERRAIN.slow);
 
 export const BIOME_RULES = {
   grass: { name: 'Луг', text: 'обычная карта' },
-  volcano: { name: 'Вулкан', text: 'ледяные приёмы на ' + share(TERRAIN.weak) + ' слабее', weak: 'ice', dry: true, lava: true },
-  swamp: { name: 'Болото', text: 'ходячие мобы на ' + share(0.8) + ' медленнее, но их на ' + share(1 + TERRAIN.more)
-    + ' больше', ground: 0.8, more: 'ground' },
-  snow: { name: 'Снега', text: 'огненные приёмы на ' + share(TERRAIN.weak) + ' слабее, на льду озёр и рек можно '
-    + 'стоять', weak: 'fire', ice: true },
-  desert: { name: 'Пустыня', text: 'летучие мобы на ' + share(1.25) + ' быстрее, и их на ' + share(1 + TERRAIN.more)
-    + ' больше', air: 1.25, more: 'air' },
-  graveyard: { name: 'Кладбище', text: 'павшие мобы с телом встают скелетами', rise: true, dry: true, swim: true },
+  volcano: { name: 'Огненные недры', text: 'четверть карты в лаве; ледяные и водные приёмы и урон на ' + weaker
+    + ' слабее; чаще идут демоны', weak: ['ice', 'water'], dry: true, lava: true, favor: 'demons' },
+  swamp: { name: 'Болото', text: 'четверть карты в болотах; мобов на ' + more + ' больше, но все на ' + slower
+    + ' медленнее; чаще идут слизни', ground: TERRAIN.slow, air: TERRAIN.slow, more: 'all', favor: 'slimes' },
+  snow: { name: 'Арктика', text: 'всегда идёт снег в 3 слоя, как у криомантов; огненные приёмы и урон на ' + weaker
+    + ' слабее; на льду озёр можно стоять', weak: ['fire'], ice: true, snow: 3 },
+  desert: { name: 'Пустыня', text: 'ни озёр, ни рек, дождь и снег не идут; летучих мобов на ' + more + ' больше',
+    more: 'air', calm: true },
+  graveyard: { name: 'Кладбище', text: 'чаще идёт нежить; павшие мобы с телом и нежить встают скелетами', rise: true,
+    dry: true, swim: true, favor: 'undead' },
+  jungle: { name: 'Джунгли', text: 'густая листва закрывает обзор; летучих мобов на ' + share(1 - TERRAIN.more)
+    + ' меньше; у лесников, зверей и питомцев мощь +20%', less: 'air',
+    kin: { classes: ['forester'], styles: ['raiju', 'kraken', 'dragon', 'serpent'], might: 0.2 } },
+  canyon: { name: 'Каньон', text: 'на холме дальность +1 клетка, а не +0,8; чаще идут звери', hill: 1,
+    favor: 'beasts' },
+  cave: { name: 'Пещера', text: 'темно: свет — на ' + TERRAIN.light + ' клетки вокруг каждого защитника, бить можно '
+    + 'только тех, кто на свету; удары по площади вокруг себя бьют и в темноте', dark: TERRAIN.light },
+  ruins: { name: 'Городские руины', text: 'много развалин; каменные стены хранителя на 50% прочнее', wall: 1.5 },
+  sea: { name: 'Море', text: 'вся карта — вода, стоять можно только на подмостках; у магов воды мощь +25%',
+    kin: { classes: ['frost'], styles: [], might: 0.25 } },
+  sky: { name: 'Небесные острова', text: 'стоять можно только на островах; мобы на 25% слабее', hp: 0.75 },
 };
 
 export const POWERS = {

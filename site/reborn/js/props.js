@@ -577,6 +577,12 @@ const WATCHES = {
   snow: { post: '#5c4a38', plank: '#8f7a63', seam: '#6c5a47', face: '#4f3f30', flag: '#38bdf8', snow: '#f2f8ff' },
   volcano: { post: '#2f2a28', plank: '#5a524d', seam: '#3f3936', face: '#26211f', flag: '#f97316', stone: true },
   graveyard: { post: '#4f4957', plank: '#8d8697', seam: '#6a6474', face: '#45404c', flag: '#a78bfa', stone: true },
+  jungle: { post: '#4a3a22', plank: '#7a6a3a', seam: '#5a4a2a', face: '#3a2e1a', flag: '#22c55e' },
+  canyon: { post: '#7a4428', plank: '#c07a48', seam: '#9c5c34', face: '#5f3a22', flag: '#facc15' },
+  cave: { post: '#3d3946', plank: '#5a5663', seam: '#46424f', face: '#2a2730', flag: '#38bdf8', stone: true },
+  ruins: { post: '#5f5a50', plank: '#8d877c', seam: '#6f6a60', face: '#4a463c', flag: '#e23b3b', stone: true },
+  sea: { post: '#5a4028', plank: '#a07a4c', seam: '#7a5634', face: '#4a3420', flag: '#2563eb' },
+  sky: { post: '#6e4a2c', plank: '#b08a5a', seam: '#86603a', face: '#5e3d22', flag: '#f8fafc' },
 };
 
 export const WATCH_TOP = 11.5;
@@ -627,6 +633,12 @@ export const SOILS = {
   snow: { soil: '#dfe9f5', light: '#ffffff', dark: '#a9bccf', stone: '#8d9aa8' },
   volcano: { soil: '#4a403b', light: '#6a5d55', dark: '#2a2421', stone: '#33302e', ember: '#ff7a1f' },
   graveyard: { soil: '#463c35', light: '#62564c', dark: '#29231f', stone: '#7a7480', bone: '#ece6d6' },
+  jungle: { soil: '#4a3522', light: '#6b4e32', dark: '#2a1e14', stone: '#6f7a64', tuft: '#4f9a3a' },
+  canyon: { soil: '#a8643a', light: '#c98a56', dark: '#6a3a20', stone: '#b4583a' },
+  cave: { soil: '#3d3946', light: '#5a5663', dark: '#1f1d24', stone: '#4a4552' },
+  ruins: { soil: '#5a4a34', light: '#7a6a4c', dark: '#3a2e20', stone: '#8a857a', tuft: '#5f7a3a' },
+  sea: { soil: '#7a5a38', light: '#9a774c', dark: '#4a3420', stone: '#8d877c' },
+  sky: { soil: '#7a5235', light: '#a07850', dark: '#4a3322', stone: '#8c8a84', tuft: '#6fb04a' },
 };
 
 export function drawMound(biome, frame, claws) {
@@ -757,6 +769,12 @@ const RUINS = {
   desert: { stone: '#d1a86c', light: '#e2bd84', dark: '#a37b46', floor: '#c49a5e', moss: '#f0dcab' },
   volcano: { stone: '#4f4648', light: '#665b5d', dark: '#342d2f', floor: '#3e3537', moss: '#ff7a1f', glow: true },
   graveyard: { stone: '#8a8495', light: '#a29cad', dark: '#5f5a69', floor: '#6f6979', moss: '#a78bfa', glow: true },
+  jungle: { stone: '#7a8570', light: '#939e88', dark: '#55604c', floor: '#5f6a54', moss: '#4f9a3a' },
+  canyon: { stone: '#c48a5a', light: '#d8a273', dark: '#9c6438', floor: '#b07a4a', moss: '#e0a06a' },
+  cave: { stone: '#5a5663', light: '#716c7c', dark: '#3d3946', floor: '#46424f', moss: '#7dd3fc', glow: true },
+  ruins: { stone: '#9a9284', light: '#b3ab9c', dark: '#6f685d', floor: '#7d766a', moss: '#5f8f3a' },
+  sea: { stone: '#8d877c', light: '#a8a296', dark: '#5f5a50', floor: '#7d766a', moss: '#2a7fb0' },
+  sky: { stone: '#9a9284', light: '#b3ab9c', dark: '#6f685d', floor: '#7d766a', moss: '#5f8f3a' },
 };
 
 const roll = (seed, k) => {
@@ -811,6 +829,22 @@ export function drawRuin(biome, mask, seed) {
     m.egg(cx + 6.5, cy - 1.5, 1.6, 1.8, 1.5, 1.5, look.light, 0.2);
   } else rubble(m, cx, cy, look, seed * 13, 6);
   return m.paint();
+}
+
+function brickWall(m, look, from, to, levels, seed) {
+  levels.forEach((high, k) => {
+    const f = (k + 0.5) / levels.length, x = from[0] + (to[0] - from[0]) * f, y = from[1] + (to[1] - from[1]) * f;
+    const across = Math.abs(to[0] - from[0]) > Math.abs(to[1] - from[1]);
+    if (!high) {
+      rubble(m, x, y + 1, look, seed * 5 + k, 3);
+      return;
+    }
+    for (let level = 0; level < high; level++) {
+      const color = level === high - 1 ? look.light : roll(seed, k * 7 + level) < 0.35 ? look.dark : look.stone;
+      m.egg(x, y - level * 2.2, 1.7 + level * 2.9, across ? 2.4 : 1.6, across ? 1.6 : 2.4, 1.6, color, 0.1);
+    }
+    if (roll(seed, k + 40) < 0.4) m.dot(x, y - (high - 1) * 2.2 - 1, look.moss, 30);
+  });
 }
 
 const RELICS = {
@@ -871,6 +905,37 @@ const RELICS = {
       m.dot(x, 24.5, look.moss, 30);
     }
     for (const [x, y] of [[8, 16], [21, 9], [18, 15], [10, 10]]) m.dot(x, y, '#4d5a45', 30);
+  },
+  well(m, look) {
+    m.egg(15, 18, 0, 9, 7, 0.6, look.floor, 0.1);
+    around(12, 0, 15, 17, 6.2, 4.6, (x, y, a, i) => {
+      for (let level = 0; level < 3; level++) {
+        const color = level === 2 ? look.light : (i + level) % 3 ? look.stone : look.dark;
+        m.egg(x, y - level * 1.9, 1.5 + level * 2.6, 2.1, 1.7, 1.4, color, 0.15);
+      }
+    });
+    m.egg(15, 16.6, 6.4, 3.8, 2.8, 0.3, '#0e1c2a', 0.6);
+    m.dot(14, 16, '#4f86b8', 30);
+    for (const x of [8.4, 21.6]) m.limb(x, 16.6, 7, x, 14.6, 17, 1.1, '#5a4028', 0.25);
+    for (const [y, z] of [[11.6, 19.5], [13.1, 20.6], [14.6, 21.4], [16.1, 20.6], [17.6, 19.5]]) {
+      m.limb(7, y, z, 23, y, z, 0.9, Math.round(y) % 2 ? '#7a5634' : '#8a6a44', 0.25);
+    }
+    m.limb(15, 14.6, 16.6, 15, 15.6, 10.5, 0.22, '#d8c8a0');
+    m.egg(15, 15.8, 9.8, 1.2, 1, 1.1, '#6b4a2b', 0.3);
+    m.dot(9, 22, look.moss, 30);
+  },
+  house(m, look) {
+    m.egg(15, 16.5, 0, 12.5, 10.5, 0.5, look.floor, 0.05);
+    for (let k = 0; k < 5; k++) m.limb(6 + k * 4.5, 9, 0.9, 6 + k * 4.5, 24, 0.9, 1.3, k % 2 ? '#6b4a2b' : '#7a5634', 0.1);
+    brickWall(m, look, [4, 7], [26, 7], [5, 6, 4, 6, 5, 3], 3);
+    brickWall(m, look, [4, 8], [4, 25], [5, 4, 3, 4, 2], 5);
+    brickWall(m, look, [26, 8], [26, 25], [4, 2, 0, 2, 1], 7);
+    brickWall(m, look, [5, 25], [25, 25], [2, 1, 0, 0, 2, 1], 9);
+    m.limb(5, 8, 15, 21, 21, 1.5, 0.85, '#4a3420', 0.2);
+    m.limb(9, 8, 14, 17, 22, 1, 0.75, '#5a4028', 0.2);
+    for (const [x, y] of [[13, 15], [16, 18], [19, 20]]) m.limb(x - 3, y + 2, 1.5, x + 3, y - 2, 1.5, 0.6, '#6b4a2b', 0.2);
+    rubble(m, 20, 21, look, 7, 5);
+    rubble(m, 9, 19, look, 11, 4);
   },
 };
 

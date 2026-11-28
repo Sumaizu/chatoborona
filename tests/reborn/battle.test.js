@@ -1,6 +1,6 @@
 import { test, eq, ok, no } from './harness.js';
 import { STRAIGHT, makeBattle, player, runFor, seeded } from './fixtures.js';
-import { AIM, ARCANE, BITE_TIME, Battle, EARN, EARTH, RAGE, WOLF, flier, godStage, hammerAt, HELP, HOLY, SONG, SPELL, STORM, WATER, WOOD, GRENADE, MECH, MOVE_PAUSE, OVERTIME, FIRE,
+import { AIM, ARCANE, ARM_REACH, BITE_TIME, Battle, EARN, EARTH, RAGE, WOLF, flier, godStage, hammerAt, HELP, HOLY, SONG, SPELL, STORM, WATER, WOOD, GRENADE, MECH, MOVE_PAUSE, OVERTIME, FIRE,
   PULSE, REACTIONS, ROT, SHOT, SPLIT_TIME }
   from '../../site/reborn/js/battle.js';
 import { SIZE } from '../../site/reborn/js/field.js';
@@ -2244,15 +2244,17 @@ test('менестрель, вдохновение и ультразвук: мо
   eq(battle._resistOf(mob), 0, 'не ниже нуля');
 });
 
-test('шаманка, знамёна: на ближайшую клетку дороги, следующие — на другие ближайшие, до трёх; замедление, очищение и сила', () => {
+test('шаманка, знамёна: на ближайшую клетку дороги, следующие — на другие ближайшие, до трёх; знамя силы — на свою клетку', () => {
   const battle = makeBattle(), t = sorc(battle, 10, 4, ['shamaness', 'totemSlow']);
   eq(battle.banners.length, 1);
   eq([battle.banners[0].x, battle.banners[0].y], [10, 5], 'на ближайшей клетке дороги');
   battle.setMods(t, { runes: ['shamaness', 'totemSlow', 'totemSlow', 'totemSlow', 'totemPurge', 'totemPower'] });
   eq(battle.banners.length, 5);
-  eq(new Set(battle.banners.map((b) => b.x + ':' + b.y)).size, 5, 'в одной клетке — одно знамя');
-  ok(battle.banners.every((b) => battle.road.some(([x, y]) => x === b.x && y === b.y)), 'все на дороге');
-  eq(battle.banners.map((b) => b.x).sort((a, b) => a - b), [8, 9, 10, 11, 12], 'на ближайших');
+  const power = battle.banners.filter((b) => b.kind === 'power'), road = battle.banners.filter((b) => b.kind !== 'power');
+  eq(power.map((b) => [b.x, b.y]), [[10, 4]], 'знамя силы — на её клетке');
+  eq(new Set(road.map((b) => b.x + ':' + b.y)).size, 4, 'на дороге в одной клетке — одно знамя');
+  ok(road.every((b) => battle.road.some(([x, y]) => x === b.x && y === b.y)), 'остальные — на дороге');
+  eq(road.map((b) => b.x).filter((x) => x >= 9 && x <= 11).sort((a, b) => a - b), [9, 10, 11], 'на ближайших');
   const mob = walker(battle, 11, 1e9);
   still(mob);
   const slows = battle.banners.filter((b) => b.kind === 'slow' && Math.hypot(mob.x - b.cx, mob.y - b.cy) <= SPELL.totem.radius);
@@ -2262,10 +2264,13 @@ test('шаманка, знамёна: на ближайшую клетку до�
   const ally = battle.place(player(), 'forester', 11, 3);
   battle.step(TICK);
   near(ally.boost.damage, SPELL.totem.power, 'знамя силы');
+  ok(battle.move(t, 14, 3));
+  eq(battle.banners.filter((b) => b.kind === 'power').map((b) => [b.x, b.y]), [[14, 3]], 'знамя силы переходит с ней');
+  eq(battle.banners.filter((b) => b.kind !== 'power').length, 4, 'знамёна на дороге остаются');
 });
 
 test('шаманка, резонанс: сильнее, бьёт на 5 клеток, вместе с ударом одной волной идёт и от знамён по цепочке', () => {
-  const battle = makeBattle(), other = sorc(battle, 14, 2, ['shamaness', 'totemPower']);
+  const battle = makeBattle(), other = sorc(battle, 14, 2, ['shamaness', 'totemSlow']);
   other.busy = 1e9;
   const plain = sorc(battle, 2, 2, ['shamaness']), t = sorc(battle, 10, 2, ['shamaness', 'resonance']);
   ok(t.range >= SPELL.resonance.reach, 'на 5 клеток');
@@ -3180,7 +3185,11 @@ test('кракен, оглушающий шлепок: с шансом 10% уд�
   ok(stun((b) => walker(b, 11, 1e9), 0.5) <= 0, 'в остальных 90% — нет');
 });
 
-test('кракен плавает и в смоле на кладбище; в лаве и во льду — нет', () => {
+test('кракен плавает в болоте и в смоле на кладбище; в лаве и во льду — нет', () => {
+  const bog = mapWith({ lake: [[6, 3], [7, 3]] }, 'swamp');
+  const swamp = bog.place(player(), 'frost', 6, 3, { runes: ['kraken'] });
+  ok(swamp && bog.swims(swamp), 'на болоте — в трясине плавает');
+  ok(bog.arms.length || (bog._seaArms(), bog.arms.length), 'щупальца из болота');
   const tar = mapWith({ lake: [[6, 3], [7, 3]] }, 'graveyard');
   ok(tar.place(player(), 'frost', 6, 3, { runes: ['kraken'] }), 'в смолу встал');
   ok(tar.swims(tar.towerAt(6, 3)), 'плавает');
@@ -3821,17 +3830,6 @@ test('баррикада: стены хранителей в 2 клетках д
   ok(own(far), 'далёкая стоит');
 });
 
-test('хранитель перебежал — новая стена встаёт сразу, старая убрана', () => {
-  const battle = makeBattle(), mage = earth(battle, 10, 4, ['keeper']);
-  runFor(battle, 0.2);
-  const old = battle.walls[0], spot = battle.bestCell(mage.range);
-  ok(old);
-  ok(battle.move(mage, spot.x, spot.y));
-  eq(battle.walls.filter((wall) => wall.tower === mage).length, 1);
-  no(battle.walls[0] === old, 'стена новая');
-  eq(battle.walls[0].hp, battle.walls[0].max);
-});
-
 test('непригодная почва: пока маг с ней на карте, никто не закапывается — подземных видно и можно бить', () => {
   const battle = makeBattle(), gun = battle.place(player(), 'mechanic', 6, 4), mole = creature(battle, 'mole', 5);
   mole.underUntil = 1e9;
@@ -4344,7 +4342,7 @@ test('полёт: ангел и дракон встают над горами, �
   ok(Math.abs(dragon.x - 7) + Math.abs(dragon.y - 3) <= 2 && battle.towerAt(dragon.x, dragon.y) === dragon);
 });
 
-test('кракен: встаёт в озеро или реку; щупальце — в каждой свободной клетке водоёма, и за мостом; бьют на 3 клетки', () => {
+test('кракен: встаёт в озеро или реку; щупальце — в каждой свободной клетке водоёма на 4 клетки вокруг; бьют на 3 клетки', () => {
   const lake = [[3, 2], [4, 2], [5, 2], [3, 1], [4, 1]], river = [[6, 2], [7, 2], [8, 2], [8, 3], [8, 4], [8, 6], [8, 7]];
   const battle = mapWith({ lake: lake.concat([[15, 1], [16, 1]]), river, bridge: [[8, 5]] });
   no(battle.free(4, 2), 'в воду — только кракену');
@@ -4354,13 +4352,15 @@ test('кракен: встаёт в озеро или реку; щупальце
   t.critChance = 0;
   battle.step(TICK);
   const cells = (list) => list.map((arm) => Math.floor(arm.x) + ',' + Math.floor(arm.y)).sort();
-  eq(battle.arms.length, lake.length + river.length - 1, 'в каждой клетке водоёма, кроме головы');
+  const close = (x0, y0) => lake.concat(river).filter(([x, y]) => Math.hypot(x - x0, y - y0) <= ARM_REACH).length;
+  eq(battle.arms.length, close(4, 2) - 1, 'в каждой клетке водоёма на 4 клетки вокруг, кроме головы');
   no(cells(battle.arms).includes('4,2'), 'где голова — щупальца нет');
-  ok(cells(battle.arms).includes('8,7'), 'река за мостом — тот же водоём');
+  ok(cells(battle.arms).includes('8,2'), 'ровно 4 клетки — есть');
+  no(cells(battle.arms).includes('8,3'), 'дальше 4 клеток — нет');
   no(cells(battle.arms).includes('15,1'), 'другое озеро — нет');
   const other = battle.place(player(), 'frost', 3, 1, { runes: ['kraken'] });
   battle.step(TICK);
-  eq(battle.arms.length, 2 * (lake.length + river.length - 2), 'второй кракен — тоже во все клетки, кроме голов');
+  eq(battle.arms.length, close(4, 2) - 2 + close(3, 1) - 2, 'второй кракен — тоже на 4 клетки вокруг себя, кроме голов');
   const spots = battle.arms.map((arm) => arm.x + ',' + arm.y);
   eq(new Set(spots).size, spots.length, 'в одной клетке щупальца разных кракенов — в разных местах');
   const mob = walker(battle, 9, 1e6), far = walker(battle, 19, 1e6);
@@ -4494,22 +4494,22 @@ test('бой: неуязвимого к своей стихии не бьют в
   eq(battle._target(pyro), null, 'других нет — не бьёт никого');
 });
 
-test('карта: в снегах на льду озёр и рек стоять можно; в расщелину, кратер, руины и древности не встать нигде', () => {
-  const marks = { lake: [[7, 4]], river: [[8, 4]], chasm: [[3, 4], [3, 3]], crater: [[5, 6]], ruin: [[12, 4]],
+test('карта: в снегах на льду озёр и рек стоять можно; в кратер, руины и древности не встать нигде', () => {
+  const marks = { lake: [[7, 4]], river: [[8, 4]], crater: [[5, 6]], ruin: [[12, 4]],
     stones: [[14, 6]], crypt: [[16, 4]], bones: [[18, 6]] };
   const grass = mapWith(marks), snow = mapWith(marks, 'snow');
   for (const [x, y] of [[7, 4], [8, 4]]) {
     no(grass.free(x, y), 'в воду не встать');
     ok(snow.free(x, y), 'на лёд можно');
   }
-  for (const [x, y] of [[3, 4], [5, 6], [12, 4], [14, 6], [16, 4], [18, 6]]) {
+  for (const [x, y] of [[5, 6], [12, 4], [14, 6], [16, 4], [18, 6]]) {
     no(grass.free(x, y), 'занято: ' + x + ',' + y);
     no(snow.free(x, y), 'и в снегах: ' + x + ',' + y);
   }
 });
 
-test('карта: руины, круг камней и склеп закрывают выстрел, как гора; расщелина, кратер и кости — нет', () => {
-  for (const [tile, hides] of [['ruin', true], ['stones', true], ['crypt', true], ['chasm', false], ['crater', false],
+test('карта: руины, круг камней и склеп закрывают выстрел, как гора; кратер и кости — нет', () => {
+  for (const [tile, hides] of [['ruin', true], ['stones', true], ['crypt', true], ['crater', false],
     ['bones', false]]) {
     const battle = mapWith({ [tile]: [[3, 4]] }), gun = battle.place(player(), 'mechanic', 3, 3);
     gun.range = 4;
@@ -4578,22 +4578,26 @@ test('карта: с холма бьют дальше', () => {
   ok(Math.abs(high.range - flat.range) < 1e-9, 'сошёл с холма — как все');
 });
 
-test('биомы: в вулкане лёд слабее, в снегах — огонь', () => {
+test('биомы: в огненных недрах лёд и вода вдвое слабее, в арктике — огонь', () => {
   const blow = (biome, cls) => {
     const battle = mapWith({}, biome), t = battle.place(player(), cls, 3, 4), mob = walker(battle, 4, 1e6);
     battle._hurt(mob, 100, t, cls === 'frost' ? 'ice' : t.cls.element);
     return hit(mob);
   };
-  near(blow('volcano', 'frost'), 100 * TERRAIN.weak);
+  near(blow('volcano', 'frost'), 100 * TERRAIN.cut);
   near(blow('volcano', 'pyro'), 100);
-  near(blow('snow', 'pyro'), 100 * TERRAIN.weak);
+  near(blow('snow', 'pyro'), 100 * TERRAIN.cut);
   near(blow('grass', 'frost'), 100);
+  eq(TERRAIN.cut, 0.5);
+  const hot = mapWith({}, 'volcano'), drop = walker(hot, 4, 1e6);
+  hot._hurt(drop, 100, hot.place(player(), 'frost', 3, 4), 'water');
+  near(hit(drop), 50, 'вода тоже вдвое слабее');
   const battle = mapWith({}, 'volcano'), mob = walker(battle, 4, 1e6);
   battle._slow(mob, 0.5, 2, 'ice');
-  eq(mob.slow, 0.5 * TERRAIN.weak, 'и замедляет слабее');
+  eq(mob.slow, 0.5 * TERRAIN.cut, 'и замедляет слабее');
 });
 
-test('биомы: в болоте ходячие медленнее и их больше, в пустыне — летучие', () => {
+test('биомы: в болоте все медленнее и мобов больше, в пустыне больше летучих, в джунглях — меньше', () => {
   const count = (biome, wave, check) => {
     const battle = mapWith({}, biome);
     battle.nextFamily = FAMILY_BY_ID.get('beasts');
@@ -4601,14 +4605,17 @@ test('биомы: в болоте ходячие медленнее и их бо
     return battle.spawns.filter((spawn) => check(Boolean((spawn.kind || spawn.look || {}).flying))).length;
   };
   ok(count('swamp', 12, (fly) => !fly) > count('grass', 12, (fly) => !fly), 'ходячих больше');
+  ok(count('swamp', 16, (fly) => fly) > count('grass', 16, (fly) => fly), 'и летучих больше');
   ok(count('desert', 16, (fly) => fly) > count('grass', 16, (fly) => fly), 'летучих больше');
+  ok(count('jungle', 16, (fly) => fly) < count('grass', 16, (fly) => fly), 'в джунглях летучих меньше');
+  eq(count('jungle', 16, (fly) => !fly), count('grass', 16, (fly) => !fly), 'ходячих столько же');
   const speed = (biome, look) => walker(mapWith({}, biome), 4, 100, look).speed;
-  ok(speed('swamp', null) < speed('grass', null));
-  ok(speed('desert', bat()) > speed('grass', bat()));
-  eq(speed('swamp', bat()), speed('grass', bat()), 'летучим болото нипочём');
+  near(speed('swamp', null), speed('grass', null) * TERRAIN.slow);
+  near(speed('swamp', bat()), speed('grass', bat()) * TERRAIN.slow, 'в болоте медленнее и летучие');
+  eq(speed('desert', bat()), speed('grass', bat()), 'в пустыне летучие не быстрее');
 });
 
-test('биомы: на кладбище павший с телом встаёт скелетом, бестелесный и уже вставший — нет', () => {
+test('биомы: на кладбище павший с телом и нежить встают скелетами, бестелесный и уже вставший — нет', () => {
   const battle = mapWith({}, 'graveyard'), gun = battle.place(player(), 'mechanic', 18, 0);
   const zombie = walker(battle, 4, 10), slime = walker(battle, 5, 10, LOOKS.normal.find((l) => l.id === 'slime2'));
   battle._hurt(zombie, 100, gun);
@@ -4620,10 +4627,118 @@ test('биомы: на кладбище павший с телом встаёт 
   battle._hurt(risen[0], 1e6, gun);
   runFor(battle, 3);
   eq(battle.mobs.filter((mob) => mob.look === 'skeleton').length, 0, 'второй раз не встаёт');
+  const ghost = walker(battle, 6, 10, LOOKS.normal.find((l) => l.id === 'ghost'));
+  ok(ghost.undead && ghost.look === 'ghost', 'призрак — нежить без тела');
+  battle._hurt(ghost, 100, gun);
+  runFor(battle, 3);
+  eq(battle.mobs.filter((mob) => mob.risen && mob.look === 'skeleton').length, 1, 'нежить встаёт, даже без тела');
   const plain = mapWith(), mob = walker(plain, 4, 10);
   plain._hurt(mob, 100, plain.place(player(), 'mechanic', 3, 4));
   runFor(plain, 3);
   eq(plain.mobs.length, 0, 'на других картах не встают');
+});
+
+test('биомы: в недрах чаще демоны, на болоте — слизни, на кладбище — нежить, в каньоне — звери', () => {
+  const share = (biome, id) => {
+    const battle = mapWith({}, biome);
+    let seen = 0;
+    for (let wave = 20; wave < 420; wave++) {
+      if (wave % FINALE.every === 0) continue;
+      battle.family = null;
+      if (battle.planFamily(wave).id === id) seen++;
+    }
+    return seen;
+  };
+  for (const [biome, id] of [['volcano', 'demons'], ['swamp', 'slimes'], ['graveyard', 'undead'], ['canyon', 'beasts']]) {
+    ok(share(biome, id) > share('grass', id) * 2, biome + ': ' + share(biome, id) + ' против ' + share('grass', id));
+  }
+});
+
+test('биомы: в арктике всегда снег в 3 слоя, криоманты добавляют; в пустыне дождь и снег не идут', () => {
+  const cold = mapWith({}, 'snow');
+  runFor(cold, 1);
+  eq(cold.snow, 3, 'снег без криомантов');
+  water(cold, 3, 2, ['cryo', 'snow']);
+  runFor(cold, 1);
+  eq(cold.snow, 4, 'криомант добавляет слой');
+  water(cold, 5, 2, ['hydro', 'rain']);
+  runFor(cold, 1);
+  eq([cold.snow, cold.rain], [5, null], 'дождь становится снегом');
+  const dry = mapWith({}, 'desert');
+  water(dry, 3, 2, ['cryo', 'snow']);
+  water(dry, 5, 2, ['hydro', 'rain']);
+  runFor(dry, 1);
+  eq([dry.snow, dry.rain, dry.weather], [0, null, 0], 'погоды нет');
+});
+
+test('огненный дождь мага огня — не дождь: погоды нет, лава не стынет', () => {
+  const battle = mapWith({ lake: [[6, 2], [7, 2]] }, 'volcano');
+  battle.place(player(), 'pyro', 3, 2, { runes: ['fireball', 'rain'] });
+  runFor(battle, 1);
+  eq([battle.rain, battle.weather, battle.cooled], [null, 0, false]);
+  ok(battle.molten(6, 2), 'лава горит');
+});
+
+test('биомы: в джунглях лесники и звери сильнее, в море — маги воды; в каньоне холм выше, в руинах стены крепче', () => {
+  const might = (biome, cls, runes = []) => mapWith({}, biome).place(player(), cls, 3, 4, { runes }).might;
+  near(might('jungle', 'forester'), might('grass', 'forester') * 1.2, 'лесник');
+  near(might('jungle', 'thunder', ['raiju']), might('grass', 'thunder', ['raiju']) * 1.2, 'райдзю — зверь');
+  near(might('jungle', 'thunder', ['thor']), might('grass', 'thunder', ['thor']), 'тор — нет');
+  near(might('sea', 'frost', ['hydro']), might('grass', 'frost', ['hydro']) * 1.25, 'маг воды в море');
+  near(might('sea', 'pyro'), might('grass', 'pyro'), 'другие — нет');
+  const range = (biome) => {
+    const battle = mapWith({ hill: [[3, 4]] }, biome), high = battle.place(player(), 'mechanic', 3, 4);
+    return high.range - battle.place(player(), 'mechanic', 5, 4).range;
+  };
+  near(range('canyon'), 1, 'на холме +1 клетка');
+  near(range('grass'), TERRAIN.hill);
+  const wall = (biome) => {
+    const battle = mapWith({}, biome);
+    battle.startWave(10, 2);
+    return battle._wallMax(battle.place(player(), 'earth', 3, 4, { runes: ['keeper'] }));
+  };
+  near(wall('ruins'), wall('grass') * 1.5, 'стены хранителя на 50% прочнее');
+});
+
+test('биомы: на небесных островах мобы на 25% слабее', () => {
+  const hp = (biome) => {
+    const battle = mapWith({}, biome);
+    battle.nextFamily = FAMILY_BY_ID.get('horde');
+    battle.startWave(12, 2);
+    return battle.spawns.filter((spawn) => !spawn.kind).map((spawn) => spawn.hp / (spawn.look.hp || 1));
+  };
+  const sky = hp('sky'), grass = hp('grass');
+  near(Math.max(...sky), Math.max(...grass) * 0.75);
+});
+
+test('пещера: бить можно только тех, кто на свету — в 3 клетках от любого защитника; удар вокруг себя бьёт и в темноте', () => {
+  const battle = mapWith({}, 'cave'), gun = battle.place(player(), 'sniper', 3, 2, { runes: ['scope'] });
+  const far = walker(battle, 16, 1e6);
+  still(far);
+  ok(Math.hypot(far.x - gun.cx, far.y - gun.cy) > TERRAIN.light, 'далеко от снайпера');
+  no(battle.lit(far.x, far.y), 'в темноте');
+  no(battle._targetable(gun, far), 'в темноте не целится');
+  const lamp = battle.place(player(), 'mechanic', Math.floor(far.x), Math.floor(far.y) - 2);
+  ok(battle.lit(far.x, far.y), 'рядом встал другой — светло');
+  ok(battle._targetable(gun, far), 'теперь снайпер его видит');
+  battle.remove(lamp);
+  const drum = sorc(battle, Math.floor(far.x), Math.floor(far.y) - 1, ['shamaness']);
+  ok(battle._around(drum.cx, drum.cy, drum.range).includes(far), 'удар вокруг себя достаёт');
+  const grass = mapWith(), mob = walker(grass, 16, 1e6);
+  ok(grass.lit(mob.x, mob.y), 'на других картах светло везде');
+});
+
+test('хранитель после перемещения 10 секунд не ставит стену', () => {
+  const battle = makeBattle(), t = battle.place(player(), 'earth', 10, 4, { runes: ['keeper'] });
+  battle.startWave(5, 1);
+  battle.step(TICK);
+  ok(battle.walls.some((wall) => wall.tower === t), 'стена стоит');
+  ok(battle.move(t, 14, 4));
+  no(battle.walls.some((wall) => wall.tower === t), 'старая стена ушла');
+  runFor(battle, EARTH.wall.moved - 0.5);
+  no(battle.walls.some((wall) => wall.tower === t), '10 секунд без стены');
+  runFor(battle, 1);
+  ok(battle.walls.some((wall) => wall.tower === t), 'потом ставит у новой клетки');
 });
 
 test('карта: мобы появляются у выхода из пещеры', () => {

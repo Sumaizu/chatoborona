@@ -100,7 +100,7 @@ export const HOLY = { angel: { reach: 1, interval: 1, mul: 3.4 }, monk: { reach:
 export const SPELL = { wisp: 0.45, minstrel: { reach: 3.5, interval: 1.6, mul: 1.3, wide: 0.5, speed: 7 },
   enchantress: { reach: 4, interval: 1.45, mul: 2.2, wind: 0.3, speed: 5, curve: 1.15 },
   shamaness: { reach: 2, interval: 1.8, mul: 1.6 }, resonance: { reach: 5, mul: 1.5 },
-  totem: { radius: 3, slow: 0.1, power: 0.1, hold: 0.3, spot: [0.5, 0.35] }, courses: 0.2, catalyst: 0.15, unbind: 3, circle: 0.5 };
+  totem: { radius: 3, slow: 0.1, power: 0.1, hold: 0.3, spot: [0.5, 0.35], own: [[0.15, 0.3], [0.85, 0.3], [0.5, 0.1]] }, courses: 0.2, catalyst: 0.15, unbind: 3, circle: 0.5 };
 export const ARCANE = { control: { count: 3, mul: 1.25, spread: 0.6 }, splash: 1, cloud: 0.6, holy: 2, stun: 0.6,
   elements: ['fire', 'poison', 'holy', 'earth', 'lightning'],
   rain: { every: 8, count: 6, radius: 3, gap: 0.15, drop: 0.7, fall: 0.5, meteor: 1.6, heavy: 3 },
@@ -134,6 +134,7 @@ export const WATER = { drop: 9,
   home: 0.25, tide: 0.1, rain: { chance: 0.01, radius: 0.6, time: 3, slow: 0.3, rods: 2 },
   snow: { slow: [0.1, 0.15, 0.2, 0.25, 0.4], from: 3, freeze: 0.01, hold: 4, max: 5 } };
 export const ARM_SPOTS = [[0.5, 0.5], [0.22, 0.22], [0.78, 0.22], [0.22, 0.78], [0.78, 0.78]];
+export const ARM_REACH = 4;
 export const SONG = { every: 15, time: 3, back: 1, dirge: 0.5, anthem: 0.3, ultrasound: 0.2 };
 export const TOTEMS = { totemSlow: 'slow', totemPurge: 'purge', totemPower: 'power' };
 export const HELP = { assist: 1, control: 1, react: 2, heart: 10, heal: 10, save: 50 };
@@ -159,7 +160,7 @@ const ROAD_ROUND = 0.9;
 const DRONE_SHOTS = { attack: MECH.droneAttack, laser: MECH.droneLaser, air: MECH.droneAir, bird: WOOD.bird,
   hawk: WOOD.hawk };
 export const EARTH = { pile: { speed: 7 }, keeper: { mul: 1.2 }, serpent: { mul: 2.2, speed: 6 }, geo: { mul: 1.3, speed: 5 },
-  wall: { hold: 15, rebuild: 9, heal: 10, steel: 2 }, sharp: { mul: 1, every: 1 }, collapse: { radius: 1.5, stun: 2 },
+  wall: { hold: 15, rebuild: 9, heal: 10, steel: 2, moved: 10 }, sharp: { mul: 1, every: 1 }, collapse: { radius: 1.5, stun: 2 },
   barricade: { reach: 2 }, hydra: { heads: 2 }, spatter: { chance: 0.25, reach: 3, mul: 0.3 },
   pool: { radius: 0.6, time: 2, dot: 0.3 }, burn: 0.5,
   meteor: { every: 15, mul: 8, radius: 3, stun: 3, fall: 1, size: 24 }, shards: { count: 2, reach: 2, size: 5 },
@@ -206,8 +207,9 @@ const BODILESS = new Set(TERRAIN.bodiless);
 const GATE_SHIFT = 0.6;
 const BEND = 0.9;
 const JOIN_FADE = 6;
-const SOLID = new Set(['mountain', 'tunnel', 'ruin', 'stones', 'crypt']);
-const UNSAFE = new Set(['mountain', 'tunnel', 'lake', 'river', 'chasm', 'ruin', 'crater', 'stones', 'bones', 'crypt']);
+const SOLID = new Set(['mountain', 'tunnel', 'ruin', 'stones', 'crypt', 'thicket', 'well', 'house']);
+const UNSAFE = new Set(['mountain', 'tunnel', 'lake', 'river', 'ruin', 'crater', 'stones', 'bones', 'crypt',
+  'thicket', 'sky', 'well', 'house']);
 const FROZEN = new Set(['lake', 'river']);
 const TALL = new Set(['mountain', 'tunnel']);
 
@@ -420,7 +422,7 @@ export class Battle {
     for (const t of wet) {
       if (t.style !== 'kraken') continue;
       for (const at of this.seaCells[this.sea(t.x, t.y)]) {
-        if (this.byCell.has(at)) continue;
+        if (this.byCell.has(at) || Math.hypot(at % SIZE - t.x, Math.floor(at / SIZE) - t.y) > ARM_REACH + 1e-9) continue;
         const taken = used.get(at) || [], open = ARM_SPOTS.map((spot, i) => i).filter((i) => !taken.includes(i));
         if (!open.length) continue;
         const pick = open[Math.floor(this.random() * open.length)], x = at % SIZE, y = (at - x) / SIZE;
@@ -607,7 +609,7 @@ export class Battle {
   }
 
   _weak(element) {
-    return element && element === this.rules.weak ? TERRAIN.weak : 1;
+    return element && this.rules.weak && this.rules.weak.includes(element) ? TERRAIN.cut : 1;
   }
 
   towerAt(x, y) {
@@ -629,9 +631,13 @@ export class Battle {
     tower.cx = x + 0.5;
     tower.cy = y + 0.5;
     this._stats(tower);
-    if (tower.style === 'keeper' && this.walls.some((wall) => wall.tower === tower)) {
+    if (tower.style === 'keeper') {
       this.walls = this.walls.filter((wall) => wall.tower !== tower);
-      this._raiseWall(tower, this.time);
+      tower.nextWall = this.time + EARTH.wall.moved;
+    }
+    for (const banner of this.banners) {
+      if (banner.tower !== tower || banner.kind !== 'power') continue;
+      Object.assign(banner, { cx: banner.cx - banner.x + x, cy: banner.cy - banner.y + y, x, y });
     }
   }
 
@@ -818,7 +824,8 @@ export class Battle {
     }
     const open = FAMILIES.filter((family) => !family.from || family.from <= wave);
     const fresh = open.filter((family) => family !== this.family);
-    const pool = fresh.length ? fresh : open;
+    const pool = (fresh.length ? fresh : open).slice(), favor = pool.find((family) => family.id === this.rules.favor);
+    for (let k = 1; favor && k < TERRAIN.favor; k++) pool.push(favor);
     this.nextFamily = pool[Math.floor(this.random() * pool.length)];
     return this.nextFamily;
   }
@@ -846,7 +853,8 @@ export class Battle {
     }
     this.wild = false;
     this.spawns = plan.map((s) => {
-      const spawn = { type: s.type, at: start + s.delay, hp: this._waveHp(s.type) * toughness, kind: null, r: 0 };
+      const spawn = { type: s.type, at: start + s.delay, hp: this._waveHp(s.type) * toughness * (this.rules.hp || 1),
+        kind: null, r: 0 };
       if (s.kind) {
         spawn.kind = s.kind;
         spawn.hp *= s.kind.hp || 1;
@@ -869,13 +877,21 @@ export class Battle {
       }
       return spawn;
     });
-    const more = this.rules.more, flies = (spawn) => Boolean((spawn.kind || spawn.look || {}).flying);
+    const { more, less } = this.rules, flies = (spawn) => Boolean((spawn.kind || spawn.look || {}).flying);
+    const kin = (side) => this.spawns.filter((spawn) => !spawn.kind && (side === 'all' || flies(spawn) === (side === 'air')));
     if (more) {
-      const kin = this.spawns.filter((spawn) => !spawn.kind && flies(spawn) === (more === 'air'));
-      for (let i = Math.round(kin.length * TERRAIN.more); i > 0; i--) {
-        const copy = Object.assign({}, kin[Math.floor(this.random() * kin.length)]);
+      const list = kin(more);
+      for (let i = Math.round(list.length * TERRAIN.more); i > 0; i--) {
+        const copy = Object.assign({}, list[Math.floor(this.random() * list.length)]);
         copy.at = start + this.random() * length;
         this.spawns.push(copy);
+      }
+    }
+    if (less) {
+      const list = kin(less);
+      for (let i = Math.round(list.length * TERRAIN.more); i > 0; i--) {
+        const gone = list.splice(Math.floor(this.random() * list.length), 1)[0];
+        this.spawns.splice(this.spawns.indexOf(gone), 1);
       }
     }
     this.spawns.sort((a, b) => a.at - b.at);
@@ -1335,7 +1351,6 @@ export class Battle {
   _stats(tower) {
     const cls = tower.cls, mods = tower.mods, b = cls.base, base = baseOf(cls);
     const skill = mastery(), haste = skill.haste * (1 + (mods.haste || 0));
-    tower.might = mightOf(mods.power || 0, mods.paragon || 0);
     tower.power = skill.power;
     tower.luck = skill.luck;
     tower.haste = haste;
@@ -1345,6 +1360,7 @@ export class Battle {
     for (const id of mods.runes || []) tower.stacks.set(id, (tower.stacks.get(id) || 0) + 1);
     tower.look = mods.look || cls.id;
     tower.style = cls.styles ? (cls.styles.find((item) => tower.runes.has(item.id)) || {}).id || null : null;
+    tower.might = mightOf(mods.power || 0, mods.paragon || 0) * (1 + this._kin(tower));
     tower.react = cls.react && (cls.react.skill.startsWith('perk') ? open(tower, Number(cls.react.skill.slice(4)))
       : tower.runes.has(cls.react.skill)) ? cls.react.element : null;
     const boost = Math.max(FLOOR, 1 + (mods.damage || 0)) * (1 + (tower.might / MIGHT.base - 1) * MIGHT.damage)
@@ -1376,7 +1392,7 @@ export class Battle {
     tower.frost = tower.style === 'cryo' && tower.runes.has('frostRing')
       ? WATER.frostRing.radius + WATER.frostRing.grow * Math.max(0, tower.might / MIGHT.base - 1) : 0;
     tower.baseRange = Math.max(RANGE_MIN, this._reachOf(tower, b) + (mods.range || 0))
-      + (this.onHill(tower) ? TERRAIN.hill : 0) + (this.onWatch(tower) ? TERRAIN.watch : 0);
+      + (this.onHill(tower) ? this.rules.hill || TERRAIN.hill : 0) + (this.onWatch(tower) ? TERRAIN.watch : 0);
     tower.ownRange = tower.baseRange + tower.reach;
     if (tower.style === 'angel') tower.baseRange = tower.ownRange = HOLY.angel.reach;
     if (tower.style === 'raiju') tower.baseRange = tower.ownRange = STORM.raiju.reach;
@@ -1391,6 +1407,11 @@ export class Battle {
     this._steelOf(tower);
     this._plant(tower);
     this._flags();
+  }
+
+  _kin(tower) {
+    const kin = this.rules.kin;
+    return kin && (kin.classes.includes(tower.cls.id) || kin.styles.includes(tower.style)) ? kin.might : 0;
   }
 
   _reachOf(tower, b) {
@@ -1509,8 +1530,10 @@ export class Battle {
   }
 
   _weather() {
-    const rainers = this.towers.filter((t) => t.runes.has('rain')), snowers = this.towers.filter((t) => t.runes.has('snow'));
-    const s = WATER.snow, stacks = snowers.length ? Math.min(s.max, snowers.length + rainers.length) : 0;
+    const calm = this.rules.calm, base = this.rules.snow || 0, s = WATER.snow;
+    const rainers = calm ? [] : this.towers.filter((t) => t.cls.id === 'frost' && t.runes.has('rain'));
+    const snowers = calm ? [] : this.towers.filter((t) => t.cls.id === 'frost' && t.runes.has('snow'));
+    const stacks = base || snowers.length ? Math.min(s.max, base + snowers.length + rainers.length) : 0;
     this.snow = stacks;
     this.rain = !stacks && rainers.length ? rainers : null;
     this.weather = stacks || Math.min(s.max, rainers.length);
@@ -2496,7 +2519,7 @@ export class Battle {
 
   _wallMax(t) {
     const steel = t.runes.has('steelWall') ? EARTH.wall.steel : 1;
-    return this._wallUnit() * WALL_BITE * EARTH.wall.hold * t.might / MIGHT.base * steel;
+    return this._wallUnit() * WALL_BITE * EARTH.wall.hold * t.might / MIGHT.base * steel * (this.rules.wall || 1);
   }
 
   _raiseWall(t, now) {
@@ -2519,9 +2542,14 @@ export class Battle {
     return point;
   }
 
+  lit(x, y) {
+    const r = this.rules.dark;
+    return !r || this.towers.some((t) => (t.cx - x) ** 2 + (t.cy - y) ** 2 <= r * r);
+  }
+
   _targetable(t, mob, range = t.range, mode = t.cls.base.target) {
     if (mob.dead || hidden(mob, this.time) || immune(mob, t.element) || !reaches(t, mob, range)
-      || !this.sees(t, mob)) return false;
+      || !this.sees(t, mob) || !this.lit(mob.x, mob.y)) return false;
     if (mode === 'land' && mob.flying) return false;
     if (mode === 'toxic' && mob.undead) return false;
     return true;
@@ -2553,7 +2581,9 @@ export class Battle {
   _leader(filter = () => true) {
     let best = null;
     for (const mob of this.mobs) {
-      if (mob.dead || hidden(mob, this.time) || this.covered(mob.x, mob.y) || !filter(mob)) continue;
+      if (mob.dead || hidden(mob, this.time) || this.covered(mob.x, mob.y) || !this.lit(mob.x, mob.y) || !filter(mob)) {
+        continue;
+      }
       if (!best || this.ahead(mob) > this.ahead(best)) best = mob;
     }
     return best;
@@ -2562,7 +2592,7 @@ export class Battle {
   _closestBig(t) {
     let best = null, gap = Infinity;
     for (const mob of this.mobs) {
-      if (mob.dead || !big(mob) || hidden(mob, this.time) || this.covered(mob.x, mob.y)) continue;
+      if (mob.dead || !big(mob) || hidden(mob, this.time) || this.covered(mob.x, mob.y) || !this.lit(mob.x, mob.y)) continue;
       const far = (mob.x - t.cx) ** 2 + (mob.y - t.cy) ** 2 - (big(mob) ? 1e6 : 0);
       if (far < gap) {
         gap = far;
@@ -2741,7 +2771,7 @@ export class Battle {
       const spawn = { type: mob.type, kind: mob.kind, look: mob.kind ? null : lookOfMob(mob), hp: mob.max };
       this.births.push({ spawn, d: mob.d, r: mob.r, at: this.time + REVIVE_TIME, risen: true,
         raise: mob.power && mob.power.raise || 0 });
-    } else if (this.rules.rise && !mob.risen && !mob.fake && !BODILESS.has(mob.look)) {
+    } else if (this.rules.rise && !mob.risen && !mob.fake && (mob.undead || !BODILESS.has(mob.look))) {
       const type = mob.type === 'tough' || big(mob) ? 'tough' : 'normal';
       const hp = this._waveHp(type) * TERRAIN.grave * Math.max(FLOOR, 1 + this.foe.hp);
       const look = lookOf(type === 'tough' ? 'skelwarrior' : 'skeleton');
@@ -2802,9 +2832,9 @@ export class Battle {
     for (const [id, kind] of Object.entries(TOTEMS)) {
       let have = this.banners.filter((banner) => banner.tower === t && banner.kind === kind).length;
       for (; have < (t.stacks.get(id) || 0); have++) {
-        const cell = this._bannerCell(t);
+        const own = kind === 'power', cell = own ? { x: t.x, y: t.y } : this._bannerCell(t);
         if (!cell) return;
-        const [dx, dy] = SPELL.totem.spot;
+        const [dx, dy] = own ? SPELL.totem.own[have % SPELL.totem.own.length] : SPELL.totem.spot;
         this.banners.push({ tower: t, kind, x: cell.x, y: cell.y, cx: cell.x + dx, cy: cell.y + dy, seed: this.random() });
         this._event({ kind: 'totem', tower: t, totem: kind, x: cell.x + dx, y: cell.y + dy });
       }

@@ -24,7 +24,8 @@ const ASCEND_CUES = [[0, 'summon'], [0.8, 'charge'], [2.4, 'merge'], [2.9, 'flas
 const FLASHES = [[2.4, 1], [2.9, 0.7], [3.3, 0.85]];
 const BOARD_SIZE = 640;
 const BIOME_GLOW = { grass: '#4ade80', volcano: '#fb923c', swamp: '#a3e635', snow: '#bae6fd', desert: '#fbbf24',
-  graveyard: '#c4b5fd' };
+  graveyard: '#c4b5fd', jungle: '#22c55e', canyon: '#f97316', cave: '#a5b4fc', ruins: '#d6d3d1', sea: '#38bdf8',
+  sky: '#7dd3fc' };
 const LOW_LIVES = 5;
 const BOSS_EVERY = 10;
 const FINAL_SECONDS = 3;

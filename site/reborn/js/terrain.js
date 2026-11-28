@@ -17,7 +17,6 @@ const LOOKS = {
     bits: { colors: ['#f4f4f4', '#f7e08a', '#f7a8c8', '#6fa84a', '#6fa84a'], share: 0.35 },
     rock: { color: '#7d7468', foot: '#4f7a3a' }, hill: { color: '#5d8f42', decor: 'tufts', tuft: '#8fc35a' },
     ruin: { stones: ['#8d877c', '#9a9284', '#7f786c'], gap: '#3d5a30' },
-    chasm: { wall: '#6b5a44', deep: '#0a0807', lip: '#3f6a2f' },
     crater: { rim: '#6b5a3c', floor: '#4a3b28', scorch: '#1d2416' },
   },
   volcano: {
@@ -26,7 +25,6 @@ const LOOKS = {
     bits: { colors: ['#5a5052', '#4a4043', '#6b5f60', '#ff7a1f'], share: 0.45 },
     rock: { color: '#3d3336', lava: true }, hill: { color: '#4a4043', decor: 'embers', tuft: '#ff7a1f' },
     ruin: { stones: ['#4a4143', '#544a4c', '#3f3739'], gap: '#7a2a10' },
-    chasm: { wall: '#3d3336', deep: '#1a0d0a', lip: '#1f191b', glow: '#ff6a1f' },
     crater: { rim: '#3d3336', floor: '#2a2224', core: '#ff6a1f', scorch: '#120d0e' },
   },
   swamp: {
@@ -35,7 +33,6 @@ const LOOKS = {
     bits: { colors: ['#c8d86a', '#4f6a36', '#5f7f3a', '#2a3a2a'], share: 0.4 },
     rock: { color: '#676b5f', foot: '#3d5a36' }, hill: { color: '#3d5c35', decor: 'reeds', tuft: '#8a9a4a' },
     ruin: { stones: ['#6e7262', '#7a7e6c', '#63675a'], gap: '#3d5a2c' },
-    chasm: { wall: '#4f4a36', deep: '#0b100b', lip: '#4f6a30', glow: '#5f8a3e' },
     crater: { rim: '#4a4a30', floor: '#33331f', core: '#2f4a2a', scorch: '#161f17' },
   },
   snow: {
@@ -44,7 +41,6 @@ const LOOKS = {
     bits: { colors: ['#ffffff', '#ffffff', '#95a6bb', '#dfe9f5'], share: 0.4 }, drifts: ['#f4f8ff', '#94a5ba'],
     rock: { color: '#6d7888', cap: '#f2f6fc' }, hill: { color: '#e4edf8', decor: 'sparkle', tuft: '#ffffff' },
     ruin: { stones: ['#9aa7b8', '#a7b4c4', '#8d9aac'], gap: '#e4edf8' },
-    chasm: { wall: '#7d97b8', deep: '#0e1a2e', lip: '#f2f6fc', glow: '#7fd4ff' },
     crater: { rim: '#c6d3e3', floor: '#9fb0c6', core: '#c4e3f6', scorch: '#8fa1b7' },
   },
   desert: {
@@ -54,7 +50,6 @@ const LOOKS = {
     rock: { color: '#b4683e', bands: ['#a85c35', '#c47a48', '#9a5230'] },
     hill: { color: '#c7a265', decor: 'ripples', tuft: '#a8854d' },
     ruin: { stones: ['#c9a66c', '#bf9b60', '#d1b07a'], gap: '#8a6a40' },
-    chasm: { wall: '#b4683e', deep: '#1a0f08', lip: '#d2b27a' },
     crater: { rim: '#c49a5e', floor: '#9c7a46', scorch: '#8a6a40' },
   },
   graveyard: {
@@ -63,8 +58,58 @@ const LOOKS = {
     bits: { colors: ['#8a5a2e', '#a8662a', '#6b4a2b', '#4d5a45'], share: 0.4, w: 2 },
     rock: { color: '#cfc6ae', bones: true }, hill: { color: '#4b3e35', decor: 'cross', tuft: '#8a6a44' },
     ruin: { stones: ['#57525e', '#615c69', '#4d4954'], gap: '#3a3060' },
-    chasm: { wall: '#4b4554', deep: '#07050b', lip: '#3a3542', glow: '#8b5cf6' },
     crater: { rim: '#463c35', floor: '#29231f', core: '#17131e', scorch: '#18151c' },
+  },
+  jungle: {
+    ground: ['#1f3b22', '#244428', '#1a331d'], specks: ['#2f5a2c', '#3d7333', '#14281a'], tuft: '#4f9a3a',
+    bloom: ['#f472b6'], grid: 'rgba(0, 0, 0, .16)', road: 'dirt', water: 'water', worn: '#2c3a22',
+    bits: { colors: ['#f472b6', '#facc15', '#3d7333', '#5c9645'], share: 0.35 },
+    rock: { color: '#5f6b57', foot: '#2f5a2c' }, hill: { color: '#3f7a33', decor: 'tufts', tuft: '#7fc35a' },
+    ruin: { stones: ['#6f7a64', '#7a8570', '#64705a'], gap: '#2f5a2c' },
+    crater: { rim: '#4a4a30', floor: '#33331f', scorch: '#16241a' },
+    canopy: { color: '#2f6b2a', lit: '#5aa83f', bloom: ['#f472b6', '#facc15', '#fb7185'] },
+  },
+  canyon: {
+    ground: ['#a8643a', '#b06d40', '#9c5c34'], specks: ['#c07a48', '#8a4f2c', '#d08a56'], tuft: '#8a7a3a',
+    bloom: ['#7a4428'], grid: 'rgba(60, 25, 10, .16)', road: 'sand', water: 'oasis', worn: '#c07a48',
+    bits: { colors: ['#7a4428', '#c98a56', '#5f3a22', '#e0a06a'], share: 0.4 },
+    rock: { color: '#b4583a', bands: ['#a04a2c', '#c4683e', '#8c3e26', '#d27a48'] },
+    hill: { color: '#c47a46', decor: 'ripples', tuft: '#a8603a' },
+    ruin: { stones: ['#c48a5a', '#b87e50', '#d09a66'], gap: '#7a4428' },
+    crater: { rim: '#b4683e', floor: '#8a4f2c', scorch: '#6a3a20' },
+  },
+  cave: {
+    ground: ['#24222a', '#29262f', '#1f1d24'], specks: ['#34313b', '#3d3946', '#18161c'], tuft: null,
+    bloom: ['#7dd3fc'], grid: 'rgba(0, 0, 0, .22)', road: 'cavern', water: 'water', worn: '#2f2c35',
+    bits: { colors: ['#4a4652', '#3d3946', '#7dd3fc', '#2a2730'], share: 0.4 },
+    rock: { color: '#4a4552', crystals: '#7dd3fc' }, hill: { color: '#3d3946', decor: 'sparkle', tuft: '#7dd3fc' },
+    ruin: { stones: ['#4f4b58', '#5a5663', '#46424f'], gap: '#18161c' },
+    crater: { rim: '#3d3946', floor: '#24222a', scorch: '#16141a' },
+  },
+  ruins: {
+    ground: ['#38412e', '#3d4732', '#333b2a'], specks: ['#4a5540', '#5a6048', '#262d1f'], tuft: '#5f7a3a',
+    bloom: ['#e8d96a'], grid: 'rgba(0, 0, 0, .15)', road: 'paving', water: 'water', worn: '#5a5548',
+    bits: { colors: ['#8a857a', '#6f6a60', '#a8a296', '#5f7a3a'], share: 0.45 },
+    rock: { color: '#7d786e', foot: '#4a5540' }, hill: { color: '#4f6a3a', decor: 'tufts', tuft: '#7fa04a' },
+    ruin: { stones: ['#8d877c', '#9a9284', '#7f786c'], gap: '#2f3a26' },
+    crater: { rim: '#6b6558', floor: '#4a463c', scorch: '#22261c' },
+  },
+  sea: {
+    ground: ['#6b5236', '#735a3c', '#634b31'], specks: ['#7d6343', '#5a4430', '#86704f'], tuft: null,
+    bloom: ['#ffffff'], grid: 'rgba(0, 20, 40, .14)', road: 'boards', water: 'sea', worn: '#634b31',
+    rock: { color: '#6f7480', foot: '#2a6f9e' }, hill: { color: '#c9b27a', decor: 'ripples', tuft: '#a8915a' },
+    ruin: { stones: ['#8d877c', '#9a9284', '#7f786c'], gap: '#2a6f9e' },
+    crater: { rim: '#6b6558', floor: '#4a463c', scorch: '#22261c' },
+  },
+  sky: {
+    ground: ['#3d6e33', '#437838', '#38662f'], specks: ['#4f8a3e', '#5c9645', '#2f5a28'], tuft: '#6fb04a',
+    bloom: ['#f4f4f4', '#f7e08a'], grid: 'rgba(0, 0, 0, .12)', road: 'boards', water: 'water', worn: '#4a6a3a',
+    bits: { colors: ['#f4f4f4', '#f7e08a', '#9fd4ff', '#6fa84a'], share: 0.3 },
+    rock: { color: '#8d877c', foot: '#4f8a3e' }, hill: { color: '#5d9f42', decor: 'tufts', tuft: '#9fd35a' },
+    ruin: { stones: ['#8d877c', '#9a9284', '#7f786c'], gap: '#3d5a30' },
+    crater: { rim: '#6b5a3c', floor: '#4a3b28', scorch: '#1d2416' },
+    sky: { top: '#5fb0ea', low: '#bfe6ff', cloud: '#ffffff', shade: '#dcefff',
+      cliff: ['#7a5a38', '#5e4329', '#432f1d', '#2c1f14'], moss: '#4f8a3e' },
   },
 };
 
@@ -78,6 +123,12 @@ const ROADS = {
   flag: { base: '#8a6a40', stones: ['#c9a66c', '#bf9b60', '#d1b07a'], size: 11, curb: '#7a5c36' },
   cobble: { base: '#2f2b35', stones: ['#57525e', '#4d4954', '#615c69'], size: 6, curb: '#1d1b22',
     moss: '#4d5a45' },
+  sand: { base: '#9c5c34', stones: ['#c07a48', '#b06d40', '#d08a56'], size: 0, curb: '#7a4428' },
+  cavern: { base: '#1f1d24', stones: ['#3d3946', '#46424f', '#34313b'], size: 8, curb: '#151319' },
+  paving: { base: '#3a3730', stones: ['#8a857a', '#7d786e', '#948f84', '#6f6a60'], size: 10, curb: '#2a2822',
+    moss: '#5f7a3a' },
+  boards: { base: '#3a2a1a', stones: ['#a07a4c', '#ad8756', '#94703f', '#b38d5a'], boards: true, curb: '#3a2814',
+    nail: '#3a2a1a', pier: ['#6b4f33', '#75583a', '#5f462d', '#7a5c3c'], seam: '#2a1c10' },
 };
 
 const LIQUIDS = {
@@ -88,11 +139,12 @@ const LIQUIDS = {
   oasis: { shore: '#d2b27a', deep: '#17606e', shallow: '#3fb6b0', shine: '#d6fff6', wet: '#8a6a40' },
   tar: { shore: '#3a3542', deep: '#050408', shallow: '#17131e', shine: '#8b5cf6', wet: '#15131a' },
   basalt: { shore: '#2b2426', deep: '#3a3234', shallow: '#5a4f52', shine: '#8d8186', mark: '#5c2a20', wet: '#1a1416' },
+  sea: { shore: '#2a7fb0', deep: '#0b3a66', shallow: '#2585bf', shine: '#e8f8ff', wet: '#2a7fb0' },
 };
 
 const lookOf = (biome) => LOOKS[biome] || LOOKS.grass;
 
-const CLEAR = ['water', 'oasis', 'bog'];
+const CLEAR = ['water', 'oasis', 'bog', 'sea'];
 
 export function waterOf(biome) {
   const own = lookOf(biome).water, key = CLEAR.includes(own) ? own : 'water';
@@ -542,6 +594,60 @@ const DECOR = {
     px(ctx, x + 2, y - 3, 1, 1, '#ffd84a');
     px(ctx, x - 1, y - 1, 3, 1, '#ffd84a');
   },
+  bigleaf(ctx, x, y, h) {
+    shadow(ctx, x, y + 2, 6);
+    for (let k = 0; k < 4; k++) {
+      const a = -Math.PI * (0.1 + k * 0.27) + (hash(h, k, 17) - 0.5) * 0.3;
+      const tip = [x + Math.cos(a) * 7, y + Math.sin(a) * 5];
+      for (let n = 0; n <= 6; n++) {
+        const f = n / 6, w = Math.round(Math.sin(f * Math.PI) * 2.2), cx = x + (tip[0] - x) * f, cy = y + (tip[1] - y) * f;
+        px(ctx, cx - w, cy, w * 2 + 1, 1, k % 2 ? '#2f6b2a' : '#3d8a33');
+        px(ctx, cx, cy, 1, 1, '#1f4a1c');
+      }
+    }
+  },
+  palm(ctx, x, y) {
+    shadow(ctx, x + 3, y + 2, 7);
+    for (let k = 0; k < 9; k++) px(ctx, x + Math.round(k * 0.3), y - k, 2, 1, k % 2 ? '#7a5a38' : '#5a4028');
+    const top = [x + 3, y - 9];
+    for (let k = 0; k < 6; k++) {
+      const a = k / 6 * Math.PI * 2;
+      for (let n = 1; n <= 6; n++) {
+        px(ctx, top[0] + Math.cos(a) * n, top[1] + Math.sin(a) * n * 0.6 + n * n * 0.06, 1, 1, n < 4 ? '#3d8a33' : '#5aa83f');
+      }
+    }
+    px(ctx, top[0], top[1], 2, 2, '#6b4a2b');
+  },
+  stalagmite(ctx, x, y, h) {
+    shadow(ctx, x, y + 2, 5);
+    for (const [dx, tall] of [[-3, 5 + Math.floor(hash(h, 1, 18) * 3)], [1, 8 + Math.floor(hash(h, 2, 18) * 4)], [4, 4]]) {
+      for (let k = 0; k < tall; k++) {
+        const w = Math.max(1, Math.round((tall - k) / tall * 3));
+        px(ctx, x + dx - Math.floor(w / 2), y - k, w, 1, k % 3 ? '#4a4552' : '#5a5663');
+      }
+      px(ctx, x + dx - 1, y - tall + 2, 1, tall - 3, '#6f6a7a');
+    }
+  },
+  column(ctx, x, y, h) {
+    shadow(ctx, x + 2, y + 2, 6);
+    const tall = 6 + Math.floor(hash(h, 1, 19) * 6);
+    stone(ctx, x - 4, y - 1, 8, 3, '#7d786e', '#948f84', '#5f5a50');
+    for (let k = 0; k < tall; k++) {
+      px(ctx, x - 2, y - 2 - k, 4, 1, '#a8a296');
+      px(ctx, x - 2, y - 2 - k, 1, 1, '#cfc9bc');
+      px(ctx, x + 1, y - 2 - k, 1, 1, '#7d786e');
+    }
+    px(ctx, x - 3, y - 2 - tall, 6, 1, '#8a857a');
+    px(ctx, x + 2, y - 1 - Math.floor(tall / 2), 1, 2, '#5f7a3a');
+    stone(ctx, x + 4, y, 4, 3, '#8a857a', '#a8a296', '#5f5a50');
+  },
+  bricks(ctx, x, y, h) {
+    for (let k = 0; k < 5; k++) {
+      const bx = x + Math.round((hash(h, k, 20) - 0.5) * 12), by = y + Math.round((hash(h, k, 21) - 0.5) * 6);
+      const color = ['#8a857a', '#7d786e', '#9a5a3a'][k % 3];
+      stone(ctx, bx, by, 4, 2, color, shade(color, 0.2), shade(color, -0.35));
+    }
+  },
   glowshroom(ctx, x, y, h) {
     glowAt(ctx, x, y - 3, 7, 'rgba(160, 120, 255, .3)');
     for (let k = 0; k < 3; k++) {
@@ -560,6 +666,12 @@ const DECORS = {
   snow: ['pine', 'pine', 'crystal', 'snowrock', 'tracks', 'drift', 'frostbush'],
   desert: ['cactus', 'cactus', 'skull', 'twigs', 'pebbles', 'tumbleweed', 'agave', 'sandstone'],
   graveyard: ['grave', 'grave', 'cross', 'deadtree', 'candle', 'bones', 'tomb', 'fence', 'pumpkin', 'glowshroom'],
+  jungle: ['ferns', 'ferns', 'bigleaf', 'bigleaf', 'palm', 'bush', 'flowers', 'mushroom', 'log'],
+  canyon: ['sandstone', 'sandstone', 'pebbles', 'cactus', 'skull', 'twigs', 'agave', 'tumbleweed'],
+  cave: ['stalagmite', 'stalagmite', 'crystal', 'pebbles', 'glowshroom', 'basalt', 'bones'],
+  ruins: ['column', 'bricks', 'bricks', 'pebbles', 'boulder', 'bush', 'flowers', 'stump'],
+  sea: [],
+  sky: ['flowers', 'flowers', 'bush', 'pebbles', 'tree', 'ferns'],
 };
 
 function paintDecor(ctx, battle) {
@@ -684,9 +796,20 @@ function paintRoad(ctx, battle, look) {
   px(g, EDGE, EDGE, CELL * SIZE, CELL * SIZE, style.base);
   if (style.slabs) g.drawImage(slabs(style), EDGE, EDGE);
   for (let key = 0; key < SIZE * SIZE && !style.slabs; key++) {
+    if (!joined.has(key)) continue;
     const x = key % SIZE, y = Math.floor(key / SIZE), x0 = at(x), y0 = at(y), ends = joined.get(key) || [];
     const across = ends.every((to) => Math.floor(to / SIZE) === y);
-    if (style.size) {
+    if (style.boards) {
+      const n = 5, w = CELL / n;
+      for (let i = 0; i < n; i++) {
+        const color = style.stones[Math.floor(hash(x * n + i, y, 7) * style.stones.length)];
+        if (across) stone(g, x0 + i * w, y0, Math.round(w) - 1, CELL, color, shade(color, 0.18), shade(color, -0.35));
+        else stone(g, x0, y0 + i * w, CELL, Math.round(w) - 1, color, shade(color, 0.18), shade(color, -0.35));
+        for (const k of [5, CELL - 6]) {
+          px(g, across ? x0 + i * w + 2 : x0 + k, across ? y0 + k : y0 + i * w + 2, 1, 1, style.nail);
+        }
+      }
+    } else if (style.size) {
       const n = Math.max(2, Math.round(CELL / style.size));
       for (let j = 0; j < n; j++) {
         for (let i = 0; i < n; i++) {
@@ -882,6 +1005,7 @@ function paintMountains(data, battle, look) {
         if (v > top * 0.9) tint = mixed(rgb('#ff4d1f'), rgb('#ffd84a'), (v - top * 0.9) / (top * 0.1));
       }
       if (style.bones && smooth(x, y, 3, 550) < 0.28) tint = ramp('#3a3542')[Math.min(tone, 2)];
+      if (style.crystals && v > edge * 1.3 && smooth(x, y, 4, 545) < 0.1) tint = ramp(style.crystals)[Math.min(4, tone + 1)];
       put(data, i, tint);
     }
   }
@@ -982,82 +1106,54 @@ function paintLakes(data, battle, look) {
   }
 }
 
-function jagged(points, a, b, depth, seed) {
-  if (!depth) {
-    points.push(b);
-    return;
-  }
-  const len = Math.hypot(b[0] - a[0], b[1] - a[1]), turn = (hash(a[0] + b[0], a[1] + b[1], seed) - 0.5) * len * 0.45;
-  const mid = [(a[0] + b[0]) / 2 + (a[1] - b[1]) / len * turn, (a[1] + b[1]) / 2 + (b[0] - a[0]) / len * turn];
-  jagged(points, a, mid, depth - 1, seed + 1);
-  jagged(points, mid, b, depth - 1, seed + 1);
-}
-
-function cracks(cells) {
-  const h = new Float32Array(SIDE * SIDE), box = [SIDE, SIDE, 0, 0], sigma = CELL * 0.36, step = 2;
-  const reach = Math.ceil(sigma * 2.6), lift = step / (sigma * Math.sqrt(Math.PI)), set = new Set(cells.map(String));
-  const stamp = (cx, cy) => {
-    const left = Math.max(0, Math.floor(cx - reach)), right = Math.min(SIDE, Math.ceil(cx + reach));
-    const top = Math.max(0, Math.floor(cy - reach)), bottom = Math.min(SIDE, Math.ceil(cy + reach));
-    for (let y = top; y < bottom; y++) {
-      for (let x = left; x < right; x++) {
-        const dx = x + 0.5 - cx, dy = y + 0.5 - cy;
-        h[y * SIDE + x] += lift * Math.exp(-(dx * dx + dy * dy) / (sigma * sigma));
-      }
-    }
-    box[0] = Math.min(box[0], left);
-    box[1] = Math.min(box[1], top);
-    box[2] = Math.max(box[2], right);
-    box[3] = Math.max(box[3], bottom);
-  };
-  for (const [x, y] of cells) {
-    for (const [dx, dy] of [[1, 0], [0, 1]]) {
-      if (!set.has([x + dx, y + dy].join())) continue;
-      const a = [(x + 0.5) * CELL, (y + 0.5) * CELL], b = [(x + dx + 0.5) * CELL, (y + dy + 0.5) * CELL];
-      const points = [a];
-      jagged(points, a, b, 3, 870);
-      for (let i = 0; i + 1 < points.length; i++) {
-        const [x0, y0] = points[i], [x1, y1] = points[i + 1];
-        const n = Math.max(1, Math.round(Math.hypot(x1 - x0, y1 - y0) / step));
-        for (let k = 0; k < n; k++) stamp(x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n);
-      }
-    }
-  }
-  return { h, box };
-}
-
-function paintChasms(data, battle, look) {
-  const chasm = new Set();
-  battle.tiles.forEach((tile, cell) => {
-    if (tile === 'chasm') chasm.add(cell);
-  });
-  if (!chasm.size) return;
-  const cells = [];
-  battle.tiles.forEach((tile, cell) => {
-    const x = cell % SIZE, y = Math.floor(cell / SIZE);
-    const touches = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => inside(x + dx, y + dy)
-      && chasm.has((y + dy) * SIZE + x + dx));
-    if (chasm.has(cell) || tile === 'bridge' && touches) cells.push([x, y]);
-  });
-  const { h, box } = cracks(cells), style = look.chasm, wall = ramp(style.wall);
-  const deep = rgb(style.deep), lip = rgb(style.lip), glow = style.glow && rgb(style.glow);
+function paintThickets(data, battle, look) {
+  const cells = cellsOf(battle, ['thicket']), style = look.canopy;
+  if (!cells.length || !style) return;
+  const { h, box } = heights(cells, 0.58, 1500), edge = 0.42;
+  cutRoad(h, box, battle);
   for (let y = box[1]; y < box[3]; y++) {
-    for (let x = box[0]; x < box[2]; x++) h[y * SIDE + x] *= 0.78 + 0.44 * rough(x, y, 810);
+    for (let x = box[0]; x < box[2]; x++) {
+      const i = y * SIDE + x;
+      if (h[i] > 0.05) h[i] *= 0.7 + 0.35 * smooth(x, y, 5, 1510) + 0.2 * smooth(x, y, 11, 1511);
+    }
   }
+  castShadow(data, h, box, edge, 4, 6, 105);
+  const bloom = style.bloom.map(rgb);
   for (let y = Math.max(1, box[1]); y < Math.min(SIDE - 1, box[3]); y++) {
     for (let x = Math.max(1, box[0]); x < Math.min(SIDE - 1, box[2]); x++) {
-      const i = y * SIDE + x, v = h[i], grain = hash(x, y, 820);
-      if (v < 0.36) continue;
-      if (v < 0.45) {
-        put(data, i, grain < (v - 0.36) * 11 ? lip : mixed(lip, deep, 0.4));
+      const i = y * SIDE + x, v = h[i], grain = hash(x, y, 1520);
+      if (v < edge + (smooth(x, y, 3, 1521) - 0.5) * 0.12) continue;
+      let tone = toneOf(lit(h, i, 30), x, y);
+      if (v < edge * 1.15) tone = Math.max(0, tone - 1);
+      const leaf = smooth(x, y, 3, 1522);
+      let color = ramp(leaf > 0.7 ? style.lit : style.color)[tone];
+      if (leaf < 0.18) color = ramp(style.color)[Math.max(0, tone - 1)];
+      if (grain < 0.0035 && v > edge * 1.3) color = bloom[Math.floor(hash(x, y, 1523) * bloom.length)];
+      put(data, i, color);
+    }
+  }
+}
+
+function paintSky(data, battle, look) {
+  const cells = cellsOf(battle, ['sky']), style = look.sky;
+  if (!cells.length || !style) return;
+  const { h } = heights(cells, 0.62, 1600), top = rgb(style.top), low = rgb(style.low), cloud = rgb(style.cloud);
+  const haze = rgb(style.shade), cliff = style.cliff.map(rgb), moss = rgb(style.moss), edge = 0.5;
+  const air = (x, y) => y >= 0 && h[y * SIDE + x] * (0.85 + 0.3 * smooth(x, y, 7, 1601)) >= edge;
+  for (let y = 0; y < SIDE; y++) {
+    for (let x = 0; x < SIDE; x++) {
+      if (!air(x, y)) continue;
+      const i = y * SIDE + x, drop = 7 + Math.round(smooth(x, 0, 4, 1602) * 9);
+      let k = 1;
+      while (k <= drop && air(x, y - k)) k++;
+      if (k <= drop && y - k >= 0) {
+        const step = Math.min(cliff.length - 1, Math.floor(k / drop * cliff.length + (hash(x, y, 1603) - 0.5) * 0.8));
+        put(data, i, k <= 1 && hash(x, y, 1604) < 0.6 ? moss : cliff[Math.max(0, step)]);
         continue;
       }
-      const depth = Math.min(1, (v - 0.45) / 0.5);
-      let tone = toneOf(lit(h, i, -34), x, y);
-      if (Math.floor(v * 18 + rough(x, y, 830) * 2) % 3 === 0) tone = Math.max(0, tone - 1);
-      let color = mixed(wall[Math.min(3, tone)], deep, Math.min(1, Math.pow(depth, 1.6) * 1.15));
-      if (glow && depth > 0.72) color = mixed(color, glow, (depth - 0.72) / 0.28 * (0.4 + 0.6 * smooth(x, y, 6, 840)));
-      put(data, i, color);
+      const sky = mixed(top, low, Math.min(1, y / SIDE * 0.7 + 0.3 * smooth(x, y, 70, 1605)));
+      const puff = 0.6 * smooth(x * 0.7, y * 1.5, 26, 1606) + 0.4 * smooth(x, y, 9, 1607);
+      put(data, i, puff > 0.74 ? cloud : puff > 0.7 ? mixed(sky, haze, 0.7) : sky);
     }
   }
 }
@@ -1134,7 +1230,7 @@ function paintCraters(data, battle, look) {
   }
 }
 
-const STRUCTURES = new Set(['ruin', 'stones', 'bones', 'crypt']);
+const STRUCTURES = new Set(['ruin', 'stones', 'bones', 'crypt', 'well', 'house']);
 const structureImages = new Map();
 
 function structureOf(battle, tile, cell) {
@@ -1178,13 +1274,16 @@ function layer(painters, battle, look) {
 }
 
 function relief(battle, look) {
-  const water = layer([paintLakes, paintChasms], battle, look), high = document.createElement('canvas');
+  const water = layer([paintLakes, paintSky], battle, look), high = document.createElement('canvas');
   high.width = high.height = SIDE;
   const g = high.getContext('2d'), w = water.getContext('2d');
   w.globalCompositeOperation = 'destination-out';
   strokes(w, roadLines(battle), (v) => v * CELL, [[CELL * 0.8 + 3, '#000000']]);
+  battle.tiles.forEach((tile, cell) => {
+    if (tile === 'pier') w.clearRect(cell % SIZE * CELL, Math.floor(cell / SIZE) * CELL, CELL, CELL);
+  });
   g.drawImage(water, 0, 0);
-  g.drawImage(layer([paintMountains], battle, look), 0, 0);
+  g.drawImage(layer([paintMountains, paintThickets], battle, look), 0, 0);
   paintRivers(g, battle);
   return { hills: layer([paintHills], battle, look), low: layer([paintCraters, paintRuinFloors], battle, look), high };
 }
@@ -1285,6 +1384,7 @@ export function paintGround(ctx, battle) {
   ctx.stroke();
   paintDecor(ctx, battle);
   if (battle.tiles) ctx.drawImage(reliefOf(battle).hills, EDGE, EDGE);
+  if (battle.tiles) paintPiers(ctx, battle);
   paintRoad(ctx, battle, look);
   if (!battle.tiles) return;
   battle.tiles.forEach((tile, cell) => {
@@ -1292,6 +1392,24 @@ export function paintGround(ctx, battle) {
   });
   ctx.drawImage(reliefOf(battle).low, EDGE, EDGE);
   ctx.drawImage(reliefOf(battle).high, EDGE, EDGE);
+}
+
+function paintPiers(ctx, battle) {
+  const style = ROADS.boards, n = 6, w = CELL / n;
+  battle.tiles.forEach((kind, cell) => {
+    if (kind !== 'pier') return;
+    const x = cell % SIZE, y = Math.floor(cell / SIZE), x0 = at(x), y0 = at(y);
+    px(ctx, x0, y0, CELL, CELL, style.seam);
+    for (let i = 0; i < n; i++) {
+      const color = style.pier[Math.floor(hash(x, y * n + i, 1701) * style.pier.length)];
+      const shift = Math.round((hash(x, y * n + i, 1702) - 0.5) * 3);
+      stone(ctx, x0 + 1 + shift, y0 + i * w, CELL - 2, Math.round(w) - 1, color, shade(color, 0.16), shade(color, -0.3));
+    }
+    for (const [cx, cy] of [[2, 1], [CELL - 5, 1], [2, CELL - 4], [CELL - 5, CELL - 4]]) {
+      px(ctx, x0 + cx, y0 + cy, 3, 3, style.seam);
+      px(ctx, x0 + cx, y0 + cy, 1, 1, '#8a6a44');
+    }
+  });
 }
 
 const watchImages = new Map();

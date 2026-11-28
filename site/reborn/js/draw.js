@@ -517,9 +517,11 @@ const glows = new Map();
 
 const at = (v) => EDGE + v * CELL;
 const AMBIENT = { grass: 'butterflies', swamp: 'fireflies', snow: 'snow', desert: 'dust', volcano: 'embers',
-  graveyard: 'wisps' };
+  graveyard: 'wisps', jungle: 'fireflies', canyon: 'dust', ruins: 'butterflies', sky: 'butterflies' };
 const GLINTS = { grass: { color: '#cfeaff' }, swamp: { color: '#9fbf5a', bubble: true }, snow: { color: '#ffffff' },
-  desert: { color: '#d6fff6' }, volcano: { color: '#ffe08a', bubble: true }, graveyard: { color: '#8b5cf6' } };
+  desert: { color: '#d6fff6' }, volcano: { color: '#ffe08a', bubble: true }, graveyard: { color: '#8b5cf6' },
+  cave: { color: '#9fd4ff' }, sea: { color: '#ffffff' } };
+const NIGHT = { shade: 'rgba(4, 4, 10, .9)', clear: 0.7 };
 const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
 const ease = (from, to, rate, dt) => from + (to - from) * (1 - Math.exp(-rate * dt));
 const noise = (i, seed) => {
@@ -1132,6 +1134,7 @@ export class Scene {
     this._onField(ctx, () => this._drones(ctx, battle, step));
     this._charges(ctx, battle);
     this._hooks(ctx, battle);
+    this._onField(ctx, () => this._night(ctx, battle));
     this._onField(ctx, () => {
       this._effects(ctx, step);
       this._ambient(ctx, battle);
@@ -1140,6 +1143,28 @@ export class Scene {
     if (names) this._names(ctx, battle, names, highlight, choosing);
     this._mobTops(ctx, battle);
     return fresh;
+  }
+
+  _night(ctx, battle) {
+    const reach = battle.rules && battle.rules.dark;
+    if (!reach) return;
+    if (!this.dark) this.dark = document.createElement('canvas');
+    const canvas = this.dark, r = reach * CELL;
+    canvas.width = canvas.height = BOARD;
+    const g = canvas.getContext('2d');
+    g.fillStyle = NIGHT.shade;
+    g.fillRect(0, 0, BOARD, BOARD);
+    g.globalCompositeOperation = 'destination-out';
+    for (const t of battle.towers) {
+      const x = at(t.cx), y = at(t.cy), light = g.createRadialGradient(x, y, r * NIGHT.clear, x, y, r);
+      light.addColorStop(0, 'rgba(0, 0, 0, 1)');
+      light.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      g.fillStyle = light;
+      g.beginPath();
+      g.arc(x, y, r, 0, Math.PI * 2);
+      g.fill();
+    }
+    ctx.drawImage(canvas, 0, 0);
   }
 
   _onField(ctx, paint) {
@@ -1255,7 +1280,7 @@ export class Scene {
       this.fireKey = battle;
       this.fireSpots = [];
       (battle.tiles || []).forEach((tile, cell) => {
-        if (tile === 'lake' || tile === 'river' || tile === 'chasm' || tile === 'crater') {
+        if (tile === 'lake' || tile === 'river' || tile === 'crater') {
           this.fireSpots.push([at(cell % SIZE + 0.5), at(Math.floor(cell / SIZE) + 0.5)]);
         }
       });
@@ -4578,7 +4603,8 @@ export class Scene {
   _mobTops(ctx, battle) {
     for (const mob of battle.mobs) {
       const spot = this.shown.get(mob.id);
-      if (mob.dead || !mob.kind && !mob.silver || !spot || spot.top === undefined || battle.covered(mob.x, mob.y)) {
+      if (mob.dead || !mob.kind && !mob.silver || !spot || spot.top === undefined || battle.covered(mob.x, mob.y)
+        || !battle.lit(mob.x, mob.y)) {
         continue;
       }
       const x = spot.screenX, top = spot.top, w = Math.max(16, spot.size * 0.9), share = Math.max(0, mob.hp / mob.max);

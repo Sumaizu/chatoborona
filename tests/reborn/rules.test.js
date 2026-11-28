@@ -83,15 +83,17 @@ test('карта: мобы выходят из гор — первые клет�
       if (tile === 'hill') hills.push(at);
       if (tile === 'tunnel') ok(road.has(at), 'тоннель — только на дороге');
     });
-    ok(hills.length >= 3 && hills.length <= 32, 'холмы — группами: ' + hills.length);
+    if (biome === 'sea') continue;
+    ok(hills.length >= 1 && hills.length <= 60, 'холмы — группами: ' + hills.length);
     ok(hills.some((at) => path.concat(branch).some(([x, y]) => Math.abs(x - at % SIZE) <= 1
       && Math.abs(y - Math.floor(at / SIZE)) <= 1)), 'холм у дороги');
-    ok(tiles.includes('lake') && tiles.includes('mountain'));
+    ok(tiles.includes('mountain'));
   }
 });
 
-test('карта: расщелины, руины, кратеры и древности — изредка, не на дороге; мост через расщелину — поперёк дороги', () => {
-  const seen = new Map(), relics = { desert: 'bones', volcano: 'bones', graveyard: 'crypt' };
+test('карта: руины, кратеры и древности — изредка, не на дороге; расщелин нет; мост — только через реку', () => {
+  const seen = new Map(), relics = { desert: ['bones'], volcano: ['bones'], graveyard: ['crypt'],
+    ruins: ['well', 'house', 'stones'] };
   for (let seed = 1; seed <= 120; seed++) {
     const { path, branch, tiles, biome } = makeMap(seeded(seed)), road = new Set(path.concat(branch).map(key));
     const tile = (x, y) => (x >= 0 && y >= 0 && x < SIZE && y < SIZE ? tiles[y * SIZE + x] : '');
@@ -99,24 +101,74 @@ test('карта: расщелины, руины, кратеры и древно
       if (!kind) return;
       seen.set(kind, (seen.get(kind) || 0) + 1);
       const x = at % SIZE, y = Math.floor(at / SIZE);
-      if (['chasm', 'ruin', 'crater', 'stones', 'bones', 'crypt'].includes(kind)) no(road.has(at), kind + ' на дороге');
-      if (['stones', 'bones', 'crypt'].includes(kind)) eq(kind, relics[biome] || 'stones', 'древность своего края');
+      if (['ruin', 'crater', 'stones', 'bones', 'crypt', 'well', 'house', 'thicket', 'sky', 'pier'].includes(kind)) {
+        no(road.has(at), kind + ' на дороге');
+      }
+      if (['stones', 'bones', 'crypt', 'well', 'house'].includes(kind)) {
+        ok((relics[biome] || ['stones']).includes(kind), 'древность своего края');
+      }
       if (kind !== 'bridge') return;
       ok(road.has(at), 'мост — только на дороге');
-      const gap = ['chasm', 'river', 'lake'];
+      const gap = ['river', 'lake'];
       ok(gap.includes(tile(x - 1, y)) && gap.includes(tile(x + 1, y)) || gap.includes(tile(x, y - 1))
-        && gap.includes(tile(x, y + 1)), 'мост перекрывает расщелину или реку с обеих сторон');
+        && gap.includes(tile(x, y + 1)), 'мост перекрывает реку с обеих сторон');
     });
   }
-  for (const kind of ['chasm', 'ruin', 'crater']) ok(seen.get(kind) > 0, 'встречается: ' + kind);
+  for (const kind of ['ruin', 'crater']) ok(seen.get(kind) > 0, 'встречается: ' + kind);
+  no(seen.has('chasm'), 'расщелин нет');
   ok(seen.get('stones') + (seen.get('bones') || 0) + (seen.get('crypt') || 0) > 0, 'встречаются древности');
 });
 
 test('карта: одна и та же при одном зерне, биомы встречаются все', () => {
   eq(makeMap(seeded(5)), makeMap(seeded(5)));
   const seen = new Set();
-  for (let seed = 1; seed <= 60; seed++) seen.add(makeMap(seeded(seed)).biome);
+  for (let seed = 1; seed <= 120; seed++) seen.add(makeMap(seeded(seed)).biome);
   eq(seen.size, BIOMES.length);
+  for (const biome of BIOMES) eq(makeMap(seeded(3), biome).biome, biome, 'карта нужного края');
+});
+
+test('карты краёв: лава и болота — четверть карты, в пустыне воды нет, в джунглях листва, в руинах развалины', () => {
+  const share = (biome, kinds) => {
+    let all = 0;
+    for (let seed = 1; seed <= 6; seed++) all += makeMap(seeded(seed), biome).tiles.filter((t) => kinds.includes(t)).length;
+    return all / 6 / (SIZE * SIZE);
+  };
+  for (const biome of ['volcano', 'swamp']) {
+    const wet = share(biome, ['lake', 'river']);
+    ok(wet >= 0.22 && wet <= 0.32, biome + ': ' + wet);
+  }
+  ok(share('grass', ['lake', 'river']) < 0.15, 'на лугу воды меньше');
+  eq(share('desert', ['lake', 'river']), 0, 'в пустыне ни озёр, ни рек');
+  ok(share('desert', ['hill']) > share('grass', ['hill']), 'в пустыне барханов больше');
+  ok(share('jungle', ['thicket']) > 0.05, 'в джунглях листва');
+  ok(share('ruins', ['ruin', 'well', 'house']) > share('grass', ['ruin', 'well', 'house']) * 3, 'в руинах развалины');
+  ok(share('canyon', ['mountain']) > share('grass', ['mountain']) * 2, 'в каньоне скалы');
+  ok(share('snow', ['lake']) < share('grass', ['lake']) + 0.02 && share('snow', ['river']) === 0, 'в арктике редкие озёра');
+});
+
+test('карта моря: всё — вода, у каждой клетки дороги подмостки по 1–3 клетки в стороны', () => {
+  for (let seed = 1; seed <= 6; seed++) {
+    const { path, branch, tiles } = makeMap(seeded(seed), 'sea'), road = new Set(path.concat(branch).map(key));
+    tiles.forEach((tile, at) => {
+      if (!road.has(at)) ok(['lake', 'pier', 'mountain'].includes(tile), 'вода или подмостки: ' + tile);
+    });
+    for (const [x, y] of path.concat(branch)) {
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= SIZE || ny >= SIZE || road.has(key([nx, ny]))) continue;
+        ok(['pier', 'mountain', 'tunnel'].includes(tiles[key([nx, ny])]), 'рядом с дорогой — подмостки');
+      }
+    }
+  }
+});
+
+test('карта небесных островов: вокруг небо, стоять можно только на островах', () => {
+  for (let seed = 1; seed <= 6; seed++) {
+    const { path, branch, tiles } = makeMap(seeded(seed), 'sky'), road = new Set(path.concat(branch).map(key));
+    const sky = tiles.filter((tile) => tile === 'sky').length, land = tiles.filter((t, at) => !t && !road.has(at)).length;
+    ok(sky > land, 'неба больше, чем островов: ' + sky + ' / ' + land);
+    ok(land >= 40, 'острова есть: ' + land);
+  }
 });
 
 test('охват клетки: сколько клеток дороги в радиусе', () => {
@@ -429,11 +481,12 @@ test('настройки: по умолчанию, границы, адрес т
 test('карта: одна–три вышки у самой дороги, далеко друг от друга', () => {
   const counts = new Set();
   for (let seed = 1; seed <= 30; seed++) {
-    const { path, branch, tiles } = makeMap(seeded(seed)), road = new Set(path.concat(branch).map(key));
+    const { path, branch, tiles, biome } = makeMap(seeded(seed)), road = new Set(path.concat(branch).map(key));
     const watches = [];
     tiles.forEach((tile, at) => {
       if (tile === 'watch') watches.push([at % SIZE, Math.floor(at / SIZE)]);
     });
+    if (biome === 'sea') continue;
     ok(watches.length >= 1 && watches.length <= 3, 'вышек: ' + watches.length);
     counts.add(watches.length);
     for (const [x, y] of watches) {
@@ -450,7 +503,8 @@ test('карта: одна–три вышки у самой дороги, да�
 test('карта: река течёт от края до края, дорогу пересекает только мостом поперёк прямого участка', () => {
   let seen = 0;
   for (let seed = 1; seed <= 80; seed++) {
-    const { path, branch, tiles, rivers } = makeMap(seeded(seed)), road = new Set(path.concat(branch).map(key));
+    const biome = ['grass', 'volcano', 'swamp', 'jungle'][seed % 4];
+    const { path, branch, tiles, rivers } = makeMap(seeded(seed), biome), road = new Set(path.concat(branch).map(key));
     for (const river of rivers) {
       seen += 1;
       ok(river.length >= 10 && edge(river[0]) && edge(river[river.length - 1]), 'от края до края');

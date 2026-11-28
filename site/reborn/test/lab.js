@@ -12,7 +12,6 @@ const OWNER = 'test_streamer';
 const LOG_SIZE = 40;
 const SPAWN_GAP = 0.5;
 const GUARD_MS = 250;
-const MAP_TRIES = 300;
 const TYPES = [['normal', 'Обычные'], ['fast', 'Быстрые'], ['tough', 'Крепкие'], ['swarm', 'Мелочь'],
   ['elite', 'Элитные'], ['boss', 'Боссы']];
 const KINDS = [['buff', 'Усиление'], ['debuff', 'Ослабление'], ['blessing', 'Благословение'], ['curse', 'Проклятие']];
@@ -159,8 +158,7 @@ const lab = {
   newMap(biome) {
     const g = game();
     if (g.state === 'stopped' || g.state === 'over' || g.state === 'ascend') return false;
-    let plan = makeMap(g.random);
-    for (let i = 0; biome && plan.biome !== biome && i < MAP_TRIES; i++) plan = makeMap(g.random);
+    const plan = makeMap(g.random, biome);
     g.battle = new Battle(plan, { random: g.random, quiet: g.quiet, tempo: rollTempo(g.random) });
     g.battle.foe = g.run.foe;
     g._shiftLives(g.run.lives);
